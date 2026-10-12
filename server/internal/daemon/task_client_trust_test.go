@@ -26,7 +26,7 @@ import (
 
 func TestTaskMulticaEnvironmentIncludesClientTrust(t *testing.T) {
 	ca := filepath.Join(t.TempDir(), "public-ca.pem")
-	env := taskMulticaEnvironment(Task{}, "agent", "mat_synthetic", t.TempDir(), t.TempDir(), "https://task.example", ca, 19514, 1, t.TempDir())
+	env := taskMulticaEnvironment(Task{}, "codex", "agent", "mat_synthetic", t.TempDir(), t.TempDir(), "https://task.example", ca, 19514, 1, t.TempDir())
 	if got := env[tlsx.RootCAEnv]; got != ca {
 		t.Fatalf("task CA = %q, want selected public CA %q", got, ca)
 	}

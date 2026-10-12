@@ -229,7 +229,7 @@ func TestTaskClientTrustCLI(t *testing.T) {
 				if url == "" {
 					url = server.URL
 				}
-				env := taskMulticaEnvironment(Task{ID: "synthetic-task", AgentID: "synthetic-agent", WorkspaceID: "synthetic-workspace"}, "Synthetic", "mat_synthetic_task_trust", root, t.TempDir(), url, tc.envCA, 19514, 1, t.TempDir())
+				env := taskMulticaEnvironment(Task{ID: "synthetic-task", AgentID: "synthetic-agent", WorkspaceID: "synthetic-workspace"}, "codex", "Synthetic", "mat_synthetic_task_trust", root, t.TempDir(), url, tc.envCA, 19514, 1, t.TempDir())
 				if tc.legacyCA != "" {
 					env["MULTICA_ROOT_CA_FILE"] = tc.legacyCA
 				}
