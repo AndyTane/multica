@@ -57,6 +57,8 @@ type dshExecuteCommand struct {
 	RequestID       string             `json:"request_id"`
 	Cwd             string             `json:"cwd"`
 	Prompt          string             `json:"prompt"`
+	SystemPrompt    string             `json:"system_prompt,omitempty"`
+	ThreadName      string             `json:"thread_name,omitempty"`
 	ResumeSessionID string             `json:"resume_session_id,omitempty"`
 	Model           *dshModelSelection `json:"model,omitempty"`
 	ReasoningEffort string             `json:"reasoning_effort,omitempty"`
@@ -255,7 +257,7 @@ func (b *dshBackend) Execute(ctx context.Context, prompt string, opts ExecOption
 	}
 	command := dshExecuteCommand{
 		Version: DshProtocolVersion, Type: "execute", RequestID: requestID,
-		Cwd: opts.Cwd, Prompt: prompt, ResumeSessionID: opts.ResumeSessionID,
+		Cwd: opts.Cwd, Prompt: prompt, SystemPrompt: opts.SystemPrompt, ThreadName: opts.ThreadName, ResumeSessionID: opts.ResumeSessionID,
 		Model: model, ReasoningEffort: opts.ThinkingLevel, MCPServers: mcpServers,
 	}
 	var writeMu sync.Mutex

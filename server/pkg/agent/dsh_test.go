@@ -58,6 +58,8 @@ if [ "$1" != "--profile" ] || [ "$2" != "multica" ] || [ "$3" != "--stdio" ]; th
 printf '%s\n' '{"v":1,"type":"ready","runtime":"dsh","plugin_version":"test","capabilities":{}}'
 IFS= read -r command
 case "$command" in *'"type":"execute"'*) ;; *) exit 8 ;; esac
+case "$command" in *'"system_prompt":"Runtime brief"'*) ;; *) exit 7 ;; esac
+case "$command" in *'"thread_name":"TEST-1"'*) ;; *) exit 6 ;; esac
 printf '%s\n' '{"v":1,"type":"session","request_id":"task-1","session_id":"session-1","resumed":false}'
 printf '%s\n' '{"v":1,"type":"thinking","request_id":"task-1","content":"checking"}'
 printf '%s\n' '{"v":1,"type":"tool_call","request_id":"task-1","call_id":"call-1","name":"bash","arguments":"{\"command\":\"pwd\"}"}'
@@ -70,7 +72,7 @@ printf '%s\n' '{"v":1,"type":"result","request_id":"task-1","status":"completed"
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := b.Execute(context.Background(), "say done", ExecOptions{Cwd: t.TempDir(), Timeout: 5 * time.Second})
+	session, err := b.Execute(context.Background(), "say done", ExecOptions{Cwd: t.TempDir(), Timeout: 5 * time.Second, SystemPrompt: "Runtime brief", ThreadName: "TEST-1"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -41,6 +41,7 @@ Run these from the repository root:
 | --- | --- |
 | Frontend excluding mobile | `pnpm typecheck`, `pnpm lint`, `pnpm test` |
 | Go backend | `make test` |
+| DSH web bridge | `pnpm test:dsh-web` (fake web host; no real model calls) |
 | End-to-end | `pnpm exec playwright test` |
 | Combined web/backend verification | `make check` |
 | Mobile | Commands in [apps/mobile/AGENTS.md](apps/mobile/AGENTS.md#verification) |

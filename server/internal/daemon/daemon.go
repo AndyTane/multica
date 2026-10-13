@@ -8719,7 +8719,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// as always included, and a real kiro-cli 2.13.0 ACP smoke confirms it.
 	// Prepending the full runtime brief into the ACP user prompt duplicates that
 	// context and bloats every turn.
-	if providerNeedsInlineSystemPrompt(provider) {
+	if providerNeedsInlineSystemPrompt(provider) || provider == "dsh" && strings.TrimSuffix(strings.ToLower(filepath.Base(entry.Path)), ".exe") == "multica-dsh-web" {
 		execOpts.SystemPrompt = runtimeBrief
 	}
 
