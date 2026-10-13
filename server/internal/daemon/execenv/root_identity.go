@@ -76,6 +76,17 @@ func ResolveRootDir(params RootDirParams) (string, error) {
 	return validateTaskRootRecord(params, recordDir, record)
 }
 
+// ExistingRootDir reads the authoritative index without creating or migrating a task root.
+func ExistingRootDir(workspacesRoot, workspaceID, taskID string) (string, error) {
+	params := RootDirParams{WorkspacesRoot: workspacesRoot, WorkspaceID: workspaceID, TaskID: taskID}
+	recordDir := taskRootRecordDir(params)
+	record, err := readTaskRootRecord(recordDir)
+	if err != nil {
+		return "", err
+	}
+	return validateTaskRootRecord(params, recordDir, record)
+}
+
 func taskRootRecordDir(params RootDirParams) string {
 	return filepath.Join(
 		params.WorkspacesRoot,

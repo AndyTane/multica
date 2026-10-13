@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // stubLookPath swaps the package-level lookPath indirection used by
@@ -95,6 +97,7 @@ type profileRegisterFixture struct {
 	server       *httptest.Server
 	sentRuntimes []map[string]any
 	sentFailures []map[string]any
+	sentResume   *protocol.SessionResumeLauncher
 }
 
 func newProfileRegisterFixture(t *testing.T, profiles []RuntimeProfile, profilesStatus int) *profileRegisterFixture {
@@ -104,12 +107,14 @@ func newProfileRegisterFixture(t *testing.T, profiles []RuntimeProfile, profiles
 		switch {
 		case r.URL.Path == "/api/daemon/register":
 			var body struct {
-				Runtimes       []map[string]any `json:"runtimes"`
-				FailedProfiles []map[string]any `json:"failed_profiles"`
+				Runtimes       []map[string]any                `json:"runtimes"`
+				FailedProfiles []map[string]any                `json:"failed_profiles"`
+				SessionResume  *protocol.SessionResumeLauncher `json:"session_resume"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			fx.sentRuntimes = body.Runtimes
 			fx.sentFailures = body.FailedProfiles
+			fx.sentResume = body.SessionResume
 			// Echo back a Runtime row per requested runtime, threading
 			// profile_id so the caller can populate runtimeIndex from it.
 			var resp RegisterResponse
