@@ -32,7 +32,8 @@ async function fixture(t, behavior = {}) {
         fs.mkdirSync(directory, { recursive: true });
         session = { file: path.join(directory, 'session.v3.jsonl.zstd'), turn: 0 };
         sessions.set(args.sessionId, session);
-        append(session, [{ cwd }]);
+        if (behavior.headerDelay) timers.push(setTimeout(() => append(session, [{ cwd }]), behavior.headerDelay));
+        else append(session, [{ cwd }]);
       }
       value = { sessionId: args.sessionId };
     } else if (method === 'session/rename') value = { title: args.title };
@@ -44,7 +45,7 @@ async function fixture(t, behavior = {}) {
       timers.push(setTimeout(() => {
         append(session, [
           { type: 'turn/start', data: { turn } },
-          { type: 'user/message', data: { turn, message: { source: { rpcId: args.requestId } } } },
+          { type: 'user/message', data: { role: 'user', content: [{ type: 'text', text: 'Do the requested work' }], source: { kind: 'user', rpcId: args.requestId } } },
           { type: 'tool/call', data: { turn, callId: 'call-test', name: 'bash', arguments: '{"command":"pwd"}' } },
           { type: 'tool/result', data: { turn, callId: 'call-test', name: 'bash', message: { content: [{ type: 'tool-result', toolCallId: 'call-test', content: [{ type: 'text', text: cwd }] }] } } },
           ...behavior.hold ? [] : [
@@ -76,6 +77,13 @@ async function run(f, request, control = { cancelled: false }) {
   await execute(request, f.config, frame => frames.push(frame), control, { env: {} });
   return frames;
 }
+
+test('new session waits for the browser host to flush its project header', async t => {
+  const f = await fixture(t, { headerDelay: 80 });
+  const frames = await run(f, command(f, 'task-header-flush'));
+  assert.equal(frames.at(-1).status, 'completed');
+  assert.equal(frames.at(-1).output, 'reply-1');
+});
 
 test('message runs in the web host; follow-up retains the same session and ignores the previous reply', async t => {
   const f = await fixture(t);

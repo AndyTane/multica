@@ -142,8 +142,16 @@ export async function prepareSession(command, config, rpc, read = readRows) {
   if (adopted?.sessionId !== sessionId) fail('session_receipt_mismatch');
   const checked = await rpc('workspace/create', { path: command.cwd });
   if (checked?.workspace?.workspaceId !== workspace.workspaceId || !checked.workspace.sessionIds?.includes(sessionId)) fail('workspace_membership_unconfirmed');
-  const file = findLog(config.dataHome, sessionId);
-  const rows = file && read(file);
+  // Session creation is acknowledged before its initial log flush completes.
+  let file, rows;
+  const deadline = Date.now() + 3000;
+  do {
+    file = findLog(config.dataHome, sessionId);
+    rows = file && read(file);
+    if (rows?.[0]) break;
+    await sleep(50);
+  } while (Date.now() < deadline);
+  if (!rows?.[0]) fail('session_header_unavailable');
   if (!rows?.[0]?.cwd || canonicalDirectory(rows[0].cwd) !== cwd) fail('session_project_mismatch');
   if (openTurn(rows) !== null) fail('session_busy');
   if (!command.resume_session_id && command.thread_name) await rpc('session/rename', { sessionId, title: `Multica · ${command.thread_name}` });
@@ -171,12 +179,13 @@ export function taskCli(env = process.env) {
 }
 
 export class TurnReader {
-  constructor(requestId, emit) { this.requestId = requestId; this.emit = emit; this.turn = null; this.output = ''; this.pending = []; }
+  constructor(requestId, emit) { this.requestId = requestId; this.emit = emit; this.turn = null; this.activeTurn = null; this.output = ''; this.pending = []; }
   push(row) {
+    if (row.type === 'turn/start') this.activeTurn = row.data.turn;
     if (this.turn === null) {
       this.pending.push(row);
-      if (row.type !== 'user/message' || ![row.data?.message?.source?.rpcId, row.data?.message?.source?.requestId].includes(this.requestId)) return;
-      this.turn = row.data.turn;
+      if (row.type !== 'user/message' || row.data?.source?.rpcId !== this.requestId || this.activeTurn === null) return;
+      this.turn = this.activeTurn;
       const pending = this.pending;
       this.pending = [];
       for (const event of pending) this.push(event);

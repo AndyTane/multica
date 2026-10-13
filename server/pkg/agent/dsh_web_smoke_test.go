@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,8 +22,20 @@ func TestDshWebBridgeRealSession(t *testing.T) {
 	if bridge == "" {
 		t.Fatal("MULTICA_DSH_WEB_SMOKE_PATH must name the built web bridge")
 	}
-	cwd := t.TempDir()
-	requestPrefix := "multica-web-smoke-" + uuid.NewString()
+	// Reuse an admitted first request after repairing the bridge without another model call.
+	cwd := os.Getenv("MULTICA_DSH_WEB_SMOKE_CWD")
+	requestPrefix := os.Getenv("MULTICA_DSH_WEB_SMOKE_REQUEST_PREFIX")
+	if cwd == "" && requestPrefix == "" {
+		cwd = t.TempDir()
+		requestPrefix = "multica-web-smoke-" + uuid.NewString()
+	} else {
+		if !filepath.IsAbs(cwd) || !strings.HasPrefix(requestPrefix, "multica-web-smoke-") {
+			t.Fatal("recovery requires both an absolute MULTICA_DSH_WEB_SMOKE_CWD and the original MULTICA_DSH_WEB_SMOKE_REQUEST_PREFIX")
+		}
+		if info, err := os.Stat(cwd); err != nil || !info.IsDir() {
+			t.Fatal("recovery project directory must exist")
+		}
+	}
 	backend, err := New("dsh", Config{ExecutablePath: bridge, Logger: slog.Default(), TaskID: requestPrefix + "-1"})
 	if err != nil {
 		t.Fatal(err)
