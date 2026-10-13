@@ -18,6 +18,8 @@ vi.mock("./use-trace-issue-labels", () => ({
 }));
 
 const copyTextMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+const copyErrorMock = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: copyErrorMock } }));
 
 vi.mock("@multica/core/api", () => ({
   api: {
@@ -237,6 +239,8 @@ function renderDialog(
 beforeEach(() => {
   cleanup();
   copyTextMock.mockClear();
+  copyTextMock.mockResolvedValue(true);
+  copyErrorMock.mockClear();
   vi.mocked(api.listRuntimes).mockResolvedValue([]);
   useTranscriptViewStore.setState({
     sortDirection: "chronological",
@@ -249,6 +253,46 @@ afterEach(() => {
 });
 
 describe("AgentTranscriptDialog", () => {
+  const resumeTask: AgentTask = { ...baseTask, id: "01a136db-92cf-75b1-a804-f42445c19c9b", agent_id: "68ca5d11-c32c-453c-82bf-ec44dbcf66a8", runtime_id: "runtime-1", session_id: "01a136db-d24d-7533-a0a0-b646d5ee0439" };
+  const resumeRuntime: AgentRuntime = { ...runtimeFor("codex"), workspace_id: "8daf5cf8-6287-44d5-84cd-6e7d72e80f35", metadata: { session_resume: { cli_path: "D:\\Tools\\multica.exe", profile: "", workspaces_root: "C:\\Users\\Tane\\multica_workspaces", os: "windows" } } };
+
+  it("shows a copyable session and recovery command without rendering local launcher paths", async () => {
+    vi.mocked(api.listRuntimes).mockResolvedValue([resumeRuntime]);
+    renderDialog([], { task: resumeTask });
+    await userEvent.click(screen.getByRole("button", { name: "Run details" }));
+    const resume = await screen.findByRole("button", { name: "Copy resume command" });
+    expect(resume).not.toBeDisabled();
+    expect(screen.queryByText(/D:\\Tools\\multica/)).toBeNull();
+    await userEvent.click(resume);
+    expect(copyTextMock).toHaveBeenCalledWith(expect.stringContaining("'agent' 'resume' '68ca5d11-c32c-453c-82bf-ec44dbcf66a8' '01a136db-92cf-75b1-a804-f42445c19c9b'"));
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+    const id = screen.getByText(resumeTask.session_id!);
+    await userEvent.click(id.closest("button")!);
+    expect(copyTextMock).toHaveBeenCalledWith(resumeTask.session_id);
+  });
+
+  it.each([
+    { status: "running" as const, metadata: resumeRuntime.metadata },
+    { status: "completed" as const, metadata: {} },
+  ])("keeps recovery unavailable for $status with unsupported metadata or a live run", async ({ status, metadata }) => {
+    vi.mocked(api.listRuntimes).mockResolvedValue([{ ...resumeRuntime, metadata }]);
+    renderDialog([], { task: { ...resumeTask, status } });
+    await userEvent.click(screen.getByRole("button", { name: "Run details" }));
+    expect(await screen.findByRole("button", { name: "Copy resume command" })).toBeDisabled();
+    expect(screen.getByText(resumeTask.session_id!)).toBeInTheDocument();
+  });
+
+  it("reports recovery clipboard failure and keeps the copy action available", async () => {
+    vi.mocked(api.listRuntimes).mockResolvedValue([resumeRuntime]);
+    copyTextMock.mockResolvedValueOnce(false);
+    renderDialog([], { task: resumeTask });
+    await userEvent.click(screen.getByRole("button", { name: "Run details" }));
+    const resume = await screen.findByRole("button", { name: "Copy resume command" });
+    await userEvent.click(resume);
+    expect(copyErrorMock).toHaveBeenCalledWith("Copy failed. Try again.");
+    expect(resume).not.toBeDisabled();
+  });
+
   it("opens the DSH web homepage and copies the run's session ID", async () => {
     renderDialog([], { task: { ...baseTask, session_id: "multica-web-test", session_web_url: "http://localhost:6006/" } });
     const link = screen.getByRole("link", { name: "Open DSH web" });

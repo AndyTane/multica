@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, forwardRef } from "react";
+import { toast } from "sonner";
+import { sessionResumeCommand } from "@multica/core/agents/session-resume";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useTraceIssueLabels } from "./use-trace-issue-labels";
 import { Virtuoso, type VirtuosoHandle, type Components } from "react-virtuoso";
@@ -333,6 +335,8 @@ export function AgentTranscriptDialog({
   const [copied, showCopied] = useCopyFeedback();
   const [copiedWorkdir, showCopiedWorkdir] = useCopyFeedback();
   const [copiedBranch, showCopiedBranch] = useCopyFeedback();
+  const [copiedSession, showCopiedSession] = useCopyFeedback();
+  const [copiedResume, showCopiedResume] = useCopyFeedback();
   const [agentInfo, setAgentInfo] = useState<Agent | null>(null);
   const [runtimeInfo, setRuntimeInfo] = useState<AgentRuntime | null>(null);
   const workdirCopyTarget = useMemo(
@@ -827,6 +831,15 @@ export function AgentTranscriptDialog({
   // Diagnostic detail for the ⓘ popover: everything a reader needs only when
   // debugging this specific run, kept off the always-visible surface.
   const providerLabel = runtimeInfo?.provider ? transcriptProviderLabel(runtimeInfo.provider) : null;
+  const nativeResume = runtimeInfo?.provider === "claude" || runtimeInfo?.provider === "codex";
+  const recoveryCommand = sessionResumeCommand(task, runtimeInfo);
+  const terminalRun = ["completed", "failed", "cancelled"].includes(task.status);
+  const copySessionValue = (value: string, feedback: () => void) => {
+    void copyText(value).then((ok) => {
+      if (ok) feedback();
+      else toast.error(t(($) => $.transcript.copy_failed));
+    });
+  };
   const createdLabel = task.created_at ? formatRunTime(task.created_at, locale) : null;
   const startedLabel = task.started_at ? formatRunTime(task.started_at, locale) : null;
   const completedLabel = task.completed_at ? formatRunTime(task.completed_at, locale) : null;
@@ -853,6 +866,7 @@ export function AgentTranscriptDialog({
       ? failureReasonLabel(task.failure_reason, t)
       : cancelReasonLabel(task, t);
   const hasRunDetails =
+    !!task.session_id ||
     !!runtimeInfo ||
     !!workdirCopyTarget?.relativePath ||
     !!task.branch_name ||
@@ -966,6 +980,38 @@ export function AgentTranscriptDialog({
                       )}
                       {providerLabel && (
                         <RunDetailRow label={t(($) => $.transcript.details_provider)} value={providerLabel} />
+                      )}
+                      {task.session_id && (
+                        <RunDetailRow
+                          label={t(($) => $.transcript.details_session)}
+                          value={task.session_id}
+                          mono
+                          onCopy={() => copySessionValue(task.session_id!, showCopiedSession)}
+                          copied={copiedSession}
+                          copyTitle={t(($) => $.transcript.copy_session)}
+                        />
+                      )}
+                      {nativeResume && task.session_id && (
+                        <div className="space-y-1 py-1">
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            disabled={!recoveryCommand}
+                            onClick={() => {
+                              if (recoveryCommand) copySessionValue(recoveryCommand, showCopiedResume);
+                            }}
+                          >
+                            {copiedResume ? <Check aria-hidden className="size-3" /> : <Copy aria-hidden className="size-3" />}
+                            {copiedResume ? t(($) => $.transcript.copied) : t(($) => $.transcript.copy_resume)}
+                          </Button>
+                          <p className="text-micro text-muted-foreground">
+                            {!terminalRun
+                              ? t(($) => $.transcript.resume_busy)
+                              : recoveryCommand
+                                ? t(($) => $.transcript.resume_help)
+                                : t(($) => $.transcript.resume_unavailable)}
+                          </p>
+                        </div>
                       )}
                       {runtimeInfo && (
                         <RunDetailRow label={t(($) => $.transcript.details_mode)} value={runtimeInfo.runtime_mode} />
