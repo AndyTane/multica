@@ -19,3 +19,4 @@ services:
       dockerfile: Dockerfile.web
       args:
         NEXT_PUBLIC_APP_VERSION: dev
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org}

@@ -43,6 +43,7 @@ sed 's/^FRONTEND_PORT=.*/FRONTEND_PORT=3100/' .env.example >"$tmp_env"
 printf '\nBACKEND_PORT=9100\nSMTP_FROM_EMAIL=multica@example.com\n' >>"$tmp_env"
 printf 'MULTICA_LLM_API_KEY=llm-key-from-env\nMULTICA_LLM_BASE_URL=http://gateway.example/v1\nMULTICA_LLM_DEFAULT_MODEL=model-from-env\nMULTICA_LLM_MAX_RETRIES=3\n' >>"$tmp_env"
 printf 'DATABASE_REPLICA_URL=postgres://reader:secret@replica.example.com:5432/multica?sslmode=require\nDATABASE_REPLICA_MAX_CONNS=12\nDATABASE_REPLICA_MIN_CONNS=1\n' >>"$tmp_env"
+printf 'DO_NOT_TRACK=1\nANALYTICS_DISABLED=true\nNPM_CONFIG_REGISTRY=https://registry.npmmirror.com\n' >>"$tmp_env"
 
 config="$(
   docker compose \
@@ -60,6 +61,13 @@ require_config "$config" 'SMTP_FROM_EMAIL: multica@example.com'
 require_config "$config" 'MULTICA_DATABASE_STARTUP_TIMEOUT: 3m'
 require_config "$config" 'MULTICA_DATABASE_CONNECT_TIMEOUT: 5s'
 require_config "$config" 'MAINTENANCE_PORT: ""'
+require_config "$config" 'DO_NOT_TRACK: "1"'
+require_config "$config" 'ANALYTICS_DISABLED: "true"'
+
+build_config="$(docker compose --env-file "$tmp_env" -f docker-compose.selfhost.yml -f docker-compose.selfhost.build.yml config)"
+require_config "$build_config" 'NPM_CONFIG_REGISTRY: https://registry.npmmirror.com'
+default_build_config="$(NPM_CONFIG_REGISTRY= docker compose --env-file "$tmp_env" -f docker-compose.selfhost.yml -f docker-compose.selfhost.build.yml config)"
+require_config "$default_build_config" 'NPM_CONFIG_REGISTRY: https://registry.npmjs.org'
 maintenance_config="$(MAINTENANCE_PORT=6061 docker compose --env-file "$tmp_env" -f docker-compose.selfhost.yml config)"
 require_config "$maintenance_config" 'MAINTENANCE_PORT: "6061"'
 if grep -Eq '(published|target):.*6061' <<<"$maintenance_config"; then
