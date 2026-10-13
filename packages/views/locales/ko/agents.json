@@ -772,6 +772,8 @@
     "details_reason": "사유",
     "details_diagnostics": "기술 세부 정보",
     "copy_branch": "브랜치 이름 복사",
+    "open_dsh_web": "DSH 웹 열기",
+    "copy_dsh_session": "DSH 세션 ID 복사",
     "lane_model": "모델",
     "lane_tool": "도구",
     "outcome_label": "산출물",

@@ -9,6 +9,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"os"
 	"regexp"
 	"slices"
 	"strconv"
@@ -365,6 +367,8 @@ type AgentTaskResponse struct {
 	ID                   string                 `json:"id"`
 	AgentID              string                 `json:"agent_id"`
 	RuntimeID            string                 `json:"runtime_id"`
+	SessionID            string                 `json:"session_id,omitempty"`
+	SessionWebURL        string                 `json:"session_web_url,omitempty"`
 	IssueID              string                 `json:"issue_id"`
 	WorkspaceID          string                 `json:"workspace_id"`
 	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
@@ -837,6 +841,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		ID:                     uuidToString(t.ID),
 		AgentID:                uuidToString(t.AgentID),
 		RuntimeID:              uuidToString(t.RuntimeID),
+		SessionID:              t.SessionID.String,
+		SessionWebURL:          dshSessionWebURL(t.SessionID.String),
 		IssueID:                uuidToString(t.IssueID),
 		WorkspaceID:            workspaceID,
 		Status:                 t.Status,
@@ -873,6 +879,23 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		// Attribution labels + evidence + lineage + raw user ids (pure). Names are
 		// hydrated separately on user-facing surfaces (MUL-4302 §9).
 		Attribution: taskAttributionBase(t),
+	}
+}
+
+// Only the local web bridge's session namespace gets a browser destination.
+func dshSessionWebURL(sessionID string) string {
+	if !strings.HasPrefix(sessionID, "multica-web-") {
+		return ""
+	}
+	u, err := url.Parse(os.Getenv("MULTICA_DSH_WEB_URL"))
+	if err != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return ""
+	}
+	switch u.Hostname() {
+	case "127.0.0.1", "localhost", "::1":
+		return u.Scheme + "://" + u.Host + "/"
+	default:
+		return ""
 	}
 }
 

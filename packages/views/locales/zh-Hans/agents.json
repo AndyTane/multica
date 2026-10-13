@@ -866,6 +866,8 @@
     "details_reason": "原因",
     "details_diagnostics": "原始诊断",
     "copy_branch": "复制分支名",
+    "open_dsh_web": "打开 DSH 网页",
+    "copy_dsh_session": "复制 DSH 会话编号",
     "lane_model": "模型",
     "lane_tool": "工具",
     "outcome_label": "产出",

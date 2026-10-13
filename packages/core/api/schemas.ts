@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeDshWebUrl } from "../issues/dsh-session";
 import { normalizeIssueStatusCategory } from "../issues/config/status";
 import type {
   AgentBuilderRuntimeSwitch,
@@ -1902,6 +1903,8 @@ const TaskUsageSchema = z.object({
 }).loose();
 
 export const AgentTaskSchema = z.object({
+  session_id: z.string().optional().catch(undefined),
+  session_web_url: z.unknown().transform(normalizeDshWebUrl),
   wakeup_id: z.string().optional().catch(undefined),
   cancelled_by_comment_change: z.boolean().optional().catch(undefined),
   cancelled_by: TaskCancellationActorSchema.optional().catch(undefined),

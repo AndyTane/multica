@@ -79,6 +79,7 @@ import {
 } from "./build-steps";
 import { buildRunOutcome } from "./run-outcome";
 import { RunTimeline } from "./run-timeline";
+import { DshSessionLink } from "./dsh-session-link";
 import {
   base64ByteLength,
   readImageResult,
@@ -936,6 +937,7 @@ export function AgentTranscriptDialog({
             )}
 
             <div className="flex shrink-0 items-center gap-0.5">
+              <DshSessionLink task={task} />
               {hasRunDetails && (
                 <Popover>
                   <PopoverTrigger

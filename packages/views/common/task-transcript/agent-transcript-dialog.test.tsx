@@ -249,6 +249,15 @@ afterEach(() => {
 });
 
 describe("AgentTranscriptDialog", () => {
+  it("opens the DSH web homepage and copies the run's session ID", async () => {
+    renderDialog([], { task: { ...baseTask, session_id: "multica-web-test", session_web_url: "http://localhost:6006/" } });
+    const link = screen.getByRole("link", { name: "Open DSH web" });
+    expect(link).toHaveAttribute("href", "http://localhost:6006/");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    await userEvent.click(screen.getByRole("button", { name: "Copy DSH session ID" }));
+    expect(copyTextMock).toHaveBeenCalledWith("multica-web-test");
+  });
+
   it.each([
     { type: "text", label: "Agent", icon: ".lucide-bot" },
     { type: "thinking", label: "Thinking", icon: ".lucide-brain" },

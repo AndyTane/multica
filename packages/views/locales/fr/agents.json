@@ -881,6 +881,8 @@
     "details_reason": "Motif",
     "details_diagnostics": "Détails techniques",
     "copy_branch": "Copier le nom de la branche",
+    "open_dsh_web": "Ouvrir DSH dans le navigateur",
+    "copy_dsh_session": "Copier l’identifiant de session DSH",
     "lane_model": "Modèle",
     "lane_tool": "Outils",
     "outcome_label": "Produit",

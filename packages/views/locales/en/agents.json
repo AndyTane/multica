@@ -881,6 +881,8 @@
     "details_reason": "Reason",
     "details_diagnostics": "Technical details",
     "copy_branch": "Copy branch name",
+    "open_dsh_web": "Open DSH web",
+    "copy_dsh_session": "Copy DSH session ID",
     "lane_model": "Model",
     "lane_tool": "Tools",
     "outcome_label": "Produced",

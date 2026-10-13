@@ -302,6 +302,8 @@ export interface TaskCancellationActor {
 
 export interface AgentTask {
   wakeup_id?: string;
+  session_id?: string;
+  session_web_url?: string;
   id: string;
   agent_id: string;
   runtime_id: string;
