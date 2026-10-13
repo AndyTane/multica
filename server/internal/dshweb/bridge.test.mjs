@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import { zstdCompressSync } from 'node:zlib';
-import { execute, localOrigin, readRows, taskCli, connectWeb } from './bridge.mjs';
+import { execute, localOrigin, readRows, taskCli, connectWeb, TurnReader } from './bridge.mjs';
 
 async function fixture(t, behavior = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'multica-dsh-test-'));
@@ -77,6 +77,37 @@ async function run(f, request, control = { cancelled: false }) {
   await execute(request, f.config, frame => frames.push(frame), control, { env: {} });
   return frames;
 }
+
+test('browser steering in the active turn keeps the revised reply attached to the Multica request', () => {
+  const frames = [], reader = new TurnReader('multica-request', frame => frames.push(frame));
+  for (const row of [
+    { type: 'turn/start', data: { turn: 1 } },
+    { type: 'user/message', data: { source: { kind: 'user', rpcId: 'multica-request' } } },
+    { type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: 'Initial answer' }] } } },
+    { type: 'user/message', data: { source: { kind: 'user', rpcId: 'browser-steering' }, content: [{ type: 'text', text: 'Revise the answer' }] } },
+    { type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: 'Revised answer' }] } } },
+    { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+  ]) reader.push(row);
+  assert.equal(reader.terminal.output, 'Revised answer');
+  assert.equal(reader.terminal.status, 'completed');
+  assert.deepEqual(frames.map(frame => frame.content), ['Initial answer', 'Revised answer']);
+});
+
+test('a queued browser follow-up is not reported as the completed Multica turn', () => {
+  const frames = [], reader = new TurnReader('multica-request', frame => frames.push(frame));
+  for (const row of [
+    { type: 'turn/start', data: { turn: 1 } },
+    { type: 'user/message', data: { source: { kind: 'user', rpcId: 'multica-request' } } },
+    { type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: 'Multica result' }] } } },
+    { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+    { type: 'turn/start', data: { turn: 2 } },
+    { type: 'user/message', data: { source: { kind: 'user', rpcId: 'browser-followup' } } },
+    { type: 'assistant/message', data: { turn: 2, message: { content: [{ type: 'text', text: 'Browser-only result' }] } } },
+    { type: 'turn/end', data: { turn: 2, reason: { kind: 'completed' } } },
+  ]) reader.push(row);
+  assert.equal(reader.terminal.output, 'Multica result');
+  assert.deepEqual(frames.map(frame => frame.content), ['Multica result']);
+});
 
 test('new session waits for the browser host to flush its project header', async t => {
   const f = await fixture(t, { headerDelay: 80 });
