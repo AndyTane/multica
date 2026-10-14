@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { zstdCompressSync } from 'node:zlib';
 import { execute, localOrigin, readRows, createLogReader, prepareSession, taskCli, connectWeb, TurnReader } from './bridge.mjs';
 
@@ -43,9 +45,10 @@ async function fixture(t, behavior = {}) {
       const session = sessions.get(args.sessionId), turn = ++session.turn;
       assert.equal(args.mode, 'queue');
       timers.push(setTimeout(() => {
+        if (behavior.noLog) return;
         append(session, [
           { type: 'turn/start', data: { turn } },
-          { type: 'user/message', data: { role: 'user', content: [{ type: 'text', text: 'Do the requested work' }], source: { kind: 'user', rpcId: args.requestId } } },
+          { type: 'user/message', data: { role: 'user', content: args.content, source: { kind: 'user', rpcId: args.requestId } } },
           { type: 'tool/call', data: { turn, callId: 'call-test', name: 'bash', arguments: '{"command":"pwd"}' } },
           { type: 'tool/result', data: { turn, callId: 'call-test', name: 'bash', message: { content: [{ type: 'tool-result', toolCallId: 'call-test', content: [{ type: 'text', text: cwd }] }] } } },
           ...behavior.hold ? [] : [
@@ -74,7 +77,7 @@ async function fixture(t, behavior = {}) {
 const command = (f, id, extra = {}) => ({ v: 1, type: 'execute', request_id: id, cwd: f.cwd, prompt: 'Do the requested work', mcp_servers: [], ...extra });
 async function run(f, request, control = { cancelled: false }) {
   const frames = [];
-  await execute(request, f.config, frame => frames.push(frame), control, { env: {} });
+  await execute(request, f.config, frame => frames.push(frame), control, { env: {}, briefCacheDir: path.join(f.root, 'briefs') });
   return frames;
 }
 
@@ -350,4 +353,109 @@ test('default incremental polling remembers another active turn across empty pol
   const frames = await pending;
   assert.equal(frames.at(-1).error.code, 'cancel_target_not_active');
   assert.equal(f.calls.filter(call => call.method === 'session/cancel').length, 0);
+});
+
+const promptTexts = f => f.calls.filter(call => call.method === 'session/prompt').map(call => call.args.content[0].text);
+const cacheFile = f => path.join(f.root, 'briefs', fs.readdirSync(path.join(f.root, 'briefs')).find(name => name.endsWith('.json')));
+
+async function childRun(f, request) {
+  const script = `import fs from 'node:fs'; import {execute} from ${JSON.stringify(new URL('./bridge.mjs', import.meta.url).href)};
+    const input=JSON.parse(fs.readFileSync(0,'utf8'));
+    await execute(input.request,input.config,frame=>process.stdout.write(JSON.stringify(frame)+'\\n'),{cancelled:false},input.dependencies);`;
+  const child = spawn(process.execPath, ['--input-type=module', '--eval', script], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  let out = '', error = '';
+  child.stdout.on('data', bytes => { out += bytes; });
+  child.stderr.on('data', bytes => { error += bytes; });
+  const completed = new Promise((resolve, reject) => {
+    child.on('error', reject);
+    child.on('close', code => code === 0 ? resolve() : reject(new Error(`child exit ${code}: ${error}`)));
+  });
+  child.stdin.end(JSON.stringify({ request, config: f.config, dependencies: {
+    briefCacheDir: path.join(f.root, 'briefs'), env: { MULTICA_TASK_ID: request.request_id,
+      MULTICA_TOKEN: 'mat_test-secret', MULTICA_TASK_CONFIG_ROOT: f.root },
+  } }));
+  await completed;
+  return out.trim().split('\n').map(line => JSON.parse(line));
+}
+
+test('brief digest survives bridge processes and ignores changing CLI paths and user prompts', async t => {
+  const f = await fixture(t), system_prompt = 'Stable runtime instructions';
+  const first = await childRun(f, command(f, 'brief-first', { system_prompt }));
+  const sessionId = first.at(-1).session_id;
+  assert.equal(first.at(-1).status, 'completed');
+  const initial = JSON.parse(fs.readFileSync(cacheFile(f), 'utf8'));
+  assert.equal(initial.hash, createHash('sha256').update(system_prompt).digest('hex'));
+  assert.equal(initial.requestId, 'brief-first');
+  assert.equal(initial.ino, String(fs.statSync(f.sessions.get(sessionId).file, { bigint: true }).ino));
+  const second = await childRun(f, command(f, 'brief-second', { system_prompt, resume_session_id: sessionId, prompt: 'Second request' }));
+  assert.equal(second.at(-1).status, 'completed');
+  const texts = promptTexts(f);
+  assert.ok(texts[0].includes(system_prompt));
+  assert.ok(!texts[1].includes(system_prompt));
+  assert.ok(texts[1].endsWith('Second request'));
+  assert.notEqual(texts[0].split('\n')[0], texts[1].split('\n')[0]);
+  assert.match(texts[1], /replace the executable multica with node/);
+  assert.ok(!JSON.stringify(initial).includes(system_prompt));
+  assert.ok(!JSON.stringify(initial).includes('mat_test-secret'));
+});
+
+test('changed brief supersedes earlier instructions; declaration never changes the digest', async t => {
+  const f = await fixture(t);
+  const first = await run(f, command(f, 'brief-old', { system_prompt: 'OLD INSTRUCTIONS' }));
+  const resume_session_id = first.at(-1).session_id;
+  await run(f, command(f, 'brief-new', { resume_session_id, system_prompt: 'NEW INSTRUCTIONS' }));
+  assert.match(promptTexts(f)[1], /^以下运行说明取代本会话中此前的版本，按本版执行。\nNEW INSTRUCTIONS\n\n/);
+  assert.equal(JSON.parse(fs.readFileSync(cacheFile(f))).hash, createHash('sha256').update('NEW INSTRUCTIONS').digest('hex'));
+  await run(f, command(f, 'brief-same', { resume_session_id, system_prompt: 'NEW INSTRUCTIONS' }));
+  assert.equal(promptTexts(f)[2], 'Do the requested work');
+  await run(f, command(f, 'brief-fresh', { system_prompt: 'NEW INSTRUCTIONS' }));
+  assert.ok(promptTexts(f)[3].startsWith('NEW INSTRUCTIONS\n\n'));
+});
+
+test('missing, corrupt, wrong-identity and unwitnessed brief caches conservatively resend', async t => {
+  const f = await fixture(t), system_prompt = 'Recovery instructions';
+  const first = await run(f, command(f, 'recover-first', { system_prompt }));
+  const resume_session_id = first.at(-1).session_id;
+  const mutations = [
+    file => fs.unlinkSync(file),
+    file => fs.writeFileSync(file, '{'),
+    file => { const record = JSON.parse(fs.readFileSync(file)); record.ino = String(BigInt(record.ino) + 1n); fs.writeFileSync(file, JSON.stringify(record)); },
+    file => { const record = JSON.parse(fs.readFileSync(file)); record.requestId = 'missing-request'; fs.writeFileSync(file, JSON.stringify(record)); },
+  ];
+  for (const [i, mutate] of mutations.entries()) {
+    mutate(cacheFile(f));
+    const result = await run(f, command(f, `recover-${i}`, { resume_session_id, system_prompt }));
+    assert.equal(result.at(-1).status, 'completed');
+    assert.ok(promptTexts(f).at(-1).includes(system_prompt));
+  }
+});
+
+test('uncertain updates invalidate old hashes before delivery', async t => {
+  const behavior = {}, f = await fixture(t, behavior);
+  const first = await run(f, command(f, 'cache-old', { system_prompt: 'OLD' }));
+  const resume_session_id = first.at(-1).session_id, file = cacheFile(f);
+  behavior.disconnect = true;
+  const result = await run(f, command(f, 'cache-uncertain', { resume_session_id, system_prompt: 'NEW' }));
+  assert.equal(result.at(-1).error.code, 'web_rpc_outcome_unknown');
+  assert.equal(fs.existsSync(file), false);
+  behavior.disconnect = false;
+  await run(f, command(f, 'cache-back', { resume_session_id, system_prompt: 'OLD' }));
+  assert.ok(promptTexts(f).at(-1).includes('OLD'));
+});
+
+test('an accepted receipt without a log witness never records the brief', async t => {
+  const f = await fixture(t, { noLog: true }), control = { cancelled: false }, frames = [];
+  const rpc = await connectWeb(f.config);
+  await execute(command(f, 'cache-no-witness', { system_prompt: 'MUST BE WITNESSED' }), f.config,
+    frame => frames.push(frame), control, {
+      env: {}, briefCacheDir: path.join(f.root, 'briefs'),
+      connectWeb: async () => async (method, request) => {
+        const receipt = await rpc(method, request);
+        if (method === 'session/prompt') control.cancelled = true;
+        return receipt;
+      },
+    });
+  assert.equal(frames.at(-1).status, 'cancelled');
+  assert.equal(promptTexts(f).length, 1);
+  assert.equal(fs.existsSync(path.join(f.root, 'briefs')), false);
 });

@@ -254,6 +254,48 @@ export function taskCli(env = process.env) {
   };
 }
 
+// Persist only a digest and its log witness, never the instructions or credentials.
+function prepareBrief(command, prepared, directory) {
+  const brief = command.system_prompt;
+  if (!brief) return { prefix: '', confirm() {} };
+  const hash = createHash('sha256').update(brief).digest('hex');
+  const key = createHash('sha256').update(path.resolve(prepared.file)).digest('hex');
+  const file = path.join(directory, `${key}.json`);
+  const stat = fs.statSync(prepared.file, { bigint: true });
+  let cached;
+  try { cached = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* Missing or corrupt means resend. */ }
+  const witness = cached && prepared.rows.some(row => row.type === 'user/message'
+    && row.data?.source?.rpcId === cached.requestId && textOf(row.data).includes(brief + '\n\n'));
+  if (command.resume_session_id && cached?.v === 1 && cached.hash === hash
+    && cached.dev === String(stat.dev) && cached.ino === String(stat.ino)
+    && /^\d+$/.test(cached.size) && BigInt(cached.size) <= stat.size && witness) {
+    return { prefix: '', confirm() {} };
+  }
+  // Invalidate before delivery. A crash after admission must not leave an older digest usable.
+  try { fs.unlinkSync(file); }
+  catch (error) { if (error.code !== 'ENOENT') fail('runtime_brief_cache_unavailable'); }
+  let confirmed = false;
+  return {
+    prefix: `${command.resume_session_id ? '以下运行说明取代本会话中此前的版本，按本版执行。\n' : ''}${brief}\n\n`,
+    confirm(rows, sentText) {
+      if (confirmed || !rows.some(row => row.type === 'user/message'
+        && row.data?.source?.rpcId === command.request_id && textOf(row.data) === sentText)) return;
+      confirmed = true;
+      const current = fs.statSync(prepared.file, { bigint: true });
+      if (!sameFile(stat, current) || current.size < stat.size) return;
+      const record = { v: 1, hash, requestId: command.request_id,
+        dev: String(current.dev), ino: String(current.ino), size: String(current.size) };
+      const temp = file + `.${randomUUID()}.tmp`;
+      try {
+        fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+        fs.writeFileSync(temp, JSON.stringify(record), { flag: 'wx', mode: 0o600 });
+        fs.renameSync(temp, file);
+      } catch { /* Cache failure is safe: the next run sends the full brief again. */ }
+      finally { try { fs.unlinkSync(temp); } catch { /* The rename normally consumed it. */ } }
+    },
+  };
+}
+
 export class TurnReader {
   constructor(requestId, emit) { this.requestId = requestId; this.emit = emit; this.turn = null; this.activeTurn = null; this.output = ''; this.pending = []; }
   push(row) {
@@ -304,7 +346,6 @@ export async function execute(command, config, emit, control, dependencies = {})
     emit({ type: 'session', session_id: prepared.sessionId, resumed: Boolean(command.resume_session_id) });
     if (control.cancelled) fail('cancelled_before_delivery');
     cli = taskCli(dependencies.env ?? process.env);
-    const text = `${cli.instructions}${command.system_prompt ? command.system_prompt + '\n\n' : ''}${command.prompt}`;
     const reader = new TurnReader(command.request_id, emit);
     // Include historical rows only to recover an already-admitted request, never replay their output.
     for (const row of prepared.rows) reader.push(row);
@@ -312,6 +353,8 @@ export async function execute(command, config, emit, control, dependencies = {})
       if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
       fail('existing_request_still_running');
     }
+    const brief = prepareBrief(command, prepared, dependencies.briefCacheDir ?? path.join(os.homedir(), '.multica', 'dsh-web-briefs'));
+    const text = `${cli.instructions}${brief.prefix}${command.prompt}`;
     const receipt = await rpc('session/prompt', { sessionId: prepared.sessionId, requestId: command.request_id, mode: 'queue', content: [{ type: 'text', text }] });
     if (receipt?.accepted !== true) fail('prompt_receipt_invalid');
     delivered = true;
@@ -321,6 +364,7 @@ export async function execute(command, config, emit, control, dependencies = {})
     };
     for (;;) {
       const rows = prepared.logReader.readNew();
+      brief.confirm(rows, text);
       for (const row of rows) reader.push(row);
       if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
       if (control.cancelled) {
