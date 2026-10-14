@@ -272,7 +272,8 @@
     "discard_dialog_title": "저장하지 않은 변경사항을 버릴까요?",
     "discard_dialog_description": "이 탭에 저장하지 않은 변경사항이 있습니다. 지금 나가면 변경사항이 사라집니다.",
     "discard_keep": "계속 편집",
-    "discard_confirm": "변경사항 버리기"
+    "discard_confirm": "변경사항 버리기",
+    "context_compaction": "컨텍스트 압축"
   },
   "create_dialog": {
     "title_create": "에이전트 만들기",
@@ -649,6 +650,14 @@
       "started_prefix": "{{when}} 시작됨",
       "dispatched_prefix": "{{when}} 디스패치됨",
       "queued_prefix": "{{when}} 대기 시작"
+    },
+    "context_compaction": {
+      "enabled": "컨텍스트 자동 압축",
+      "help": "실행 종료 후 또는 재개 전에 임계값에 도달한 기록을 요약합니다. 압축은 모델을 호출하며 사용량이 발생합니다.",
+      "threshold": "압축 임계값(토큰)",
+      "invalid": "1,000~2,000,000 사이의 정수를 입력하세요.",
+      "saved_toast": "컨텍스트 압축 설정을 저장했습니다",
+      "save_failed_toast": "컨텍스트 압축 설정을 저장할 수 없습니다"
     }
   },
   "char_counter": {

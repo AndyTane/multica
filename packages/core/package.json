@@ -77,6 +77,7 @@
     "./dashboard/queries": "./dashboard/queries.ts",
     "./agents": "./agents/index.ts",
     "./agents/session-resume": "./agents/session-resume.ts",
+    "./agents/context-compaction": "./agents/context-compaction.ts",
     "./agents/queries": "./agents/queries.ts",
     "./agents/derive-presence": "./agents/derive-presence.ts",
     "./agents/use-agent-presence": "./agents/use-agent-presence.ts",

@@ -94,6 +94,10 @@ vi.mock("@multica/core/telegram", () => ({
 
 import { AgentOverviewPane } from "./agent-overview-pane";
 
+vi.mock("./tabs/context-compaction-tab", () => ({
+  ContextCompactionTab: () => <div>context-compaction-tab</div>,
+}));
+
 const baseAgent: Agent = {
   id: "agent-1",
   workspace_id: "ws-1",
@@ -263,6 +267,20 @@ describe("AgentOverviewPane Integrations tab visibility", () => {
     expect(
       screen.queryByRole("tab", { name: /^Integrations$/i }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentOverviewPane context compaction tab visibility", () => {
+  it.each(["claude", "codex"])("opens compaction settings for %s", (provider) => {
+    renderPane([makeRuntime(provider)]);
+    openSettings();
+    fireEvent.click(screen.getByRole("tab", { name: /^Context compaction$/i }));
+    expect(screen.getByText("context-compaction-tab")).toBeInTheDocument();
+  });
+  it("hides compaction settings for unsupported providers", () => {
+    renderPane([makeRuntime("dsh")]);
+    openSettings();
+    expect(screen.queryByRole("tab", { name: /^Context compaction$/i })).not.toBeInTheDocument();
   });
 });
 

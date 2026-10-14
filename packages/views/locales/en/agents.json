@@ -282,7 +282,8 @@
     "discard_dialog_title": "Discard unsaved changes?",
     "discard_dialog_description": "You have unsaved changes in this tab. Leaving now will discard them.",
     "discard_keep": "Keep editing",
-    "discard_confirm": "Discard changes"
+    "discard_confirm": "Discard changes",
+    "context_compaction": "Context compaction"
   },
   "creation_studio": {
     "title": "Create an agent",
@@ -758,6 +759,14 @@
       "started_prefix": "Started {{when}}",
       "dispatched_prefix": "Dispatched {{when}}",
       "queued_prefix": "Queued {{when}}"
+    },
+    "context_compaction": {
+      "enabled": "Automatic context compaction",
+      "help": "Summarizes history at the threshold, after a run or before resuming. Compaction calls the model and adds usage.",
+      "threshold": "Compaction threshold (tokens)",
+      "invalid": "Enter a whole number from 1,000 to 2,000,000.",
+      "saved_toast": "Context compaction settings saved",
+      "save_failed_toast": "Could not save context compaction settings"
     }
   },
   "char_counter": {

@@ -272,7 +272,8 @@
     "discard_dialog_title": "放弃未保存的修改？",
     "discard_dialog_description": "当前 tab 有未保存的修改，离开会丢弃这些修改。",
     "discard_keep": "继续编辑",
-    "discard_confirm": "放弃修改"
+    "discard_confirm": "放弃修改",
+    "context_compaction": "上下文压缩"
   },
   "creation_studio": {
     "title": "创建智能体",
@@ -743,6 +744,14 @@
       "started_prefix": "{{when}}启动",
       "dispatched_prefix": "{{when}}派发",
       "queued_prefix": "{{when}}排队"
+    },
+    "context_compaction": {
+      "enabled": "自动压缩上下文",
+      "help": "运行结束或恢复会话前，达到阈值时将历史整理为摘要。压缩会调用模型并产生用量。",
+      "threshold": "压缩阈值（tokens）",
+      "invalid": "请输入 1,000 至 2,000,000 之间的整数。",
+      "saved_toast": "上下文压缩设置已保存",
+      "save_failed_toast": "无法保存上下文压缩设置"
     }
   },
   "char_counter": {
