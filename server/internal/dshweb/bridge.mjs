@@ -4,7 +4,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
-import { pathToFileURL } from 'node:url';
 import { zstdDecompressSync } from 'node:zlib';
 
 const safeId = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
@@ -414,6 +413,11 @@ export async function main(args = process.argv.slice(2)) {
   await finished;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// import.meta.main requires Node.js 24.2 or newer; older 24.x would otherwise
+// load this file, skip main() and exit 0 without doing anything.
+if (typeof import.meta.main !== 'boolean') {
+  process.stderr.write('DSH web bridge requires Node.js 24 or newer\n');
+  process.exitCode = 1;
+} else if (import.meta.main) {
   main().catch(error => { process.stderr.write(reasonOf(error) + '\n'); process.exitCode = 1; });
 }
