@@ -29,7 +29,7 @@ type ExecOptions struct {
 	EnableTaskSupplement bool
 	// ContextCompaction is supplied by the daemon for supported providers. Nil disables maintenance.
 	ContextCompaction *ContextCompactionPolicy
-	// ContextCompactionTimeout bounds a maintenance attempt; zero uses two minutes.
+	// ContextCompactionTimeout bounds a maintenance attempt; zero uses the provider default.
 	ContextCompactionTimeout time.Duration
 	Cwd                      string
 	Model                    string

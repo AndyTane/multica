@@ -121,6 +121,7 @@ Workspace-scoped queries filter by `workspace_id`; membership gates access and `
 - Default tests must not resolve or execute user-installed agent CLIs; pass test-created fake or missing executable paths. New default agent commands go in `scripts/agent-cli-command-names.txt`.
 - Session recovery tests use fake CLIs and temporary task roots. `multica agent resume --print` resolves an authorized existing run without starting an agent; interactive recovery is a real-agent operation and needs explicit test authorization.
 - Claude/Codex context maintenance uses the existing session and transport. Wait for compaction completion before releasing the run, keep maintenance output separate from the task reply, and retain a completed task if post-task maintenance fails. Default tests use fake protocols; real compaction tests follow the real-agent gate below.
+- Claude's compaction deadline starts when submitting `/compact`, after SDK initialization. Keep supplemental input closed throughout preparation and maintenance, and test slow initialization separately from a compaction timeout.
 - Only run real-agent smoke tests when explicitly authorized. Gate them behind `agentintegration` and check `MULTICA_RUN_REAL_AGENT_SMOKE=1` before executable lookup/account access. Run the specific test: `(cd server && MULTICA_RUN_REAL_AGENT_SMOKE=1 go test -tags=agentintegration ./pkg/agent -run '<test-name>' -count=1 -v)`.
 
 ## Change and Delivery Rules

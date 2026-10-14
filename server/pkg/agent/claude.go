@@ -95,7 +95,8 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	}
 	coldCompaction := compactionDue(opts, coldContext)
 	var terminalObserved atomic.Bool
-	maintenance := &claudeContextMaintenance{cancel: cancel, timeout: compactionTimeout(opts)}
+	// Reserve admission during SDK initialization; start the deadline with /compact.
+	maintenance := &claudeContextMaintenance{cancel: cancel, timeout: compactionTimeout(opts, "claude"), active: coldCompaction}
 	if err := claudeRootSudoPreflight(args, cmd.Env); err != nil {
 		cancel()
 		return nil, err
@@ -154,9 +155,6 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 
 	msgCh := make(chan Message, 256)
 	resCh := make(chan Result, 1)
-	if coldCompaction {
-		maintenance.begin()
-	}
 
 	// procDone closes once cmd.Wait() returns, letting the cancellation handler
 	// skip a process that already exited and avoid signalling a dead/reused pid.
@@ -187,6 +185,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		initialPrompt := prompt
 		if coldCompaction {
 			initialPrompt = "/compact"
+			maintenance.begin()
 		}
 		err := writeClaudeInput(inputWriter, initialPrompt)
 		if err != nil {
@@ -234,7 +233,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		maintenanceUsage := make(map[string]TokenUsage)
 		if coldCompaction {
 			phase = "cold"
-			trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: "Compacting context before the task."})
+			trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: fmt.Sprintf("Compacting context before the task (%d tokens; timeout %s).", coldContext, maintenance.timeout)})
 		}
 		defer maintenance.finish()
 		writeNextInput := func(text string) {
@@ -416,7 +415,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 						supplements.end()
 					}
 					maintenance.begin()
-					trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: "Compacting context after the task."})
+					trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: fmt.Sprintf("Compacting context after the task (%d tokens; timeout %s).", latestContext, maintenance.timeout)})
 					writeNextInput("/compact")
 				} else {
 					closeStdin()
@@ -503,11 +502,18 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		completionGuardError := ""
 		if phase == "warm" {
 			usage = addCompactionUsage(usage, maintenanceUsage)
-			trySend(msgCh, Message{Type: MessageLog, Level: "warn", Content: "Context compaction did not complete; the completed task and existing session were preserved."})
+			detail := "Context compaction did not complete; the completed task and existing session were preserved."
+			if maintenance.didExpire() {
+				detail = fmt.Sprintf("Claude context compaction timed out after %s; the completed task and existing session were preserved.", maintenance.timeout)
+			}
+			trySend(msgCh, Message{Type: MessageLog, Level: "warn", Content: detail})
 		}
 		if phase == "cold" {
 			coldFailed = true
 			terminalReasonError = "context compaction before the task did not finish; the task was not submitted"
+			if maintenance.didExpire() {
+				terminalReasonError = fmt.Sprintf("claude context compaction timed out after %s before the task; the task was not submitted and the session was preserved", maintenance.timeout)
+			}
 		}
 		if sawAsyncLaunch {
 			completionGuardError = "claude launched an async background task; Multica-managed runs require foreground execution"

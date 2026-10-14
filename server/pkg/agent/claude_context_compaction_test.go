@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
 
 func runFakeClaudeCompaction() {
@@ -22,13 +24,25 @@ func runFakeClaudeCompaction() {
 	write(map[string]any{"type": "system", "subtype": "init", "session_id": compactionTestSession})
 	for reader.Scan() {
 		var frame struct {
-			Message struct {
+			Type      string `json:"type"`
+			RequestID string `json:"request_id"`
+			Message   struct {
 				Content []struct {
 					Text string `json:"text"`
 				} `json:"content"`
 			} `json:"message"`
 		}
-		if json.Unmarshal(reader.Bytes(), &frame) != nil || len(frame.Message.Content) != 1 {
+		if json.Unmarshal(reader.Bytes(), &frame) != nil {
+			os.Exit(51)
+		}
+		if frame.Type == "control_request" {
+			if os.Getenv("COMPACTION_FAKE_FAILURE") == "slow-initialize" {
+				time.Sleep(1200 * time.Millisecond)
+			}
+			write(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "success", "request_id": frame.RequestID, "response": map[string]any{}}})
+			continue
+		}
+		if len(frame.Message.Content) != 1 {
 			os.Exit(51)
 		}
 		text := frame.Message.Content[0].Text
@@ -68,7 +82,7 @@ func runFakeClaudeCompaction() {
 }
 
 func TestClaudeContextCompactionProcessPreservesWorkAndSession(t *testing.T) {
-	for _, failure := range []string{"", "cold", "warm", "timeout", "warm-timeout", "warm-exit", "missing-boundary", "disabled", "below-threshold"} {
+	for _, failure := range []string{"", "cold", "warm", "timeout", "warm-timeout", "warm-exit", "missing-boundary", "disabled", "below-threshold", "slow-initialize"} {
 		t.Run(failure, func(t *testing.T) {
 			root := t.TempDir()
 			project := filepath.Join(root, "projects", "fake-project")
@@ -91,7 +105,7 @@ func TestClaudeContextCompactionProcessPreservesWorkAndSession(t *testing.T) {
 			if failure == "below-threshold" {
 				policy.ThresholdTokens = 80000
 			}
-			session, err := b.Execute(ctx, "original job", ExecOptions{Model: "fake", ResumeSessionID: compactionTestSession, ContextCompaction: policy, ContextCompactionTimeout: time.Second})
+			session, err := b.Execute(ctx, "original job", ExecOptions{Model: "fake", ResumeSessionID: compactionTestSession, ContextCompaction: policy, ContextCompactionTimeout: time.Second, EnableTaskSupplement: failure == "slow-initialize"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -111,6 +125,9 @@ func TestClaudeContextCompactionProcessPreservesWorkAndSession(t *testing.T) {
 			if failure == "cold" || failure == "timeout" || failure == "missing-boundary" {
 				if result.Status != "failed" || strings.Contains(string(data), "original job") {
 					t.Fatalf("cold failure submitted work: %+v %s", result, data)
+				}
+				if failure == "timeout" && (!strings.Contains(result.Error, "context compaction timed out after 1s") || result.ResumeRejected || taskfailure.Classify(result.Error) != taskfailure.ReasonAgentTimeout) {
+					t.Fatalf("compaction timeout is not actionable or loses continuity: %+v", result)
 				}
 			} else {
 				if result.Status != "completed" || result.Output != "original deliverable" || strings.Contains(transcript.String(), "MAINTENANCE") {

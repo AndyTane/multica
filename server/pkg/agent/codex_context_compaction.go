@@ -134,7 +134,7 @@ func (c *codexClient) compactForRun(ctx context.Context, opts ExecOptions, stage
 	if c.onMessage != nil {
 		c.onMessage(Message{Type: MessageLog, Level: "info", Content: fmt.Sprintf("Compacting context %s (%d tokens).", stage, tokens)})
 	}
-	err := c.compactContext(ctx, compactionTimeout(opts))
+	err := c.compactContext(ctx, compactionTimeout(opts, "codex"))
 	if c.onMessage != nil {
 		if err != nil {
 			c.onMessage(Message{Type: MessageLog, Level: "warn", Content: "Context compaction did not complete; the existing session was preserved."})

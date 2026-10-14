@@ -13,6 +13,9 @@ const DefaultContextCompactionThreshold int64 = 80000
 const contextTailLimit int64 = 8 * 1024 * 1024
 const defaultContextCompactionTimeout = 2 * time.Minute
 
+// Large Claude transcripts can take several minutes to summarize normally.
+const defaultClaudeContextCompactionTimeout = 10 * time.Minute
+
 // ContextCompactionPolicy is stored in agent.runtime_config.context_compaction.
 type ContextCompactionPolicy struct {
 	Enabled         bool  `json:"enabled"`
@@ -57,9 +60,12 @@ func (p ContextCompactionPolicy) ShouldCompact(tokens int64) bool {
 	return p.Enabled && p.ThresholdTokens > 0 && tokens >= p.ThresholdTokens
 }
 
-func compactionTimeout(opts ExecOptions) time.Duration {
+func compactionTimeout(opts ExecOptions, provider string) time.Duration {
 	if opts.ContextCompactionTimeout > 0 {
 		return opts.ContextCompactionTimeout
+	}
+	if provider == "claude" {
+		return defaultClaudeContextCompactionTimeout
 	}
 	return defaultContextCompactionTimeout
 }

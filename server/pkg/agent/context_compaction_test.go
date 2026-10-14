@@ -5,7 +5,23 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestContextCompactionProviderBudgets(t *testing.T) {
+	// A captured 167k-token Claude session needed 440,762ms to compact.
+	if budget := compactionTimeout(ExecOptions{}, "claude"); budget < 10*time.Minute {
+		t.Fatalf("Claude budget %s would interrupt a normal large-session compaction", budget)
+	}
+	if budget := compactionTimeout(ExecOptions{}, "codex"); budget != 2*time.Minute {
+		t.Fatalf("unrelated Codex budget changed to %s", budget)
+	}
+	for _, provider := range []string{"claude", "codex"} {
+		if budget := compactionTimeout(ExecOptions{ContextCompactionTimeout: time.Second}, provider); budget != time.Second {
+			t.Fatalf("explicit %s budget ignored: %s", provider, budget)
+		}
+	}
+}
 
 func TestContextCompactionPolicy(t *testing.T) {
 	for _, raw := range []string{"", "{}", `{"unrelated":true}`} {
