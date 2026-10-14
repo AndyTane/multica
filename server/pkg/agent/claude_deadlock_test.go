@@ -34,6 +34,12 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	switch mode := os.Getenv("CLAUDE_FAKE_MODE"); mode {
+	case "g-claude":
+		runFakeClaudeCompaction()
+		os.Exit(0)
+	case "g-codex":
+		runFakeCodexCompaction()
+		os.Exit(0)
 	case "":
 		// Preserve the production relationships while avoiding hundreds of
 		// milliseconds of intentional silence in every ACP fixture.

@@ -27,8 +27,12 @@ type ExecOptions struct {
 	// EnableTaskSupplement installs provider hooks only for runs whose daemon/server
 	// capability handshake enabled additional messages.
 	EnableTaskSupplement bool
-	Cwd                  string
-	Model                string
+	// ContextCompaction is supplied by the daemon for supported providers. Nil disables maintenance.
+	ContextCompaction *ContextCompactionPolicy
+	// ContextCompactionTimeout bounds a maintenance attempt; zero uses two minutes.
+	ContextCompactionTimeout time.Duration
+	Cwd                      string
+	Model                    string
 	// SystemPrompt carries the Multica runtime brief for the few providers
 	// that cannot pick it up from disk. The daemon leaves it empty for every
 	// other provider (see daemon.providerNeedsInlineSystemPrompt), because the

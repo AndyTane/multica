@@ -941,6 +941,16 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	resCh := make(chan Result, 1)
 	var sessionMu sync.RWMutex
 	currentSession := firstSession
+	var terminalDelivered atomic.Bool
+	terminalObserved := func() bool {
+		if terminalDelivered.Load() {
+			return true
+		}
+		sessionMu.RLock()
+		current := currentSession
+		sessionMu.RUnlock()
+		return current != nil && current.TerminalObserved != nil && current.TerminalObserved()
+	}
 	supplement := func(supplementCtx context.Context, instruction string) error {
 		sessionMu.RLock()
 		session := currentSession
@@ -1020,6 +1030,9 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 			}
 			if retryReason == "" || attempt == 2 {
 				flushHeldPins()
+				if session.TerminalObserved != nil {
+					terminalDelivered.Store(session.TerminalObserved())
+				}
 				resCh <- result
 				return
 			}
@@ -1055,7 +1068,11 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 		}
 	}()
 
-	return &Session{Supplement: supplement, SupplementReady: supplementReady, Messages: msgCh, Result: resCh}, nil
+	wrapped := &Session{Supplement: supplement, SupplementReady: supplementReady, Messages: msgCh, Result: resCh}
+	if opts.ContextCompaction != nil {
+		wrapped.TerminalObserved = terminalObserved
+	}
+	return wrapped, nil
 }
 
 func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts ExecOptions, attempt int) (*Session, error) {
@@ -1221,6 +1238,7 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 	semanticActivityCh := make(chan string, 256)
 
 	var outputMu sync.Mutex
+	var terminalObserved atomic.Bool
 	// Result.Output is "final user-facing output selected by the backend"
 	// (agent.go), so it holds the deliverable only. finalAnswer is the text the
 	// app-server labelled `phase: "final_answer"`; lastAgentMessage is the
@@ -1604,6 +1622,22 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 			return
 		}
 		c.setThreadID(threadID)
+		if resumed && compactionEnabled(opts) {
+			tokens := codexPersistedContext(b.cfg.Env["CODEX_HOME"], threadID)
+			if compactionDue(opts, tokens) {
+				if compactErr := c.compactForRun(runCtx, opts, "before the task", tokens); compactErr != nil {
+					status := "failed"
+					if errors.Is(runCtx.Err(), context.Canceled) {
+						status = "aborted"
+					} else if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+						status = "timeout"
+					}
+					stopProcess()
+					resCh <- Result{Status: status, SessionID: threadID, Error: "Context compaction before the task failed; retry without starting a new session.", DurationMs: time.Since(startTime).Milliseconds()}
+					return
+				}
+			}
+		}
 		if resumed {
 			b.cfg.Logger.Info("codex thread resumed", "thread_id", threadID)
 		} else {
@@ -1643,6 +1677,7 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 			)
 		}
 		finishTurn := func(aborted bool) {
+			terminalObserved.Store(true)
 			waitingForTurn = false
 			switch {
 			case aborted:
@@ -1805,6 +1840,24 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 			}
 		}
 
+		var outputBeforeCompaction *string
+		if finalStatus == "completed" && compactionEnabled(opts) && runCtx.Err() == nil {
+			tokens := c.currentContextTokens()
+			if tokens == 0 {
+				tokens = codexPersistedContext(b.cfg.Env["CODEX_HOME"], threadID)
+			}
+			if compactionDue(opts, tokens) {
+				outputMu.Lock()
+				output := codexDeliverableOutput(finalAnswer, lastAgentMessage)
+				outputBeforeCompaction = &output
+				outputMu.Unlock()
+				c.quarantineNotifications.Store(true)
+				if compactErr := c.compactForRun(runCtx, opts, "after the task", tokens); compactErr != nil {
+					b.cfg.Logger.Warn("context compaction after completed task failed", "error", sanitizeCodexDiagnostic(compactErr.Error()))
+					stopProcess()
+				}
+			}
+		}
 		duration := time.Since(startTime)
 		b.cfg.Logger.Info("codex finished", "pid", cmd.Process.Pid, "status", finalStatus, "duration", duration.Round(time.Millisecond).String())
 
@@ -1893,6 +1946,9 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 		outputMu.Lock()
 		finalOutput := codexDeliverableOutput(finalAnswer, lastAgentMessage)
 		outputMu.Unlock()
+		if outputBeforeCompaction != nil {
+			finalOutput = *outputBeforeCompaction
+		}
 
 		// Build usage map from accumulated codex usage.
 		// First check JSON-RPC notifications (often empty for Codex).
@@ -1935,12 +1991,19 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 	}()
 
 	supplement := func(supplementCtx context.Context, instruction string) error {
+		if terminalObserved.Load() || c.isCompacting() {
+			return errors.New("run is finishing context maintenance")
+		}
 		return supplementCodexTurn(supplementCtx, c, instruction)
 	}
 	supplementReady := func() bool {
-		return c.getThreadID() != "" && c.activeTurnID() != ""
+		return !terminalObserved.Load() && !c.isCompacting() && c.getThreadID() != "" && c.activeTurnID() != ""
 	}
-	return &Session{Supplement: supplement, SupplementReady: supplementReady, Messages: msgCh, Result: resCh}, nil
+	session := &Session{Supplement: supplement, SupplementReady: supplementReady, Messages: msgCh, Result: resCh}
+	if opts.ContextCompaction != nil {
+		session.TerminalObserved = terminalObserved.Load
+	}
+	return session, nil
 }
 
 func supplementCodexTurn(ctx context.Context, c *codexClient, instruction string) error {
@@ -2376,26 +2439,29 @@ func describeCodexSemanticActivity(msg Message) string {
 // ── codexClient: JSON-RPC 2.0 transport ──
 
 type codexClient struct {
-	cfg                    Config
-	stdin                  interface{ Write([]byte) (int, error) }
-	mu                     sync.Mutex
-	nextID                 int
-	pending                map[int]*pendingRPC
-	processDone            chan struct{}
-	processErr             error
-	handshakeTimeout       time.Duration
-	threadHandshakeTimeout time.Duration
-	pid                    int
-	attempt                int
-	activeLaunches         int64
-	threadSetupMethod      string
-	threadSetupStarted     time.Time
-	threadIDMu             sync.RWMutex
-	threadID               string
-	turnIDMu               sync.RWMutex
-	lastTurnID             string
-	turnID                 string
-	onMessage              func(Message)
+	compactionMu            sync.Mutex
+	compaction              *codexCompactionState
+	quarantineNotifications atomic.Bool
+	cfg                     Config
+	stdin                   interface{ Write([]byte) (int, error) }
+	mu                      sync.Mutex
+	nextID                  int
+	pending                 map[int]*pendingRPC
+	processDone             chan struct{}
+	processErr              error
+	handshakeTimeout        time.Duration
+	threadHandshakeTimeout  time.Duration
+	pid                     int
+	attempt                 int
+	activeLaunches          int64
+	threadSetupMethod       string
+	threadSetupStarted      time.Time
+	threadIDMu              sync.RWMutex
+	threadID                string
+	turnIDMu                sync.RWMutex
+	lastTurnID              string
+	turnID                  string
+	onMessage               func(Message)
 	// onAgentMessageChunk reports whether a text chunk was handed to the
 	// daemon-facing message channel. Raw delta reconciliation advances only on
 	// true, so channel pressure cannot turn observed provider bytes into a false
@@ -2431,8 +2497,9 @@ type codexClient struct {
 	notificationProtocol string // "unknown", "legacy", "raw"
 	turnCompleted        bool
 
-	usageMu sync.Mutex
-	usage   TokenUsage // accumulated from turn events
+	usageMu       sync.Mutex
+	usage         TokenUsage // accumulated from turn events
+	contextTokens int64
 	// usageTotal is the last accepted cumulative v2 usage snapshot for the
 	// active turn. Comparing later snapshots against it makes replay and
 	// duplicate delivery idempotent while retaining multi-response turns.
@@ -3000,6 +3067,9 @@ func (c *codexClient) handleNotification(raw map[string]json.RawMessage) {
 	// it first can replace the main turn ID and make subsequent main-thread
 	// items/completion look stale.
 	if c.isNotificationFromOtherThread(params) {
+		return
+	}
+	if c.handleCompactionNotification(method, params) || c.quarantineNotifications.Load() {
 		return
 	}
 	if c.acceptNotification != nil && !c.acceptNotification(method, params) {
@@ -3821,8 +3891,12 @@ func (c *codexClient) handleItemNotification(method string, params map[string]an
 // delta from `total`. This retains multi-response tool loops without charging
 // replayed history or duplicate snapshots twice.
 func (c *codexClient) updateThreadTokenUsage(params map[string]any) {
+	c.updateTokenUsageForTurn(params, c.usageTurnID())
+}
+
+func (c *codexClient) updateTokenUsageForTurn(params map[string]any, expectedTurnID string) {
 	turnID, _ := params["turnId"].(string)
-	if turnID == "" || turnID != c.usageTurnID() {
+	if turnID == "" || turnID != expectedTurnID {
 		return
 	}
 
@@ -3842,6 +3916,7 @@ func (c *codexClient) updateThreadTokenUsage(params map[string]any) {
 	total := codexRawTokenUsageFromV2(totalMap)
 	delta := codexRawTokenUsageFromV2(last)
 	c.usageMu.Lock()
+	c.contextTokens = max(0, delta.InputTokens) + max(0, delta.OutputTokens)
 	if c.usageTotalSet {
 		delta = subtractCodexRawTokenUsage(total, c.usageTotal)
 	}

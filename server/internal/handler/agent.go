@@ -1532,6 +1532,10 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	// drop it rather than persisting a literal "***" as a real bearer token.
 	preserveMaskedGatewayToken(req.RuntimeConfig, nil)
 	rc, _ := json.Marshal(req.RuntimeConfig)
+	if _, err := agent.ParseContextCompaction(rc); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if req.RuntimeConfig == nil {
 		rc = []byte("{}")
 	}
@@ -1971,6 +1975,10 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		// and silently destroys the real secret (issue #3260).
 		preserveMaskedGatewayToken(req.RuntimeConfig, existing.RuntimeConfig)
 		rc, _ := json.Marshal(req.RuntimeConfig)
+		if _, err := agent.ParseContextCompaction(rc); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		params.RuntimeConfig = rc
 	}
 	if req.CustomArgs != nil {

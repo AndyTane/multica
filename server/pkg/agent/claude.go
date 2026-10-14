@@ -89,6 +89,13 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		cmd.Dir = opts.Cwd
 	}
 	cmd.Env = buildEnv(b.cfg.Env)
+	coldContext := int64(0)
+	if compactionEnabled(opts) && opts.ResumeSessionID != "" {
+		coldContext = claudePersistedContext(cmd.Env, cmd.Dir, opts.ResumeSessionID)
+	}
+	coldCompaction := compactionDue(opts, coldContext)
+	var terminalObserved atomic.Bool
+	maintenance := &claudeContextMaintenance{cancel: cancel, timeout: compactionTimeout(opts)}
 	if err := claudeRootSudoPreflight(args, cmd.Env); err != nil {
 		cancel()
 		return nil, err
@@ -147,6 +154,9 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 
 	msgCh := make(chan Message, 256)
 	resCh := make(chan Result, 1)
+	if coldCompaction {
+		maintenance.begin()
+	}
 
 	// procDone closes once cmd.Wait() returns, letting the cancellation handler
 	// skip a process that already exited and avoid signalling a dead/reused pid.
@@ -174,7 +184,11 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 				supplements.end()
 			}
 		}
-		err := writeClaudeInput(inputWriter, prompt)
+		initialPrompt := prompt
+		if coldCompaction {
+			initialPrompt = "/compact"
+		}
+		err := writeClaudeInput(inputWriter, initialPrompt)
 		if err != nil {
 			closeStdin()
 			if supplements != nil {
@@ -210,6 +224,32 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		unreadableAssistantCount := 0
 		controlErrors := make(chan error, 1)
 		var controlWrites sync.WaitGroup
+		phase := "task"
+		warmAttempted := false
+		sawCompactBoundary := false
+		coldFailed := false
+		var latestContext int64
+		var coldUsage map[string]TokenUsage
+		var compactBaseline map[string]TokenUsage
+		maintenanceUsage := make(map[string]TokenUsage)
+		if coldCompaction {
+			phase = "cold"
+			trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: "Compacting context before the task."})
+		}
+		defer maintenance.finish()
+		writeNextInput := func(text string) {
+			controlWrites.Add(1)
+			go func() {
+				defer controlWrites.Done()
+				if err := writeClaudeInput(inputWriter, text); err != nil {
+					select {
+					case controlErrors <- err:
+					default:
+					}
+					cancel()
+				}
+			}()
+		}
 
 		// On cancellation / timeout, terminate claude (and every MCP server and
 		// tool subprocess it spawned) BEFORE unblocking the scanner. EOF stdin
@@ -257,9 +297,73 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 				continue
 			}
 			eventCount++
+			if phase != "task" && msg.Type != "control_request" && msg.Type != "control_response" {
+				if phase == "done" {
+					continue
+				}
+				switch msg.Type {
+				case "system":
+					if msg.SessionID != "" && sessionID == "" {
+						sessionID = msg.SessionID
+					}
+					if msg.Subtype == "compact_boundary" {
+						sawCompactBoundary = true
+					}
+				case "assistant":
+					b.handleAssistant(msg, nil, maintenanceUsage, seenUsage)
+				case "result":
+					ok := maintenance.finish() && sawCompactBoundary && !msg.IsError && claudeTerminalReasonFailure(msg.TerminalReason, msg.ResultText) == ""
+					if msg.SessionID != "" && sessionID != "" && msg.SessionID != sessionID {
+						ok = false
+					}
+					var baseline map[string]TokenUsage
+					if phase == "cold" && usageSnapshot != nil {
+						baseline = usageSnapshot.baseline
+					}
+					if phase == "warm" && lastUsageResult != nil {
+						baseline = claudeModelUsage(lastUsageResult.ModelUsage)
+					}
+					if reported, authoritative := claudeResultUsageSince(msg, opts.Model, baseline); authoritative {
+						maintenanceUsage = reported
+					}
+					if !ok {
+						if phase == "warm" {
+							usage = addCompactionUsage(usage, maintenanceUsage)
+						} else {
+							usage = maintenanceUsage
+						}
+						trySend(msgCh, Message{Type: MessageLog, Level: "warn", Content: "Context compaction did not complete; the existing session was preserved."})
+						if phase == "cold" {
+							coldFailed = true
+							terminalReasonError = "context compaction before the task failed; retry without starting a new session"
+						}
+						phase = "done"
+						closeStdin()
+						continue
+					}
+					trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: "Context compaction completed."})
+					if phase == "cold" && runCtx.Err() == nil {
+						coldUsage = maintenanceUsage
+						compactBaseline = claudeModelUsage(msg.ModelUsage)
+						phase = "task"
+						writeNextInput(prompt)
+					} else {
+						usage = addCompactionUsage(usage, maintenanceUsage)
+						phase = "done"
+						closeStdin()
+					}
+				}
+				continue
+			}
 
 			switch msg.Type {
 			case "assistant":
+				if msg.ParentToolUseID == "" {
+					var content claudeMessageContent
+					if json.Unmarshal(msg.Message, &content) == nil && content.Usage != nil {
+						latestContext = claudeContextTokens(content.Usage)
+					}
+				}
 				assistantEventCount++
 				turn := b.handleAssistant(msg, msgCh, usage, seenUsage)
 				toolUseCount += turn.toolUses
@@ -272,11 +376,15 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 					sawAsyncLaunch = true
 				}
 			case "system":
+				if msg.Subtype == "compact_boundary" {
+					latestContext = 0
+				}
 				if msg.SessionID != "" {
 					sessionID = msg.SessionID
 				}
 				trySend(msgCh, Message{Type: MessageStatus, Status: "running", SessionID: sessionID})
 			case "result":
+				terminalObserved.Store(true)
 				sawResult = true
 				finalResultText = msg.ResultText
 				resultIsError = msg.IsError
@@ -286,12 +394,33 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 				if usageSnapshot != nil {
 					baseline = usageSnapshot.baseline
 				}
+				if compactBaseline != nil {
+					baseline = compactBaseline
+				}
 				if resultUsage, authoritative := claudeResultUsageSince(msg, opts.Model, baseline); authoritative {
-					usage = resultUsage
+					usage = addCompactionUsage(resultUsage, coldUsage)
 					usageMsg := msg
 					lastUsageResult = &usageMsg
 				}
-				closeStdin()
+				if compactionEnabled(opts) && sessionID != "" {
+					if persisted := claudePersistedContext(cmd.Env, cmd.Dir, sessionID); persisted > 0 {
+						latestContext = persisted
+					}
+				}
+				if !msg.IsError && terminalReasonError == "" && !sawAsyncLaunch && compactionDue(opts, latestContext) && runCtx.Err() == nil {
+					warmAttempted = true
+					phase = "warm"
+					sawCompactBoundary = false
+					maintenanceUsage = make(map[string]TokenUsage)
+					if supplements != nil {
+						supplements.end()
+					}
+					maintenance.begin()
+					trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: "Compacting context after the task."})
+					writeNextInput("/compact")
+				} else {
+					closeStdin()
+				}
 			case "log":
 				if msg.Log != nil {
 					trySend(msgCh, Message{
@@ -357,7 +486,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		}
 		// Internal protocol failures cancel the process to unblock its pipes.
 		// Preserve the actual failure instead of reporting a user cancellation.
-		if supplements != nil && writeErr != nil && ctx.Err() == nil && terminalReasonError == "" && !errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+		if !warmAttempted && supplements != nil && writeErr != nil && ctx.Err() == nil && terminalReasonError == "" && !errors.Is(runCtx.Err(), context.DeadlineExceeded) {
 			terminalReasonError = fmt.Sprintf("claude input/control protocol failed: %v", writeErr)
 		}
 
@@ -372,22 +501,39 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		}
 
 		completionGuardError := ""
+		if phase == "warm" {
+			usage = addCompactionUsage(usage, maintenanceUsage)
+			trySend(msgCh, Message{Type: MessageLog, Level: "warn", Content: "Context compaction did not complete; the completed task and existing session were preserved."})
+		}
+		if phase == "cold" {
+			coldFailed = true
+			terminalReasonError = "context compaction before the task did not finish; the task was not submitted"
+		}
 		if sawAsyncLaunch {
 			completionGuardError = "claude launched an async background task; Multica-managed runs require foreground execution"
+		}
+		finalContextErr, finalExitErr, finalScanErr, finalWriteErr := runCtx.Err(), exitErr, scanErr, writeErr
+		if warmAttempted && sawResult && !resultIsError && terminalReasonError == "" {
+			finalContextErr, finalExitErr, finalScanErr, finalWriteErr = nil, nil, nil, nil
+		}
+		if coldFailed && maintenance.didExpire() && ctx.Err() == nil {
+			finalContextErr = nil
+		} else if coldFailed && runCtx.Err() != nil {
+			terminalReasonError = ""
 		}
 		finalStatus, finalOutput, finalError := finalizeStreamResult(
 			"claude",
 			timeout,
-			runCtx.Err(),
-			writeErr,
-			exitErr,
+			finalContextErr,
+			finalWriteErr,
+			finalExitErr,
 			sessionID,
 			streamTerminalState{
 				lastAssistantText:   lastAssistantText,
 				finalResultText:     finalResultText,
 				sawResult:           sawResult,
 				resultIsError:       resultIsError,
-				scanErr:             scanErr,
+				scanErr:             finalScanErr,
 				terminalReasonError: terminalReasonError,
 			},
 			completionGuardError,
@@ -426,6 +572,10 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		// "no conversation found" is printed to stderr. Check both.
 		resumeRejected := resumeWasRejected(opts.ResumeSessionID, sessionID, finalStatus == "failed", finalError, stderrTail)
 		reportedSessionID := resolveSessionID(opts.ResumeSessionID, sessionID, finalStatus == "failed", finalError, stderrTail)
+		if coldFailed {
+			resumeRejected = false
+			reportedSessionID = opts.ResumeSessionID
+		}
 		if resumeRejected {
 			// A rejected resume may emit usage for a newly-created session. Its
 			// totals do not share the requested session's baseline.
@@ -452,9 +602,17 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	}()
 
 	session := &Session{Messages: msgCh, Result: resCh}
+	if opts.ContextCompaction != nil {
+		session.TerminalObserved = terminalObserved.Load
+	}
 	if supplements != nil {
-		session.Supplement = supplements.supplement
-		session.SupplementReady = supplements.ready
+		session.Supplement = func(ctx context.Context, text string) error {
+			if maintenance.isActive() || terminalObserved.Load() {
+				return errors.New("run is finishing context maintenance")
+			}
+			return supplements.supplement(ctx, text)
+		}
+		session.SupplementReady = func() bool { return !maintenance.isActive() && !terminalObserved.Load() && supplements.ready() }
 	}
 	return session, nil
 }
