@@ -93,10 +93,10 @@ export function findLog(dataHome, sessionId) {
   return null;
 }
 
-// A log is concatenated zstd frames. Leave an incomplete flush for the next poll.
-export function readRows(file) {
-  const bytes = fs.readFileSync(file);
-  let offset = 0, text = '';
+// Decode only complete frames and lines. UTF-8 characters may span frames.
+function scanFrames(bytes, pendingBytes) {
+  let offset = 0, frameOffset = 0, frames = 0;
+  const chunks = [pendingBytes];
   while (offset + 5 <= bytes.length) {
     const start = offset;
     if (bytes.readUInt32LE(offset) !== 0xfd2fb528) fail('unsupported_session_log');
@@ -112,13 +112,21 @@ export function readRows(file) {
     }
     if (header & 4) offset += 4;
     if (!complete || offset > bytes.length) break;
-    text += zstdDecompressSync(bytes.subarray(start, offset)).toString('utf8');
+    chunks.push(zstdDecompressSync(bytes.subarray(start, offset)));
+    frameOffset = offset;
+    frames++;
   }
-  return text.split('\n').slice(0, -1).filter(line => line.trim()).map(line => JSON.parse(line));
+  const decoded = Buffer.concat(chunks), rows = [];
+  let start = 0, end;
+  while ((end = decoded.indexOf(10, start)) !== -1) {
+    const line = decoded.subarray(start, end).toString('utf8');
+    if (line.trim()) rows.push(JSON.parse(line));
+    start = end + 1;
+  }
+  return { rows, frameOffset, frames, pendingBytes: Buffer.from(decoded.subarray(start)) };
 }
 
-function openTurn(rows) {
-  let open = null;
+function openTurn(rows, open = null) {
   for (const row of rows) {
     if (row.type === 'turn/start') open = row.data.turn;
     if (row.type === 'turn/end' && row.data.turn === open) open = null;
@@ -126,13 +134,77 @@ function openTurn(rows) {
   return open;
 }
 
+const sameFile = (a, b) => a.dev === b.dev && a.ino === b.ino;
+
+export function createLogReader(file) {
+  return {
+    identity: null, observedSize: 0n, frameOffset: 0, pendingBytes: Buffer.alloc(0), activeTurn: null,
+    stats: { bytesRead: 0, frames: 0, rows: 0 },
+    readNew() {
+      let stat;
+      try { stat = fs.statSync(file, { bigint: true }); }
+      catch (error) { if (this.identity && error.code === 'ENOENT') fail('session_log_replaced'); throw error; }
+      if (this.identity && (!sameFile(this.identity, stat) || stat.size < this.observedSize)) fail('session_log_replaced');
+      if (this.identity && stat.size === this.observedSize) return [];
+      if (stat.size > BigInt(Number.MAX_SAFE_INTEGER)) fail('session_log_too_large');
+      const fd = fs.openSync(file, 'r');
+      let bytes;
+      try {
+        const opened = fs.fstatSync(fd, { bigint: true });
+        if (!sameFile(stat, opened) || opened.size < stat.size) fail('session_log_replaced');
+        bytes = Buffer.alloc(Number(stat.size) - this.frameOffset);
+        let read = 0;
+        while (read < bytes.length) {
+          const count = fs.readSync(fd, bytes, read, bytes.length - read, this.frameOffset + read);
+          if (!count) fail('session_log_replaced');
+          read += count;
+        }
+        const current = fs.statSync(file, { bigint: true });
+        if (!sameFile(stat, current) || current.size < stat.size) fail('session_log_replaced');
+      } finally { fs.closeSync(fd); }
+      const scanned = scanFrames(bytes, this.pendingBytes);
+      this.identity = { dev: stat.dev, ino: stat.ino };
+      this.observedSize = stat.size;
+      this.frameOffset += scanned.frameOffset;
+      this.pendingBytes = scanned.pendingBytes;
+      this.activeTurn = openTurn(scanned.rows, this.activeTurn);
+      this.stats.bytesRead += bytes.length;
+      this.stats.frames += scanned.frames;
+      this.stats.rows += scanned.rows.length;
+      return scanned.rows;
+    },
+  };
+}
+
+// Each call returns a fresh full snapshot; callers never share reader state.
+export function readRows(file) { return createLogReader(file).readNew(); }
+
+// Preserve the existing full-snapshot injection seam at the reader boundary.
+function snapshotReader(file, read) {
+  let cursor = 0;
+  return {
+    activeTurn: null,
+    readNew() {
+      const rows = read(file);
+      if (rows.length < cursor) fail('session_log_replaced');
+      const added = rows.slice(cursor);
+      cursor = rows.length;
+      this.activeTurn = openTurn(added, this.activeTurn);
+      return added;
+    },
+  };
+}
+
 export async function prepareSession(command, config, rpc, read = readRows) {
   const cwd = canonicalDirectory(command.cwd);
   const sessionId = command.resume_session_id || `multica-web-${createHash('sha256').update(command.request_id).digest('hex').slice(0, 32)}`;
   if (!safeId.test(sessionId) || !sessionId.startsWith('multica-web-')) fail('multica_session_required');
+  const newReader = file => read === readRows ? createLogReader(file) : snapshotReader(file, read);
+  let file, rows, logReader;
   if (command.resume_session_id) {
-    const file = findLog(config.dataHome, sessionId);
-    const header = file && read(file)[0];
+    file = findLog(config.dataHome, sessionId);
+    if (file) { logReader = newReader(file); rows = logReader.readNew(); }
+    const header = rows?.[0];
     if (!header?.cwd || canonicalDirectory(header.cwd) !== cwd || header.parentSession || header.origin === 'subagent') fail('session_project_mismatch');
   }
   const created = await rpc('workspace/create', { path: command.cwd });
@@ -143,19 +215,23 @@ export async function prepareSession(command, config, rpc, read = readRows) {
   const checked = await rpc('workspace/create', { path: command.cwd });
   if (checked?.workspace?.workspaceId !== workspace.workspaceId || !checked.workspace.sessionIds?.includes(sessionId)) fail('workspace_membership_unconfirmed');
   // Session creation is acknowledged before its initial log flush completes.
-  let file, rows;
   const deadline = Date.now() + 3000;
   do {
-    file = findLog(config.dataHome, sessionId);
-    rows = file && read(file);
+    if (rows?.[0]) {
+      rows.push(...logReader.readNew());
+    } else {
+      // A failed header attempt owns no state: the next scan starts fresh.
+      file = findLog(config.dataHome, sessionId);
+      if (file) { logReader = newReader(file); rows = logReader.readNew(); }
+    }
     if (rows?.[0]) break;
     await sleep(50);
   } while (Date.now() < deadline);
   if (!rows?.[0]) fail('session_header_unavailable');
   if (!rows?.[0]?.cwd || canonicalDirectory(rows[0].cwd) !== cwd) fail('session_project_mismatch');
-  if (openTurn(rows) !== null) fail('session_busy');
+  if (logReader.activeTurn !== null) fail('session_busy');
   if (!command.resume_session_id && command.thread_name) await rpc('session/rename', { sessionId, title: `Multica · ${command.thread_name}` });
-  return { sessionId, file, rows };
+  return { sessionId, file, rows, logReader };
 }
 
 // The browser host has its own environment. Give only Multica CLI calls the task-scoped environment.
@@ -243,15 +319,12 @@ export async function execute(command, config, emit, control, dependencies = {})
       const receipt = await rpc('session/cancel', { sessionId: prepared.sessionId });
       if (receipt?.accepted !== true) fail('cancel_receipt_invalid');
     };
-    let cursor = prepared.rows.length;
     for (;;) {
-      const rows = read(prepared.file);
-      if (rows.length < cursor) fail('session_log_replaced');
-      for (const row of rows.slice(cursor)) reader.push(row);
-      cursor = rows.length;
+      const rows = prepared.logReader.readNew();
+      for (const row of rows) reader.push(row);
       if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
       if (control.cancelled) {
-        if (openTurn(rows) !== null && openTurn(rows) !== reader.turn) fail('cancel_target_not_active');
+        if (prepared.logReader.activeTurn !== null && prepared.logReader.activeTurn !== reader.turn) fail('cancel_target_not_active');
         await control.cancel();
         emit({ type: 'result', session_id: prepared.sessionId, status: 'cancelled', output: reader.output });
         return;

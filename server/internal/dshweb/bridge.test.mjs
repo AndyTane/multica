@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import { zstdCompressSync } from 'node:zlib';
-import { execute, localOrigin, readRows, taskCli, connectWeb, TurnReader } from './bridge.mjs';
+import { execute, localOrigin, readRows, createLogReader, prepareSession, taskCli, connectWeb, TurnReader } from './bridge.mjs';
 
 async function fixture(t, behavior = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'multica-dsh-test-'));
@@ -235,4 +235,119 @@ test('log reader ignores a partially written final zstd frame', t => {
   const second = zstdCompressSync(Buffer.from('{"type":"turn/start"}\n'));
   fs.writeFileSync(file, Buffer.concat([first, second.subarray(0, second.length - 2)]));
   assert.deepEqual(readRows(file), [{ cwd: 'project' }]);
+});
+
+function logFixture(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'multica-incremental-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'log.zstd');
+  fs.writeFileSync(file, Buffer.alloc(0));
+  return { file, append: bytes => fs.appendFileSync(file, zstdCompressSync(Buffer.from(bytes))) };
+}
+
+test('incremental reader parses only appended frames and rows, with exact bigint identity', t => {
+  const { file, append } = logFixture(t);
+  append('{"cwd":"project"}\n');
+  const reader = createLogReader(file);
+  assert.deepEqual(reader.readNew(), [{ cwd: 'project' }]);
+  const first = { ...reader.stats };
+  assert.deepEqual(reader.readNew(), []);
+  assert.deepEqual(reader.stats, first);
+  assert.equal(reader.identity.ino, fs.statSync(file, { bigint: true }).ino);
+  assert.equal(typeof reader.identity.dev, 'bigint');
+  append('{"type":"turn/start","data":{"turn":7}}\n');
+  assert.equal(reader.readNew().length, 1);
+  assert.equal(reader.stats.frames, 2);
+  assert.equal(reader.stats.rows, 2);
+  assert.equal(reader.stats.bytesRead, fs.statSync(file).size);
+  assert.equal(reader.activeTurn, 7);
+  assert.deepEqual(reader.readNew(), []);
+  assert.equal(reader.activeTurn, 7);
+  append('{"type":"turn/end","data":{"turn":7}}\n');
+  reader.readNew();
+  assert.equal(reader.activeTurn, null);
+  assert.equal(readRows(file).length, 3);
+  assert.equal(readRows(file).length, 3);
+});
+
+test('incomplete frame stays at its starting offset until completed', t => {
+  const { file, append } = logFixture(t);
+  append('{"first":1}\n');
+  const reader = createLogReader(file);
+  reader.readNew();
+  const offset = reader.frameOffset;
+  const next = zstdCompressSync(Buffer.from('{"second":2}\n'));
+  for (const part of [next.subarray(0, 4), next.subarray(4, next.length - 1)]) {
+    fs.appendFileSync(file, part);
+    assert.deepEqual(reader.readNew(), []);
+    assert.equal(reader.frameOffset, offset);
+  }
+  const before = { ...reader.stats };
+  assert.deepEqual(reader.readNew(), []);
+  assert.deepEqual(reader.stats, before);
+  fs.appendFileSync(file, next.subarray(-1));
+  assert.deepEqual(reader.readNew(), [{ second: 2 }]);
+  assert.equal(reader.frameOffset, fs.statSync(file).size);
+});
+
+test('JSON and Chinese UTF-8 bytes split across frames and polls are preserved literally', t => {
+  const { file, append } = logFixture(t);
+  const bytes = Buffer.from('{"text":"中文测试内容"}\n');
+  const cut = bytes.indexOf(Buffer.from('中')) + 1;
+  append(bytes.subarray(0, cut));
+  const reader = createLogReader(file);
+  assert.deepEqual(reader.readNew(), []);
+  assert.ok(Buffer.isBuffer(reader.pendingBytes));
+  append(bytes.subarray(cut, -1));
+  assert.deepEqual(reader.readNew(), []);
+  append(bytes.subarray(-1));
+  assert.equal(reader.readNew()[0].text, '中文测试内容');
+  assert.equal(readRows(file)[0].text, '中文测试内容');
+});
+
+test('truncation, including only an incomplete frame, and same-size replacement fail', t => {
+  const { file, append } = logFixture(t);
+  append('{"first":1}\n');
+  const original = fs.readFileSync(file);
+  const reader = createLogReader(file);
+  reader.readNew();
+  fs.appendFileSync(file, Buffer.from([0x28, 0xb5]));
+  reader.readNew();
+  fs.truncateSync(file, original.length);
+  assert.throws(() => reader.readNew(), /session_log_replaced/);
+  const replacementReader = createLogReader(file);
+  replacementReader.readNew();
+  fs.renameSync(file, file + '.old');
+  fs.writeFileSync(file, original);
+  assert.throws(() => replacementReader.readNew(), /session_log_replaced/);
+});
+
+test('resume preparation hands its first scan to polling without decoding history twice', async t => {
+  const f = await fixture(t);
+  const first = await run(f, command(f, 'scan-first'));
+  const sessionId = first.at(-1).session_id;
+  const rpc = await connectWeb(f.config);
+  const prepared = await prepareSession(command(f, 'scan-resume', { resume_session_id: sessionId }), f.config, rpc);
+  assert.equal(prepared.logReader.stats.bytesRead, fs.statSync(prepared.file).size);
+  assert.equal(prepared.logReader.stats.rows, prepared.rows.length);
+  const stats = { ...prepared.logReader.stats };
+  assert.deepEqual(prepared.logReader.readNew(), []);
+  assert.deepEqual(prepared.logReader.stats, stats);
+});
+
+test('default incremental polling remembers another active turn across empty polls before cancellation', async t => {
+  const f = await fixture(t, { hold: true }), control = { cancelled: false };
+  const pending = run(f, command(f, 'incremental-cancel'), control);
+  let timer;
+  const watch = setInterval(() => {
+    const session = [...f.sessions.values()][0];
+    if (!session || !readRows(session.file).some(row => row.type === 'user/message')) return;
+    clearInterval(watch);
+    f.append(session, [{ type: 'turn/start', data: { turn: 99 } }]);
+    timer = setTimeout(() => { control.cancelled = true; }, 60);
+  }, 5);
+  t.after(() => { clearInterval(watch); clearTimeout(timer); });
+  const frames = await pending;
+  assert.equal(frames.at(-1).error.code, 'cancel_target_not_active');
+  assert.equal(f.calls.filter(call => call.method === 'session/cancel').length, 0);
 });
