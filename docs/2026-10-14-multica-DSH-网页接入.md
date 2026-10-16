@@ -1,6 +1,8 @@
 # 在 Multica 里 @DSH
 
-F2 将 Multica 的消息投递到正在运行的 DSH 网页。DSH 在网页会话里执行，用户可以在那里查看、插话和停止。Multica 保存会话编号、执行记录和结果；后续运行继续使用同一会话。
+Multica 将消息投递到正在运行的 DSH 网页。DSH 在网页会话里执行，用户可以在那里查看、插话和停止。Multica 保存会话编号、执行记录和结果；后续运行继续使用同一会话。
+
+桥通过 DSH 的 `session/follow` 事件流接收回复，通过 `session/page` 补读历史，不读取 DSH 的内部会话文件。断线时按事件序号补齐记录，不自动重发提示词。发送前会验证接口、项目目录和工作区归属。
 
 ## 本机配置
 
@@ -22,11 +24,10 @@ Pop-Location
 ```powershell
 ./scripts/configure-dsh-web.ps1 `
   -WebOrigin 'http://127.0.0.1:3080/' `
-  -AccessLog 'D:/Tools/DeepSeekHarness/dsh-web-launch.log' `
-  -DataHome 'D:/Tools/DeepSeekHarness/data'
+  -AccessLog 'D:/Tools/DeepSeekHarness/dsh-web-launch.log'
 ```
 
-脚本把不含凭据的配置存到 `~/.multica/dsh-web.json`，复用或创建 DSH Web 运行时配置，并固定桥命令的本机路径。使用其它 Multica CLI profile 时，加 `-Profile <名称>`。
+脚本把不含凭据的配置存到 `~/.multica/dsh-web.json`，复用或创建 DSH Web 运行时配置，并固定桥命令的本机路径。使用其它 Multica CLI profile 时，加 `-Profile <名称>`。配置只需网页地址和当前启动日志路径；旧配置中的 `dataHome` 不再使用。
 
 `.env` 加上以下配置，然后按 [启动与重建](2026-10-13-multica-启动与重建.md) 重建并启动后端、网页：
 
@@ -56,6 +57,8 @@ MULTICA_DSH_WEB_URL=http://127.0.0.1:3080
 - 会话忙：等网页当前运行结束，再从 Multica 发起下一次运行。网页里的插话可以在运行期间进行。
 - 投递状态不明：先去 DSH 网页核对消息和结果，避免重复发送。桥不会自动重发消息。
 - 项目路径不匹配：确认 Multica 的工作目录仍然存在，且继续使用原会话；桥拒绝把其它项目的会话接进来。
+- 事件接口不兼容：更新桥或使用支持当前会话事件接口的 DSH 版本。桥在投递前检查接口，不会回退到读取内部文件。协议发生破坏性变化时仍需适配，不能保证任意升级都兼容。
+- 事件连接反复中断或历史记录改变：桥停止接收并保留原会话，在 DSH 网页核对运行状态后再决定是否重试。
 - 修改 DSH 网页端口：同步更新 `dsh-web.json` 和 `.env` 中的网页地址，并重启后端。
 
 ## 验证
@@ -65,7 +68,7 @@ pnpm test:dsh-web
 ./server/bin/multica-dsh-web.exe --profile multica --probe
 ```
 
-第一条使用模拟网页主机，不调用真实模型。第二条只验证本机网页认证，不投递消息。
+第一条使用模拟 HTTP/WebSocket 网页主机，不调用真实模型。第二条验证本机网页认证和事件接口，通过查询不存在的探测会话检查接口，不创建工作区、会话或投递消息。
 
 真实模型测试单独授权后执行；测试先检查开关，再读取桥路径并接入网页账号：
 

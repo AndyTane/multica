@@ -1,7 +1,6 @@
 param(
     [Parameter(Mandatory = $true)][string]$WebOrigin,
     [Parameter(Mandatory = $true)][string]$AccessLog,
-    [Parameter(Mandatory = $true)][string]$DataHome,
     [string]$Profile = '',
     [string]$CliPath = (Join-Path $PSScriptRoot '../server/bin/multica.exe'),
     [string]$BridgePath = (Join-Path $PSScriptRoot '../server/bin/multica-dsh-web.exe')
@@ -14,13 +13,12 @@ if ($origin.Scheme -ne 'http' -or $origin.Host -notin @('127.0.0.1', 'localhost'
     throw 'Use the local DSH homepage URL without a launch token.'
 }
 $AccessLog = (Resolve-Path -LiteralPath $AccessLog).Path
-$DataHome = (Resolve-Path -LiteralPath $DataHome).Path
 $CliPath = (Resolve-Path -LiteralPath $CliPath).Path
 $BridgePath = (Resolve-Path -LiteralPath $BridgePath).Path
 $configDirectory = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.multica'
 New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
 $configFile = Join-Path $configDirectory 'dsh-web.json'
-@{ origin = $origin.GetLeftPart([UriPartial]::Authority); accessLog = $AccessLog; dataHome = $DataHome } |
+@{ origin = $origin.GetLeftPart([UriPartial]::Authority); accessLog = $AccessLog } |
     ConvertTo-Json | Set-Content -LiteralPath $configFile -Encoding utf8
 
 & $BridgePath --profile multica --probe

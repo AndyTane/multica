@@ -4,7 +4,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
-import { zstdDecompressSync } from 'node:zlib';
 
 const safeId = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 const fail = code => { throw new Error(code); };
@@ -26,14 +25,14 @@ export function loadConfig(env = process.env) {
   try { config = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); }
   catch { fail('web_bridge_config_unavailable'); }
   config.origin = localOrigin(config.origin);
-  for (const key of ['accessLog', 'dataHome']) {
+  for (const key of ['accessLog']) {
     if (typeof config[key] !== 'string' || !path.isAbsolute(config[key])) fail('absolute_config_paths_required');
   }
   return config;
 }
 
 // Exchange the normal launch link. Neither credentials nor raw host errors leave this module.
-export async function connectWeb(config, fetchImpl = fetch) {
+export async function connectWeb(config, fetchImpl = fetch, WebSocketImpl = WebSocket) {
   const origin = localOrigin(config.origin);
   if (fs.statSync(config.accessLog).size > 4 * 1024 * 1024) fail('access_log_too_large');
   let bytes = fs.readFileSync(config.accessLog);
@@ -51,7 +50,7 @@ export async function connectWeb(config, fetchImpl = fetch) {
   if (response.status !== 303) fail('web_auth_failed');
   const cookies = response.headers.getSetCookie().map(value => value.split(';')[0]);
   if (cookies.length !== 1) fail('web_auth_cookie_missing');
-  return async (method, request = {}) => {
+  const rpc = async (method, request = {}) => {
     const rpcId = randomUUID();
     let result;
     try {
@@ -73,6 +72,8 @@ export async function connectWeb(config, fetchImpl = fetch) {
     }
     return result.result.value;
   };
+  rpc.follow = request => openRemoteStream(config, cookies[0], request, WebSocketImpl);
+  return rpc;
 }
 
 function canonicalDirectory(value) {
@@ -82,155 +83,214 @@ function canonicalDirectory(value) {
   return os.platform() === 'win32' ? directory.toLowerCase() : directory;
 }
 
-export function findLog(dataHome, sessionId) {
-  if (!safeId.test(sessionId)) fail('invalid_session_id');
-  const root = path.join(dataHome, 'sessions');
-  for (const group of fs.readdirSync(root)) {
-    const file = path.join(root, group, sessionId, 'session.v3.jsonl.zstd');
-    if (fs.existsSync(file)) return file;
-  }
-  return null;
+// One authenticated logical stream on the host's Remote WebSocket carrier.
+// Node's WebSocket owns framing, masking, heartbeat replies, and the close handshake.
+function openRemoteStream(config, cookie, request, WebSocketImpl) {
+  const origin = localOrigin(config.origin), streamId = randomUUID();
+  const socket = new WebSocketImpl(`${origin.replace('http:', 'ws:')}/api/remote.mux`, {
+    headers: { Origin: origin, Cookie: cookie },
+  });
+  const queue = [];
+  let queuedBytes = 0, failure, wake, closed = false;
+  const notify = () => { const pending = wake; wake = undefined; pending?.(); };
+  const stop = code => {
+    if (!failure) failure = new Error(code);
+    notify();
+    socket.close();
+  };
+  socket.addEventListener('open', () => {
+    socket.send(JSON.stringify({ type: 'open', streamId, endpoint: 'session/follow', payload: { args: { request } } }));
+  });
+  socket.addEventListener('error', () => stop('web_stream_disconnected'));
+  socket.addEventListener('close', () => { if (!closed) stop('web_stream_disconnected'); });
+  socket.addEventListener('message', event => {
+    if (closed || failure) return;
+    try {
+      if (typeof event.data !== 'string' || Buffer.byteLength(event.data) > 32 * 1024 * 1024) fail('web_stream_frame_invalid');
+      const frame = JSON.parse(event.data);
+      if (frame.streamId !== streamId) fail('web_stream_frame_invalid');
+      if (frame.type === 'error') {
+        const code = frame.error?.code;
+        stop(['gateway/not-found', 'gateway/method-not-found'].includes(code) ? 'dsh_event_api_unsupported'
+          : typeof code === 'string' && /^[a-z0-9_/-]+$/i.test(code) ? code : 'web_stream_refused');
+        return;
+      }
+      if (frame.type === 'end') { stop('web_stream_disconnected'); return; }
+      if (frame.type !== 'item' || !frame.value || typeof frame.value !== 'object') fail('web_stream_frame_invalid');
+      const size = Buffer.byteLength(event.data);
+      if (queuedBytes + size > 32 * 1024 * 1024 || queue.length >= 16384) fail('web_stream_overflow');
+      queue.push({ value: frame.value, size });
+      queuedBytes += size;
+      notify();
+    } catch (error) { stop(reasonOf(error) === 'web_bridge_failed' ? 'web_stream_frame_invalid' : reasonOf(error)); }
+  });
+  return {
+    async next(timeoutMs) {
+      if (!queue.length && !failure && !closed && timeoutMs > 0) {
+        let timer;
+        try { await new Promise(resolve => { wake = resolve; timer = setTimeout(resolve, timeoutMs); }); }
+        finally { clearTimeout(timer); wake = undefined; }
+      }
+      if (queue.length) { const item = queue.shift(); queuedBytes -= item.size; return item.value; }
+      if (failure) throw failure;
+      return null;
+    },
+    close() {
+      closed = true;
+      queue.length = 0;
+      queuedBytes = 0;
+      notify();
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'cancel', streamId }));
+      socket.close();
+    },
+  };
 }
 
-// Decode only complete frames and lines. UTF-8 characters may span frames.
-function scanFrames(bytes, pendingBytes) {
-  let offset = 0, frameOffset = 0, frames = 0;
-  const chunks = [pendingBytes];
-  while (offset + 5 <= bytes.length) {
-    const start = offset;
-    if (bytes.readUInt32LE(offset) !== 0xfd2fb528) fail('unsupported_session_log');
-    offset += 4;
-    const header = bytes[offset++], single = Boolean(header & 32), size = header >>> 6, dict = header & 3;
-    offset += (single ? 0 : 1) + (dict === 3 ? 4 : dict) + (size === 0 ? (single ? 1 : 0) : (1 << size));
-    let complete = false;
-    while (offset + 3 <= bytes.length) {
-      const block = bytes.readUIntLE(offset, 3);
-      offset += 3;
-      offset += ((block >>> 1) & 3) === 1 ? 1 : block >>> 3;
-      if (block & 1) { complete = true; break; }
-    }
-    if (header & 4) offset += 4;
-    if (!complete || offset > bytes.length) break;
-    chunks.push(zstdDecompressSync(bytes.subarray(start, offset)));
-    frameOffset = offset;
-    frames++;
+const passiveEvents = new Set([
+  'agent-preset/selected', 'agent/inbox/spliced', 'approval/asked', 'approval/decided', 'approval/policy',
+  'assistant/attempt', 'command/done', 'command/run', 'compaction/end', 'compaction/prune', 'compaction/start',
+  'compaction/summary', 'deliverables/presented', 'developer/message', 'feedback/message-delete',
+  'feedback/message-put', 'feedback/record', 'goal/change', 'hook/invoked', 'hook/result', 'image/offload',
+  'llm/retry', 'llm/retry-started', 'model/selection', 'permission/preset', 'plan/mode', 'request/context',
+  'request/header', 'sandbox/mode', 'schedule/change', 'session-log-deepseek/delivery-accepted',
+  'session/end-seed', 'session/title', 'session/title-llm-request', 'step/end', 'step/start', 'subagent/catalog',
+  'subagent/descriptor', 'subagent/model-selection-policy', 'system/message', 'team/member',
+  'team/message/delivered', 'team/message/queued', 'team/task', 'todo/write', 'tool-workflow/agent-end',
+  'tool-workflow/agent-start', 'tool-workflow/run-end', 'tool-workflow/run-start', 'tool/ptc-dispatch',
+  'tool/ptc-dispatch-start', 'web/deepseek-search-llm-request', 'workspace/changes',
+]);
+const handledEvents = new Set(['turn/start', 'turn/end', 'user/message', 'assistant/message', 'tool/call', 'tool/result']);
+
+function wireEvent(record) {
+  const event = record?.type === 'event' && record.event;
+  if (!event || typeof event.type !== 'string' || !Number.isSafeInteger(event.seq) || event.seq < 0
+    || !Number.isSafeInteger(event.time) || !Object.hasOwn(event, 'data')) fail('session_event_invalid');
+  if (!handledEvents.has(event.type) && !passiveEvents.has(event.type) && event.ignorable !== true) fail('session_event_unsupported');
+  if (handledEvents.has(event.type)) {
+    const data = event.data;
+    if (!data || typeof data !== 'object') fail('session_event_invalid');
+    if (event.type !== 'user/message' && (!Number.isSafeInteger(data.turn) || data.turn < 0)) fail('session_event_invalid');
+    if (event.type === 'turn/end' && typeof data.reason?.kind !== 'string') fail('session_event_invalid');
+    if (event.type === 'user/message' && !Array.isArray(data.content)) fail('session_event_invalid');
+    if (event.type === 'assistant/message' && !Array.isArray(data.message?.content)) fail('session_event_invalid');
+    if (event.type === 'tool/call' && (typeof data.callId !== 'string' || typeof data.name !== 'string'
+      || typeof data.arguments !== 'string')) fail('session_event_invalid');
+    if (event.type === 'tool/result' && (data.message?.role !== 'tool' || typeof data.message.toolCallId !== 'string'
+      || !Array.isArray(data.message.content))) fail('session_event_invalid');
   }
-  const decoded = Buffer.concat(chunks), rows = [];
-  let start = 0, end;
-  while ((end = decoded.indexOf(10, start)) !== -1) {
-    const line = decoded.subarray(start, end).toString('utf8');
-    if (line.trim()) rows.push(JSON.parse(line));
-    start = end + 1;
-  }
-  return { rows, frameOffset, frames, pendingBytes: Buffer.from(decoded.subarray(start)) };
+  return event;
 }
 
-function openTurn(rows, open = null) {
+function checkSessionHeader(header, cwd, sessionId) {
+  if (!header || header.id !== sessionId || !Number.isSafeInteger(header.createdAt) || !header.cwd
+    || canonicalDirectory(header.cwd) !== cwd || header.parentSession || header.origin === 'subagent'
+    || (header.delegationDepth ?? 0) !== 0) fail('session_project_mismatch');
+}
+
+function openTurn(rows, active = null) {
   for (const row of rows) {
-    if (row.type === 'turn/start') open = row.data.turn;
-    if (row.type === 'turn/end' && row.data.turn === open) open = null;
+    if (row.type === 'turn/start') active = row.data.turn;
+    if (row.type === 'turn/end' && row.data.turn === active) active = null;
   }
-  return open;
+  return active;
 }
 
-const sameFile = (a, b) => a.dev === b.dev && a.ino === b.ino;
-
-export function createLogReader(file) {
-  return {
-    identity: null, observedSize: 0n, frameOffset: 0, pendingBytes: Buffer.alloc(0), activeTurn: null,
-    stats: { bytesRead: 0, frames: 0, rows: 0 },
-    readNew() {
-      let stat;
-      try { stat = fs.statSync(file, { bigint: true }); }
-      catch (error) { if (this.identity && error.code === 'ENOENT') fail('session_log_replaced'); throw error; }
-      if (this.identity && (!sameFile(this.identity, stat) || stat.size < this.observedSize)) fail('session_log_replaced');
-      if (this.identity && stat.size === this.observedSize) return [];
-      if (stat.size > BigInt(Number.MAX_SAFE_INTEGER)) fail('session_log_too_large');
-      const fd = fs.openSync(file, 'r');
-      let bytes;
-      try {
-        const opened = fs.fstatSync(fd, { bigint: true });
-        if (!sameFile(stat, opened) || opened.size < stat.size) fail('session_log_replaced');
-        bytes = Buffer.alloc(Number(stat.size) - this.frameOffset);
-        let read = 0;
-        while (read < bytes.length) {
-          const count = fs.readSync(fd, bytes, read, bytes.length - read, this.frameOffset + read);
-          if (!count) fail('session_log_replaced');
-          read += count;
-        }
-        const current = fs.statSync(file, { bigint: true });
-        if (!sameFile(stat, current) || current.size < stat.size) fail('session_log_replaced');
-      } finally { fs.closeSync(fd); }
-      const scanned = scanFrames(bytes, this.pendingBytes);
-      this.identity = { dev: stat.dev, ino: stat.ino };
-      this.observedSize = stat.size;
-      this.frameOffset += scanned.frameOffset;
-      this.pendingBytes = scanned.pendingBytes;
-      this.activeTurn = openTurn(scanned.rows, this.activeTurn);
-      this.stats.bytesRead += bytes.length;
-      this.stats.frames += scanned.frames;
-      this.stats.rows += scanned.rows.length;
-      return scanned.rows;
-    },
-  };
-}
-
-// Each call returns a fresh full snapshot; callers never share reader state.
-export function readRows(file) { return createLogReader(file).readNew(); }
-
-// Preserve the existing full-snapshot injection seam at the reader boundary.
-function snapshotReader(file, read) {
-  let cursor = 0;
-  return {
-    activeTurn: null,
-    readNew() {
-      const rows = read(file);
-      if (rows.length < cursor) fail('session_log_replaced');
-      const added = rows.slice(cursor);
-      cursor = rows.length;
-      this.activeTurn = openTurn(added, this.activeTurn);
+// A journal is a service-owned event sequence. No DSH storage paths or formats enter this boundary.
+export class SessionJournal {
+  constructor(rpc, config, sessionId, cwd) {
+    this.rpc = rpc; this.config = config; this.sessionId = sessionId; this.cwd = canonicalDirectory(cwd);
+    this.rows = []; this.cursor = -1; this.activeTurn = null; this.reconnects = 0;
+  }
+  async refresh() {
+    this.stream?.close();
+    const stream = this.rpc.follow({ address: { kind: 'session', sessionId: this.sessionId }, maxMessages: 100 });
+    this.stream = stream;
+    try {
+      const snapshot = await stream.next(this.config.streamTimeoutMs ?? 10000);
+      if (!snapshot) fail('web_stream_timeout');
+      if (snapshot.type !== 'snapshot' || !Number.isSafeInteger(snapshot.cursor) || snapshot.cursor < -1
+        || !Array.isArray(snapshot.records) || typeof snapshot.hasMore !== 'boolean') fail('session_snapshot_invalid');
+      checkSessionHeader(snapshot.header, this.cwd, this.sessionId);
+      if (this.header && this.header.createdAt !== snapshot.header.createdAt) fail('session_history_changed');
+      const pages = [snapshot.records.map(wireEvent)];
+      let hasMore = snapshot.hasMore, before = pages[0][0]?.seq;
+      while (hasMore) {
+        if (!Number.isSafeInteger(before) || before <= 0) fail('session_page_invalid');
+        const page = await this.rpc('session/page', { address: { kind: 'session', sessionId: this.sessionId },
+          throughSeq: snapshot.cursor, beforeSeq: before, maxMessages: 100 });
+        if (!Array.isArray(page?.records) || !page.records.length || typeof page.hasMore !== 'boolean') fail('session_page_invalid');
+        const rows = page.records.map(wireEvent);
+        if (rows.at(-1).seq !== before - 1) fail('session_event_gap');
+        pages.push(rows);
+        before = rows[0].seq;
+        hasMore = page.hasMore;
+      }
+      const rows = pages.reverse().flat();
+      if (rows.length !== snapshot.cursor + 1 || rows.some((row, i) => row.seq !== i)) fail('session_event_gap');
+      if (this.cursor > snapshot.cursor || this.rows.some((row, i) => JSON.stringify(row) !== JSON.stringify(rows[i]))) fail('session_history_changed');
+      const added = rows.slice(this.cursor + 1);
+      this.header = snapshot.header;
+      this.rows = rows;
+      this.cursor = snapshot.cursor;
+      this.activeTurn = openTurn(rows);
       return added;
-    },
-  };
+    } catch (error) { stream.close(); throw error; }
+  }
+  async readNew(timeoutMs = 0) {
+    const start = this.cursor;
+    try {
+      let frame = await this.stream.next(timeoutMs);
+      while (frame) {
+        const event = wireEvent(frame);
+        if (event.seq <= this.cursor) {
+          if (JSON.stringify(this.rows[event.seq]) !== JSON.stringify(event)) fail('session_history_changed');
+        } else {
+          if (event.seq !== this.cursor + 1) fail('session_event_gap');
+          this.rows.push(event);
+          this.cursor = event.seq;
+          this.activeTurn = openTurn([event], this.activeTurn);
+        }
+        frame = await this.stream.next(0);
+      }
+    } catch (error) {
+      if (!['web_stream_disconnected', 'web_stream_timeout', 'session_event_gap'].includes(reasonOf(error))) throw error;
+      for (;;) {
+        if (++this.reconnects > 3) fail('web_stream_reconnect_failed');
+        await sleep(this.config.reconnectMs ?? 250);
+        try { await this.refresh(); break; }
+        catch (next) {
+          if (!['web_stream_disconnected', 'web_stream_timeout', 'session_event_gap'].includes(reasonOf(next))) throw next;
+        }
+      }
+    }
+    return this.rows.slice(start + 1);
+  }
+  close() { this.stream?.close(); }
 }
 
-export async function prepareSession(command, config, rpc, read = readRows) {
+export async function prepareSession(command, config, rpc) {
   const cwd = canonicalDirectory(command.cwd);
   const sessionId = command.resume_session_id || `multica-web-${createHash('sha256').update(command.request_id).digest('hex').slice(0, 32)}`;
   if (!safeId.test(sessionId) || !sessionId.startsWith('multica-web-')) fail('multica_session_required');
-  const newReader = file => read === readRows ? createLogReader(file) : snapshotReader(file, read);
-  let file, rows, logReader;
-  if (command.resume_session_id) {
-    file = findLog(config.dataHome, sessionId);
-    if (file) { logReader = newReader(file); rows = logReader.readNew(); }
-    const header = rows?.[0];
-    if (!header?.cwd || canonicalDirectory(header.cwd) !== cwd || header.parentSession || header.origin === 'subagent') fail('session_project_mismatch');
-  }
-  const created = await rpc('workspace/create', { path: command.cwd });
-  const workspace = created?.workspace;
-  if (!workspace?.workspaceId || canonicalDirectory(workspace.path) !== cwd) fail('workspace_receipt_mismatch');
-  const adopted = await rpc('session/create', { sessionId, workspaceId: workspace.workspaceId });
-  if (adopted?.sessionId !== sessionId) fail('session_receipt_mismatch');
-  const checked = await rpc('workspace/create', { path: command.cwd });
-  if (checked?.workspace?.workspaceId !== workspace.workspaceId || !checked.workspace.sessionIds?.includes(sessionId)) fail('workspace_membership_unconfirmed');
-  // Session creation is acknowledged before its initial log flush completes.
-  const deadline = Date.now() + 3000;
-  do {
-    if (rows?.[0]) {
-      rows.push(...logReader.readNew());
-    } else {
-      // A failed header attempt owns no state: the next scan starts fresh.
-      file = findLog(config.dataHome, sessionId);
-      if (file) { logReader = newReader(file); rows = logReader.readNew(); }
+  const journal = new SessionJournal(rpc, config, sessionId, cwd);
+  try {
+    // Validate existing identities before adoption, including deterministic first-send retries.
+    try { await journal.refresh(); }
+    catch (error) {
+      if (reasonOf(error) !== 'session/not-found' || command.resume_session_id) throw error;
     }
-    if (rows?.[0]) break;
-    await sleep(50);
-  } while (Date.now() < deadline);
-  if (!rows?.[0]) fail('session_header_unavailable');
-  if (!rows?.[0]?.cwd || canonicalDirectory(rows[0].cwd) !== cwd) fail('session_project_mismatch');
-  if (logReader.activeTurn !== null) fail('session_busy');
-  if (!command.resume_session_id && command.thread_name) await rpc('session/rename', { sessionId, title: `Multica · ${command.thread_name}` });
-  return { sessionId, file, rows, logReader };
+    const created = await rpc('workspace/create', { path: command.cwd });
+    const workspace = created?.workspace;
+    if (!workspace?.workspaceId || canonicalDirectory(workspace.path) !== cwd) fail('workspace_receipt_mismatch');
+    const adopted = await rpc('session/create', { sessionId, workspaceId: workspace.workspaceId });
+    if (adopted?.sessionId !== sessionId) fail('session_receipt_mismatch');
+    const checked = await rpc('workspace/create', { path: command.cwd });
+    if (checked?.workspace?.workspaceId !== workspace.workspaceId || !checked.workspace.sessionIds?.includes(sessionId)) fail('workspace_membership_unconfirmed');
+    await journal.refresh();
+    if (!command.resume_session_id && command.thread_name) await rpc('session/rename', { sessionId, title: `Multica · ${command.thread_name}` });
+    await journal.readNew();
+    return { sessionId, journal, rows: journal.rows, header: journal.header, origin: config.origin };
+  } catch (error) { journal.close(); throw error; }
 }
 
 // The browser host has its own environment. Give only Multica CLI calls the task-scoped environment.
@@ -253,37 +313,30 @@ export function taskCli(env = process.env) {
   };
 }
 
-// Persist only a digest and its log witness, never the instructions or credentials.
+// Persist only the brief digest and an API event witness, never prompt text or credentials.
 function prepareBrief(command, prepared, directory) {
   const brief = command.system_prompt;
   if (!brief) return { prefix: '', confirm() {} };
   const hash = createHash('sha256').update(brief).digest('hex');
-  const key = createHash('sha256').update(path.resolve(prepared.file)).digest('hex');
+  const identity = `${prepared.origin}\n${prepared.sessionId}\n${prepared.header.createdAt}`;
+  const key = createHash('sha256').update(identity).digest('hex');
   const file = path.join(directory, `${key}.json`);
-  const stat = fs.statSync(prepared.file, { bigint: true });
   let cached;
   try { cached = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* Missing or corrupt means resend. */ }
-  const witness = cached && prepared.rows.some(row => row.type === 'user/message'
+  const witness = cached && prepared.rows.find(row => row.seq === cached.seq && row.type === 'user/message'
     && row.data?.source?.rpcId === cached.requestId && textOf(row.data).includes(brief + '\n\n'));
-  if (command.resume_session_id && cached?.v === 1 && cached.hash === hash
-    && cached.dev === String(stat.dev) && cached.ino === String(stat.ino)
-    && /^\d+$/.test(cached.size) && BigInt(cached.size) <= stat.size && witness) {
-    return { prefix: '', confirm() {} };
-  }
-  // Invalidate before delivery. A crash after admission must not leave an older digest usable.
+  if (command.resume_session_id && cached?.v === 2 && cached.hash === hash && witness) return { prefix: '', confirm() {} };
   try { fs.unlinkSync(file); }
   catch (error) { if (error.code !== 'ENOENT') fail('runtime_brief_cache_unavailable'); }
   let confirmed = false;
   return {
     prefix: `${command.resume_session_id ? '以下运行说明取代本会话中此前的版本，按本版执行。\n' : ''}${brief}\n\n`,
     confirm(rows, sentText) {
-      if (confirmed || !rows.some(row => row.type === 'user/message'
-        && row.data?.source?.rpcId === command.request_id && textOf(row.data) === sentText)) return;
+      const witness = rows.find(row => row.type === 'user/message'
+        && row.data?.source?.rpcId === command.request_id && textOf(row.data) === sentText);
+      if (confirmed || !witness) return;
       confirmed = true;
-      const current = fs.statSync(prepared.file, { bigint: true });
-      if (!sameFile(stat, current) || current.size < stat.size) return;
-      const record = { v: 1, hash, requestId: command.request_id,
-        dev: String(current.dev), ino: String(current.ino), size: String(current.size) };
+      const record = { v: 2, hash, requestId: command.request_id, seq: witness.seq };
       const temp = file + `.${randomUUID()}.tmp`;
       try {
         fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -296,8 +349,9 @@ function prepareBrief(command, prepared, directory) {
 }
 
 export class TurnReader {
-  constructor(requestId, emit) { this.requestId = requestId; this.emit = emit; this.turn = null; this.activeTurn = null; this.output = ''; this.pending = []; }
+  constructor(requestId, emit) { this.requestId = requestId; this.emit = emit; this.turn = null; this.activeTurn = null; this.output = ''; this.pending = []; this.toolNames = new Map(); }
   push(row) {
+    if (this.terminal) return;
     if (row.type === 'turn/start') this.activeTurn = row.data.turn;
     if (this.turn === null) {
       this.pending.push(row);
@@ -323,10 +377,17 @@ export class TurnReader {
           cache_read_tokens: usage.cacheReadTokens ?? 0, cache_write_tokens: usage.cacheWriteTokens ?? 0 });
         break;
       }
-      case 'tool/call': this.output = ''; this.emit({ type: 'tool_call', call_id: data.callId, name: data.name, arguments: data.arguments }); break;
-      case 'tool/result': this.emit({ type: 'tool_result', call_id: data.callId, name: data.name,
-        output: (data.message?.content ?? []).filter(p => p.type === 'tool-result').map(p => textOf(p)).join('\n'),
-        is_error: data.message?.content?.some(p => p.isError) }); break;
+      case 'tool/call':
+        this.output = '';
+        this.toolNames.set(data.callId, data.name);
+        this.emit({ type: 'tool_call', call_id: data.callId, name: data.name, arguments: data.arguments });
+        break;
+      case 'tool/result': {
+        const message = data.message, callId = message.toolCallId;
+        this.emit({ type: 'tool_result', call_id: callId, name: this.toolNames.get(callId),
+          output: textOf(message), is_error: message.isError === true });
+        break;
+      }
       case 'turn/end': this.terminal = { status: data.reason?.kind === 'completed' ? 'completed' : data.reason?.kind === 'user' ? 'cancelled' : 'failed', output: this.output,
         ...(data.reason?.kind === 'completed' ? {} : { error: { code: 'dsh_turn_ended', message: String(data.reason?.kind ?? 'unknown') } }) }; break;
     }
@@ -334,63 +395,78 @@ export class TurnReader {
 }
 
 export async function execute(command, config, emit, control, dependencies = {}) {
-  const read = dependencies.readRows ?? readRows;
-  let cli, prepared, rpc, delivered = false;
+  let cli, prepared, delivered = false;
   try {
     if (command.v !== 1 || command.type !== 'execute' || !safeId.test(command.request_id) || !command.prompt?.trim()) fail('invalid_execute_command');
     if (command.model && (command.model.provider !== 'web' || command.model.id !== 'default') || command.reasoning_effort) fail('use_dsh_web_model_settings');
     if (command.mcp_servers?.length) fail('use_dsh_web_mcp_settings');
-    rpc = await (dependencies.connectWeb ?? connectWeb)(config);
-    prepared = await prepareSession(command, config, rpc, read);
+    const rpc = await (dependencies.connectWeb ?? connectWeb)(config);
+    prepared = await prepareSession(command, config, rpc);
     emit({ type: 'session', session_id: prepared.sessionId, resumed: Boolean(command.resume_session_id) });
     if (control.cancelled) fail('cancelled_before_delivery');
-    cli = taskCli(dependencies.env ?? process.env);
     const reader = new TurnReader(command.request_id, emit);
-    // Include historical rows only to recover an already-admitted request, never replay their output.
     for (const row of prepared.rows) reader.push(row);
-    if (reader.turn !== null) {
-      if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
-      fail('existing_request_still_running');
+    if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
+    // A retry of an admitted request observes that run instead of re-posting the prompt.
+    delivered = reader.turn !== null || prepared.rows.some(row => row.type === 'agent/inbox/spliced'
+      && Array.isArray(row.data?.inserted) && row.data.inserted.some(message => message?.source?.rpcId === command.request_id));
+    if (!delivered && prepared.journal.activeTurn !== null) fail('session_busy');
+    let brief = { confirm() {} }, text;
+    if (!delivered) {
+      cli = taskCli(dependencies.env ?? process.env);
+      brief = prepareBrief(command, prepared, dependencies.briefCacheDir ?? path.join(os.homedir(), '.multica', 'dsh-web-briefs'));
+      text = `${cli.instructions}${brief.prefix}${command.prompt}`;
+      const receipt = await rpc('session/prompt', { sessionId: prepared.sessionId, requestId: command.request_id, mode: 'queue', content: [{ type: 'text', text }] });
+      if (receipt?.accepted !== true) fail('prompt_receipt_invalid');
+      delivered = true;
     }
-    const brief = prepareBrief(command, prepared, dependencies.briefCacheDir ?? path.join(os.homedir(), '.multica', 'dsh-web-briefs'));
-    const text = `${cli.instructions}${brief.prefix}${command.prompt}`;
-    const receipt = await rpc('session/prompt', { sessionId: prepared.sessionId, requestId: command.request_id, mode: 'queue', content: [{ type: 'text', text }] });
-    if (receipt?.accepted !== true) fail('prompt_receipt_invalid');
-    delivered = true;
-    control.cancel = async () => {
-      const receipt = await rpc('session/cancel', { sessionId: prepared.sessionId });
-      if (receipt?.accepted !== true) fail('cancel_receipt_invalid');
-    };
+    let cancelDeadline;
+    const consume = rows => { brief.confirm(rows, text); for (const row of rows) reader.push(row); };
     for (;;) {
-      const rows = prepared.logReader.readNew();
-      brief.confirm(rows, text);
-      for (const row of rows) reader.push(row);
+      consume(await prepared.journal.readNew(config.pollMs ?? 250));
       if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
-      if (control.cancelled) {
-        if (prepared.logReader.activeTurn !== null && prepared.logReader.activeTurn !== reader.turn) fail('cancel_target_not_active');
-        await control.cancel();
-        emit({ type: 'result', session_id: prepared.sessionId, status: 'cancelled', output: reader.output });
-        return;
+      if (control.cancelled && !cancelDeadline) {
+        // Obtain a fresh event cut before cancelling a session shared with browser users.
+        consume(await prepared.journal.refresh());
+        if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
+        if (reader.turn === null || prepared.journal.activeTurn !== reader.turn) fail('cancel_target_not_active');
+        const receipt = await rpc('session/cancel', { sessionId: prepared.sessionId });
+        if (receipt?.accepted !== true) fail('cancel_receipt_invalid');
+        cancelDeadline = Date.now() + 5000;
       }
-      await sleep(config.pollMs ?? 500);
+      if (cancelDeadline && Date.now() >= cancelDeadline) fail('cancel_not_confirmed');
     }
   } catch (error) {
+    const code = reasonOf(error);
     emit({ type: 'result', session_id: prepared?.sessionId ?? command.resume_session_id ?? '', status: control.cancelled ? 'cancelled' : 'failed', output: '',
-      error: { code: reasonOf(error), message: delivered || reasonOf(error) === 'web_rpc_outcome_unknown' ? 'The DSH web run may still be active. Open DSH to inspect it before retrying.' : reasonOf(error) } });
-  } finally { cli?.cleanup(); }
+      error: { code, message: delivered || code === 'web_rpc_outcome_unknown'
+        ? 'The DSH web run may still be active. Open DSH to inspect it before retrying.'
+        : code === 'dsh_event_api_unsupported' ? 'This DSH host does not support the required session event API. Update the bridge or use a supported DSH host.' : code } });
+  } finally { prepared?.journal.close(); cli?.cleanup(); }
+}
+
+export async function probeWeb(config, rpc) {
+  const stream = rpc.follow({ address: { kind: 'session', sessionId: `multica-web-probe-${randomUUID()}` } });
+  try {
+    await stream.next(config.streamTimeoutMs ?? 10000);
+    fail('session_probe_invalid');
+  } catch (error) {
+    // A recognized missing session proves authentication, the carrier and the endpoint, without creating a session.
+    if (reasonOf(error) !== 'session/not-found') throw error;
+  } finally { stream.close(); }
 }
 
 export async function main(args = process.argv.slice(2)) {
   const emit = frame => process.stdout.write(JSON.stringify({ v: 1, ...frame }) + '\n');
-  if (args.includes('--version')) { process.stdout.write('multica-dsh-web 1.0.0\n'); return; }
+  if (args.includes('--version')) { process.stdout.write('multica-dsh-web 1.0.1\n'); return; }
   const config = loadConfig();
   if (args.includes('--probe')) {
-    await connectWeb(config);
+    await probeWeb(config, await connectWeb(config));
     emit({ type: 'probe', runtime: 'dsh', protocol_version: 1 });
     return;
   }
   if (args.includes('--list-models')) {
-    await connectWeb(config);
+    await probeWeb(config, await connectWeb(config));
     emit({ type: 'models', models: [{ id: 'web/default', label: 'Use DSH web settings', provider: 'web', default: true }] });
     return;
   }

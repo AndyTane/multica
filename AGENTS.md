@@ -33,6 +33,7 @@ Use `Makefile`, workspace `package.json` files, and `pnpm-workspace.yaml` for cu
 - Use the checkout's managed environment: `make up`, `make status`, `make down`. `make down` preserves data; `make destroy` removes the environment and its data.
 - Windows native self-host deployments use `scripts/native-windows.ps1` and [docs/windows-native.md](docs/windows-native.md). Keep their runtime data and credentials outside the checkout; use the script's lifecycle actions instead of the development environment commands for those deployments.
 - Windows self-host CLI builds use `scripts/build-local-cli.ps1`, which stamps the tagged Git source version and writes a separate executable. Unstamped or arbitrary `dev` labels fail version-gated features; replace the running daemon only when idle.
+- The DSH web bridge reuses the existing browser-owned host and consumes its session event API. Keep DSH storage formats and private session files outside the bridge boundary; validate interface support before sending a prompt. Its probe must not create sessions or send prompts.
 - Worktrees share PostgreSQL but have isolated databases/ports. Use the environment scripts and `.env.worktree`; do not copy the main checkout's `.env` or manually create a database through an assumed PostgreSQL instance.
 - Regenerate sqlc with `make sqlc` after SQL changes.
 - Run the narrowest useful checks while iterating, then broaden when risk warrants it. Report what actually ran and any skipped checks.
