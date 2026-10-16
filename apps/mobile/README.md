@@ -52,6 +52,10 @@ Everything below is for app developers — you can ignore the rest if you only w
 
 `dev:*` runs Metro only — assumes the matching variant is already installed. `ios:mobile*` does a full native rebuild + install.
 
+The iOS wrapper explicitly passes `--no-clean` to Expo prebuild so configuration
+plugins are reapplied while preserving the native project and CocoaPods cache.
+Expo SDK 57 otherwise recreates the native project on every prebuild.
+
 Bundle id and display name switch on `APP_ENV` (see `app.config.ts`), so Dev / Staging / Production variants can coexist on the same device or simulator.
 
 ### Regenerating iOS after the scene lifecycle migration
@@ -155,3 +159,31 @@ Edit `EXPO_PUBLIC_API_URL` in `.env.staging`, `.env.production.local`, or `.env.
 - For an installed **Release build**: re-run the `ios:mobile:device:staging:release` command — the value is baked into the embedded bundle at build time.
 
 For local backend testing, use your Mac's LAN IP (`ipconfig getifaddr en0`), not `localhost`.
+
+### A self-hosted server on a Windows PC
+
+The iPhone and Mac must be able to reach the Windows server over the local
+network. `localhost` on the phone refers to the phone, not the PC. Use the
+Windows Wi-Fi address in `.env.production.local`, for example:
+
+```dotenv
+EXPO_PUBLIC_API_URL=http://192.168.3.162:8080
+EXPO_PUBLIC_WEB_URL=http://192.168.3.162:3000
+EXPO_BUNDLE_IDENTIFIER_PROD=com.yourname.multica.personal
+```
+
+The iOS config adds an HTTP exception for the configured API host and a local
+network permission description. HTTPS builds keep their normal transport policy.
+Allow local network access when iOS asks. If the PC's DHCP address changes, update
+the URLs and rebuild the installed Release app.
+
+On the Mac, run `bash apps/mobile/scripts/install-selfhost.command` from this
+checkout. It checks Node and Xcode, installs the pinned pnpm dependencies, and
+uses the existing Release/device build wrapper. If `.env.production.local` is
+missing, it copies `selfhost-windows.env.example`; check that profile's Windows
+address and bundle ID before running it. Existing local configuration is preserved.
+Signing and the physical device installation happen on the Mac; Linux checks and JavaScript exports cannot
+produce or validate a signed device application.
+
+For a loopback-only native Windows deployment, see the companion relay in
+[`docs/windows-native.md`](../../docs/windows-native.md#local-network-phone-access).

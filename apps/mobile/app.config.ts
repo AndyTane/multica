@@ -13,6 +13,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const env = process.env.APP_ENV ?? "development";
   const isProd = env === "production";
   const isStaging = env === "staging";
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL
+    ? new URL(process.env.EXPO_PUBLIC_API_URL)
+    : undefined;
+  const httpApiHost = apiUrl?.protocol === "http:" ? apiUrl.hostname : undefined;
 
   return {
     ...config,
@@ -33,6 +37,24 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // icon size from this single PNG.
     icon: "./assets/icon.png",
     ios: {
+      // iOS 17+ requires an explicit ATS exception for HTTP IP addresses.
+      // Limit it to the configured server instead of disabling ATS globally.
+      ...(httpApiHost ? {
+        infoPlist: {
+          NSLocalNetworkUsageDescription:
+            "Multica connects to your self-hosted server on your local network.",
+          NSAppTransportSecurity: {
+            NSAllowsArbitraryLoads: false,
+            NSAllowsLocalNetworking: true,
+            NSExceptionDomains: {
+              [httpApiHost]: {
+                NSExceptionAllowsInsecureHTTPLoads: true,
+                NSIncludesSubdomains: false,
+              },
+            },
+          },
+        },
+      } : {}),
       // Expo keeps the top-level portrait policy for iPhone while adding all
       // iPad orientations required for multitasking when tablet support is on.
       supportsTablet: true,

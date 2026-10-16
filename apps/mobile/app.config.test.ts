@@ -8,6 +8,30 @@ import createConfig from "./app.config";
 
 afterEach(() => vi.unstubAllEnvs());
 
+describe("self-hosted iOS network access", () => {
+  it("allows HTTP only for the configured server and describes local network access", () => {
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "http://192.168.3.162:8080");
+    const config = createConfig({ config: {} } as ConfigContext);
+    expect(config.ios?.infoPlist?.NSLocalNetworkUsageDescription).toContain("self-hosted server");
+    expect(config.ios?.infoPlist?.NSAppTransportSecurity).toEqual({
+      NSAllowsArbitraryLoads: false,
+      NSAllowsLocalNetworking: true,
+      NSExceptionDomains: {
+        "192.168.3.162": {
+          NSExceptionAllowsInsecureHTTPLoads: true,
+          NSIncludesSubdomains: false,
+        },
+      },
+    });
+  });
+
+  it.each([undefined, "https://api.multica.ai"])("does not add HTTP exceptions for %s", (apiUrl) => {
+    vi.stubEnv("EXPO_PUBLIC_API_URL", apiUrl);
+    const config = createConfig({ config: {} } as ConfigContext);
+    expect(config.ios?.infoPlist?.NSAppTransportSecurity).toBeUndefined();
+  });
+});
+
 describe("iOS scene lifecycle configuration", () => {
   it("resolves native presenters from the foregrounded scene", () => {
     const requireFromTest = createRequire(import.meta.url);

@@ -10,14 +10,14 @@
 #
 # ios/ is gitignored and fully generated, so prebuilding on every run is safe
 # and idempotent. --no-install is fine because run:ios installs pods itself
-# when Podfile.lock is out of date; --clean is deliberately avoided since
-# expo-build-properties sets buildReactNativeFromSource, making a from-source
-# pod rebuild far too slow for the normal edit/run loop.
+# when Podfile.lock is out of date. Expo SDK 57 cleans by default, so pass
+# --no-clean explicitly: rebuilding React Native from source on every run
+# would discard CocoaPods and slow normal edits and personal re-signing.
 #
 # APP_ENV and the .env file are supplied by the calling package.json script, so
 # prebuild and run resolve the same variant. Arguments are forwarded to
 # run:ios only — prebuild takes the same flags for every variant.
 set -euo pipefail
 
-pnpm exec expo prebuild -p ios --no-install
+pnpm exec expo prebuild -p ios --no-install --no-clean
 exec pnpm exec expo run:ios "$@"
