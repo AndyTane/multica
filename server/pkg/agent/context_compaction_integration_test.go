@@ -18,16 +18,21 @@ import (
 
 func TestClaudeContextCompactionRealSession(t *testing.T) {
 	requireRealAgentSmoke(t)
-	testRealContextCompaction(t, "claude")
+	testRealContextCompaction(t, "claude", false)
+}
+
+func TestClaudeContextCompactionRealLargeSession(t *testing.T) {
+	requireRealAgentSmoke(t)
+	testRealContextCompaction(t, "claude", true)
 }
 
 func TestCodexContextCompactionRealSession(t *testing.T) {
 	requireRealAgentSmoke(t)
-	testRealContextCompaction(t, "codex")
+	testRealContextCompaction(t, "codex", false)
 }
 
 // The opt-in check in each test precedes executable lookup and account access.
-func testRealContextCompaction(t *testing.T, provider string) {
+func testRealContextCompaction(t *testing.T, provider string, largeContext bool) {
 	t.Helper()
 	path := os.Getenv("MULTICA_G_AGENT_PATH")
 	if path == "" {
@@ -74,15 +79,21 @@ func testRealContextCompaction(t *testing.T, provider string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
+	beds, threshold, wantCompactions := 60, int64(1000), 2
+	totalTimeout, runTimeout := 8*time.Minute, 5*time.Minute
+	if largeContext {
+		beds, threshold, wantCompactions = 1400, DefaultContextCompactionThreshold, 1
+		totalTimeout, runTimeout = 15*time.Minute, 12*time.Minute
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), totalTimeout)
 	defer cancel()
 	const marker = "青竹花园-7D39"
 	var material strings.Builder
-	for bed := 1; bed <= 60; bed++ {
+	for bed := 1; bed <= beds; bed++ {
 		fmt.Fprintf(&material, "花圃 %d：种植薄荷、罗勒和百里香，早晨检查土壤湿度。雨后减少浇水，保持通风；每周记录新叶和花期，收获时留下健康枝条。\n", bed)
 	}
 	seed := "我们在整理一份园艺项目资料。项目代号是「" + marker + "」。请记住代号供下一条消息询问，不要使用工具或操作文件。这条消息只回复 SEED_OK。以下是项目的花圃安排：\n" + material.String()
-	opts := ExecOptions{Cwd: t.TempDir(), Model: os.Getenv("MULTICA_G_AGENT_MODEL"), McpConfig: json.RawMessage(`{"mcpServers":{}}`), Timeout: 5 * time.Minute}
+	opts := ExecOptions{Cwd: t.TempDir(), Model: os.Getenv("MULTICA_G_AGENT_MODEL"), McpConfig: json.RawMessage(`{"mcpServers":{}}`), Timeout: runTimeout}
 	if provider == "claude" {
 		opts.ExtraArgs = []string{"--tools", ""}
 	}
@@ -90,14 +101,28 @@ func testRealContextCompaction(t *testing.T, provider string) {
 	if first.Status != "completed" || first.SessionID == "" || normalizeCompactionTestReply(first.Output) != "SEED_OK" {
 		t.Fatalf("seed failed: status=%s session_present=%t error=%s", first.Status, first.SessionID != "", first.Error)
 	}
+	if largeContext {
+		tokens := claudePersistedContext(buildEnv(environment), opts.Cwd, first.SessionID)
+		if tokens < threshold {
+			t.Fatalf("large-session seed did not reach the real threshold: context=%d threshold=%d", tokens, threshold)
+		}
+		t.Logf("large session seeded: context=%d threshold=%d session=%s", tokens, threshold, first.SessionID)
+	}
 	opts.ResumeSessionID = first.SessionID
-	opts.ContextCompaction = &ContextCompactionPolicy{Enabled: true, ThresholdTokens: 1000}
+	opts.ContextCompaction = &ContextCompactionPolicy{Enabled: true, ThresholdTokens: threshold}
 	second, completedCompactions := collectRealCompactionRun(t, ctx, b, "刚才的园艺项目代号是什么？只回复完整代号，不要使用工具或操作文件。", opts)
 	if second.Status != "completed" || second.SessionID != first.SessionID || normalizeCompactionTestReply(second.Output) != marker {
 		t.Fatalf("resume did not preserve memory: status=%s same_session=%t output=%q error=%s", second.Status, second.SessionID == first.SessionID, second.Output, second.Error)
 	}
-	if completedCompactions < 2 {
-		t.Fatalf("expected both pre-task and post-task compaction, completed=%d", completedCompactions)
+	if completedCompactions < wantCompactions {
+		t.Fatalf("expected at least %d completed compactions, completed=%d", wantCompactions, completedCompactions)
+	}
+	if largeContext {
+		tokens := claudePersistedContext(buildEnv(environment), opts.Cwd, second.SessionID)
+		if tokens <= 0 || tokens >= threshold {
+			t.Fatalf("compacted session did not return below the threshold: context=%d threshold=%d", tokens, threshold)
+		}
+		t.Logf("large session resumed: context=%d same_session=true marker_preserved=true", tokens)
 	}
 	t.Logf("%s: same session, remembered marker, %d completed compactions", provider, completedCompactions)
 }
@@ -116,6 +141,7 @@ func TestContextCompactionTestReplyFormatting(t *testing.T) {
 
 func collectRealCompactionRun(t *testing.T, ctx context.Context, b Backend, prompt string, opts ExecOptions) (Result, int) {
 	t.Helper()
+	started := time.Now()
 	session, err := b.Execute(ctx, prompt, opts)
 	if err != nil {
 		t.Fatal(err)
@@ -127,6 +153,7 @@ func collectRealCompactionRun(t *testing.T, ctx context.Context, b Backend, prom
 		}
 		if message.Type == MessageLog && message.Content == "Context compaction completed." {
 			completed++
+			t.Logf("context compaction completed after %s", time.Since(started).Round(time.Millisecond))
 		}
 		if message.Type == MessageLog && message.Level == "warn" {
 			t.Log(message.Content)
