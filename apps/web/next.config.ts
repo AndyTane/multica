@@ -38,7 +38,12 @@ const allowedDevOrigins = process.env.CORS_ALLOWED_ORIGINS
       .filter(Boolean)
   : undefined;
 
+const buildCpuLimit = Number(process.env.MULTICA_BUILD_CPUS);
+
 const nextConfig: NextConfig = {
+  ...(Number.isSafeInteger(buildCpuLimit) && buildCpuLimit > 0
+    ? { experimental: { cpus: buildCpuLimit } }
+    : {}),
   ...(process.env.STANDALONE === "true" ? { output: "standalone" as const } : {}),
   transpilePackages: ["@multica/core", "@multica/ui", "@multica/views"],
   ...(allowedDevOrigins && allowedDevOrigins.length > 0

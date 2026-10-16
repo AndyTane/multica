@@ -154,6 +154,7 @@ If the frontend and backend are served from different hostnames, `COOKIE_DOMAIN`
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8080` | Backend port — the one to edit. It is the port the backend process listens on for a local/bare run, and the host port the Compose self-host stack publishes. In Compose the container always listens on `8080` internally, so changing this needs no rebuild. |
+| `HOST` | empty (all interfaces) | Backend listen address for a native deployment. Set `127.0.0.1` for local-only access. Docker deployments retain their existing container listener and loopback host-port bindings. |
 | `BACKEND_PORT` | Value of `PORT` | Optional alias that overrides `PORT` for the backend. `API_PORT` and `SERVER_PORT` are further aliases; the **alias order** is `BACKEND_PORT` → `API_PORT` → `SERVER_PORT` → `PORT` → `8080`, and it is the same in `Makefile`, `scripts/local-env.sh` and `docker-compose.selfhost.yml`. Leave them unset unless the host port must differ from the port the process listens on. |
 | `METRICS_ADDR` | empty | Optional Prometheus metrics listener, for example `127.0.0.1:9090` |
 | `FRONTEND_PORT` | `3000` | Frontend port. Host port in Compose; the container always listens on `3000` internally. |
@@ -425,6 +426,8 @@ Migration `103` adds a fail-closed guard that refuses to drop the legacy daily r
 If you are upgrading from a binary that pre-dates MUL-2957 (or the auto-hook fails for an environmental reason), recovery is the manual path: run `backfill_task_usage_hourly` against the database, then re-run `migrate up` (or restart the backend container — migrations run automatically on startup). **Fresh installs are exempt** — the guard short-circuits when `task_usage` is empty, and the in-process scheduler picks up new buckets from the first tick.
 
 ## Manual Setup (Without Docker Compose)
+
+For a managed native Windows deployment, including backup/restore, loopback binding, a per-user supervisor, and login startup, see [Windows native self-hosting](docs/windows-native.md).
 
 If you prefer to build and run services manually:
 
