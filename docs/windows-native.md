@@ -77,3 +77,41 @@ For an upgrade, take this backup, stop the deployment, build a new release, and 
 Before the native deployment accepts writes, rollback can restart the preserved Docker deployment. After native writes begin, export the native database and uploads back to the recovery deployment first; starting the old database snapshot alone would lose those writes.
 
 Run the script tests with `powershell -NoProfile -File scripts/native-windows.test.ps1`. They use temporary files and fake child processes, never PostgreSQL, Docker, or user-installed agent CLIs.
+
+## Local network phone access
+
+`scripts/lan-proxy.mjs` is an optional Node companion for an existing loopback-only
+deployment. It relays the configured TCP ports from a named Wi-Fi interface to
+the same ports on `127.0.0.1`. It preserves HTTP streaming and WebSocket upgrades,
+accepts only clients from that interface's IPv4 subnet, and refreshes its bindings
+if the Wi-Fi address changes. It does not change the backend/database bindings or
+restart the deployment. Keep the companion and its config outside the checkout.
+
+Create `D:\MulticaData\native\mobile-access\config.json`:
+
+```json
+{ "interface": "WLAN", "ports": [3000, 8080] }
+```
+
+Copy `scripts/lan-proxy.mjs` beside it and run:
+
+```powershell
+node D:\MulticaData\native\mobile-access\lan-proxy.mjs D:\MulticaData\native\mobile-access\config.json
+```
+
+Use the actual interface name from `Get-NetIPConfiguration`. Windows must already
+allow inbound Node TCP connections on that network, or an administrator must add
+a rule restricted to the intended interface/subnet. The relay does not edit
+firewall rules. To persist it, add a separate per-user login startup entry; stop
+or remove that companion independently of the native deployment lifecycle.
+
+Verify both the original loopback health endpoint and the Wi-Fi address's
+`http://<address>:8080/readyz`. Also verify the connection from the actual phone;
+a successful request from the PC itself does not test inbound firewall or Wi-Fi
+client isolation. The relay does not change browser origin, cookie, or WebSocket
+URL configuration; validate those separately if using the web client remotely.
+
+Run the companion's HTTP, WebSocket, subnet, and half-close checks with
+`node --test scripts/lan-proxy.test.mjs`. See
+[`apps/mobile/README.md`](../apps/mobile/README.md#a-self-hosted-server-on-a-windows-pc)
+for the iOS client's URLs, transport settings, and Mac installation command.
