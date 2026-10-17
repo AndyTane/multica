@@ -70,13 +70,13 @@
 ## Verification
 
 - The six handler scenarios (Claude/Codex × completed/failed/cancelled) failed on the unchanged checkout because no return was registered. They pass with this change, including a caller that has ended, progress that does not wake it, and preservation of the original comment thread.
-- `go test ./internal/handler ./internal/service -run '^TestDSHDelegation' -count=1 -v`: all new scenarios pass. Service cases also cover claim-finalization rollback, reclaim without rearming a disabled rule, separate coalesced callers and ten rejected input/permission/lifecycle cases.
+- `go test ./internal/handler ./internal/service -run '^TestDSHDelegation' -count=1 -v`: all new scenarios pass. Service cases also cover claim-finalization rollback, reclaim without rearming a disabled rule, separate coalesced callers with different human owners and eleven rejected input/permission/lifecycle cases.
 - `pnpm test:dsh-web`: 39/39 pass, including independent held-worker completion after another run finishes. All hosts and agents are simulated.
 - `go test ./internal/daemon/execenv -run '^TestInjectRuntimeConfigMentionLoopHardening$' -count=1 -v`: passes.
 - `go vet ./internal/handler ./internal/service ./internal/daemon/execenv ./cmd/multica-dsh-web`: passes.
 - sqlc regenerated with the repository-pinned 1.31.1 release. The official Windows binary's SHA-256 digest was verified; `make` is unavailable on this host and source-tool dependency downloads were slow.
 - Full tests for those four Go packages were attempted. The DSH command package passes. The Windows checkout has additional failures in path handling, CRLF-sensitive builtin-skill parsing, Unix file-permission assumptions, and OpenClaw home/cache tests (one panics). The unchanged checkout reproduces both handler path failures, all three builtin-skill failures, and the two Codex file-permission failures. OpenClaw failures were not individually rerun. These are outside the delegation change.
-- Related existing handler/service regression suite and final diff check: pending final run.
+- The agent-CLI-guarded handler/service regression suite passes: `go test -p 1 -parallel 2 ./internal/handler ./internal/service -run '^Test(DSHDelegation|IssueWakeup|WorkspaceWakeup|WorkerReply|DelegatedFailure|PendingDelegatedFailure|FinalizeTaskClaim|ClaimTask|CancelTaskByUser)' -count=1`. This includes the final caller-isolation and revoked-permission cases. `git diff --check` passes.
 
 ## Delivery limits
 

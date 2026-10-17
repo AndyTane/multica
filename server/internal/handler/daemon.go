@@ -2001,6 +2001,7 @@ func (h *Handler) finalizeClaimDelivery(
 	daemonTokens ...db.CreateDaemonTokenParams,
 ) (receipt []pgtype.UUID, deliveryFailure *claimBuildFailure, err error) {
 	var agentOwnerID pgtype.UUID
+	var publishDelegationReturns func()
 	authorize := func(qtx *db.Queries, tokenParams *db.CreateTaskTokenParams) error {
 		// FOR UPDATE on the runtime row: any concurrent
 		// UpsertAgentRuntime/visibility flip that would change owner_id or
@@ -2055,11 +2056,22 @@ func (h *Handler) finalizeClaimDelivery(
 		// its current owner as the task-token identity rather than the stale
 		// claim-time snapshot captured by the caller.
 		tokenParams.UserID = locked.OwnerID
+		if locked.Provider == "dsh" {
+			wakeups := &service.IssueWakeupService{Tasks: h.TaskService}
+			var err error
+			publishDelegationReturns, err = wakeups.PrepareDSHDelegationReturns(ctx, qtx, *task, deliveredCommentIDs)
+			if err != nil {
+				return fmt.Errorf("prepare DSH delegation returns: %w", err)
+			}
+		}
 		return nil
 	}
 
 	receipt, err = h.TaskService.FinalizeTaskClaim(ctx, *task, token, deliveredCommentIDs, recordCommentReceipt, authorize, issueSnapshot, daemonTokens...)
 	if err == nil {
+		if publishDelegationReturns != nil {
+			publishDelegationReturns()
+		}
 		return receipt, nil, nil
 	}
 	var authzErr *service.ClaimDeliveryAuthzError

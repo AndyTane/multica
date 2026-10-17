@@ -197,6 +197,28 @@ async function waitUntil(condition) {
   }
 }
 
+test('a held DSH run keeps receiving its result after another caller run finishes', async t => {
+  const f = await fixture(t, { hold: true });
+  let workerFinished = false;
+  const worker = run(f, command(f, 'independent-worker')).then(frames => { workerFinished = true; return frames; });
+  await waitUntil(() => [...f.sessions.values()].some(session => session.rows.some(row => row.type === 'tool/result')));
+  const caller = run(f, command(f, 'independent-caller'));
+  await waitUntil(() => [...f.sessions.values()].filter(session => session.rows.some(row => row.type === 'tool/result')).length === 2);
+  const sessionFor = id => [...f.sessions.values()].find(session => session.rows.some(row => row.type === 'user/message' && row.data.source.rpcId === id));
+  const finish = (session, text) => f.append(session, [
+    { type: 'assistant/message', data: { turn: session.turn, message: { content: [{ type: 'text', text }], source: { provider: 'test', model: 'fake' } } } },
+    { type: 'turn/end', data: { turn: session.turn, reason: { kind: 'completed' } } },
+  ]);
+  finish(sessionFor('independent-caller'), 'Delegated; this caller can finish.');
+  assert.equal((await caller).at(-1).status, 'completed');
+  assert.equal(workerFinished, false);
+  finish(sessionFor('independent-worker'), 'Late worker evidence');
+  const result = (await worker).at(-1);
+  assert.equal(result.status, 'completed');
+  assert.equal(result.output, 'Late worker evidence');
+  assert.equal(prompts(f).length, 2);
+});
+
 test('API events retain tool identity, errors and usage', async t => {
   const f = await fixture(t, { toolError: true });
   const frames = await run(f, command(f, 'api-tools'));

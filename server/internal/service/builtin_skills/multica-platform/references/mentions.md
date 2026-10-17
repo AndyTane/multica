@@ -8,6 +8,7 @@ that and do not re-derive it here.
 - [Step 1 — look up the UUID](#step-1--look-up-the-uuid)
 - [Step 2 — the four types and what each enqueues](#step-2--the-four-types-and-what-each-enqueues)
 - [Preview and per-comment suppression](#preview-and-per-comment-suppression)
+- [Delegating to DSH](#delegating-to-dsh)
 - [@all is the broadcast type](#all-is-the-broadcast-type)
 - [What does NOT happen](#what-does-not-happen)
 - [Who the invoke gate judges](#who-the-invoke-gate-judges)
@@ -37,6 +38,28 @@ ordinary link that opens the project on tap on mobile). That is the whole point:
 a project reference should never be able to start a run. Use it freely to point
 at a project; everything else in this document is about the four types (plus
 `all`) the parser does recognize.
+
+## Delegating to DSH
+
+Inside a Multica run, delegate browser-visible DSH work by posting a normal
+`[@DSH](mention://agent/<agent-uuid>)` comment on the same issue, preferably as a
+reply in the current thread. Look up the DSH agent first and confirm that its
+runtime is DSH Web. Claude and Codex use the same platform path.
+
+The mention creates an independent DSH run. When its inputs are delivered,
+Multica stores a one-shot wakeup for the source agent and original thread,
+bound to that exact DSH run's completion, failure or cancellation. You can end
+the delegating turn after the mention was accepted; there is no caller-owned
+shell watcher to keep alive. Do not also create a duplicate wakeup or use
+`dsh-send.mjs` for this Multica-managed delegation.
+
+Progress comments do not fire this return. On the wakeup, inspect the saved
+run result and verify its work before accepting it. A failure or cancellation
+is an outcome to inspect, never permission to resend automatically. Existing
+issue-lifecycle, invocation-permission and wakeup-disable rules still apply.
+Squad leaders keep their existing worker-result routing instead of receiving
+an additional direct-agent return. Standalone Claude/Codex sessions outside
+Multica continue using their host's supported dispatch workflow.
 
 ## Step 1 — look up the UUID
 

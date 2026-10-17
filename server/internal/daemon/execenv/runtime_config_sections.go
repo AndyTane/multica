@@ -894,6 +894,7 @@ func writeMentions(b *strings.Builder) {
 	b.WriteString("- `[Project Name](mention://project/<project-id>)` — clickable link (no side effect)\n")
 	b.WriteString("- `[@Name](mention://member/<user-id>)` — **notifies a human**\n")
 	b.WriteString("- `[@Name](mention://agent/<agent-id>)` — **enqueues a new run for that agent**\n\n")
+	b.WriteString("For DSH delegation from this Multica run, use a platform agent mention in the current issue thread. When a DSH run receives a direct agent's delegation, Multica stores a one-shot completion/failure/cancellation return to that caller and thread. You may finish after the delegation is accepted; do not start a `dsh-send.mjs` shell watcher or register a duplicate wakeup. DSH should post its final result without a courtesy mention back to the caller; the terminal return is platform-owned. Squad leaders retain their existing worker-result routing.\n\n")
 	// No prescriptive default here (MUL-6417): the mention syntax hides its
 	// semantics — it reads like a free social gesture but is a spawn/notify
 	// operation — so what this paragraph must supply is the facts that

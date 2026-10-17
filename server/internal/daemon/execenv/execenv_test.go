@@ -5401,6 +5401,9 @@ func TestInjectRuntimeConfigMentionLoopHardening(t *testing.T) {
 			// The asymmetry that breaks ambiguous cases toward not mentioning.
 			"a missed mention costs one follow-up ask, a stray one costs a run",
 			"Silence ends conversations",
+			"For DSH delegation from this Multica run, use a platform agent mention",
+			"one-shot completion/failure/cancellation return to that caller and thread",
+			"do not start a `dsh-send.mjs` shell watcher or register a duplicate wakeup",
 		} {
 			if !strings.Contains(s, want) {
 				t.Errorf("Mentions section missing %q\n---\n%s", want, s)

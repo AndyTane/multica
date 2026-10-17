@@ -268,3 +268,27 @@ WHERE id= @id AND status='dispatched' AND dispatched_at= @dispatched_at RETURNIN
 -- not finished: the run that made a change still knows about it.
 SELECT count(*) FROM agent_task_queue WHERE id=ANY(@ids::uuid[]) AND agent_id= @agent_id AND issue_id= @issue_id
  AND status IN ('dispatched','running','waiting_local_directory');
+
+-- name: GetDSHDelegationReturn :one
+-- Claim delivery holds the issue lock, so a reclaimed claim reuses its rule
+-- without rearming a disabled or consumed one-shot. Each source comment has
+-- its own destination even when several callers' inputs share one DSH run.
+SELECT * FROM issue_wakeup
+WHERE workspace_id = @workspace_id AND issue_id = @issue_id
+  AND filter_task_id = @worker_task_id AND source_task_id = @source_task_id
+  AND parent_comment_id = @parent_comment_id
+  AND kind='event' AND mode='once'
+  AND event_types @> ARRAY['task.completed','task.failed','task.cancelled']::text[]
+ORDER BY created_at,id LIMIT 1;
+
+-- name: HasDSHDelegationReturnForTask :one
+-- A persisted return owns failure delivery too; do not also start the generic
+-- delegated-failure recovery path for the same caller and worker run.
+SELECT EXISTS(
+ SELECT 1 FROM issue_wakeup w
+ JOIN agent_runtime r ON r.id = @runtime_id AND r.provider = 'dsh'
+ WHERE w.workspace_id = @workspace_id AND w.issue_id = @issue_id
+   AND w.filter_task_id = @worker_task_id AND w.source_task_id = @source_task_id
+   AND w.kind='event' AND w.mode='once'
+   AND w.event_types @> ARRAY['task.completed','task.failed','task.cancelled']::text[]
+);

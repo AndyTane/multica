@@ -696,6 +696,78 @@ func (q *Queries) FindWaitingIssueRun(ctx context.Context, arg FindWaitingIssueR
 	return id, err
 }
 
+const getDSHDelegationReturn = `-- name: GetDSHDelegationReturn :one
+SELECT id, workspace_id, issue_id, agent_id, created_by, source_task_id, parent_comment_id, instruction, kind, mode, event_types, filter_agent_id, filter_task_id, interval_seconds, cron_expression, timezone, next_fire_at, enabled, disabled_at, revision, last_task_id, last_error, created_at, updated_at, filter_actor_type, filter_actor_id, expires_at, expiry_seconds, on_timeout, timed_out_at, system_rule, customized_at, condition, condition_state, max_fires, fire_count, paused_reason FROM issue_wakeup
+WHERE workspace_id = $1 AND issue_id = $2
+  AND filter_task_id = $3 AND source_task_id = $4
+  AND parent_comment_id = $5
+  AND kind='event' AND mode='once'
+  AND event_types @> ARRAY['task.completed','task.failed','task.cancelled']::text[]
+ORDER BY created_at,id LIMIT 1
+`
+
+type GetDSHDelegationReturnParams struct {
+	WorkspaceID     pgtype.UUID `json:"workspace_id"`
+	IssueID         pgtype.UUID `json:"issue_id"`
+	WorkerTaskID    pgtype.UUID `json:"worker_task_id"`
+	SourceTaskID    pgtype.UUID `json:"source_task_id"`
+	ParentCommentID pgtype.UUID `json:"parent_comment_id"`
+}
+
+// Claim delivery holds the issue lock, so a reclaimed claim reuses its rule
+// without rearming a disabled or consumed one-shot. Each source comment has
+// its own destination even when several callers' inputs share one DSH run.
+func (q *Queries) GetDSHDelegationReturn(ctx context.Context, arg GetDSHDelegationReturnParams) (IssueWakeup, error) {
+	row := q.db.QueryRow(ctx, getDSHDelegationReturn,
+		arg.WorkspaceID,
+		arg.IssueID,
+		arg.WorkerTaskID,
+		arg.SourceTaskID,
+		arg.ParentCommentID,
+	)
+	var i IssueWakeup
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.IssueID,
+		&i.AgentID,
+		&i.CreatedBy,
+		&i.SourceTaskID,
+		&i.ParentCommentID,
+		&i.Instruction,
+		&i.Kind,
+		&i.Mode,
+		&i.EventTypes,
+		&i.FilterAgentID,
+		&i.FilterTaskID,
+		&i.IntervalSeconds,
+		&i.CronExpression,
+		&i.Timezone,
+		&i.NextFireAt,
+		&i.Enabled,
+		&i.DisabledAt,
+		&i.Revision,
+		&i.LastTaskID,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FilterActorType,
+		&i.FilterActorID,
+		&i.ExpiresAt,
+		&i.ExpirySeconds,
+		&i.OnTimeout,
+		&i.TimedOutAt,
+		&i.SystemRule,
+		&i.CustomizedAt,
+		&i.Condition,
+		&i.ConditionState,
+		&i.MaxFires,
+		&i.FireCount,
+		&i.PausedReason,
+	)
+	return i, err
+}
+
 const getIssueWakeup = `-- name: GetIssueWakeup :one
 SELECT id, workspace_id, issue_id, agent_id, created_by, source_task_id, parent_comment_id, instruction, kind, mode, event_types, filter_agent_id, filter_task_id, interval_seconds, cron_expression, timezone, next_fire_at, enabled, disabled_at, revision, last_task_id, last_error, created_at, updated_at, filter_actor_type, filter_actor_id, expires_at, expiry_seconds, on_timeout, timed_out_at, system_rule, customized_at, condition, condition_state, max_fires, fire_count, paused_reason FROM issue_wakeup WHERE id= $1 AND workspace_id= $2
 `
@@ -748,6 +820,40 @@ func (q *Queries) GetIssueWakeup(ctx context.Context, arg GetIssueWakeupParams) 
 		&i.PausedReason,
 	)
 	return i, err
+}
+
+const hasDSHDelegationReturnForTask = `-- name: HasDSHDelegationReturnForTask :one
+SELECT EXISTS(
+ SELECT 1 FROM issue_wakeup w
+ JOIN agent_runtime r ON r.id = $1 AND r.provider = 'dsh'
+ WHERE w.workspace_id = $2 AND w.issue_id = $3
+   AND w.filter_task_id = $4 AND w.source_task_id = $5
+   AND w.kind='event' AND w.mode='once'
+   AND w.event_types @> ARRAY['task.completed','task.failed','task.cancelled']::text[]
+)
+`
+
+type HasDSHDelegationReturnForTaskParams struct {
+	RuntimeID    pgtype.UUID `json:"runtime_id"`
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+	IssueID      pgtype.UUID `json:"issue_id"`
+	WorkerTaskID pgtype.UUID `json:"worker_task_id"`
+	SourceTaskID pgtype.UUID `json:"source_task_id"`
+}
+
+// A persisted return owns failure delivery too; do not also start the generic
+// delegated-failure recovery path for the same caller and worker run.
+func (q *Queries) HasDSHDelegationReturnForTask(ctx context.Context, arg HasDSHDelegationReturnForTaskParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasDSHDelegationReturnForTask,
+		arg.RuntimeID,
+		arg.WorkspaceID,
+		arg.IssueID,
+		arg.WorkerTaskID,
+		arg.SourceTaskID,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listIssueWakeups = `-- name: ListIssueWakeups :many

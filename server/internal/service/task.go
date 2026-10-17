@@ -6308,6 +6308,16 @@ func loadDelegatedFailureRecoveryTarget(ctx context.Context, q *db.Queries, fail
 	if agent.ArchivedAt.Valid || !agent.RuntimeID.Valid || agent.WorkspaceID != issue.WorkspaceID {
 		return nil, nil
 	}
+	returnedByWakeup, err := q.HasDSHDelegationReturnForTask(ctx, db.HasDSHDelegationReturnForTaskParams{
+		WorkspaceID: issue.WorkspaceID, IssueID: issue.ID, WorkerTaskID: failed.ID, SourceTaskID: source.ID,
+		RuntimeID: failed.RuntimeID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("check DSH delegation return: %w", err)
+	}
+	if returnedByWakeup {
+		return nil, nil
+	}
 	return &delegatedFailureRecoveryTarget{failed: failed, source: source, issue: issue, agent: agent}, nil
 }
 
