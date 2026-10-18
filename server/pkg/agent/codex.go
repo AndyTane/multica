@@ -1629,11 +1629,12 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 					status := "failed"
 					if errors.Is(runCtx.Err(), context.Canceled) {
 						status = "aborted"
-					} else if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+					} else if errors.Is(runCtx.Err(), context.DeadlineExceeded) || errors.Is(compactErr, context.DeadlineExceeded) {
 						status = "timeout"
 					}
+					reason := codexCompactionFailureReason(runCtx, compactErr, compactionTimeout(opts, "codex"))
 					stopProcess()
-					resCh <- Result{Status: status, SessionID: threadID, Error: "Context compaction before the task failed; retry without starting a new session.", DurationMs: time.Since(startTime).Milliseconds()}
+					resCh <- Result{Status: status, SessionID: threadID, Error: fmt.Sprintf("Context compaction before the task %s; the task was not submitted and the existing session was preserved. Retry without starting a new session.", reason), DurationMs: time.Since(startTime).Milliseconds()}
 					return
 				}
 			}

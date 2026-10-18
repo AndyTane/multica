@@ -117,7 +117,14 @@ func TestCodexContextCompactionProcessPreservesWorkAndSession(t *testing.T) {
 				t.Fatal(err)
 			}
 			if failure == "cold" || failure == "timeout" {
-				if result.Status != "failed" || strings.Contains(string(data), "turn/start") {
+				wantStatus := "failed"
+				if failure == "timeout" {
+					wantStatus = "timeout"
+					if !strings.Contains(result.Error, "timed out after 1s") || !strings.Contains(result.Error, "task was not submitted") {
+						t.Fatalf("maintenance timeout lost its cause or task boundary: %+v", result)
+					}
+				}
+				if result.Status != wantStatus || strings.Contains(string(data), "turn/start") {
 					t.Fatalf("cold failure submitted work: %+v %s", result, data)
 				}
 			} else {

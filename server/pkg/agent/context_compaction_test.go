@@ -13,8 +13,8 @@ func TestContextCompactionProviderBudgets(t *testing.T) {
 	if budget := compactionTimeout(ExecOptions{}, "claude"); budget < 10*time.Minute {
 		t.Fatalf("Claude budget %s would interrupt a normal large-session compaction", budget)
 	}
-	if budget := compactionTimeout(ExecOptions{}, "codex"); budget != 2*time.Minute {
-		t.Fatalf("unrelated Codex budget changed to %s", budget)
+	if budget := compactionTimeout(ExecOptions{}, "codex"); budget < 10*time.Minute {
+		t.Fatalf("Codex budget %s would interrupt a normal multi-minute compaction", budget)
 	}
 	for _, provider := range []string{"claude", "codex"} {
 		if budget := compactionTimeout(ExecOptions{ContextCompactionTimeout: time.Second}, provider); budget != time.Second {

@@ -4,7 +4,7 @@
 
 **Goal:** Automatically compact Claude/Codex conversations above 80,000 context tokens before their process exits, with a pre-task guard for oversized resumed sessions and per-agent settings.
 
-**Architecture:** Preserve each provider's session and long-lived transport. The daemon passes the per-agent policy stored in the existing `runtime_config.context_compaction` JSON. Claude sends `/compact` over its open stream; Codex calls `thread/compact/start` and waits for the associated terminal event. Maintenance events never replace the task deliverable. Warm maintenance failure retains the completed task with a visible warning; cold maintenance failure stops before submitting the new task. Claude attempts have a ten-minute bound starting after SDK initialization; Codex keeps two minutes. Both respect cancellation.
+**Architecture:** Preserve each provider's session and long-lived transport. The daemon passes the per-agent policy stored in the existing `runtime_config.context_compaction` JSON. Claude sends `/compact` over its open stream; Codex calls `thread/compact/start` and waits for the associated terminal event. Maintenance events never replace the task deliverable. Warm maintenance failure retains the completed task with a visible warning; cold maintenance failure stops before submitting the new task. Claude and Codex attempts have a ten-minute default bound. Both respect cancellation and the caller's overall deadline; Claude's budget starts after SDK initialization.
 
 **Tech Stack:** Go agent backends and fake protocol processes, existing agent REST/config JSON, Zod, shared React agent settings, Vitest.
 

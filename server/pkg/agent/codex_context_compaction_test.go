@@ -81,3 +81,28 @@ func TestCodexContextCompactionFailuresAreBounded(t *testing.T) {
 		})
 	}
 }
+
+func TestCodexCompactionFailureReason(t *testing.T) {
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+	expired, expire := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+	defer expire()
+	for _, tc := range []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want string
+	}{
+		{"maintenance timeout", t.Context(), context.DeadlineExceeded, "timed out after 10m0s"},
+		{"task deadline", expired, context.DeadlineExceeded, "was interrupted by the task deadline"},
+		{"task cancellation", canceled, context.DeadlineExceeded, "was canceled"},
+		{"maintenance cancellation", t.Context(), context.Canceled, "was canceled"},
+		{"opaque provider error", t.Context(), errors.New("provider error with opaque credential"), "failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := codexCompactionFailureReason(tc.ctx, tc.err, 10*time.Minute); got != tc.want {
+				t.Fatalf("compaction failure reason = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

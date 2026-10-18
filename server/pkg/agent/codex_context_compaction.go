@@ -130,6 +130,22 @@ func (c *codexClient) currentContextTokens() int64 {
 	return c.contextTokens
 }
 
+func codexCompactionFailureReason(ctx context.Context, err error, timeout time.Duration) string {
+	switch {
+	case errors.Is(ctx.Err(), context.Canceled):
+		return "was canceled"
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return "was interrupted by the task deadline"
+	case errors.Is(err, context.DeadlineExceeded):
+		return fmt.Sprintf("timed out after %s", timeout)
+	case errors.Is(err, context.Canceled):
+		return "was canceled"
+	default:
+		// Provider errors can include opaque credentials; do not copy them here.
+		return "failed"
+	}
+}
+
 func (c *codexClient) compactForRun(ctx context.Context, opts ExecOptions, stage string, tokens int64) error {
 	if c.onMessage != nil {
 		c.onMessage(Message{Type: MessageLog, Level: "info", Content: fmt.Sprintf("Compacting context %s (%d tokens).", stage, tokens)})
@@ -137,7 +153,8 @@ func (c *codexClient) compactForRun(ctx context.Context, opts ExecOptions, stage
 	err := c.compactContext(ctx, compactionTimeout(opts, "codex"))
 	if c.onMessage != nil {
 		if err != nil {
-			c.onMessage(Message{Type: MessageLog, Level: "warn", Content: "Context compaction did not complete; the existing session was preserved."})
+			reason := codexCompactionFailureReason(ctx, err, compactionTimeout(opts, "codex"))
+			c.onMessage(Message{Type: MessageLog, Level: "warn", Content: fmt.Sprintf("Context compaction %s %s; the existing session was preserved.", stage, reason)})
 		} else {
 			c.onMessage(Message{Type: MessageLog, Level: "info", Content: "Context compaction completed."})
 		}

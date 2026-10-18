@@ -11,7 +11,9 @@ import (
 
 const DefaultContextCompactionThreshold int64 = 80000
 const contextTailLimit int64 = 8 * 1024 * 1024
-const defaultContextCompactionTimeout = 2 * time.Minute
+
+// Large resumed Codex conversations can take several minutes to compact.
+const defaultContextCompactionTimeout = 10 * time.Minute
 
 // Large Claude transcripts can take several minutes to summarize normally.
 const defaultClaudeContextCompactionTimeout = 10 * time.Minute
