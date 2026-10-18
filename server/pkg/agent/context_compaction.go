@@ -12,6 +12,24 @@ import (
 const DefaultContextCompactionThreshold int64 = 80000
 const contextTailLimit int64 = 8 * 1024 * 1024
 
+// Maintenance events share the transcript transport but are not agent replies.
+const (
+	ContextCompactionStarted   = "context_compaction_started"
+	ContextCompactionCompleted = "context_compaction_completed"
+	ContextCompactionFailed    = "context_compaction_failed"
+)
+
+func contextCompactionStatus(status string) Message {
+	content := "Compacting context..."
+	switch status {
+	case ContextCompactionCompleted:
+		content = "Context compaction completed."
+	case ContextCompactionFailed:
+		content = "Context compaction did not complete; the existing session was preserved."
+	}
+	return Message{Type: MessageStatus, Status: status, Content: content}
+}
+
 // Large resumed Codex conversations can take several minutes to compact.
 const defaultContextCompactionTimeout = 10 * time.Minute
 

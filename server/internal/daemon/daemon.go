@@ -9544,6 +9544,17 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 				lastActivityAt.Store(observedAt.UnixNano())
 				switch msg.Type {
 				case agent.MessageStatus:
+					switch msg.Status {
+					case agent.ContextCompactionStarted, agent.ContextCompactionCompleted, agent.ContextCompactionFailed:
+						mu.Lock()
+						sealPendingLocked()
+						batch = append(batch, TaskMessageData{
+							Seq: int(msgSeq.Add(1)), Type: msg.Status,
+							Content: msg.Content, CreatedAt: observedAt,
+						})
+						mu.Unlock()
+						flushFirstVisible()
+					}
 					// Persist the session/work_dir as soon as the backend
 					// reveals them. Without this, a daemon crash mid-run
 					// loses the resume pointer and the auto-retry fires

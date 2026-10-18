@@ -5,6 +5,7 @@ import { AlertCircle, Brain, Check, ChevronRight, CirclePause, Clock3, CornerDow
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { contextCompactionState } from "@multica/core/agents/context-compaction";
 import { useTraceIssueLabels } from "../../common/task-transcript/use-trace-issue-labels";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useTaskMessages } from "@multica/core/chat/queries";
@@ -128,7 +129,9 @@ export function InlineCommentRun({ run, className, viewState, showIdentity = fal
   const pendingCall = steps.findLast((step) => isCallStep(step) && !step.result);
   const current = pendingCall ?? latest;
   // Keep the last activity visible after a tool returns, until new progress arrives.
-  const activitySummary = current && isCallStep(current)
+  const compacting = task.status === "running" && contextCompactionState(items) === "running";
+  const activitySummary = compacting ? t(($) => $.inline_run.compacting)
+    : current && isCallStep(current)
     ? redactSecrets(traceToolArgSummary(current.call?.input, { formatText }) || current.tool)
     : current?.kind === "text" ? redactSecrets(formatText(current.item.content ?? ""))
     : current?.kind === "thinking" ? thinkingPreview(current.item.content, formatText) || t(($) => $.inline_run.thinking)

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { StorageAdapter } from "../types";
 import type { Attachment } from "../types/attachment";
+import type { TaskMessagePayload } from "../types/events";
 import { getCurrentSlug, registerForWorkspaceRehydration } from "../platform/workspace-storage";
 import { registerDraftCleanup } from "../drafts/cleanup-registry";
 import {
@@ -279,7 +280,7 @@ export const CHAT_DEFAULT_H = 600;
  */
 export interface ChatTimelineItem {
   seq: number;
-  type: "tool_use" | "tool_result" | "thinking" | "text" | "error";
+  type: TaskMessagePayload["type"];
   tool?: string;
   content?: string;
   input?: Record<string, unknown>;

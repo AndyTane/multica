@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ShimmerText } from "@multica/ui/components/common/shimmer-text";
+import { contextCompactionState, isContextCompactionMessage } from "@multica/core/agents/context-compaction";
 import { UnicodeSpinner } from "@multica/ui/components/common/unicode-spinner";
 import type { AgentAvailability } from "@multica/core/agents";
 import type { ChatPendingTask, TaskMessagePayload } from "@multica/core/types";
@@ -30,6 +31,7 @@ type StageKey =
   | "waiting_local_directory"
   | "starting_up"
   | "thinking"
+  | "compacting"
   | "typing";
 
 type ToolKey =
@@ -100,10 +102,11 @@ export function pickStageKeys(
   if (status === "dispatched") return { stageKey: "starting_up" };
 
   // running: latest meaningful message decides the label.
+  if (status === "running" && contextCompactionState(taskMessages) === "running") return { stageKey: "compacting" };
   let latest: TaskMessagePayload | null = null;
   for (let i = taskMessages.length - 1; i >= 0; i--) {
     const m = taskMessages[i];
-    if (m && m.type !== "error" && m.type !== "tool_result") {
+    if (m && m.type !== "error" && m.type !== "tool_result" && !isContextCompactionMessage(m)) {
       latest = m;
       break;
     }

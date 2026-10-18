@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ChatPendingTaskSchema, SendChatMessageResponseSchema } from "./schemas";
+import { ChatPendingTaskSchema, SendChatMessageResponseSchema, TaskMessageListSchema } from "./schemas";
+
+it("preserves compaction lifecycle messages and tolerates unknown message types", () => {
+  const types = ["context_compaction_started", "context_compaction_completed", "context_compaction_failed"];
+  expect(TaskMessageListSchema.parse([...types, "future_status"].map((type, seq) => ({ task_id: "run", type, seq })))
+    .map((message) => message.type)).toEqual([...types, "text"]);
+});
 
 describe("ChatPendingTaskSchema", () => {
   it("keeps the pending head and valid queue rows when one row is malformed", () => {

@@ -1,5 +1,6 @@
 {
   "inline_run": {
+    "compacting": "正在压缩上下文...",
     "label": "{{name}} 的运行",
     "stop": "停止",
     "stopping": "正在停止...",

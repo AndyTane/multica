@@ -201,6 +201,7 @@
   },
   "status_pill": {
     "stages": {
+      "compacting": "컨텍스트 압축 중...",
       "offline": "오프라인",
       "reconnecting": "다시 연결 중",
       "retrying": "재시도 중",

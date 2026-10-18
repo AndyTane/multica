@@ -48,6 +48,7 @@
     "runtime_required_name": "{{name}} needs a runtime before it can run. Bind one on web or desktop."
   },
   "status": {
+    "compacting": "Compacting context...",
     "offline": "Offline",
     "reconnecting": "Reconnecting",
     "queued": "Queued",

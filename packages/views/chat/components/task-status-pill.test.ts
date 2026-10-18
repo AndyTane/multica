@@ -1,8 +1,16 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { effectiveTaskStatus, pickStageKeys } from "./task-status-pill";
+import type { TaskMessagePayload } from "@multica/core/types/events";
 
 describe("pickStageKeys", () => {
+  it("uses the existing stage label during compaction and clears it on completion", () => {
+    const started: TaskMessagePayload = { task_id: "run", issue_id: "", seq: 1, type: "context_compaction_started" };
+    const completed: TaskMessagePayload = { ...started, seq: 2, type: "context_compaction_completed" };
+    expect(pickStageKeys("running", [started], "online")).toEqual({ stageKey: "compacting" });
+    expect(pickStageKeys("running", [started, completed], "online")).toEqual({ stageKey: "thinking" });
+    expect(pickStageKeys("deferred", [started], "online")).toEqual({ stageKey: "retrying" });
+  });
   it("returns retrying while a deferred chat retry waits for backoff", () => {
     expect(pickStageKeys("deferred", [], "offline")).toEqual({ stageKey: "retrying" });
   });

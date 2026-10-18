@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, forwardRef } from "react";
 import { toast } from "sonner";
 import { sessionResumeCommand } from "@multica/core/agents/session-resume";
+import { contextCompactionState } from "@multica/core/agents/context-compaction";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useTraceIssueLabels } from "./use-trace-issue-labels";
 import { Virtuoso, type VirtuosoHandle, type Components } from "react-virtuoso";
@@ -327,6 +328,7 @@ export function AgentTranscriptDialog({
 }: AgentTranscriptDialogProps) {
   const { t } = useT("agents");
   const locale = useLocale();
+  const compacting = isLive && task.status === "running" && contextCompactionState(items) === "running";
   const formatText = useTraceIssueLabels(useWorkspaceId(), task.issue_id, items, open);
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => new Set());
@@ -744,7 +746,7 @@ export function AgentTranscriptDialog({
         return (
           <span className={cn(base, "bg-info/15 text-info")}>
             <Loader2 className="h-3 w-3 animate-spin" />
-            {t(($) => $.transcript.status_running)}
+            {compacting && steps.length > 0 ? t(($) => $.transcript.compacting) : t(($) => $.transcript.status_running)}
           </span>
         );
       case "completed":
@@ -1272,7 +1274,7 @@ export function AgentTranscriptDialog({
                 {isLive && steps.length === 0 ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {t(($) => $.transcript.waiting_events)}
+                    {compacting ? t(($) => $.transcript.compacting) : t(($) => $.transcript.waiting_events)}
                   </div>
                 ) : steps.length === 0 ? (
                   t(($) => $.transcript.no_data)

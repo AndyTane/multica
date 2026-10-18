@@ -137,6 +137,8 @@ export function buildSteps(items: TimelineItem[]): TraceStep[] {
       continue;
     }
 
+    // Maintenance belongs to the run state, never to the agent's work steps.
+    if (item.type !== "text" && item.type !== "thinking" && item.type !== "error") continue;
     steps.push({
       kind: item.type,
       seq: item.seq,

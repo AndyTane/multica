@@ -10,7 +10,14 @@ import { ContextCompactionTab } from "./context-compaction-tab";
 
 const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: toastError } }));
-const agent = { id: "agent-1", runtime_config: { unrelated: { keep: true } } } as Agent;
+const agent: Agent = {
+  id: "agent-1", workspace_id: "workspace-1", runtime_id: "runtime-1",
+  name: "Agent", description: "", instructions: "", avatar_url: null,
+  runtime_mode: "local", runtime_config: { unrelated: { keep: true } }, custom_args: [],
+  visibility: "workspace", permission_mode: "private", invocation_targets: [], status: "idle", max_concurrent_tasks: 1,
+  model: "", owner_id: "owner-1", skills: [], created_at: "", updated_at: "",
+  archived_at: null, archived_by: null,
+};
 const onSave = vi.fn();
 function renderTab(canEdit = true) {
   return render(<I18nProvider locale="en" resources={{ en: { common: enCommon, agents: enAgents } }}>

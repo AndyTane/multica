@@ -106,12 +106,17 @@ func TestCodexContextCompactionProcessPreservesWorkAndSession(t *testing.T) {
 				t.Fatal(err)
 			}
 			var transcript strings.Builder
+			var lifecycle []string
 			for message := range session.Messages {
+				if message.Type == MessageStatus && strings.HasPrefix(message.Status, "context_compaction_") {
+					lifecycle = append(lifecycle, message.Status)
+				}
 				if message.Type == MessageText {
 					transcript.WriteString(message.Content)
 				}
 			}
 			result := <-session.Result
+			assertCompactionLifecycle(t, lifecycle, failure)
 			data, err := os.ReadFile(calls)
 			if err != nil {
 				t.Fatal(err)
@@ -146,5 +151,24 @@ func TestCodexContextCompactionProcessPreservesWorkAndSession(t *testing.T) {
 				t.Fatalf("session changed: %+v", result)
 			}
 		})
+	}
+}
+
+func assertCompactionLifecycle(t *testing.T, got []string, failure string) {
+	t.Helper()
+	const started = "context_compaction_started"
+	const completed = "context_compaction_completed"
+	const failed = "context_compaction_failed"
+	want := []string{started, completed, started, completed}
+	switch failure {
+	case "disabled", "below-threshold":
+		want = nil
+	case "cold", "timeout", "missing-boundary":
+		want = []string{started, failed}
+	case "warm", "warm-timeout", "warm-exit", "warm-missing-boundary":
+		want = []string{started, completed, started, failed}
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("compaction lifecycle = %v, want %v", got, want)
 	}
 }

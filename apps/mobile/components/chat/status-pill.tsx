@@ -23,6 +23,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { View, type TextStyle } from "react-native";
+import { contextCompactionState, isContextCompactionMessage } from "@multica/core/agents/context-compaction";
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -96,10 +97,12 @@ function pickStage(
   if (status === "queued") return { label: t("chat:status.queued") };
   if (status === "dispatched") return { label: t("chat:status.starting") };
 
+  if (status === "running" && contextCompactionState(taskMessages) === "running") return { label: t("chat:status.compacting") };
+
   let latest: TaskMessagePayload | null = null;
   for (let i = taskMessages.length - 1; i >= 0; i--) {
     const m = taskMessages[i];
-    if (m && m.type !== "error" && m.type !== "tool_result") {
+    if (m && m.type !== "error" && m.type !== "tool_result" && !isContextCompactionMessage(m)) {
       latest = m;
       break;
     }

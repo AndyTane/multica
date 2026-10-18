@@ -1,5 +1,6 @@
 {
   "inline_run": {
+    "compacting": "Compacting context...",
     "label": "{{name}} run",
     "stop": "Stop",
     "stopping": "Stopping...",

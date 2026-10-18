@@ -176,6 +176,39 @@ const liveTask: AgentTask = {
   completed_at: null,
 };
 
+describe("context compaction display", () => {
+  const started: TimelineItem = { seq: 1, type: "context_compaction_started", content: "Compacting context..." };
+
+  it("reuses the empty waiting indicator and restores it when compaction completes", () => {
+    const view = renderDialog([started], { task: liveTask, isLive: true });
+    expect(screen.getByText("Compacting context...")).toBeInTheDocument();
+    expect(screen.queryByText("Waiting for events...")).not.toBeInTheDocument();
+    view.rerender(<AgentTranscriptDialog open onOpenChange={vi.fn()} task={liveTask}
+      items={[started, { seq: 2, type: "context_compaction_completed" }]} agentName="Codex" isLive />);
+    expect(screen.getByText("Waiting for events...")).toBeInTheDocument();
+    expect(screen.queryByText("Compacting context...")).not.toBeInTheDocument();
+  });
+
+  it("uses the existing running badge after work and keeps the deliverable visible", () => {
+    renderDialog([{ seq: 1, type: "text", content: "Delivered result" }, { ...started, seq: 2 }], { task: liveTask, isLive: true });
+    expect(screen.getByText("Compacting context...")).toBeInTheDocument();
+    expect(screen.getByText("Delivered result")).toBeInTheDocument();
+  });
+
+  it("does not show an active compression for a terminal run or after maintenance failure", () => {
+    const view = renderDialog([started], { task: baseTask });
+    expect(screen.queryByText("Compacting context...")).not.toBeInTheDocument();
+    view.rerender(<AgentTranscriptDialog open onOpenChange={vi.fn()} task={liveTask}
+      items={[started, { seq: 2, type: "context_compaction_failed" }]} agentName="Codex" isLive />);
+    expect(screen.queryByText("Compacting context...")).not.toBeInTheDocument();
+  });
+
+  it("translates the existing indicator into plain Chinese", () => {
+    renderDialog([started], { task: liveTask, isLive: true, locale: "zh-Hans" });
+    expect(screen.getByText("正在压缩上下文...")).toBeInTheDocument();
+  });
+});
+
 function runtimeFor(provider: string): AgentRuntime {
   return {
     id: "runtime-1",

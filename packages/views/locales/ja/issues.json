@@ -1,5 +1,6 @@
 {
   "inline_run": {
+    "compacting": "コンテキストを圧縮中...",
     "label": "{{name}} の実行",
     "stop": "停止",
     "stopping": "停止中...",

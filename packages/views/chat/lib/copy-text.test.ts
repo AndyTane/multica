@@ -37,6 +37,15 @@ const message = (content: string): ChatMessage => ({
 });
 
 describe("splitTimeline", () => {
+  it("keeps maintenance events out of the copied answer and process fold", () => {
+    const answer = text(2, "Delivered result");
+    expect(splitTimeline([
+      { seq: 1, type: "context_compaction_started", content: "Compacting context..." },
+      answer,
+      { seq: 3, type: "context_compaction_completed", content: "Context compaction completed." },
+    ])).toEqual({ preface: [], middle: [], final: [answer] });
+  });
+
   it("treats an all-text timeline as final (no fold)", () => {
     const items = [text(1, "hello"), text(2, "world")];
     expect(splitTimeline(items)).toEqual({

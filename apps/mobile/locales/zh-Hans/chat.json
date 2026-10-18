@@ -48,6 +48,7 @@
     "runtime_required_name": "{{name}} 需要先配置运行时才能运行。请在网页端或桌面端绑定。"
   },
   "status": {
+    "compacting": "正在压缩上下文...",
     "offline": "离线",
     "reconnecting": "重新连接中",
     "queued": "排队中",

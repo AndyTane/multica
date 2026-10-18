@@ -201,6 +201,7 @@
   },
   "status_pill": {
     "stages": {
+      "compacting": "正在压缩上下文...",
       "offline": "离线",
       "reconnecting": "重连中",
       "retrying": "重试中",

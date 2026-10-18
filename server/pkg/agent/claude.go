@@ -186,6 +186,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		if coldCompaction {
 			initialPrompt = "/compact"
 			maintenance.begin()
+			trySend(msgCh, contextCompactionStatus(ContextCompactionStarted))
 		}
 		err := writeClaudeInput(inputWriter, initialPrompt)
 		if err != nil {
@@ -326,6 +327,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 						maintenanceUsage = reported
 					}
 					if !ok {
+						trySend(msgCh, contextCompactionStatus(ContextCompactionFailed))
 						if phase == "warm" {
 							usage = addCompactionUsage(usage, maintenanceUsage)
 						} else {
@@ -340,6 +342,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 						closeStdin()
 						continue
 					}
+					trySend(msgCh, contextCompactionStatus(ContextCompactionCompleted))
 					trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: "Context compaction completed."})
 					if phase == "cold" && runCtx.Err() == nil {
 						coldUsage = maintenanceUsage
@@ -415,6 +418,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 						supplements.end()
 					}
 					maintenance.begin()
+					trySend(msgCh, contextCompactionStatus(ContextCompactionStarted))
 					trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: fmt.Sprintf("Compacting context after the task (%d tokens; timeout %s).", latestContext, maintenance.timeout)})
 					writeNextInput("/compact")
 				} else {
@@ -500,6 +504,9 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		}
 
 		completionGuardError := ""
+		if phase == "warm" || phase == "cold" {
+			trySend(msgCh, contextCompactionStatus(ContextCompactionFailed))
+		}
 		if phase == "warm" {
 			usage = addCompactionUsage(usage, maintenanceUsage)
 			detail := "Context compaction did not complete; the completed task and existing session were preserved."

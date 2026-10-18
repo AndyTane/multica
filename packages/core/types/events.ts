@@ -295,7 +295,8 @@ export interface TaskMessagePayload {
   issue_id: string;
   chat_session_id?: string;
   seq: number;
-  type: "text" | "thinking" | "tool_use" | "tool_result" | "error";
+  type: "text" | "thinking" | "tool_use" | "tool_result" | "error"
+    | "context_compaction_started" | "context_compaction_completed" | "context_compaction_failed";
   tool?: string;
   content?: string;
   input?: Record<string, unknown>;

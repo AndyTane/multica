@@ -346,7 +346,8 @@ export const TaskMessagePayloadSchema: z.ZodType<TaskMessagePayload> = z.object(
   // the row still renders (as a plain markdown chunk) instead of crashing
   // the timeline. Matches root CLAUDE.md "Enum drift downgrades, not crashes".
   type: z
-    .enum(["text", "thinking", "tool_use", "tool_result", "error"])
+    .enum(["text", "thinking", "tool_use", "tool_result", "error",
+      "context_compaction_started", "context_compaction_completed", "context_compaction_failed"])
     .catch("text"),
   tool: z.string().optional(),
   content: z.string().optional(),

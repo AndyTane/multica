@@ -205,6 +205,7 @@
   },
   "status_pill": {
     "stages": {
+      "compacting": "Compression du contexte...",
       "offline": "Hors ligne",
       "reconnecting": "Reconnexion",
       "retrying": "Nouvelle tentative",

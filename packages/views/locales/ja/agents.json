@@ -717,6 +717,7 @@
     "failed_indicator": "失敗"
   },
   "transcript": {
+    "compacting": "コンテキストを圧縮中...",
     "dialog_title": "エージェント実行トランスクリプト",
     "status_running": "実行中",
     "status_completed": "完了",

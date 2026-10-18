@@ -51,6 +51,18 @@ function setup(initialTask: AgentTask, hasReply = false, presentation: "inline" 
 }
 
 describe("InlineCommentRun", () => {
+  it("replaces the existing waiting summary during compaction without adding work steps", async () => {
+    const started: TaskMessagePayload = { task_id: id, issue_id: "issue", seq: 1, type: "context_compaction_started" };
+    vi.mocked(api.listTaskMessages).mockResolvedValue([started]);
+    const { client } = setup(task());
+    expect(await screen.findByText("Compacting context...")).toBeInTheDocument();
+    expect(screen.queryByText("Waiting for the agent to respond.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View activity" })).toBeInTheDocument();
+    act(() => client.setQueryData(chatKeys.taskMessages(id), [started, { ...started, seq: 2, type: "context_compaction_completed" }]));
+    expect(await screen.findByText("Waiting for the agent to respond.")).toBeInTheDocument();
+    expect(screen.queryByText("Compacting context...")).not.toBeInTheDocument();
+  });
+
   it("places a delivered steer between the steps it arrived between", async () => {
     vi.mocked(api.listTaskMessages).mockResolvedValue([
       { task_id: id, issue_id: "issue", seq: 1, type: "tool_use", tool: "exec_command", input: { command: "cat login.tsx" }, created_at: "2026-09-07T00:00:05Z" },

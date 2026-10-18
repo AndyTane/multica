@@ -1,5 +1,6 @@
 {
   "inline_run": {
+    "compacting": "Compression du contexte...",
     "label": "Exécution de {{name}}",
     "stop": "Arrêter",
     "stopping": "Arrêt...",

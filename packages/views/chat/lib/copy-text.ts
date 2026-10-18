@@ -1,6 +1,7 @@
 import type { ChatMessage } from "@multica/core/types";
 import type { ChatTimelineItem } from "@multica/core/chat";
 import { stripChatQuickActionsProtocol } from "./quick-actions";
+import { isContextCompactionMessage } from "@multica/core/agents/context-compaction";
 
 /**
  * Split an assistant timeline into three regions for the conductor-style fold:
@@ -18,6 +19,7 @@ export function splitTimeline(items: ChatTimelineItem[]): {
   middle: ChatTimelineItem[];
   final: ChatTimelineItem[];
 } {
+  items = items.filter((item) => !isContextCompactionMessage(item));
   const firstNonTextIdx = items.findIndex((i) => i.type !== "text");
   if (firstNonTextIdx === -1) {
     return { preface: [], middle: [], final: items };

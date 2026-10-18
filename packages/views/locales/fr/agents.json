@@ -834,6 +834,7 @@
     "failed_indicator": "En échec"
   },
   "transcript": {
+    "compacting": "Compression du contexte...",
     "dialog_title": "Transcription d'exécution de l'agent",
     "status_running": "En cours",
     "status_completed": "Terminée",

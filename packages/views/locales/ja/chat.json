@@ -201,6 +201,7 @@
   },
   "status_pill": {
     "stages": {
+      "compacting": "コンテキストを圧縮中...",
       "offline": "オフライン",
       "reconnecting": "再接続中",
       "retrying": "再試行中",

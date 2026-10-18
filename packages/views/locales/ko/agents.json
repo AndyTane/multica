@@ -725,6 +725,7 @@
     "failed_indicator": "실패"
   },
   "transcript": {
+    "compacting": "컨텍스트 압축 중...",
     "dialog_title": "에이전트 실행 트랜스크립트",
     "status_running": "실행 중",
     "status_completed": "완료됨",

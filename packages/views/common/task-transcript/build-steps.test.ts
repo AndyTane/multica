@@ -29,6 +29,16 @@ function text(seconds: number, content = "done"): TimelineItem {
 }
 
 describe("buildSteps", () => {
+  it("retains maintenance in the event stream without counting it as agent work", () => {
+    const timeline = buildTimeline([
+      { task_id: "run", issue_id: "issue", seq: 1, type: "context_compaction_started" },
+      { task_id: "run", issue_id: "issue", seq: 2, type: "context_compaction_completed" },
+      { task_id: "run", issue_id: "issue", seq: 3, type: "text", content: "Deliverable" },
+    ]);
+    expect(timeline).toHaveLength(3);
+    expect(buildSteps(timeline).map((step) => step.kind)).toEqual(["text"]);
+  });
+
   it("pairs parallel same-tool results by call ID after timeline projection", () => {
     const messages = [
       { ...call("Bash", 0, { command: "slow-A" }), call_id: "attempt-1:A" },

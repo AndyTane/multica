@@ -111,13 +111,18 @@ func TestClaudeContextCompactionProcessPreservesWorkAndSession(t *testing.T) {
 			}
 			var transcript strings.Builder
 			warned := false
+			var lifecycle []string
 			for message := range session.Messages {
+				if message.Type == MessageStatus && strings.HasPrefix(message.Status, "context_compaction_") {
+					lifecycle = append(lifecycle, message.Status)
+				}
 				warned = warned || message.Type == MessageLog && message.Level == "warn"
 				if message.Type == MessageText {
 					transcript.WriteString(message.Content)
 				}
 			}
 			result := <-session.Result
+			assertCompactionLifecycle(t, lifecycle, failure)
 			data, err := os.ReadFile(calls)
 			if err != nil {
 				t.Fatal(err)

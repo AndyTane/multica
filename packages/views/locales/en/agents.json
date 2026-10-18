@@ -834,6 +834,7 @@
     "failed_indicator": "Failed"
   },
   "transcript": {
+    "compacting": "Compacting context...",
     "dialog_title": "Agent Execution Transcript",
     "status_running": "Running",
     "status_completed": "Completed",

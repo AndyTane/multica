@@ -23,6 +23,7 @@
 import { View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { TaskMessagePayload } from "@multica/core/types";
+import { isContextCompactionMessage } from "@multica/core/agents/context-compaction";
 import { Text } from "@/components/ui/text";
 import {
   Collapsible,
@@ -39,7 +40,7 @@ interface Props {
 }
 
 export function ChatTimeline({ items, isStreaming = false }: Props) {
-  const processSteps = items.filter((i) => i.type !== "text");
+  const processSteps = items.filter((i) => i.type !== "text" && !isContextCompactionMessage(i));
   const { t } = useT("chat");
   if (processSteps.length === 0) return null;
 

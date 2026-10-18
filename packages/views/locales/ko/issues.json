@@ -1,5 +1,6 @@
 {
   "inline_run": {
+    "compacting": "컨텍스트 압축 중...",
     "label": "{{name}} 실행",
     "stop": "중지",
     "stopping": "중지 중...",

@@ -148,14 +148,17 @@ func codexCompactionFailureReason(ctx context.Context, err error, timeout time.D
 
 func (c *codexClient) compactForRun(ctx context.Context, opts ExecOptions, stage string, tokens int64) error {
 	if c.onMessage != nil {
+		c.onMessage(contextCompactionStatus(ContextCompactionStarted))
 		c.onMessage(Message{Type: MessageLog, Level: "info", Content: fmt.Sprintf("Compacting context %s (%d tokens).", stage, tokens)})
 	}
 	err := c.compactContext(ctx, compactionTimeout(opts, "codex"))
 	if c.onMessage != nil {
 		if err != nil {
+			c.onMessage(contextCompactionStatus(ContextCompactionFailed))
 			reason := codexCompactionFailureReason(ctx, err, compactionTimeout(opts, "codex"))
 			c.onMessage(Message{Type: MessageLog, Level: "warn", Content: fmt.Sprintf("Context compaction %s %s; the existing session was preserved.", stage, reason)})
 		} else {
+			c.onMessage(contextCompactionStatus(ContextCompactionCompleted))
 			c.onMessage(Message{Type: MessageLog, Level: "info", Content: "Context compaction completed."})
 		}
 	}
