@@ -2,6 +2,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchLatestRelease } from "./github-release";
 
+// Retained release parsing tests use fake responses behind a test-only opt-in.
+vi.mock("@multica/core/analytics/privacy", () => ({ EXTERNAL_BACKGROUND_REQUESTS_ENABLED: true }));
+
 /** The twelve desktop artifacts a finished release carries. */
 function completeAssets(version: string) {
   return [

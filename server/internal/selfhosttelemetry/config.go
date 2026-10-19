@@ -3,6 +3,8 @@ package selfhosttelemetry
 import (
 	"log/slog"
 	"strings"
+
+	"github.com/multica-ai/multica/server/internal/privacy"
 )
 
 // Config is read once during API server startup. Endpoint selection is
@@ -12,18 +14,20 @@ type Config struct {
 	Enabled bool
 }
 
-// ConfigFromDoNotTrack implements the industry-standard opt-out switch used by
-// the self-hosted server. Only 1 and true (case-insensitive), after trimming,
-// disable telemetry; every other value preserves the default-on behavior.
+// ConfigFromDoNotTrack preserves the upstream opt-out parser, but the local
+// build policy takes precedence over every environment value.
 func ConfigFromDoNotTrack(raw string) Config {
 	raw = strings.TrimSpace(raw)
 	disabled := raw == "1" || strings.EqualFold(raw, "true")
-	return Config{Enabled: !disabled}
+	return Config{Enabled: privacy.ExternalReportingEnabled && !disabled}
 }
 
-// LogStartupStatus makes the default-on behavior observable without logging
-// the raw environment value or any telemetry data.
+// LogStartupStatus reports the effective policy without logging telemetry data.
 func LogStartupStatus(logger *slog.Logger, config Config) {
+	if !privacy.ExternalReportingEnabled {
+		logger.Info("self-host telemetry disabled by local build policy")
+		return
+	}
 	if config.Enabled {
 		logger.Info("self-host telemetry enabled")
 		return

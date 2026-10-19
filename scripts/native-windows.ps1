@@ -198,13 +198,14 @@ function Build-NativeDeployment {
     Copy-Item -LiteralPath (Join-Path $Config.Repo 'server\migrations') -Destination (Join-Path $release 'migrations') -Recurse
     foreach ($notice in @('LICENSE', 'NOTICE')) { Copy-Item -LiteralPath (Join-Path $Config.Repo $notice) -Destination (Join-Path $release $notice) }
     Push-Location -LiteralPath $Config.Repo
-    $savedStandalone = $env:STANDALONE; $savedNodeOptions = $env:NODE_OPTIONS; $savedVersion = $env:NEXT_PUBLIC_APP_VERSION; $savedBuildCpus = $env:MULTICA_BUILD_CPUS
+    $savedStandalone = $env:STANDALONE; $savedNodeOptions = $env:NODE_OPTIONS; $savedVersion = $env:NEXT_PUBLIC_APP_VERSION; $savedBuildCpus = $env:MULTICA_BUILD_CPUS; $savedNextTelemetry = $env:NEXT_TELEMETRY_DISABLED
     try {
         $env:STANDALONE = 'true'; $env:NODE_OPTIONS = '--max-old-space-size=2048'; $env:NEXT_PUBLIC_APP_VERSION = $version
         $env:MULTICA_BUILD_CPUS = '2'
+        $env:NEXT_TELEMETRY_DISABLED = '1'
         & pnpm.cmd --filter '@multica/web' build
         if ($LASTEXITCODE -ne 0) { throw 'Native frontend build failed.' }
-    } finally { $env:STANDALONE = $savedStandalone; $env:NODE_OPTIONS = $savedNodeOptions; $env:NEXT_PUBLIC_APP_VERSION = $savedVersion; $env:MULTICA_BUILD_CPUS = $savedBuildCpus; Pop-Location }
+    } finally { $env:STANDALONE = $savedStandalone; $env:NODE_OPTIONS = $savedNodeOptions; $env:NEXT_PUBLIC_APP_VERSION = $savedVersion; $env:MULTICA_BUILD_CPUS = $savedBuildCpus; $env:NEXT_TELEMETRY_DISABLED = $savedNextTelemetry; Pop-Location }
     $webOutput = Join-Path $Config.Repo 'apps\web\.next'
     Copy-NativeDirectory (Join-Path $webOutput 'standalone') (Join-Path $release 'web')
     $appDirectory = Join-Path $release 'web\apps\web'
@@ -289,6 +290,9 @@ function Get-BackendEnvironment {
     $environment.FRONTEND_ORIGIN = 'http://localhost:' + $Config.WebPort
     $environment.MULTICA_APP_URL = $environment.FRONTEND_ORIGIN
     $environment.MULTICA_DAEMON_SERVER_URL = 'http://localhost:' + $Config.ApiPort
+    # Deployment privacy policy takes precedence over imported/inherited settings.
+    $environment.DO_NOT_TRACK = '1'; $environment.ANALYTICS_DISABLED = 'true'
+    $environment.POSTHOG_API_KEY = ''; $environment.POSTHOG_HOST = ''
     return $environment
 }
 
@@ -298,6 +302,7 @@ function Get-FrontendEnvironment {
     foreach ($property in $Config.FrontendEnvironment.PSObject.Properties) {
         if ($property.Name -notin @('HOSTNAME', 'PORT', 'REMOTE_API_URL', 'NODE_ENV')) { $environment[$property.Name] = [string]$property.Value }
     }
+    $environment.NEXT_TELEMETRY_DISABLED = '1'
     if (-not $environment.NEXT_PUBLIC_WS_URL) { $environment.NEXT_PUBLIC_WS_URL = 'ws://localhost:' + $Config.ApiPort + '/ws' }
     return $environment
 }

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@multica/core/auth";
+import { EXTERNAL_REPORTING_ENABLED } from "@multica/core/analytics/privacy";
 import {
   agentCompletedIssueCountOptions,
   needsSourceBackfill,
@@ -89,6 +90,11 @@ const EMPTY_BACKFILL: Pick<
  *   - dismissCount: per-user localStorage, view-layer only.
  */
 export function SourceBackfillModal() {
+  if (!EXTERNAL_REPORTING_ENABLED) return null;
+  return <SourceBackfillPrompt />;
+}
+
+function SourceBackfillPrompt() {
   const user = useAuthStore((s) => s.user);
   const userId = user?.id ?? null;
   const [dismissCount, bumpDismissCount] =

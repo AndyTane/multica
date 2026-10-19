@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EXTERNAL_BACKGROUND_REQUESTS_ENABLED } from "@multica/core/analytics/privacy";
 
 /**
  * Live GitHub star count for the landing header's "GitHub" button.
@@ -25,6 +26,7 @@ let cachedStars: number | null | undefined;
 let inFlight: Promise<number | null> | null = null;
 
 async function loadStars(): Promise<number | null> {
+  if (!EXTERNAL_BACKGROUND_REQUESTS_ENABLED) return null;
   if (cachedStars !== undefined) return cachedStars;
   if (inFlight) return inFlight;
 

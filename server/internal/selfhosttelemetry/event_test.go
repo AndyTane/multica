@@ -17,10 +17,10 @@ func TestConfigFromDoNotTrack(t *testing.T) {
 		raw     string
 		enabled bool
 	}{
-		{"", true},
-		{"0", true},
-		{"false", true},
-		{"yes", true},
+		{"", false},
+		{"0", false},
+		{"false", false},
+		{"yes", false},
 		{"1", false},
 		{" true ", false},
 		{"TRUE", false},
@@ -35,14 +35,21 @@ func TestConfigFromDoNotTrack(t *testing.T) {
 	}
 }
 
+func TestBuildPolicyRejectsExplicitWorkerEnable(t *testing.T) {
+	t.Parallel()
+	if worker := New(nil, "v1.0.0", Config{Enabled: true}, nil); worker != nil {
+		t.Fatal("local build constructed a telemetry worker with an explicit enable")
+	}
+}
+
 func TestLogStartupStatus(t *testing.T) {
 	tests := []struct {
 		name    string
 		config  Config
 		message string
 	}{
-		{name: "enabled", config: Config{Enabled: true}, message: "self-host telemetry enabled"},
-		{name: "disabled", config: Config{Enabled: false}, message: "self-host telemetry disabled via DO_NOT_TRACK"},
+		{name: "enabled override rejected", config: Config{Enabled: true}, message: "self-host telemetry disabled by local build policy"},
+		{name: "disabled", config: Config{Enabled: false}, message: "self-host telemetry disabled by local build policy"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

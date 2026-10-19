@@ -7,6 +7,8 @@ import enCommon from "../../locales/en/common.json";
 import enRuntimes from "../../locales/en/runtimes.json";
 import { UpdateSection } from "./update-section";
 
+vi.mock("@multica/core/analytics/privacy", () => ({ EXTERNAL_BACKGROUND_REQUESTS_ENABLED: true }));
+
 const TEST_RESOURCES = { en: { common: enCommon, runtimes: enRuntimes } };
 
 vi.mock("@multica/core/api", () => ({

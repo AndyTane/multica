@@ -70,26 +70,26 @@ func TestRealtimeMetricsHandler_TokenRequired(t *testing.T) {
 	})
 }
 
-func TestRealtimeMetricsHandler_NoToken_LoopbackOnly(t *testing.T) {
+func TestRealtimeMetricsHandler_NoToken_Disabled(t *testing.T) {
 	h := realtimeMetricsHandler("")
 
-	t.Run("loopback ipv4 allowed", func(t *testing.T) {
+	t.Run("TCP relay appearing as loopback without headers is denied", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/health/realtime", nil)
 		req.RemoteAddr = "127.0.0.1:9999"
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected 200 from loopback, got %d", rec.Code)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 from uncredentialed loopback, got %d", rec.Code)
 		}
 	})
 
-	t.Run("loopback ipv6 allowed", func(t *testing.T) {
+	t.Run("uncredentialed loopback ipv6 is denied", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/health/realtime", nil)
 		req.RemoteAddr = "[::1]:9999"
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected 200 from ipv6 loopback, got %d", rec.Code)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 from uncredentialed ipv6 loopback, got %d", rec.Code)
 		}
 	})
 
@@ -113,11 +113,8 @@ func TestRealtimeMetricsHandler_NoToken_LoopbackOnly(t *testing.T) {
 		}
 	})
 
-	// MUL-1342 review: when the server is behind a reverse proxy on
-	// localhost (Caddy / Nginx -> 127.0.0.1:8080), public callers reach
-	// the handler with RemoteAddr=127.0.0.1. The presence of forwarding
-	// headers must disqualify the loopback shortcut, otherwise the
-	// metrics surface is fully exposed in self-hosted deployments.
+	// Forwarding headers cannot enable an unconfigured endpoint, regardless
+	// of whether a relay preserves the original caller's address.
 	proxyHeaders := []struct {
 		name   string
 		header string
@@ -155,14 +152,14 @@ func TestRealtimeMetricsHandler_NoToken_LoopbackOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("empty forwarding header still allows loopback", func(t *testing.T) {
+	t.Run("empty forwarding header cannot enable metrics", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/health/realtime", nil)
 		req.RemoteAddr = "127.0.0.1:9999"
 		req.Header.Set("X-Forwarded-For", "   ")
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("expected 200 when forwarding header is blank, got %d", rec.Code)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 when forwarding header is blank, got %d", rec.Code)
 		}
 	})
 }

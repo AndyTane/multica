@@ -6,6 +6,11 @@ import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../locales/en/common.json";
 import enOnboarding from "../locales/en/onboarding.json";
 
+// Exercise the retained survey behavior only behind a test-only build-policy override.
+vi.mock("@multica/core/analytics/privacy", () => ({
+  EXTERNAL_REPORTING_ENABLED: true,
+}));
+
 const TEST_RESOURCES = { en: { common: enCommon, onboarding: enOnboarding } };
 
 const { mockUser, mockSaveQuestionnaire, mockWorkspace, mockAgentDoneTotal, mockListIssues } =

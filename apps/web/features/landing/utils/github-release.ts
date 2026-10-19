@@ -1,3 +1,4 @@
+import { EXTERNAL_BACKGROUND_REQUESTS_ENABLED } from "@multica/core/analytics/privacy";
 import {
   hasCompleteAssetSet,
   parseReleaseAssets,
@@ -51,6 +52,7 @@ interface GitHubReleasePayload {
 }
 
 export async function fetchLatestRelease(): Promise<LatestRelease> {
+  if (!EXTERNAL_BACKGROUND_REQUESTS_ENABLED) return emptyRelease();
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",

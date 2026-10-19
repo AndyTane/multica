@@ -8,6 +8,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/featureflags"
+	"github.com/multica-ai/multica/server/internal/privacy"
 )
 
 type AppConfig struct {
@@ -132,9 +133,9 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		config.ServerVersion = h.cfg.ServerVersion
 	}
 
-	// Re-read from env on every request so operators can rotate keys via
-	// secret refresh without a server restart.
-	if v := os.Getenv("ANALYTICS_DISABLED"); v != "true" && v != "1" {
+	// Preserve the response shape for installed clients while the local build
+	// always withholds external reporting configuration, even if env opts in.
+	if v := os.Getenv("ANALYTICS_DISABLED"); privacy.ExternalReportingEnabled && v != "true" && v != "1" {
 		config.PosthogKey = os.Getenv("POSTHOG_API_KEY")
 		config.PosthogHost = os.Getenv("POSTHOG_HOST")
 		config.AnalyticsEnvironment = analytics.EnvironmentFromEnv()

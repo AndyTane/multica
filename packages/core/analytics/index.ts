@@ -1,4 +1,6 @@
-// Frontend analytics glue. Thin wrapper over posthog-js.
+// Frontend analytics glue. External reporting is disabled by the local build
+// policy before SDK initialization, buffering, identity, or attribution capture.
+// The upstream protocol implementation below remains covered by fake-SDK tests.
 //
 // The source-of-truth event catalog is `server/internal/analytics/events.go`. This module only
 // handles the two things the backend can't do itself: attribution capture on
@@ -16,6 +18,7 @@ import posthog from "posthog-js";
 import { redactExceptionProperties } from "./redact-exception";
 import { shouldDropException } from "./exception-dedupe";
 import { isBenignException } from "./benign-exceptions";
+import { EXTERNAL_REPORTING_ENABLED } from "./privacy";
 
 export const EVENT_SCHEMA_VERSION = 2;
 
@@ -106,6 +109,7 @@ export function detectClientType(): ClientType {
  * treat as "use the existing instance").
  */
 export function initAnalytics(config: AnalyticsConfig | null | undefined): boolean {
+  if (!EXTERNAL_REPORTING_ENABLED) return false;
   if (typeof window === "undefined") return false;
   if (!config?.key) return false;
   if (initialized) return true;
@@ -211,6 +215,7 @@ export function initAnalytics(config: AnalyticsConfig | null | undefined): boole
  * config and user in parallel, so identify can arrive first.
  */
 export function identify(userId: string, userProperties?: Record<string, unknown>): void {
+  if (!EXTERNAL_REPORTING_ENABLED) return;
   currentUserId = userId;
   if (!initialized) {
     pendingIdentify = { userId, props: userProperties };
@@ -224,6 +229,7 @@ export function identify(userId: string, userProperties?: Record<string, unknown
  * and doesn't bleed the previous user's events into a new session.
  */
 export function resetAnalytics(): void {
+  if (!EXTERNAL_REPORTING_ENABLED) return;
   currentUserId = null;
   pendingIdentify = null;
   pendingOps.length = 0;
@@ -276,6 +282,7 @@ export function captureEvent(
   props?: Record<string, unknown>,
   options?: CaptureEventOptions,
 ): void {
+  if (!EXTERNAL_REPORTING_ENABLED) return;
   if (!initialized) {
     pendingOps.push({ kind: "event", name, props, options });
     return;
@@ -314,6 +321,7 @@ export function captureException(
   error: unknown,
   props?: Record<string, unknown>,
 ): void {
+  if (!EXTERNAL_REPORTING_ENABLED) return;
   if (!initialized) {
     pendingOps.push({ kind: "exception", error, props });
     return;
@@ -330,6 +338,7 @@ export function captureException(
  * attribution fields that must never be overwritten.
  */
 export function setPersonProperties(props: Record<string, unknown>): void {
+  if (!EXTERNAL_REPORTING_ENABLED) return;
   if (!initialized) {
     pendingOps.push({ kind: "set", props });
     return;
@@ -396,6 +405,12 @@ function normalizeEnvironment(value: string | undefined): string {
  * without a backend deploy.
  */
 export function captureSignupSource(): void {
+  if (!EXTERNAL_REPORTING_ENABLED) {
+    if (typeof document !== "undefined") {
+      document.cookie = `${SIGNUP_SOURCE_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    }
+    return;
+  }
   if (typeof window === "undefined" || typeof document === "undefined") return;
   if (readCookie(SIGNUP_SOURCE_COOKIE)) return;
 

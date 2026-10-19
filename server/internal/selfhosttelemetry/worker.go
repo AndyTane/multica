@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/multica-ai/multica/server/internal/privacy"
 )
 
 const (
@@ -43,6 +45,9 @@ type workerFactories struct {
 // New performs no database, DNS or HTTP work. When DO_NOT_TRACK disabled the
 // feature, it also returns before constructing any collector or HTTP client.
 func New(pool *pgxpool.Pool, serverVersion string, config Config, logger *slog.Logger) *Worker {
+	if !privacy.ExternalReportingEnabled {
+		return nil
+	}
 	return newWithFactories(config, serverVersion, logger, workerFactories{
 		store:     func() leaderStore { return newPostgresStore(pool) },
 		collector: func() eventCollector { return SQLCollector{} },

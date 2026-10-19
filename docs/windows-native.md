@@ -55,6 +55,18 @@ Preserve the Docker containers and volumes until the native deployment has been 
 
 ## Operations and recovery
 
+### External reporting policy
+
+This local fork disables PostHog product/error reporting, signup-attribution cookies, and daily self-host usage snapshots in code. `server/internal/privacy/reporting.go` and `packages/core/analytics/privacy.ts` are build policies, not environment switches: setting a PostHog key or clearing `DO_NOT_TRACK` cannot enable these reporting paths. The public config keeps its existing JSON fields empty, and web/desktop do not mount the source-attribution questionnaire.
+
+Native startup also forces `DO_NOT_TRACK=1`, `ANALYTICS_DISABLED=true`, empty `POSTHOG_API_KEY`/`POSTHOG_HOST`, and `NEXT_TELEMETRY_DISABLED=1` after imported settings. Production frontend builds set `NEXT_TELEMETRY_DISABLED=1` and restore the caller's environment afterwards. Enabling reporting requires an explicit source change, rebuild, and deployment; do not remove these gates during upstream merges.
+
+The same shared privacy module disables optional background GitHub star/release requests. The runtime's official self-update controls are hidden; build this fork's CLI with `scripts/build-local-cli.ps1`. Directly opening a documentation/download link remains an explicit user action.
+
+`/health/realtime` requires a configured `REALTIME_METRICS_TOKEN` and its bearer credential. Without a token the route returns 404 even from loopback, since the LAN TCP relay cannot preserve the caller's address or add forwarding headers. General readiness and authenticated data routes remain available.
+
+These controls do not disable local logs/metrics, configured model providers, or integrations deliberately enabled by the operator. They are not a machine-wide network firewall. Existing LAN access and DSH/ClawStation tunnels have their own access controls and lifecycle.
+
 ```powershell
 .\scripts\native-windows.ps1 -Action Status -Root D:\MulticaData\native
 .\scripts\native-windows.ps1 -Action Stop -Root D:\MulticaData\native

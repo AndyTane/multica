@@ -22,8 +22,8 @@ try {
     $config = [pscustomobject]@{
         Root = $testRoot; Database = 'example'; DatabaseUser = 'example'; DatabasePassword = 'a@b:c/#?'
         DatabasePort = 15432; ApiPort = 18080; WebPort = 13000
-        BackendEnvironment = [pscustomobject]@{ JWT_SECRET = 'test-secret'; PORT = '8080'; DATABASE_URL = 'old'; FRONTEND_ORIGIN = 'old' }
-        FrontendEnvironment = [pscustomobject]@{ REMOTE_API_URL = 'http://backend:8080'; NEXT_PUBLIC_WS_URL = '' }
+        BackendEnvironment = [pscustomobject]@{ JWT_SECRET = 'test-secret'; PORT = '8080'; DATABASE_URL = 'old'; FRONTEND_ORIGIN = 'old'; DO_NOT_TRACK = '0'; ANALYTICS_DISABLED = 'false'; POSTHOG_API_KEY = 'test-key'; POSTHOG_HOST = 'https://collector.invalid' }
+        FrontendEnvironment = [pscustomobject]@{ REMOTE_API_URL = 'http://backend:8080'; NEXT_PUBLIC_WS_URL = ''; NEXT_TELEMETRY_DISABLED = '0' }
     }
     $backendEnv = Get-BackendEnvironment $config
     Assert-NativeTest ($backendEnv.JWT_SECRET -eq 'test-secret') 'Existing application secrets must survive migration.'
@@ -31,9 +31,13 @@ try {
     Assert-NativeTest ($backendEnv.FRONTEND_ORIGIN -eq 'http://localhost:13000') 'The rehearsal frontend origin must use its isolated port.'
     Assert-NativeTest ($backendEnv.MULTICA_DAEMON_SERVER_URL -eq 'http://localhost:18080') 'Daemon setup must point to the API listener with native WebSocket support.'
     Assert-NativeTest ($backendEnv.DATABASE_URL -like '*a%40b%3Ac%2F%23%3F@127.0.0.1:15432/example*') 'Database credentials must be URI escaped.'
+    Assert-NativeTest ($backendEnv.DO_NOT_TRACK -eq '1') 'Imported settings must not enable daily self-host snapshots.'
+    Assert-NativeTest ($backendEnv.ANALYTICS_DISABLED -eq 'true') 'Imported settings must not enable analytics.'
+    Assert-NativeTest (-not $backendEnv.POSTHOG_API_KEY -and -not $backendEnv.POSTHOG_HOST) 'Native startup must not expose an analytics project to clients.'
     $frontendEnv = Get-FrontendEnvironment $config
     Assert-NativeTest ($frontendEnv.REMOTE_API_URL -eq 'http://127.0.0.1:18080') 'Frontend API proxy must target the native backend.'
     Assert-NativeTest ($frontendEnv.NEXT_PUBLIC_WS_URL -eq 'ws://localhost:18080/ws') 'Browser realtime must target the native API rather than a different running deployment.'
+    Assert-NativeTest ($frontendEnv.NEXT_TELEMETRY_DISABLED -eq '1') 'Imported frontend settings must not re-enable Next.js telemetry.'
 
     $savedEnv = [Environment]::GetEnvironmentVariable('MULTICA_NATIVE_TEST_MARKER', 'Process')
     $fakeScript = Join-Path $testRoot 'fake child.ps1'

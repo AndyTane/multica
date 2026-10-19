@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
 import { api } from "@multica/core/api";
+import { EXTERNAL_BACKGROUND_REQUESTS_ENABLED } from "@multica/core/analytics/privacy";
 import type { RuntimeUpdateStatus } from "@multica/core/types";
 import { useT } from "../../i18n";
 
@@ -105,7 +106,12 @@ interface UpdateSectionProps {
   launchedBy?: string | null;
 }
 
-export function UpdateSection({
+export function UpdateSection(props: UpdateSectionProps) {
+  if (!EXTERNAL_BACKGROUND_REQUESTS_ENABLED) return null;
+  return <EnabledUpdateSection {...props} />;
+}
+
+function EnabledUpdateSection({
   runtimeId,
   currentVersion,
   isOnline,

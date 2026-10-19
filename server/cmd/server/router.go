@@ -1443,8 +1443,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	//
 	// Access is restricted (MUL-1342): when REALTIME_METRICS_TOKEN is set,
 	// callers must present it via Authorization: Bearer <token>. When the
-	// env var is unset the handler only serves loopback callers so local
-	// dev keeps working without exposing the metrics on a public listener.
+	// env var is unset the endpoint is disabled, including on loopback: a TCP
+	// relay can make anonymous remote callers appear local without proxy headers.
 	r.Get("/health/realtime", realtimeMetricsHandler(os.Getenv("REALTIME_METRICS_TOKEN")))
 
 	// WebSocket

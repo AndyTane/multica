@@ -122,7 +122,7 @@ func testWorker(state telemetryState, collector *fakeCollector, sender *fakeSend
 	}, session
 }
 
-func TestDefaultConfigCollectsAndSends(t *testing.T) {
+func TestExplicitFakeWorkerCollectsAndSends(t *testing.T) {
 	t.Parallel()
 	id := uuid.MustParse("01010101-2222-3333-4444-555555555555")
 	today := time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC)
@@ -130,13 +130,15 @@ func TestDefaultConfigCollectsAndSends(t *testing.T) {
 	session := &fakeSession{state: telemetryState{InstanceID: id}}
 	collector := &fakeCollector{}
 	sender := &fakeSender{}
-	worker := newWithFactories(ConfigFromDoNotTrack(""), "v1.2.3", nil, workerFactories{
+	// Exercise the retained protocol using fakes; the production constructor
+	// rejects this enable through the local build policy.
+	worker := newWithFactories(Config{Enabled: true}, "v1.2.3", nil, workerFactories{
 		store:     func() leaderStore { return &fakeStore{session: session, leader: true} },
 		collector: func() eventCollector { return collector },
 		sender:    func() eventSender { return sender },
 	})
 	if worker == nil {
-		t.Fatal("default configuration did not construct telemetry worker")
+		t.Fatal("explicit fake configuration did not construct telemetry worker")
 	}
 	if _, err := worker.runOnce(context.Background(), now); err != nil {
 		t.Fatal(err)

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Retained upstream protocol tests use a fake SDK with an explicit test-only opt-in.
+// privacy.test.ts exercises the real, disabled local build policy.
+vi.mock("./privacy", () => ({ EXTERNAL_REPORTING_ENABLED: true }));
+
 // Mock posthog-js before importing the module under test so the module's
 // top-level `import posthog from "posthog-js"` resolves to the mock.
 vi.mock("posthog-js", () => {
