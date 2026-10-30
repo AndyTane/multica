@@ -2,14 +2,14 @@
   "step_nav": {
     "wordmark": "U Workers",
     "label": "Étapes de prise en main",
-    "about_you": {
-      "label": "À propos de vous"
-    },
     "workspace": {
       "label": "Espace de travail"
     },
     "runtime": {
-      "label": "Rencontrez Mika"
+      "label": "Runtime / modèle"
+    },
+    "task": {
+      "label": "Tâche"
     }
   },
   "welcome": {
@@ -51,12 +51,6 @@
     "cancel": "Annuler",
     "close": "Fermer",
     "log_out": "Se déconnecter"
-  },
-  "source_backfill": {
-    "eyebrow": "Une question rapide",
-    "lede": "Aidez-nous à comprendre comment vous avez découvert U Workers.",
-    "submit": "Envoyer",
-    "save_failed_toast": "Échec de l'enregistrement"
   },
   "questions": {
     "about_you": {
@@ -121,19 +115,6 @@
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
     "step2_label": "Démarrer le daemon"
-  },
-  "cloud_waitlist": {
-    "intro_main": "Les runtimes cloud ne sont pas encore actifs. Laissez votre adresse e-mail et nous vous préviendrons dès qu'ils le seront.",
-    "intro_warning": "Attention : les agents ne peuvent pas démarrer d'exécutions sans runtime. Si vous passez maintenant, rien ne s'exécutera tant que vous n'en aurez pas installé un.",
-    "email_label": "E-mail",
-    "email_placeholder": "vous@entreprise.com",
-    "reason_label": "Pourquoi le cloud ?",
-    "optional": "Facultatif",
-    "reason_placeholder": "ex. nous voulons des agents actifs en continu, ou mon équipe travaille sur des appareils différents.",
-    "join": "Rejoindre la liste d'attente",
-    "on_list": "Vous êtes sur la liste",
-    "success_toast": "Vous êtes sur la liste. Nous vous écrirons dès que les runtimes cloud seront actifs.",
-    "failed_toast": "Échec de l'inscription à la liste d'attente"
   },
   "welcome_after_onboarding": {
     "skip": {
@@ -262,5 +243,19 @@
     "name": "Mika",
     "role": "Chef de cabinet",
     "blurb": "Dites à Mika ce que vous voulez faire. Cela devient une tâche, avec le bon agent dessus."
+  },
+  "service": {
+    "title": "Connectez votre service",
+    "description": "Voici le service U Workers authentifié pour votre espace de travail.",
+    "address": "Adresse du service",
+    "continue": "Continuer vers l’espace"
+  },
+  "task": {
+    "title": "Commencez votre première tâche",
+    "connected": "Mika vous aide à transformer votre objectif en tâche avec le runtime et le modèle choisis.",
+    "no_runtime": "Ouvrez votre espace et créez une tâche. Vous pourrez connecter un runtime plus tard.",
+    "start": "Commencer avec Mika",
+    "starting": "Ouverture…",
+    "open_workspace": "Ouvrir l’espace"
   }
 }

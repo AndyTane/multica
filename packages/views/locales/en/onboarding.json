@@ -2,14 +2,14 @@
   "step_nav": {
     "wordmark": "U Workers",
     "label": "Onboarding steps",
-    "about_you": {
-      "label": "About you"
-    },
     "workspace": {
       "label": "Workspace"
     },
     "runtime": {
-      "label": "Meet Mika"
+      "label": "Runtime / model"
+    },
+    "task": {
+      "label": "Task"
     }
   },
   "welcome": {
@@ -51,12 +51,6 @@
     "cancel": "Cancel",
     "close": "Close",
     "log_out": "Log out"
-  },
-  "source_backfill": {
-    "eyebrow": "Quick question",
-    "lede": "Help us understand how you found U Workers.",
-    "submit": "Submit",
-    "save_failed_toast": "Failed to save"
   },
   "questions": {
     "about_you": {
@@ -121,19 +115,6 @@
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
     "step2_label": "Start the daemon"
-  },
-  "cloud_waitlist": {
-    "intro_main": "Cloud runtimes aren't live yet. Leave your email and we'll reach out when they are.",
-    "intro_warning": "Heads-up: agents can't start runs without a runtime — if you hit Skip now, nothing will run until you come back and install one.",
-    "email_label": "Email",
-    "email_placeholder": "you@work.com",
-    "reason_label": "Why cloud?",
-    "optional": "Optional",
-    "reason_placeholder": "e.g. we want agents running 24/7, or my team works across different devices.",
-    "join": "Join waitlist",
-    "on_list": "You're on the list",
-    "success_toast": "You're on the list. We'll email when cloud runtimes are live.",
-    "failed_toast": "Failed to join waitlist"
   },
   "welcome_after_onboarding": {
     "skip": {
@@ -262,5 +243,19 @@
     "name": "Mika",
     "role": "Chief of Staff",
     "blurb": "Tell Mika what you want done. It becomes an issue, with the right agent on it."
+  },
+  "service": {
+    "title": "Connect to your service",
+    "description": "This is the authenticated U Workers service for your workspace.",
+    "address": "Service address",
+    "continue": "Continue to workspace"
+  },
+  "task": {
+    "title": "Start your first task",
+    "connected": "Mika will help turn your goal into a task using the selected runtime and model.",
+    "no_runtime": "Open your workspace and create a task. You can connect a runtime later.",
+    "start": "Start with Mika",
+    "starting": "Opening…",
+    "open_workspace": "Open workspace"
   }
 }

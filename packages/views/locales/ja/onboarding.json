@@ -2,14 +2,14 @@
   "step_nav": {
     "wordmark": "U Workers",
     "label": "オンボーディングの手順",
-    "about_you": {
-      "label": "あなたについて"
-    },
     "workspace": {
       "label": "ワークスペース"
     },
     "runtime": {
-      "label": "Mika を知る"
+      "label": "ランタイム / モデル"
+    },
+    "task": {
+      "label": "タスク"
     }
   },
   "welcome": {
@@ -51,12 +51,6 @@
     "cancel": "キャンセル",
     "close": "閉じる",
     "log_out": "ログアウト"
-  },
-  "source_backfill": {
-    "eyebrow": "ちょっと質問",
-    "lede": "U Workers を知ったきっかけを教えてください。",
-    "submit": "送信",
-    "save_failed_toast": "保存できませんでした"
   },
   "questions": {
     "about_you": {
@@ -121,19 +115,6 @@
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
     "step2_label": "デーモンを起動"
-  },
-  "cloud_waitlist": {
-    "intro_main": "クラウドランタイムはまだ提供されていません。メールアドレスを残していただければ、準備ができ次第ご連絡します。",
-    "intro_warning": "注意: ランタイムがないとエージェントは実行を開始できません。今スキップすると、戻ってきてインストールするまで何も実行されません。",
-    "email_label": "メールアドレス",
-    "email_placeholder": "you@work.com",
-    "reason_label": "クラウドを使いたい理由",
-    "optional": "任意",
-    "reason_placeholder": "例: エージェントを 24 時間稼働させたい、チームが複数のデバイスで作業している など。",
-    "join": "ウェイトリストに登録",
-    "on_list": "登録済みです",
-    "success_toast": "ウェイトリストに登録しました。クラウドランタイムが利用可能になったらメールでお知らせします。",
-    "failed_toast": "ウェイトリストに登録できませんでした"
   },
   "welcome_after_onboarding": {
     "skip": {
@@ -260,5 +241,19 @@
     "name": "Mika",
     "role": "参謀長",
     "blurb": "やりたいことを Mika に伝えると、タスクになり、適したエージェントが担当します。"
+  },
+  "service": {
+    "title": "サービスに接続",
+    "description": "ワークスペースで使用する認証済み U Workers サービスです。",
+    "address": "サービスのアドレス",
+    "continue": "ワークスペースへ進む"
+  },
+  "task": {
+    "title": "最初のタスクを始める",
+    "connected": "選択したランタイムとモデルで、Mika が目標をタスクにします。",
+    "no_runtime": "ワークスペースでタスクを作成できます。ランタイムは後から接続できます。",
+    "start": "Mika と始める",
+    "starting": "開いています…",
+    "open_workspace": "ワークスペースを開く"
   }
 }

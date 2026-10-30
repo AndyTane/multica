@@ -2,14 +2,14 @@
   "step_nav": {
     "wordmark": "U Workers",
     "label": "引导步骤",
-    "about_you": {
-      "label": "关于你"
-    },
     "workspace": {
       "label": "工作区"
     },
     "runtime": {
-      "label": "认识 Mika"
+      "label": "运行时 / 模型"
+    },
+    "task": {
+      "label": "任务"
     }
   },
   "welcome": {
@@ -51,12 +51,6 @@
     "cancel": "取消",
     "close": "关闭",
     "log_out": "退出登录"
-  },
-  "source_backfill": {
-    "eyebrow": "顺便问一句",
-    "lede": "帮助我们了解你从哪里知道 U Workers。",
-    "submit": "提交",
-    "save_failed_toast": "保存失败"
   },
   "questions": {
     "about_you": {
@@ -121,19 +115,6 @@
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
     "step2_label": "启动守护进程"
-  },
-  "cloud_waitlist": {
-    "intro_main": "云运行时尚未上线。留下邮箱，上线时通过邮件通知你。",
-    "intro_warning": "提示：未配置运行时，智能体就无法工作——如果现在跳过，在你回来安装之前不会启动任何运行。",
-    "email_label": "邮箱",
-    "email_placeholder": "you@work.com",
-    "reason_label": "为什么选择云？",
-    "optional": "选填",
-    "reason_placeholder": "例如：希望智能体 24/7 运行，或团队在不同设备协作。",
-    "join": "加入候补名单",
-    "on_list": "已在候补名单",
-    "success_toast": "已加入候补名单。云运行时上线时会通过邮件通知你。",
-    "failed_toast": "加入候补名单失败"
   },
   "welcome_after_onboarding": {
     "skip": {
@@ -260,5 +241,19 @@
     "name": "Mika",
     "role": "参谋长",
     "blurb": "把你想做的事告诉 Mika，它会变成一个任务，并交给合适的智能体处理。"
+  },
+  "service": {
+    "title": "连接你的服务",
+    "description": "当前已登录这个 U Workers 服务，工作区将在这里创建。",
+    "address": "服务地址",
+    "continue": "继续创建工作区"
+  },
+  "task": {
+    "title": "开始第一个任务",
+    "connected": "Mika 会使用所选运行时和模型，帮你把目标变成任务。",
+    "no_runtime": "进入工作区创建任务，之后也可以连接运行时。",
+    "start": "与 Mika 开始",
+    "starting": "正在打开…",
+    "open_workspace": "进入工作区"
   }
 }

@@ -9,7 +9,6 @@ import {
 import { cn } from "@multica/ui/lib/utils";
 import { Button } from "@multica/ui/components/ui/button";
 import { ProductMark } from "@multica/ui/components/common/product-mark";
-import { DotSphere } from "@multica/ui/components/ui/dot-sphere";
 import {
   Stepper,
   StepperIndicator,
@@ -151,14 +150,6 @@ export function StepSidebar({
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-background"
         >
-          <DotSphere
-            dotGap={19}
-            motion="wave"
-            sphereCount={5}
-            sphereRadius="20%"
-            dotRadiusMax={1.9}
-            speed={0.4}
-          />
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col pt-5">
