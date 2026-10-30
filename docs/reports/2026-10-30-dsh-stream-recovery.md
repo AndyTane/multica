@@ -53,3 +53,7 @@ Version 1.0.2 recovered session history but still allowed `workspace/create`, `s
 Six new regressions cover repeated failures before mutation, dropped receipts after mutation, lost membership confirmation, initialization exceeding the HTTP deadline with the host's same-session creation coalescing, cancellation, and fatal protocol errors. The five affected regressions failed against 1.0.2 before implementation. The bridge suite now contains 52 cases.
 
 Preparation was also exercised against both original CLAWSTA-68 empty sessions, with one accepted `session/create` receipt deliberately discarded in each case. The retry completed preparation under the same session ID and confirmed workspace membership. No prompt or cancel calls were made. Detailed receipts are attached to CLAWSTA-61 separately rather than committed. This verifies the startup boundary; the complete skills-development task remains for its assigned executor.
+
+Version 1.0.3 was built and installed at the existing runtime command path using atomic file replacement. Candidate and installed SHA-256 match (`4971B92B82B359C4DA4145E1D349EE5CC751EF896C26577730FC61A5EE20B935`); the installed authenticated `--probe` passed. The pre-existing bridge PID 45984, Multica daemon PID 83428 and DSH host PID 33000 retained their start times. New launches load 1.0.3 while the existing bridge continues its original run. The previous executable was backed up before replacement.
+
+The final 52-case bridge suite, affected Go launcher/backend tests, `go vet` and `git diff --check` all passed.
