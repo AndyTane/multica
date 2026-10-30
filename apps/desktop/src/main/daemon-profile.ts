@@ -1,3 +1,4 @@
+import { DESKTOP_PROFILE_PREFIX } from "@multica/core/config/brand";
 import { homedir } from "os";
 import { join } from "path";
 
@@ -5,7 +6,7 @@ import { join } from "path";
 export const DEFAULT_HEALTH_PORT = 19514;
 
 /**
- * Desktop owns only `~/.multica/profiles/desktop-<host>/`. The default profile
+ * Desktop owns only `~/.multica/profiles/u-workers-desktop-<host>/`. The default profile
  * at `~/.multica/` — config, daemon log, and health port 19514 — belongs to the
  * user's terminal CLI and must never be read, written, probed, or passed to the
  * bundled CLI.
@@ -24,14 +25,14 @@ export function assertResolvedProfile(profile: string): void {
 
 // Desktop owns a dedicated CLI profile named after the target API host, so it
 // never reads or writes the user's hand-configured profiles. Profile dir:
-//   ~/.multica/profiles/desktop-<host>/
+//   ~/.multica/profiles/u-workers-desktop-<host>/
 export function deriveProfileName(targetUrl: string): string {
   try {
     const url = new URL(targetUrl);
     const host = url.host.replace(/:/g, "-").toLowerCase();
-    return `desktop-${host}`;
+    return `${DESKTOP_PROFILE_PREFIX}${host}`;
   } catch {
-    return "desktop";
+    throw new Error("A valid API URL is required for the U Workers daemon profile");
   }
 }
 

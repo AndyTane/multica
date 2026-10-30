@@ -48,6 +48,7 @@ vi.mock("sonner", () => ({ toast: { error: toastErrorMock } }));
 
 const STRINGS: Record<string, Record<string, string>> = {
   image: {
+    load_external: "Load image",
     download: "Download",
     view: "View",
     copy_link: "Copy link",
@@ -643,6 +644,7 @@ describe("body images with no attachment record", () => {
     (caption) => {
       render(<CaptionedBody captions={[caption]} />);
 
+      fireEvent.click(screen.getAllByRole("button", { name: "Load image" })[0]!);
       act(() => {
         fireEvent.click(screen.getAllByTitle("View")[0]!);
       });
@@ -657,6 +659,7 @@ describe("body images with no attachment record", () => {
   it("still pages between captioned body images", () => {
     render(<CaptionedBody captions={["报告图表", "对比图"]} />);
 
+    fireEvent.click(screen.getAllByRole("button", { name: "Load image" })[0]!);
     act(() => {
       fireEvent.click(screen.getAllByTitle("View")[0]!);
     });

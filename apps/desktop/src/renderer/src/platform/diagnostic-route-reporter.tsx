@@ -95,6 +95,8 @@ function resolveSurface({
 
 function overlayPath(overlay: WindowOverlay): string {
   switch (overlay.type) {
+    case "unavailable":
+      return "/billing/return";
     case "new-workspace":
       return "/workspaces/new";
     case "onboarding":

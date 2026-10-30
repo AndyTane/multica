@@ -2,10 +2,14 @@
 import { mkdtemp, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
-import { describe, expect, it } from "vitest";
-import { loadRuntimeConfig } from "./runtime-config-loader";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("electron", () => ({ app: { getPath: () => "isolated-test-home" } }));
+import { desktopConfigPath, loadRuntimeConfig } from "./runtime-config-loader";
 
 describe("loadRuntimeConfig", () => {
+  it("isolates configuration without migrating the original directory", () => {
+    expect(desktopConfigPath()).toBe(join("isolated-test-home", ".u-workers", "desktop.json"));
+  });
   it("uses dev env and ignores desktop.json during electron-vite dev", async () => {
     const dir = await mkdtemp(join(tmpdir(), "multica-desktop-config-"));
     const configPath = join(dir, "desktop.json");
@@ -35,23 +39,22 @@ describe("loadRuntimeConfig", () => {
     });
   });
 
-  it("uses cloud defaults when packaged config is absent", async () => {
+  it("fails closed with a local configuration example when packaged config is absent", async () => {
     const dir = await mkdtemp(join(tmpdir(), "multica-desktop-config-"));
-    await expect(
-      loadRuntimeConfig({
+    const configPath = join(dir, "missing.json");
+    const result = await loadRuntimeConfig({
         isDev: false,
-        configPath: join(dir, "missing.json"),
+        configPath,
         env: {},
-      }),
-    ).resolves.toEqual({
-      ok: true,
-      config: {
-        schemaVersion: 1,
-        apiUrl: "https://api.multica.ai",
-        wsUrl: "wss://api.multica.ai/ws",
-        appUrl: "https://multica.ai",
-      },
     });
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("multica.ai");
+    if (!result.ok) {
+      expect(result.error.message).toContain(configPath);
+      expect(result.error.message).toContain('"apiUrl"');
+      expect(result.error.message).toContain('"wsUrl"');
+      expect(result.error.message).toContain('"appUrl"');
+    }
   });
 
   it("parses a valid packaged desktop.json", async () => {

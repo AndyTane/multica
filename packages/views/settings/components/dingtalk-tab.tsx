@@ -51,7 +51,7 @@ import type {
   DingTalkInstallation,
 } from "@multica/core/types";
 import { ActorAvatar } from "../../common/actor-avatar";
-import { docsLocalePrefix } from "../../common/docs-locale";
+import { docsHref } from "../../common/docs-locale";
 import { openExternal } from "../../platform";
 import { useT, useTimeAgo } from "../../i18n";
 
@@ -799,7 +799,7 @@ function InstallationRow({
 // prefixes (English has none), matching the convention used elsewhere in the
 // app for doc links.
 function dingtalkDocsUrl(lang: string | undefined): string {
-  return `https://multica.ai/docs${docsLocalePrefix(lang)}/dingtalk-bot-integration`;
+  return docsHref("dingtalk-bot-integration", lang);
 }
 
 // DingTalkAgentBindButton is the per-agent CTA exposed from the agent detail

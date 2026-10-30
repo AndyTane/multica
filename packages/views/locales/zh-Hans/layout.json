@@ -29,10 +29,7 @@
   },
   "help": {
     "trigger": "帮助",
-    "download_desktop": "桌面端",
     "docs": "文档",
-    "changelog": "更新日志",
-    "discord": "Discord",
     "feedback": "反馈",
     "server_version": "服务器版本 {{version}}"
   },
@@ -56,10 +53,6 @@
     "ai_team_group": "AI 团队",
     "show_more_pins": "再显示 {{count}} 项...",
     "show_fewer_pins": "收起",
-    "unread_overflow": "99+",
-    "discord_card": {
-      "title": "加入 Discord",
-      "dismiss": "关闭"
-    }
+    "unread_overflow": "99+"
   }
 }

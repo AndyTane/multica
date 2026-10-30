@@ -77,7 +77,7 @@ import {
   type SkillActionsContext,
 } from "./skill-list-actions";
 import { useT, useTimeAgo } from "../../i18n";
-import { docsLocalePrefix } from "../../common/docs-locale";
+import { docsHref } from "../../common/docs-locale";
 
 // Column template — single source of truth for header, rows, and skeletons.
 // Tracks: [edge 0.75rem] [checkbox 1rem] [name, only fr track]
@@ -176,7 +176,7 @@ function PageHeaderBar({
       count={totalCount}
       description={t(($) => $.page.tagline)}
       learnMore={{
-        href: `https://multica.ai/docs${docsLocalePrefix(i18n.language)}/skills`,
+        href: docsHref("skills", i18n.language),
         label: t(($) => $.page.learn_more),
       }}
       actions={

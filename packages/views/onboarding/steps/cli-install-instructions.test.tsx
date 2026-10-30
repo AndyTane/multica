@@ -9,7 +9,7 @@ import { CliInstallInstructions } from "./cli-install-instructions";
 const TEST_RESOURCES = { en: { common: enCommon, onboarding: enOnboarding } };
 
 const WINDOWS_CMD =
-  "irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex";
+  "pwsh -File scripts/build-local-cli.ps1";
 
 describe("CliInstallInstructions", () => {
   // The switch itself is covered in common/cli-install-command.test.tsx; this
@@ -25,6 +25,6 @@ describe("CliInstallInstructions", () => {
     await user.click(screen.getByRole("tab", { name: "Windows" }));
 
     expect(screen.getByText(WINDOWS_CMD)).toBeInTheDocument();
-    expect(screen.getByText("multica setup")).toBeInTheDocument();
+    expect(screen.getByText("multica setup self-host --server-url <SERVER_URL> --app-url <APP_URL>")).toBeInTheDocument();
   });
 });

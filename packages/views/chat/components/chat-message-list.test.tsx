@@ -6,6 +6,7 @@ import { chatKeys } from "@multica/core/chat/queries";
 import type { Attachment, TaskMessagePayload } from "@multica/core/types";
 import type { ReactElement } from "react";
 import enChat from "../../locales/en/chat.json";
+import enEditor from "../../locales/en/editor.json";
 import zhHansAgents from "../../locales/zh-Hans/agents.json";
 import zhHansChat from "../../locales/zh-Hans/chat.json";
 
@@ -50,7 +51,7 @@ vi.mock("react-virtuoso", () => ({
 
 import { ChatMessageList } from "./chat-message-list";
 
-const TEST_RESOURCES = { en: { chat: enChat } };
+const TEST_RESOURCES = { en: { chat: enChat, editor: enEditor } };
 const TASK_ID = "6af44cbe-80ab-4dfe-b07d-bd3cfd588f4d";
 
 function taskMsg(
@@ -767,6 +768,9 @@ describe("ChatMessageList channel quote presentation", () => {
     expect(quote).not.toBeNull();
     expect(quote).toHaveTextContent("Quoted rich text before");
     expect(quote).toHaveTextContent("Quoted rich text after");
+    expect(quote?.querySelector('img[alt="Quoted image"]')).toBeNull();
+    expect(container.querySelector('img[alt="Current image"]')).toBeNull();
+    for (const button of screen.getAllByRole("button", { name: /Load image/ })) fireEvent.click(button);
     expect(quote?.querySelector('img[alt="Quoted image"]')).not.toBeNull();
     expect(quote?.querySelector('img[alt="Current image"]')).toBeNull();
     expect(screen.getByText("Current rich text")).toBeInTheDocument();

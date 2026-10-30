@@ -29,10 +29,7 @@
   },
   "help": {
     "trigger": "Help",
-    "download_desktop": "Desktop app",
     "docs": "Docs",
-    "changelog": "Change log",
-    "discord": "Discord",
     "feedback": "Feedback",
     "server_version": "Server version {{version}}"
   },
@@ -56,10 +53,6 @@
     "ai_team_group": "AI Team",
     "show_more_pins": "Show {{count}} more…",
     "show_fewer_pins": "Show fewer",
-    "unread_overflow": "99+",
-    "discord_card": {
-      "title": "Join our Discord",
-      "dismiss": "Dismiss"
-    }
+    "unread_overflow": "99+"
   }
 }

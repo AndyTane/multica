@@ -303,7 +303,7 @@ export function LoginPage({
 
   if (step === "cli_confirm" && existingUser) {
     return (
-      <div className="flex min-h-svh items-center justify-center">
+      <div className="flex min-h-svh items-center justify-center px-6 py-12">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             {logo && <div className="mx-auto mb-4">{logo}</div>}
@@ -347,7 +347,7 @@ export function LoginPage({
 
   if (step === "code") {
     return (
-      <div className="flex min-h-svh items-center justify-center">
+      <div className="flex min-h-svh items-center justify-center px-6 py-12">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             {logo && <div className="mx-auto mb-4">{logo}</div>}
@@ -418,7 +418,7 @@ export function LoginPage({
   // -------------------------------------------------------------------------
 
   return (
-    <div className="flex min-h-svh items-center justify-center">
+    <div className="flex min-h-svh items-center justify-center px-6 py-12">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           {logo && <div className="mx-auto mb-4">{logo}</div>}

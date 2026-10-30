@@ -44,7 +44,8 @@
     "image_copied": "画像をコピーしました",
     "copy_image_failed": "画像をコピーできませんでした",
     "canvas_label": "画像キャンバス。ドラッグで移動、スクロールで拡大縮小、ダブルクリックで実際のサイズに切り替えできます。",
-    "unavailable": "この画像は表示できないためスキップしました。"
+    "unavailable": "この画像は表示できないためスキップしました。",
+    "load_external": "画像を読み込む"
   },
   "canvas": {
     "zoom_in": "拡大",
@@ -113,7 +114,9 @@
     "copy_code": "コードをコピー",
     "show_preview": "プレビューを表示",
     "show_source": "ソースを表示",
-    "fullscreen": "全画面"
+    "fullscreen": "全画面",
+    "load_preview": "プレビューを読み込む",
+    "external_preview_notice": "このプレビューは外部サービスに接続する場合があります。"
   },
   "dynamic_block": {
     "preview": "プレビュー",

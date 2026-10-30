@@ -33,7 +33,8 @@ import {
   Maximize2,
   Trash2,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Button } from "@multica/ui/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@multica/ui/lib/utils";
 import { copyText } from "@multica/ui/lib/clipboard";
@@ -340,6 +341,11 @@ export function Attachment({
   const sequence = usePreviewSequence();
 
   const state = normalize(attachment, resolveAttachment, cdnDomain, cdnSigned);
+  const { t } = useT("editor");
+  const [loadedExternalUrl, setLoadedExternalUrl] = useState<string | null>(null);
+  const needsConsent = !state.record && !state.uploading &&
+    !isInlineResourceAllowed(state.url, api.getBaseUrl?.() ?? "", cdnDomain);
+  const mayLoad = !needsConsent || loadedExternalUrl === state.url;
   const forceKind =
     attachment.kind === "url" ? attachment.forceKind : undefined;
   const kind =
@@ -347,6 +353,7 @@ export function Attachment({
     (state.filename || state.contentType
       ? getPreviewKind(state.contentType, state.filename)
       : null);
+  const mayResolveMedia = kind !== "image" || mayLoad;
   // The picked URL may still be the auth-gated API endpoint (reopened drafts
   // whose persisted record has no signed download_url). Upgrade it to a
   // freshly signed URL on clients that can't load the endpoint natively, or —
@@ -354,13 +361,13 @@ export function Attachment({
   // from the authenticated byte fetch. Only the image branch renders a native
   // resource load, so only it opts into that byte fetch.
   const { url: mediaUrl } = useResignedInlineMedia(
-    state.attachmentId,
-    state.url,
-    kind === "image",
+    mayResolveMedia ? state.attachmentId : undefined,
+    mayResolveMedia ? state.url : "",
+    mayLoad && kind === "image",
   );
   // Object URLs are session-local, so anything that hands a URL to the user or
   // to another surface keeps the durable pick instead.
-  const shareUrl = isObjectURL(mediaUrl) ? state.url : mediaUrl;
+  const shareUrl = isObjectURL(mediaUrl) ? state.url : mediaUrl || state.url;
 
   // Identity this attachment has in the surrounding surface's sequence: the
   // attachment id once the URL resolves to a record, otherwise the URL exactly
@@ -408,6 +415,16 @@ export function Attachment({
   };
 
   if (kind === "image") {
+    if (!mayLoad) {
+      return (
+        <div className="my-3 rounded-md border border-border p-3 text-body">
+          <p className="break-all text-caption text-muted-foreground">{state.url}</p>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => setLoadedExternalUrl(state.url)}>
+            {t(($) => $.image.load_external)}
+          </Button>
+        </div>
+      );
+    }
     return (
       <>
         <ImageAttachmentView
@@ -465,6 +482,23 @@ export function Attachment({
       {preview.modal}
     </>
   );
+}
+
+// Uploaded records and configured storage keep their normal lifecycle.
+// Arbitrary markdown URLs require the reader to load that exact resource.
+function isInlineResourceAllowed(url: string, apiBase: string, cdnDomain: string): boolean {
+  if (/^(blob:|data:)/i.test(url)) return true;
+  if (url.startsWith("/") && !url.startsWith("//")) return true;
+  try {
+    const origin = typeof window === "undefined" ? "http://local.invalid" : window.location.origin;
+    const parsed = new URL(url, origin);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    if (parsed.origin === origin) return true;
+    if (apiBase && parsed.origin === new URL(apiBase).origin) return true;
+    return storageURLMatchesCdnDomain(url, cdnDomain);
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------

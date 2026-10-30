@@ -3,6 +3,16 @@ import { NextRequest } from "next/server";
 import { MULTICA_LOCALE_HEADER } from "./lib/locale-routing";
 import { config, proxy } from "./proxy";
 
+it.each(["/billing", "/billing/checkout", "/cloud", "/cloud-runtime/nodes"])("resolves retired %s locally", (path) => {
+  const response = proxy(makeRequest(path));
+  expect(response.headers.get("x-middleware-rewrite")).toBe("https://app.multica.test/billing/return");
+  expect(response.headers.get("location")).toBeNull();
+});
+
+it("preserves a user workspace named cloud", () => {
+  expect(proxy(makeRequest("/cloud/issues")).headers.get("x-middleware-rewrite")).toBeNull();
+});
+
 function makeRequest(
   path: string,
   cookies: Record<string, string> = {},
@@ -90,10 +100,8 @@ describe("proxy legacy workspace route redirects", () => {
   });
 
   it("sends logged-in legacy URLs without a last workspace cookie to login", () => {
-    // Not root: the root-path rule below leaves "/" on the public site for the
-    // official marketing hosts even with a session, so bouncing there would
-    // dead-end on the landing page. /login resolves against the workspace list
-    // instead. The deep-link query is dropped because feeding a legacy path
+    // Login resolves against the workspace list. The deep-link query is
+    // dropped because feeding a legacy path
     // back through `next` would return here and loop.
     expect(
       redirectLocation("/squads?view=members", { multica_logged_in: "1" }),
@@ -120,9 +128,9 @@ describe("proxy legacy workspace route redirects", () => {
   });
 
   it.each(["multica.ai", "www.multica.ai"])(
-    "does not redirect public marketing root on %s",
+    "redirects root to the workspace on every host including %s",
     (host) => {
-      expect(redirectLocation("/", sessionCookies, host)).toBeNull();
+      expect(redirectLocation("/", sessionCookies, host)).toBe(`https://${host}/acme/issues`);
     },
   );
 
@@ -134,6 +142,18 @@ describe("proxy legacy workspace route redirects", () => {
 });
 
 describe("proxy runtime upstream rewrites", () => {
+  it("preserves configured remote API and auth rewrites", () => {
+    const previous = process.env.REMOTE_API_URL;
+    process.env.REMOTE_API_URL = "https://backend.example.test/prefix";
+    try {
+      for (const path of ["/api/config", "/auth/google"]) {
+        const res = proxy(makeRequest(path));
+        expect(res.headers.get("x-middleware-rewrite")).toBe(`https://backend.example.test/prefix${path}`);
+      }
+    } finally {
+      restoreEnv("REMOTE_API_URL", previous);
+    }
+  });
   it("matches globally versioned Plugin API requests", () => {
     expect(config.matcher).toContain("/v1/:path*");
   });
@@ -264,6 +284,14 @@ describe("proxy runtime upstream rewrites", () => {
 });
 
 describe("proxy root and locale handling", () => {
+  it("redirects logged-out root visits to login", () => {
+    expect(redirectLocation("/")).toBe("https://app.multica.test/login");
+  });
+
+  it("resolves a session without a recent workspace through login", () => {
+    expect(redirectLocation("/", { multica_logged_in: "1" })).toBe("https://app.multica.test/login");
+  });
+
   it("redirects logged-in root visits to the last workspace", () => {
     const res = proxy(
       makeRequest("/", {

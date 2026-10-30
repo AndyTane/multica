@@ -1,48 +1,19 @@
 {
   "step_nav": {
-    "wordmark": "Multica",
+    "wordmark": "U Workers",
     "label": "Onboarding steps",
-    "about_you": {
-      "label": "About you"
-    },
     "workspace": {
       "label": "Workspace"
     },
     "runtime": {
-      "label": "Meet Mika"
+      "label": "Runtime / model"
+    },
+    "task": {
+      "label": "Task"
     }
   },
   "welcome": {
-    "wordmark": "Welcome to Multica",
-    "headline_line1": "Your AI teammates,",
-    "headline_line2": "in",
-    "headline_emphasis": "one workspace.",
-    "lede": "Assign them work like you'd assign a colleague — they pick it up, update status, and comment when done.",
-    "lede_web": "Desktop bundles the runtime — nothing to install. Continue on web to connect your own CLI.",
-    "download_desktop": "Download Desktop",
-    "continue_on_web": "Continue on web",
-    "start_exploring": "Start exploring",
-    "skip_existing": "I've done this before",
-    "illustration": {
-      "card1_actor_name": "You",
-      "card1_actor_initial": "N",
-      "card1_body_prefix": " can you draft a short launch post? Pull from ",
-      "card1_body_suffix": "'s interview findings.",
-      "card1_mention_content": "@Content Agent",
-      "card1_mention_research": "@Research Agent",
-      "card2_actor_name": "Content Agent",
-      "card2_body": "On it. Pulling Research's quotes, drafting around the \"time saved\" angle…",
-      "card3_actor_name": "Research Agent",
-      "card3_body": "This week's user interviews summarized — 12 calls, 4 recurring themes, 3 pull-quotes.",
-      "card3_timestamp": "15 min ago",
-      "card4_actor_name": "Review Agent",
-      "card4_body": "Reviewed Monday's draft — left 4 notes on tone. Standing by for the new one.",
-      "card5_actor_name": "Coding Agent",
-      "card5_body_prefix": "Shipped the export feature ",
-      "card5_body_suffix": " flagged. Preview link in the PR.",
-      "card5_mention_you": "@you",
-      "card5_timestamp": "just now"
-    }
+    "skip_existing": "I've done this before"
   },
   "common": {
     "back": "Back",
@@ -52,93 +23,19 @@
     "close": "Close",
     "log_out": "Log out"
   },
-  "source_backfill": {
-    "eyebrow": "Quick question",
-    "lede": "Help us understand how you found Multica.",
-    "submit": "Submit",
-    "save_failed_toast": "Failed to save"
-  },
-  "questions": {
-    "about_you": {
-      "question": "Tell us a bit about you."
-    },
-    "source": {
-      "question": "How did you hear about Multica?",
-      "friends_colleagues": "Friends or colleagues",
-      "search": "Google / search",
-      "social_x": "X / Twitter",
-      "social_linkedin": "LinkedIn",
-      "social_youtube": "YouTube",
-      "social_github": "GitHub",
-      "social_misc": "Other social",
-      "blog_newsletter": "Blog / newsletter",
-      "ai_assistant": "ChatGPT / Claude / Cursor",
-      "from_work": "At work",
-      "event_conference": "Conference / meetup",
-      "dont_remember": "Don't remember",
-      "other": "Other",
-      "other_placeholder": "e.g. a podcast I listen to"
-    },
-    "role": {
-      "question": "Which best describes you?",
-      "engineer": "Engineer / developer",
-      "product": "Product manager",
-      "designer": "Designer",
-      "founder": "Founder / exec",
-      "marketing": "Marketing / growth",
-      "writer": "Writer / content",
-      "research": "Researcher / analyst",
-      "ops": "Operations / project mgmt",
-      "student": "Student / personal use",
-      "other": "Other",
-      "other_placeholder": "e.g. teacher, support lead"
-    },
-    "use_case": {
-      "question": "What do you want to use Multica for?",
-      "ship_code": "Ship code with AI agents",
-      "manage_team": "Manage tasks for my team",
-      "personal_tasks": "Organize my own tasks",
-      "plan_research": "Plan, brainstorm, research",
-      "write_publish": "Write, edit, publish",
-      "automate_ops": "Automate ops & workflows",
-      "evaluate": "Just exploring",
-      "other": "Other",
-      "other_placeholder": "e.g. study group coordination"
-    }
-  },
-  "option_card": {
-    "other_label": "Other",
-    "other_aria": "Describe something else"
-  },
-  "step_question": {
-    "hint_pick": "You can skip this."
-  },
   "cli_install": {
     "copy_aria": "Copy",
-    "intro": "You'll need an agent runtime on this computer (Claude Code, Codex, Cursor, …) for it to run your agent. Also works on servers and remote dev boxes.",
-    "step1_label": "Install the Multica CLI",
+    "intro": "Use the bundled CLI, build it locally, or set U_WORKERS_CLI_PATH to your local binary. Put the multica executable on PATH before starting the daemon.",
+    "step1_label": "Use a local CLI",
     "platform_group": "Choose your platform",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
     "step2_label": "Start the daemon"
   },
-  "cloud_waitlist": {
-    "intro_main": "Cloud runtimes aren't live yet. Leave your email and we'll reach out when they are.",
-    "intro_warning": "Heads-up: agents can't start runs without a runtime — if you hit Skip now, nothing will run until you come back and install one.",
-    "email_label": "Email",
-    "email_placeholder": "you@work.com",
-    "reason_label": "Why cloud?",
-    "optional": "Optional",
-    "reason_placeholder": "e.g. we want agents running 24/7, or my team works across different devices.",
-    "join": "Join waitlist",
-    "on_list": "You're on the list",
-    "success_toast": "You're on the list. We'll email when cloud runtimes are live.",
-    "failed_toast": "Failed to join waitlist"
-  },
   "welcome_after_onboarding": {
     "skip": {
       "loading": "Setting up your workspace…",
-      "title": "Welcome to Multica!",
+      "title": "Welcome to U Workers!",
       "subtitle": "We've added one issue to help you connect a runtime. When it's ready, start with Mika from Runtimes.",
       "got_it": "Got it",
       "status_in_progress": "In progress",
@@ -188,7 +85,7 @@
     "create_failed_toast": "Failed to create workspace",
     "creation_disabled_eyebrow": "Workspace creation is disabled",
     "creation_disabled_headline": "Ask your administrator for an invitation.",
-    "creation_disabled_lede": "This Multica instance does not allow new workspaces to be created. Once an administrator invites you to a workspace, accept the invitation and refresh to continue.",
+    "creation_disabled_lede": "This U Workers instance does not allow new workspaces to be created. Once an administrator invites you to a workspace, accept the invitation and refresh to continue.",
     "creation_disabled_logout": "Log out",
     "creation_disabled_eyebrow_resume": "Your workspace",
     "creation_disabled_headline_resume": "Continue with {{name}}.",
@@ -212,46 +109,13 @@
     "empty_skip_title": "Skip for now",
     "empty_skip_subtitle": "Agents can't run until a runtime is connected.",
     "empty_skip_action": "Skip",
-    "empty_waitlist_title": "Use a cloud computer",
-    "empty_waitlist_subtitle": "We'll run a computer for you in the cloud. Not live yet.",
-    "empty_waitlist_action": "Coming soon",
     "skip": "Skip for now",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "hint_selected": "Selected: {{name}}",
     "hint_pick": "Pick an agent runtime above to start with Mika.",
     "hint_waiting": "Waiting for the first result…",
-    "continue": "Start with Mika"
-  },
-  "step_platform": {
-    "eyebrow": "Connect a computer",
-    "headline": "Connect a computer to run your agent.",
-    "lede": "Connect a computer so Mika can start working.",
-    "hint_default": "You can connect later.",
-    "download_title": "Use this computer",
-    "download_subtitle": "Install Desktop to connect this computer.",
-    "download_button": "Download",
-    "cli_title": "Connect from the terminal",
-    "cli_subtitle": "Connect a server, remote dev box, or any headless computer. Terminal required.",
-    "cli_action": "Show steps",
-    "cloud_title": "Use a cloud computer",
-    "cloud_subtitle": "We'll run a computer for you in the cloud. Not live yet.",
-    "cloud_action": "Coming soon",
-    "cli_dialog_title": "Connect from the terminal",
-    "cli_dialog_pick_hint": "Pick a computer above.",
-    "cli_dialog_connect": "Connect & continue",
-    "runtimes_connected_one": "{{count}} computer connected",
-    "runtimes_connected_other": "{{count}} computers connected",
-    "live_listening": "Live · Waiting for your computer",
-    "stage_normal_prefix": "Run the command above. As soon as ",
-    "stage_normal_suffix": " finishes browser sign-in, your computer will appear here automatically (usually 10–30 seconds).",
-    "stage_midway_prefix": "Still listening. Make sure you finished the browser tab that ",
-    "stage_midway_suffix": " opened — it needs you to approve sign-in before your computer can connect.",
-    "stage_slow_prefix": "Taking longer than usual. Check the terminal where you ran ",
-    "stage_slow_suffix": " for errors.",
-    "stage_stalled_prefix": "Nothing coming through yet. If you're not comfortable with the terminal, ",
-    "stage_stalled_term": "Desktop",
-    "stage_stalled_suffix": " is the smoother path — one click and this computer is connected. Close this dialog and pick Desktop, or hit Skip to continue."
+    "continue": "Continue to task"
   },
   "errors": {
     "skip_failed": "Failed to finish onboarding",
@@ -262,5 +126,18 @@
     "name": "Mika",
     "role": "Chief of Staff",
     "blurb": "Tell Mika what you want done. It becomes an issue, with the right agent on it."
+  },
+  "service": {
+    "title": "Connect to your service",
+    "address": "Service address",
+    "continue": "Continue to workspace"
+  },
+  "task": {
+    "title": "Start your first task",
+    "connected": "Mika will help turn your goal into a task using the selected runtime and model.",
+    "no_runtime": "Open your workspace and create a task. You can connect a runtime later.",
+    "start": "Start with Mika",
+    "starting": "Opening…",
+    "open_workspace": "Open workspace"
   }
 }

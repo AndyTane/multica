@@ -8,8 +8,7 @@ import {
 } from "@multica/core/onboarding";
 import { cn } from "@multica/ui/lib/utils";
 import { Button } from "@multica/ui/components/ui/button";
-import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
-import { DotSphere } from "@multica/ui/components/ui/dot-sphere";
+import { ProductMark } from "@multica/ui/components/common/product-mark";
 import {
   Stepper,
   StepperIndicator,
@@ -151,20 +150,12 @@ export function StepSidebar({
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-background"
         >
-          <DotSphere
-            dotGap={19}
-            motion="wave"
-            sphereCount={5}
-            sphereRadius="20%"
-            dotRadiusMax={1.9}
-            speed={0.4}
-          />
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col pt-5">
           <header className="flex min-h-9 shrink-0 items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-2">
-              <MulticaIcon className="size-5 shrink-0 text-foreground" noSpin />
+              <ProductMark name="U Workers" size={20} className="text-foreground" />
               <span className="truncate text-label font-medium text-foreground">
                 {t(($) => $.step_nav.wordmark)}
               </span>

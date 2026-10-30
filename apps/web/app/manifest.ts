@@ -4,10 +4,7 @@ import type { MetadataRoute } from "next";
  * Web app manifest — what makes the mobile web app installable and lets it run
  * in its own window instead of a browser tab.
  *
- * `start_url` is deliberately NOT "/". The official marketing hosts keep the
- * root path on the public site even for a signed-in session (see
- * `isOfficialMarketingHost` in proxy.ts), so an installed app pointed at "/"
- * would open the landing page. "/inbox" is one of `LEGACY_ROUTE_SEGMENTS`,
+ * The launcher opens the inbox. "/inbox" is one of `LEGACY_ROUTE_SEGMENTS`,
  * which proxy.ts resolves per session: signed in with a known workspace it
  * lands on that workspace's inbox, signed in without one it lands on /login
  * (which resolves against the workspace list), and signed out it lands on
@@ -33,8 +30,8 @@ export const PWA_START_URL = "/inbox";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Multica",
-    short_name: "Multica",
+    name: "U Workers",
+    short_name: "U Workers",
     description:
       "Assign tasks to coding agents, track progress, and keep your team's work in one place.",
     start_url: PWA_START_URL,

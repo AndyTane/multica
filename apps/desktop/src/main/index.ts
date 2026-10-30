@@ -190,6 +190,11 @@ function handleDeepLink(url: string): void {
     const parsed = new URL(url);
     if (parsed.protocol !== `${PROTOCOL}:`) return;
 
+    if (["billing", "cloud", "cloud-runtime"].includes(parsed.hostname)) {
+      dispatchToMainRenderer("unavailable:open", null);
+      return;
+    }
+
     // multica://auth/callback?token=<jwt>
     if (parsed.hostname === "auth" && parsed.pathname === "/callback") {
       const token = parsed.searchParams.get("token");
@@ -245,7 +250,7 @@ function loadRenderer(window: BrowserWindow): void {
 }
 
 function installLocaleRefresh(window: BrowserWindow): void {
-  // Electron has no dedicated OS-language event. Check whenever any Multica
+  // Electron has no dedicated OS-language event. Check whenever any U Workers
   // window regains focus, then broadcast so all open windows remain aligned.
   window.on("focus", () => {
     const current = getSystemLocale();
@@ -556,10 +561,10 @@ function createIssueWindow(context: IssueWindowContext): void {
 // without fighting for the shared single-instance lock. The suffix is
 // appended to the app name + userData path, so each worktree gets its own
 // lock file. Default (no env var) keeps behavior unchanged — the common
-// single-worktree case still lands at "Multica Canary".
+// single-worktree case still lands at "U Workers Canary".
 const DEV_APP_NAME = process.env.DESKTOP_APP_SUFFIX
-  ? `Multica Canary ${process.env.DESKTOP_APP_SUFFIX}`
-  : "Multica Canary";
+  ? `U Workers Canary ${process.env.DESKTOP_APP_SUFFIX}`
+  : "U Workers Canary";
 
 if (is.dev) {
   app.setName(DEV_APP_NAME);
@@ -568,10 +573,11 @@ if (is.dev) {
   // Pin the production app name in code. Electron's Linux WM_CLASS is set
   // from app.getName() when the first BrowserWindow is realized; the
   // packaged ASAR's package.json `productName` already steers app.getName()
-  // to "Multica", but anchoring it here makes WM_CLASS ↔ StartupWMClass
+  // to "U Workers", but anchoring it here makes WM_CLASS ↔ StartupWMClass
   // (declared in electron-builder.yml) survive a regression in
   // productName / the build pipeline. Must run before requestSingleInstanceLock().
-  app.setName("Multica");
+  app.setName("U Workers");
+  app.setPath("userData", join(app.getPath("appData"), "U Workers"));
 }
 
 // --- Protocol registration -----------------------------------------------
@@ -638,7 +644,7 @@ if (!gotTheLock) {
     });
 
     electronApp.setAppUserModelId(
-      is.dev ? "ai.multica.desktop.dev" : "ai.multica.desktop",
+      is.dev ? "app.uworkers.desktop.dev" : "app.uworkers.desktop",
     );
 
     // macOS: replace the default Electron dock icon with the bundled logo
@@ -840,7 +846,9 @@ if (!gotTheLock) {
     createWindow();
 
     setupAutoUpdater(() => mainWindow);
-    setupDaemonManager(() => mainWindow);
+    if (runtimeConfigResult.ok) {
+      setupDaemonManager(() => mainWindow);
+    }
     setupLocalDirectory(() => mainWindow);
 
     app.on("activate", () => {

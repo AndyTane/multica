@@ -90,7 +90,7 @@ import type {
   WebhookDelivery,
   WorkspaceMcpServer,
 } from "../types";
-import type { CloudRuntimeNode } from "../runtimes/cloud-runtime";
+import type { CloudRuntimeNode } from "../types/cloud-runtime";
 import type { CreateFeedbackResponse } from "../feedback/types";
 
 export const PluginConfigFieldSchema = z.object({

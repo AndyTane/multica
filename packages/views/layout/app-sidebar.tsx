@@ -1,4 +1,8 @@
 "use client";
+
+import { PRODUCT_NAME } from "@multica/core/config/brand";
+import { ProductMark } from "@multica/ui/components/common/product-mark";
+
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 
 import { issueStatusCategory } from "@multica/core/issues";
@@ -7,7 +11,6 @@ import { cn } from "@multica/ui/lib/utils";
 import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
 import { AppLink, useNavigation } from "../navigation";
 import { HelpLauncher } from "./help-launcher";
-import { JoinDiscordCard } from "./join-discord-card";
 import {
   DndContext,
   PointerSensor,
@@ -614,6 +617,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
         {topSlot}
         {/* Workspace Switcher */}
         <SidebarHeader className={cn("py-3", headerClassName)} style={headerStyle}>
+          <ProductMark name={PRODUCT_NAME} variant="lockup" size={20} className="px-2 pt-1 pb-3" />
           <SidebarMenu>
             <SidebarMenuItem>
               <DropdownMenu>
@@ -631,7 +635,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         )}
                       </span>
                       <span className="flex-1 truncate font-medium">
-                        {workspace?.name ?? "Multica"}
+                        {workspace?.name ?? "U Workers"}
                       </span>
                       <ChevronDown className="size-3 text-muted-foreground" />
                     </SidebarMenuButton>
@@ -930,7 +934,6 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
           {/* Discord fills the strip while visible; once dismissed, help
               aligns with the navigation icons above. */}
           <div className="flex items-center gap-1">
-            <JoinDiscordCard />
             <HelpLauncher />
           </div>
         </SidebarFooter>

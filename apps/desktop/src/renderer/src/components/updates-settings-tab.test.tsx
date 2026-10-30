@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   getPreferences: vi.fn(),
@@ -77,28 +77,18 @@ describe("UpdatesSettingsTab", () => {
     });
   });
 
-  it("loads the persisted preference and saves changes from the switch", async () => {
-    mocks.getPreferences.mockResolvedValue({ automaticUpdates: false });
-    mocks.setAutomaticUpdates.mockResolvedValue({ automaticUpdates: true });
+  it("does not check or download on mount and has no automatic update switch", () => {
     render(<UpdatesSettingsTab />);
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(mocks.checkForUpdates).not.toHaveBeenCalled();
+  });
 
-    const toggle = screen.getByRole("switch", {
-      name: "Automatic background updates",
+  it("shows an unconfigured source result after a manual check", async () => {
+    mocks.checkForUpdates.mockResolvedValue({ ok: false, error: "No update source configured." });
+    render(<UpdatesSettingsTab />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Check now" }));
     });
-    // The switch renders as <span role="switch">, so jest-dom's toBeEnabled()
-    // treats it as always enabled and does not actually wait for getPreferences
-    // to resolve. Wait on the persisted value being reflected instead, which
-    // deterministically holds until the loaded preference (false) is applied.
-    await waitFor(() => expect(toggle).not.toBeChecked());
-
-    fireEvent.click(toggle);
-
-    await waitFor(() => {
-      expect(mocks.setAutomaticUpdates).toHaveBeenCalledWith(true);
-      expect(toggle).toBeChecked();
-    });
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("Settings saved", {
-      id: "settings-auto-save",
-    });
+    expect(screen.getByText("No update source configured.")).toBeInTheDocument();
   });
 });

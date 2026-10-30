@@ -44,7 +44,8 @@
     "image_copied": "이미지를 복사했습니다",
     "copy_image_failed": "이미지를 복사하지 못했습니다",
     "canvas_label": "이미지 캔버스. 드래그하여 이동, 스크롤하여 확대/축소, 두 번 클릭하여 실제 크기로 전환할 수 있습니다.",
-    "unavailable": "이 이미지를 불러올 수 없어 건너뛰었습니다."
+    "unavailable": "이 이미지를 불러올 수 없어 건너뛰었습니다.",
+    "load_external": "이미지 불러오기"
   },
   "canvas": {
     "zoom_in": "확대",
@@ -113,7 +114,9 @@
     "copy_code": "코드 복사",
     "show_preview": "미리보기 표시",
     "show_source": "소스 표시",
-    "fullscreen": "전체 화면"
+    "fullscreen": "전체 화면",
+    "load_preview": "미리보기 불러오기",
+    "external_preview_notice": "이 미리보기는 외부 서비스에 연결할 수 있습니다."
   },
   "dynamic_block": {
     "preview": "미리보기",

@@ -37,8 +37,6 @@ import { useT } from "../../i18n";
 
 type Step = "instructions" | "success";
 
-const CLOUD_SERVER_URL = "https://api.multica.ai";
-const CLOUD_APP_URL = "https://multica.ai";
 
 function normalizeCommandURL(url: string | undefined) {
   return url?.trim().replace(/\/+$/, "") ?? "";
@@ -58,9 +56,9 @@ multica daemon start`,
   }
 
   return {
-    setupCmd: "multica setup",
-    tokenCmd: `multica config set server_url ${CLOUD_SERVER_URL}
-multica config set app_url ${CLOUD_APP_URL}
+    setupCmd: "multica setup self-host --server-url <SERVER_URL> --app-url <APP_URL>",
+    tokenCmd: `multica config set server_url <SERVER_URL>
+multica config set app_url <APP_URL>
 multica login --token <YOUR_TOKEN>
 multica daemon start`,
   };

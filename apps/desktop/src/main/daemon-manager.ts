@@ -22,7 +22,7 @@ import type {
   LocalRuntimeProbe,
 } from "../shared/daemon-types";
 import { daemonStatusAlive } from "../shared/daemon-types";
-import { ensureManagedCli, managedCliPath } from "./cli-bootstrap";
+import { managedCliPath } from "./cli-bootstrap";
 import { decideVersionAction } from "./version-decision";
 import {
   deriveProfileName,
@@ -54,7 +54,7 @@ import {
 } from "./daemon-auth-probe";
 
 const POLL_INTERVAL_MS = 5_000;
-const PREFS_PATH = join(homedir(), ".multica", "desktop_prefs.json");
+const PREFS_PATH = join(homedir(), ".u-workers", "desktop_prefs.json");
 const LOG_TAIL_RETRY_MS = 2_000;
 const LOG_TAIL_MAX_RETRIES = 5;
 // How long a start may sit in "starting" (with no /health) before we probe the
@@ -316,7 +316,7 @@ function observeDaemonBoundary(status: DaemonStatus): void {
 }
 
 async function fetchHealth(): Promise<DaemonStatus> {
-  // While the CLI is being downloaded or has permanently failed, short-circuit
+  // While local CLI resolution is pending or has failed, short-circuit
   // polling — there's nothing to probe yet and /health calls would just return
   // "stopped", which would overwrite the correct setup state in the UI.
   if (currentState === "installing_cli" || currentState === "cli_not_found") {
@@ -440,7 +440,7 @@ function findCliOnPath(): string | null {
  * - Dev (`electron-vite dev`): `app.getAppPath()` → `apps/desktop`, resolving
  *   to `apps/desktop/resources/bin/multica`. `bundle-cli.mjs` populates this
  *   before dev starts, so iterating on Go changes is "make build → restart".
- * - Packaged: `app.getAppPath()` → `<Multica.app>/Contents/Resources/app.asar`.
+ * - Packaged: `app.getAppPath()` → `<U Workers.app>/Contents/Resources/app.asar`.
  *   electron-builder's `asarUnpack: resources/**` extracts the binary to
  *   `app.asar.unpacked/`, so we swap the path segment to execute it.
  */
@@ -454,7 +454,7 @@ function bundledCliPath(): string {
 
 async function probeCliBinary(
   bin: string,
-  source: "bundled" | "managed" | "path",
+  source: "bundled" | "managed" | "path" | "user-configured",
 ): Promise<string | null> {
   try {
     const stdout = await new Promise<string>((resolve, reject) => {
@@ -485,10 +485,9 @@ async function probeCliBinary(
 /**
  * Returns a usable `multica` binary path. Priority:
  *   1. Cached result from a previous successful resolve.
- *   2. Bundled binary shipped with the Desktop app (`bundle-cli.mjs`).
+ *   2. User-specified U_WORKERS_CLI_PATH, then bundled binary shipped with the Desktop app (`bundle-cli.mjs`).
  *   3. Managed binary already installed in userData (`managedCliPath`).
- *   4. Download + install latest release into userData.
- *   5. `multica` on PATH (dev convenience / user-installed via brew).
+ *   4. `multica` on PATH (dev convenience / user-installed via brew).
  * Returns `null` only when all of the above fail.
  *
  * Bundled is preferred so Desktop iterates in lockstep with Go changes in
@@ -496,13 +495,20 @@ async function probeCliBinary(
  * TS side is ahead of the last published CLI release.
  *
  * This function is idempotent and safe to call concurrently — in-flight
- * installs are de-duplicated via `cliResolvePromise`.
+ * lookups are de-duplicated via `cliResolvePromise`.
  */
 async function resolveCliBinary(): Promise<string | null> {
   if (cachedCliBinary !== undefined) return cachedCliBinary;
   if (cliResolvePromise) return cliResolvePromise;
 
   cliResolvePromise = (async () => {
+    const specified = process.env.U_WORKERS_CLI_PATH?.trim();
+    if (specified) {
+      const version = await probeCliBinary(specified, "user-configured");
+      cachedCliBinary = version ? specified : null;
+      cachedCliBinaryVersion = version;
+      return cachedCliBinary;
+    }
     const bundled = bundledCliPath();
     if (existsSync(bundled)) {
       const version = await probeCliBinary(bundled, "bundled");
@@ -522,23 +528,6 @@ async function resolveCliBinary(): Promise<string | null> {
         cachedCliBinaryVersion = version;
         return managed;
       }
-    }
-
-    try {
-      const installed = await ensureManagedCli({
-        forceInstall: existsSync(managed),
-      });
-      const version = await probeCliBinary(installed, "managed");
-      if (version) {
-        cachedCliBinary = installed;
-        cachedCliBinaryVersion = version;
-        return installed;
-      }
-      console.warn(
-        `[daemon] managed CLI at ${installed} failed validation after install`,
-      );
-    } catch (err) {
-      console.warn("[daemon] CLI auto-install failed, falling back to PATH:", err);
     }
 
     const onPath = findCliOnPath();
@@ -657,7 +646,7 @@ async function mintPat(jwt: string): Promise<string> {
       Authorization: `Bearer ${jwt}`,
     },
     // Omit expires_in_days → server treats as null → non-expiring PAT.
-    body: JSON.stringify({ name: "Multica Desktop" }),
+    body: JSON.stringify({ name: "U Workers Desktop" }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -773,7 +762,7 @@ async function loadPrefs(): Promise<DaemonPrefs> {
 }
 
 async function savePrefs(prefs: DaemonPrefs): Promise<void> {
-  const dir = join(homedir(), ".multica");
+  const dir = join(homedir(), ".u-workers");
   await mkdir(dir, { recursive: true });
   await writeFile(PREFS_PATH, JSON.stringify(prefs, null, 2), "utf-8");
 }
@@ -1471,8 +1460,7 @@ export function setupDaemonManager(
     return error === "" ? { success: true } : { success: false, error };
   });
 
-  // First-run CLI install kicks off here. Status bar shows "Setting up…"
-  // until the managed binary is on disk (instant on subsequent launches).
+  // Resolve only bundled or user-installed binaries before profile polling.
   currentState = "installing_cli";
   sendStatus({ state: "installing_cli" });
   void lifecycleOperations.runBackground(() => bootstrapCli());

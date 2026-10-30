@@ -2,7 +2,6 @@ import { app } from "electron";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import {
-  DEFAULT_RUNTIME_CONFIG,
   parseRuntimeConfig,
   runtimeConfigFromDevEnv,
   type RuntimeConfig,
@@ -29,7 +28,12 @@ export async function loadRuntimeConfig(options: {
     return { ok: true, config: parseRuntimeConfig(raw) };
   } catch (err) {
     if (isMissingFileError(err)) {
-      return { ok: true, config: { ...DEFAULT_RUNTIME_CONFIG } };
+      return {
+        ok: false,
+        error: {
+          message: `Missing ${configPath}. Create this file with your server addresses and restart:\n${JSON.stringify({ schemaVersion: 1, apiUrl: "http://localhost:8080", wsUrl: "ws://localhost:8080/ws", appUrl: "http://localhost:3000" }, null, 2)}`,
+        },
+      };
     }
     return {
       ok: false,
@@ -41,7 +45,7 @@ export async function loadRuntimeConfig(options: {
 }
 
 export function desktopConfigPath(): string {
-  return join(app.getPath("home"), ".multica", "desktop.json");
+  return join(app.getPath("home"), ".u-workers", "desktop.json");
 }
 
 function isMissingFileError(err: unknown): boolean {

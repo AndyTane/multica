@@ -25,11 +25,10 @@ const HTML_PREVIEW_HEIGHT = "h-[480px]";
 function CodeBlockView({ node }: NodeViewProps) {
   const { t } = useT("editor");
   const [copied, setCopied] = useState(false);
-  // HTML blocks default to "preview"; the user can flip to "source" to
-  // edit the markup directly. Note: the source `<pre>` MUST stay mounted
+  // HTML previews run only after the user selects preview. The source stays mounted
   // (just hidden) so ProseMirror keeps its NodeView bindings — unmounting
   // it would break editing.
-  const [view, setView] = useState<"preview" | "source">("preview");
+  const [view, setView] = useState<"preview" | "source">("source");
   const language = node.attrs.language || "";
   const isMermaid = language === "mermaid";
   const isHtml = language === "html";

@@ -26,13 +26,13 @@ describe("runtime config", () => {
   it("strips the leading api. label when deriving appUrl", () => {
     expect(
       parseRuntimeConfig(
-        JSON.stringify({ schemaVersion: 1, apiUrl: "https://api.multica.ai" }),
+        JSON.stringify({ schemaVersion: 1, apiUrl: "https://api.example.com" }),
       ),
     ).toEqual({
       schemaVersion: 1,
-      apiUrl: "https://api.multica.ai",
-      wsUrl: "wss://api.multica.ai/ws",
-      appUrl: "https://multica.ai",
+      apiUrl: "https://api.example.com",
+      wsUrl: "wss://api.example.com/ws",
+      appUrl: "https://example.com",
     });
   });
 
@@ -117,26 +117,26 @@ describe("runtime config", () => {
     // api at `api.<web-host>`, so stripping the leading label gives the
     // right web origin without a separate VITE_APP_URL.
     expect(
-      runtimeConfigFromDevEnv({ apiUrl: "https://api.test.multica.ai" }),
+      runtimeConfigFromDevEnv({ apiUrl: "https://api.test.example.com" }),
     ).toEqual({
       schemaVersion: 1,
-      apiUrl: "https://api.test.multica.ai",
-      wsUrl: "wss://api.test.multica.ai/ws",
-      appUrl: "https://test.multica.ai",
+      apiUrl: "https://api.test.example.com",
+      wsUrl: "wss://api.test.example.com/ws",
+      appUrl: "https://test.example.com",
     });
   });
 
   it("dev VITE_APP_URL still wins over apiUrl-derived value", () => {
     expect(
       runtimeConfigFromDevEnv({
-        apiUrl: "https://api.test.multica.ai",
-        appUrl: "https://staging.multica.ai",
+        apiUrl: "https://api.test.example.com",
+        appUrl: "https://staging.example.com",
       }),
     ).toEqual({
       schemaVersion: 1,
-      apiUrl: "https://api.test.multica.ai",
-      wsUrl: "wss://api.test.multica.ai/ws",
-      appUrl: "https://staging.multica.ai",
+      apiUrl: "https://api.test.example.com",
+      wsUrl: "wss://api.test.example.com/ws",
+      appUrl: "https://staging.example.com",
     });
   });
 });

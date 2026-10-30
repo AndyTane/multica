@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe("UpdateSection read-only status", () => {
-  it("shows Latest without a redundant read-only label or update action", async () => {
+  it("shows the installed version without unsolicited freshness claims", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -52,7 +52,8 @@ describe("UpdateSection read-only status", () => {
 
     renderSection({ runtimeId: null });
 
-    expect(await screen.findByText("Latest")).toBeInTheDocument();
+    expect(screen.queryByText("Latest")).toBeNull();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Update" }),
@@ -77,7 +78,7 @@ describe("UpdateSection read-only status", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows an available version without an action for a read-only viewer", async () => {
+  it("does not advertise an unfetched version to a read-only viewer", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -88,13 +89,8 @@ describe("UpdateSection read-only status", () => {
 
     renderSection({ runtimeId: null, currentVersion: "v0.3.17" });
 
-    expect(await screen.findByText("available")).toBeInTheDocument();
-    expect(screen.getByText("Read-only")).toBeInTheDocument();
-    expect(
-      screen.getByTitle(
-        "Only runtime owners and workspace admins can update the CLI.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("available")).toBeNull();
+    expect(screen.queryByText("Read-only")).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Update" }),
     ).not.toBeInTheDocument();
@@ -109,9 +105,6 @@ describe("UpdateSection read-only status", () => {
 describe("UpdateSection non-release versions", () => {
   const LATEST = "v0.4.20";
 
-  // fetchLatestVersion memoizes the GitHub tag in module scope for 10 minutes,
-  // so without advancing the clock every case here would silently reuse the tag
-  // an earlier test cached rather than its own.
   let clock = Date.now();
 
   beforeEach(() => {
@@ -152,20 +145,21 @@ describe("UpdateSection non-release versions", () => {
     });
   }
 
-  it("still offers the update on a release version behind the latest", async () => {
+  it("does not offer an upstream update for a released version", async () => {
     renderSection({ runtimeId: "runtime-1", currentVersion: "v0.4.17" });
 
     expect(
-      await screen.findByRole("button", { name: "Update" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("available")).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Update" }),
+    ).toBeNull();
+    expect(screen.queryByText("available")).toBeNull();
     expect(screen.queryByText("Local build")).not.toBeInTheDocument();
   });
 
-  it("reports a release version on the latest tag as Latest", async () => {
+  it("does not infer freshness from a locally displayed release tag", async () => {
     renderSection({ runtimeId: "runtime-1", currentVersion: LATEST });
 
-    expect(await screen.findByText("Latest")).toBeInTheDocument();
+    expect(screen.queryByText("Latest")).toBeNull();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "Update" }),
     ).not.toBeInTheDocument();

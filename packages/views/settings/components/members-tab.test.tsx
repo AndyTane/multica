@@ -229,18 +229,15 @@ describe("MembersTab", () => {
     expect(screen.getByRole("dialog", { name: "Invite member" })).toBeInTheDocument();
   });
 
-  it("links seat usage to billing when subscriptions are on", () => {
+  it("does not expose subscriptions even when an old server enables the flag", () => {
     configStore
       .getState()
       .setFeatureFlags({ [BILLING_WORKSPACE_SUBSCRIPTIONS_FLAG]: true });
     data.summary = { seatCapacity: { used: 3, reserved: 1, purchased: 5 } };
     renderWithI18n(<MembersTab />);
 
-    expect(screen.getByText(/4 of 5 seats used/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Manage seats" })).toHaveAttribute(
-      "href",
-      "/acme/settings?tab=billing",
-    );
+    expect(screen.queryByText(/4 of 5 seats used/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Manage seats" })).toBeNull();
   });
 
   it("gives members a read-only view without invite or share-link controls", () => {

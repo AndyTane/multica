@@ -12,7 +12,7 @@
  * regression that reintroduces a Chat-only renderer fails here.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
@@ -463,7 +463,9 @@ describe("semantic parity beyond Mermaid", () => {
     const chat = renderChatUser();
 
     for (const container of [readonly, chat]) {
-      // HTML fence -> sandboxed preview iframe (not a code block)
+      // HTML remains deferred on both surfaces until the user requests it.
+      expect(container.querySelector("iframe")).toBeNull();
+      fireEvent.click(within(container).getByRole("button", { name: "Load preview" }));
       await waitFor(() => {
         expect(container.querySelector("iframe")).not.toBeNull();
       });
