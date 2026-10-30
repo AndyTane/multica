@@ -188,8 +188,8 @@
   "queued_other": "대기 중 {{count}}개",
   "connect": {
     "title": "컴퓨터 추가",
-    "description": "추가하려는 컴퓨터에서 아래 두 명령을 실행하세요. 데몬이 온라인이 되는 순간 감지합니다.",
-    "step1_label": "U Workers CLI 설치",
+    "description": "이 컴퓨터에서 번들 또는 로컬 빌드 CLI를 사용한 다음 이 서비스에 연결하세요.",
+    "step1_label": "로컬 CLI 사용",
     "platform_group": "플랫폼 선택",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

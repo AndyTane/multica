@@ -110,6 +110,12 @@ describe("openInNewTab", () => {
 });
 
 describe("push", () => {
+  it("preserves a user workspace named cloud", () => {
+    const getAdapter = renderProvider();
+    getAdapter().push("/cloud/issues");
+    expect(overlay.open).not.toHaveBeenCalled();
+    expect(useTabStore.getState().activeWorkspaceSlug).toBe("cloud");
+  });
   it.each(["/billing/return", "/cloud", "/cloud-runtime/nodes"])("opens a local unavailable surface for %s", (path) => {
     const getAdapter = renderProvider();
     const before = acmeGroup();

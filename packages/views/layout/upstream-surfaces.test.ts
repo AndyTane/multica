@@ -10,6 +10,7 @@ describe("self-hosted product surfaces", () => {
     expect(read("../settings/components/use-settings-search-index.ts")).not.toMatch(/tab: "billing"|tab: "cloud"|upgrade/i);
     expect(read("../search/search-command.tsx")).not.toMatch(/multica\.ai|cloudRuntime|billing|upgrade/i);
     expect(read("../runtimes/components/runtimes-page.tsx")).not.toMatch(/CloudRuntimeDialog|cloudRuntimeEnabled/);
+    expect(read("../onboarding/steps/step-runtime-connect.tsx")).not.toMatch(/ComingSoonCard|empty_waitlist/);
     expect(read("./help-launcher.tsx")).not.toMatch(/multica\.ai|CHANGELOG_URL|DOWNLOAD_URL|DISCORD_URL/);
   });
   it("keeps channels, configured apps, model choice and local usage", () => {

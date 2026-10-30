@@ -1310,13 +1310,6 @@
     "toast_invitation_failed": "发送邀请失败",
     "toast_seat_capacity_unavailable": "暂时无法核验成员席位，请稍后重试。",
     "toast_seat_capacity_rate_limited": "席位请求过于频繁，请稍后重试。",
-    "seat_purchase_title": "增加一个席位并发送邀请？",
-    "seat_purchase_description": "当前没有可供 {{email}} 使用的已购席位。请核对 Stripe 报价，然后一次确认补购和邀请。",
-    "purchase_seat_and_invite": "购买 1 个席位并邀请",
-    "retry_seat_purchase": "重试购买",
-    "seat_purchase_waiting": "正在等待 Stripe 确认新席位。请保持当前页面打开，以便确认后自动发送邀请；如果离开页面，已购席位仍会保留，之后可重新邀请。",
-    "seat_purchase_timeout": "席位购买已提交，但确认时间超出预期。邀请尚未发送；请在“账单”显示有可用席位后重新邀请。",
-    "seat_purchase_capacity_taken": "新购买的席位已不可用，因此没有发送邀请。请检查当前席位后重试。",
     "no_members": "未找到成员。",
     "revoke_invitation_title": "撤销邀请",
     "revoke_invitation_description": "撤销发给 {{email}} 的邀请？对方将不能再加入该工作区。",
@@ -1380,9 +1373,7 @@
     "joined": "{{date}} 加入",
     "member_actions": "{{name}} 的操作",
     "invitation_meta": "{{sent}} 发送 · {{expires}} 过期",
-    "revoke_invitation_aria": "撤销发给 {{email}} 的邀请",
-    "seats_used": "已用 {{used}} / {{purchased}} 个席位",
-    "manage_seats": "管理席位"
+    "revoke_invitation_aria": "撤销发给 {{email}} 的邀请"
   },
   "integrations": {
     "status_connected": "已连接",

@@ -13,36 +13,7 @@
     }
   },
   "welcome": {
-    "wordmark": "U Workers へようこそ",
-    "headline_line1": "あなたの AI チームメイトを、",
-    "headline_line2": "ひとつの",
-    "headline_emphasis": "ワークスペースに。",
-    "lede": "同僚に仕事を任せるようにタスクを割り当てるだけ。エージェントが引き受け、ステータスを更新し、完了したらコメントします。",
-    "lede_web": "デスクトップ版にはランタイムが同梱されており、何もインストールする必要はありません。ご自身の CLI を接続するには、ウェブで続けてください。",
-    "download_desktop": "デスクトップ版をダウンロード",
-    "continue_on_web": "ウェブで続ける",
-    "start_exploring": "探索を始める",
-    "skip_existing": "以前にやったことがあります",
-    "illustration": {
-      "card1_actor_name": "あなた",
-      "card1_actor_initial": "N",
-      "card1_body_prefix": " 短いローンチ投稿の下書きをお願いできますか? ",
-      "card1_body_suffix": " のインタビュー結果を参考にしてください。",
-      "card1_mention_content": "@コンテンツエージェント",
-      "card1_mention_research": "@リサーチエージェント",
-      "card2_actor_name": "コンテンツエージェント",
-      "card2_body": "了解です。Research の引用をまとめ、「節約できた時間」の切り口で下書きを作成中です…",
-      "card3_actor_name": "リサーチエージェント",
-      "card3_body": "今週のユーザーインタビューをまとめました — 12 件の通話、4 つの繰り返し出たテーマ、3 つの引用候補。",
-      "card3_timestamp": "15 分前",
-      "card4_actor_name": "レビューエージェント",
-      "card4_body": "月曜の下書きをレビューし、トーンについて 4 件のメモを残しました。新しい下書きを待機中です。",
-      "card5_actor_name": "コーディングエージェント",
-      "card5_body_prefix": "エクスポート機能をリリースしました ",
-      "card5_body_suffix": " さんが指摘した点も対応済みです。プレビューリンクは PR にあります。",
-      "card5_mention_you": "@あなた",
-      "card5_timestamp": "たった今"
-    }
+    "skip_existing": "以前にやったことがあります"
   },
   "common": {
     "back": "戻る",
@@ -51,61 +22,6 @@
     "cancel": "キャンセル",
     "close": "閉じる",
     "log_out": "ログアウト"
-  },
-  "questions": {
-    "about_you": {
-      "question": "あなたについて少し教えてください。"
-    },
-    "source": {
-      "question": "U Workers をどこで知りましたか?",
-      "friends_colleagues": "友人または同僚",
-      "search": "Google / 検索",
-      "social_x": "X / Twitter",
-      "social_linkedin": "LinkedIn",
-      "social_youtube": "YouTube",
-      "social_misc": "その他の SNS",
-      "blog_newsletter": "ブログ / ニュースレター",
-      "ai_assistant": "ChatGPT / Claude / Cursor",
-      "from_work": "職場で",
-      "event_conference": "カンファレンス / ミートアップ",
-      "dont_remember": "覚えていない",
-      "other": "その他",
-      "other_placeholder": "例: よく聴くポッドキャスト",
-      "social_github": "GitHub"
-    },
-    "role": {
-      "question": "あなたに最も近いのはどれですか?",
-      "engineer": "エンジニア / 開発者",
-      "product": "プロダクトマネージャー",
-      "designer": "デザイナー",
-      "founder": "創業者 / 経営層",
-      "marketing": "マーケティング / グロース",
-      "writer": "ライター / コンテンツ",
-      "research": "リサーチャー / アナリスト",
-      "ops": "オペレーション / プロジェクト管理",
-      "student": "学生 / 個人利用",
-      "other": "その他",
-      "other_placeholder": "例: 教師、サポートリード"
-    },
-    "use_case": {
-      "question": "U Workers を何に使いたいですか?",
-      "ship_code": "AI エージェントとコードをリリース",
-      "manage_team": "チームのタスクを管理",
-      "personal_tasks": "自分のタスクを整理",
-      "plan_research": "計画、ブレインストーミング、リサーチ",
-      "write_publish": "執筆、編集、公開",
-      "automate_ops": "運用とワークフローの自動化",
-      "evaluate": "とりあえず試してみる",
-      "other": "その他",
-      "other_placeholder": "例: スタディグループの運営"
-    }
-  },
-  "option_card": {
-    "other_label": "その他",
-    "other_aria": "別の内容を入力"
-  },
-  "step_question": {
-    "hint_pick": "スキップできます。"
   },
   "cli_install": {
     "copy_aria": "コピー",
@@ -192,16 +108,13 @@
     "empty_skip_title": "今はスキップ",
     "empty_skip_subtitle": "ランタイムに接続するまでエージェントは実行できません。",
     "empty_skip_action": "スキップ",
-    "empty_waitlist_title": "クラウドコンピュータを使う",
-    "empty_waitlist_subtitle": "クラウドでコンピュータを動かします。まだ提供されていません。",
-    "empty_waitlist_action": "近日公開",
     "skip": "今はスキップ",
     "refresh": "更新",
     "refreshing": "更新中…",
     "hint_selected": "選択中: {{name}}",
     "hint_pick": "Mika と始めるには、上でエージェントランタイムを選んでください。",
     "hint_waiting": "最初の結果を待っています…",
-    "continue": "Mika と始める"
+    "continue": "タスクへ進む"
   },
   "errors": {
     "skip_failed": "オンボーディングを完了できませんでした",

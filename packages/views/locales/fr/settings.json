@@ -1319,13 +1319,6 @@
     "toast_invitation_failed": "Échec de l'envoi de l'invitation",
     "toast_seat_capacity_unavailable": "Impossible de vérifier la capacité de membres. Veuillez réessayer.",
     "toast_seat_capacity_rate_limited": "La capacité de sièges est en cours de modification. Réessayez dans un instant.",
-    "seat_purchase_title": "Ajouter un siège pour envoyer cette invitation ?",
-    "seat_purchase_description": "Aucun siège acheté n'est disponible pour {{email}}. Vérifiez l'estimation de Stripe, puis approuvez ensemble l'achat et l'invitation.",
-    "purchase_seat_and_invite": "Acheter 1 siège et inviter",
-    "retry_seat_purchase": "Réessayer l'achat",
-    "seat_purchase_waiting": "En attente de la confirmation du nouveau siège par Stripe. Gardez cette page ouverte pour envoyer l'invitation automatiquement ; si vous la quittez, le siège acheté sera conservé et vous pourrez inviter à nouveau plus tard.",
-    "seat_purchase_timeout": "L'achat du siège a été soumis, mais sa confirmation prend plus de temps que prévu. Aucune invitation n'a été envoyée. Réessayez l'invitation lorsque la facturation indique un siège disponible.",
-    "seat_purchase_capacity_taken": "Le siège acheté n'est plus disponible, l'invitation n'a donc pas été envoyée. Vérifiez les sièges actuels avant de réessayer.",
     "no_members": "Aucun membre trouvé.",
     "revoke_invitation_title": "Révoquer l'invitation",
     "revoke_invitation_description": "Révoquer l'invitation envoyée à {{email}} ? Cette personne ne pourra plus rejoindre cet espace de travail.",
@@ -1389,9 +1382,7 @@
     "joined": "Membre depuis le {{date}}",
     "member_actions": "Actions pour {{name}}",
     "invitation_meta": "Envoyée le {{sent}} · Expire le {{expires}}",
-    "revoke_invitation_aria": "Révoquer l'invitation de {{email}}",
-    "seats_used": "{{used}} sièges utilisés sur {{purchased}}",
-    "manage_seats": "Gérer les sièges"
+    "revoke_invitation_aria": "Révoquer l'invitation de {{email}}"
   },
   "integrations": {
     "status_connected": "Connecté",

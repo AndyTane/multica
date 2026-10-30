@@ -9,6 +9,10 @@ it.each(["/billing", "/billing/checkout", "/cloud", "/cloud-runtime/nodes"])("re
   expect(response.headers.get("location")).toBeNull();
 });
 
+it("preserves a user workspace named cloud", () => {
+  expect(proxy(makeRequest("/cloud/issues")).headers.get("x-middleware-rewrite")).toBeNull();
+});
+
 function makeRequest(
   path: string,
   cookies: Record<string, string> = {},

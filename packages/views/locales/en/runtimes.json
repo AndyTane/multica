@@ -200,8 +200,8 @@
   "queued_other": "{{count}} queued",
   "connect": {
     "title": "Add a computer",
-    "description": "Run these two commands on the computer you want to add. We'll detect it the moment the daemon comes online.",
-    "step1_label": "Install the U Workers CLI",
+    "description": "Choose a bundled or locally built CLI on this computer, then connect it to this service.",
+    "step1_label": "Use a local CLI",
     "platform_group": "Choose your platform",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

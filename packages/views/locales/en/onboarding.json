@@ -13,36 +13,7 @@
     }
   },
   "welcome": {
-    "wordmark": "Welcome to U Workers",
-    "headline_line1": "Your AI teammates,",
-    "headline_line2": "in",
-    "headline_emphasis": "one workspace.",
-    "lede": "Assign them work like you'd assign a colleague — they pick it up, update status, and comment when done.",
-    "lede_web": "Desktop bundles the runtime — nothing to install. Continue on web to connect your own CLI.",
-    "download_desktop": "Download Desktop",
-    "continue_on_web": "Continue on web",
-    "start_exploring": "Start exploring",
-    "skip_existing": "I've done this before",
-    "illustration": {
-      "card1_actor_name": "You",
-      "card1_actor_initial": "N",
-      "card1_body_prefix": " can you draft a short launch post? Pull from ",
-      "card1_body_suffix": "'s interview findings.",
-      "card1_mention_content": "@Content Agent",
-      "card1_mention_research": "@Research Agent",
-      "card2_actor_name": "Content Agent",
-      "card2_body": "On it. Pulling Research's quotes, drafting around the \"time saved\" angle…",
-      "card3_actor_name": "Research Agent",
-      "card3_body": "This week's user interviews summarized — 12 calls, 4 recurring themes, 3 pull-quotes.",
-      "card3_timestamp": "15 min ago",
-      "card4_actor_name": "Review Agent",
-      "card4_body": "Reviewed Monday's draft — left 4 notes on tone. Standing by for the new one.",
-      "card5_actor_name": "Coding Agent",
-      "card5_body_prefix": "Shipped the export feature ",
-      "card5_body_suffix": " flagged. Preview link in the PR.",
-      "card5_mention_you": "@you",
-      "card5_timestamp": "just now"
-    }
+    "skip_existing": "I've done this before"
   },
   "common": {
     "back": "Back",
@@ -51,61 +22,6 @@
     "cancel": "Cancel",
     "close": "Close",
     "log_out": "Log out"
-  },
-  "questions": {
-    "about_you": {
-      "question": "Tell us a bit about you."
-    },
-    "source": {
-      "question": "How did you hear about U Workers?",
-      "friends_colleagues": "Friends or colleagues",
-      "search": "Google / search",
-      "social_x": "X / Twitter",
-      "social_linkedin": "LinkedIn",
-      "social_youtube": "YouTube",
-      "social_github": "GitHub",
-      "social_misc": "Other social",
-      "blog_newsletter": "Blog / newsletter",
-      "ai_assistant": "ChatGPT / Claude / Cursor",
-      "from_work": "At work",
-      "event_conference": "Conference / meetup",
-      "dont_remember": "Don't remember",
-      "other": "Other",
-      "other_placeholder": "e.g. a podcast I listen to"
-    },
-    "role": {
-      "question": "Which best describes you?",
-      "engineer": "Engineer / developer",
-      "product": "Product manager",
-      "designer": "Designer",
-      "founder": "Founder / exec",
-      "marketing": "Marketing / growth",
-      "writer": "Writer / content",
-      "research": "Researcher / analyst",
-      "ops": "Operations / project mgmt",
-      "student": "Student / personal use",
-      "other": "Other",
-      "other_placeholder": "e.g. teacher, support lead"
-    },
-    "use_case": {
-      "question": "What do you want to use U Workers for?",
-      "ship_code": "Ship code with AI agents",
-      "manage_team": "Manage tasks for my team",
-      "personal_tasks": "Organize my own tasks",
-      "plan_research": "Plan, brainstorm, research",
-      "write_publish": "Write, edit, publish",
-      "automate_ops": "Automate ops & workflows",
-      "evaluate": "Just exploring",
-      "other": "Other",
-      "other_placeholder": "e.g. study group coordination"
-    }
-  },
-  "option_card": {
-    "other_label": "Other",
-    "other_aria": "Describe something else"
-  },
-  "step_question": {
-    "hint_pick": "You can skip this."
   },
   "cli_install": {
     "copy_aria": "Copy",
@@ -193,16 +109,13 @@
     "empty_skip_title": "Skip for now",
     "empty_skip_subtitle": "Agents can't run until a runtime is connected.",
     "empty_skip_action": "Skip",
-    "empty_waitlist_title": "Use a cloud computer",
-    "empty_waitlist_subtitle": "We'll run a computer for you in the cloud. Not live yet.",
-    "empty_waitlist_action": "Coming soon",
     "skip": "Skip for now",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "hint_selected": "Selected: {{name}}",
     "hint_pick": "Pick an agent runtime above to start with Mika.",
     "hint_waiting": "Waiting for the first result…",
-    "continue": "Start with Mika"
+    "continue": "Continue to task"
   },
   "errors": {
     "skip_failed": "Failed to finish onboarding",

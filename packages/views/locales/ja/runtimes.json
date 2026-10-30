@@ -188,8 +188,8 @@
   "queued_other": "キュー待ち {{count}} 件",
   "connect": {
     "title": "コンピュータを追加",
-    "description": "追加したいコンピュータで、この 2 つのコマンドを実行してください。デーモンがオンラインになった瞬間に検出します。",
-    "step1_label": "U Workers CLI をインストール",
+    "description": "同梱またはローカルビルドした CLI を使用し、このサービスに接続します。",
+    "step1_label": "ローカル CLI を使用",
     "platform_group": "プラットフォームを選択",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

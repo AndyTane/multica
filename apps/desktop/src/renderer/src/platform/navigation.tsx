@@ -48,7 +48,8 @@ function extractWorkspaceSlug(path: string): string | null {
  */
 function tryRouteToOverlay(path: string): boolean {
   const overlay = useWindowOverlayStore.getState();
-  if (/^\/(?:billing|cloud|cloud-runtime)(?:\/|$)/.test(path)) {
+  const retiredPath = splitTabUrl(path).pathname.replace(/\/+$/, "");
+  if (retiredPath === "/cloud" || retiredPath === "/cloud-runtime" || /^\/cloud-runtime\/nodes(?:\/|$)/.test(retiredPath) || /^\/billing(?:\/|$)/.test(retiredPath)) {
     overlay.open({ type: "unavailable" });
     return true;
   }

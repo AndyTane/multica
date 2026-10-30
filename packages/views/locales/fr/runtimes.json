@@ -200,8 +200,8 @@
   "queued_other": "{{count}} en attente",
   "connect": {
     "title": "Ajouter un ordinateur",
-    "description": "Exécutez ces deux commandes sur l'ordinateur à ajouter. Nous le détecterons dès que le daemon sera en ligne.",
-    "step1_label": "Installer le CLI U Workers",
+    "description": "Utilisez un CLI fourni ou compilé localement sur cet ordinateur, puis connectez-le à ce service.",
+    "step1_label": "Utiliser un CLI local",
     "platform_group": "Choisissez votre système",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
