@@ -1,0 +1,31 @@
+{
+  "copiedAt": "2026-10-30T18:18:46.932042+08:00",
+  "source": "D:\\01_Projects\\multica-fork",
+  "destination": "D:\\01_Projects\\u-workers",
+  "sourceHead": "fda0c5852d8e5ebf95af7a52a679490f5a99ea05",
+  "branch": "codex/u-workers-frontend-plan",
+  "clone": "independent clone; source ancestry retained for repository upload and versioned builds; no shared object directory",
+  "trackedSnapshot": "HEAD plus current unstaged/staged differences",
+  "workingDiffSha256": "52b841526470a53348787140e4adb4b9708d22f655a6a1d0dd4dca3cfeccb448",
+  "workingDiffVerified": true,
+  "untrackedFiles": [
+    "docs/Codex_Tasks.md",
+    "docs/plans/2026-10-23-claude-path-recovery.md",
+    "server/internal/daemon/claude_path_windows_test.go"
+  ],
+  "untrackedVerified": true,
+  "excluded": [
+    "ignored local environment and credentials",
+    "node_modules",
+    "build outputs and caches",
+    "live databases and uploads",
+    "deployed binaries and active runtime configuration"
+  ],
+  "trackedEnvironmentTemplates": "Tracked public env examples and upstream public endpoint templates remain as source; they must be localized before running.",
+  "pushDisabled": false,
+  "productChangesApplied": false,
+  "note": "Copy verification describes the initial source snapshot. The upstream LICENSE was restored in this independent copy for source redistribution. Product rebranding and privacy implementation are still planned, not applied.",
+  "sourceVersion": "v0.6.1-53-gfda0c5852d8e",
+  "versionTagPreserved": "v0.6.1",
+  "publicationRepository": "https://github.com/AndyTane/UWorkers-nice"
+}

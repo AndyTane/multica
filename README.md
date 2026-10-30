@@ -1,3 +1,15 @@
+# U Workers
+
+This repository is the starting source copy for U Workers, based on the local Multica fork. The frontend rebranding and privacy changes are planned and have not been implemented yet.
+
+- [Frontend and privacy implementation plan](docs/plans/2026-10-30-u-workers-frontend-local-only.md)
+- [Source copy provenance](docs/plans/2026-10-30-u-workers-copy-receipt.json)
+- [Upstream license](LICENSE) and [notices](NOTICE)
+
+The plan preserves model requests and user-authorized network workflows. It removes unsolicited analytics, automatic error uploads, unrequested background traffic, and upstream Multica cloud-service associations. Existing pages below still describe the upstream product.
+
+---
+
 <div align="center">
 
 <picture>

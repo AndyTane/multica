@@ -35,6 +35,8 @@ A restored database includes scheduled jobs and channel installations. Do not ru
 
 Verify `/readyz`, existing-account login, issue data, attachment downloads, WebSocket connections, and the existing daemon's reconnect. Do not start real agent runs as part of a default smoke check.
 
+Browser realtime uses the page's host and protocol by default: HTTP pages connect to `ws://<host>/ws`, and HTTPS pages connect to `wss://<host>/ws` through the frontend proxy. Leave `FrontendEnvironment.NEXT_PUBLIC_WS_URL` empty when using both LAN and HTTPS entry points; a fixed LAN IP or `ws://` override breaks external HTTPS access. Explicit overrides remain supported for separately hosted WebSocket services. Add each browser origin to `BackendEnvironment.CORS_ALLOWED_ORIGINS` and apply configuration changes during an idle managed restart. HTTPS proxies must preserve WebSocket upgrades and the client-facing host and protocol.
+
 ## Cutover
 
 1. Verify the database restore and native build before stopping the current application.
@@ -50,6 +52,8 @@ Verify `/readyz`, existing-account login, issue data, attachment downloads, WebS
 ```
 
 The startup entry runs the supervisor hidden when the current user signs in. This is per-user login startup, not a system service that runs before login. PostgreSQL, the API, and frontend are restarted if they exit. Logs are separated by process start in `<root>\logs`.
+
+The agent daemon discovers Claude's native `%USERPROFILE%\.local\bin\claude.exe` installation even when its inherited PATH predates the installation. If an npm upgrade removes the old `claude.cmd` entry, the daemon re-resolves the command and verifies the replacement version during its existing refresh or next task launch, without restarting running tasks. Explicit executable-path overrides remain authoritative and must be updated when their target moves.
 
 Preserve the Docker containers and volumes until the native deployment has been accepted. Stop Docker Desktop to release its overhead. Ubuntu or other WSL distributions may still consume memory independently.
 
