@@ -32,10 +32,6 @@ vi.mock("@multica/core/paths", () => ({
     workspaces[0] ? `/${workspaces[0].slug}/issues` : "/workspaces/new",
 }));
 
-vi.mock("@/lib/public-host", () => ({
-  isOfficialMarketingHost: () => false,
-}));
-
 import { RedirectIfAuthenticated } from "./redirect-if-authenticated";
 
 beforeEach(() => {

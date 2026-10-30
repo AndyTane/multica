@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
+import { resolvePublicAppUrl } from "../lib/public-host";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://www.multica.ai";
+  const baseUrl = resolvePublicAppUrl(process.env);
+  if (!baseUrl) return [];
 
   return [
     {

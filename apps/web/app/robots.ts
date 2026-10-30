@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
+import { resolvePublicAppUrl } from "../lib/public-host";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = "https://www.multica.ai";
+  const baseUrl = resolvePublicAppUrl(process.env);
 
   return {
     rules: [
@@ -23,6 +24,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: [`${baseUrl}/sitemap.xml`, `${baseUrl}/docs/sitemap.xml`],
+    ...(baseUrl ? { sitemap: [`${baseUrl}/sitemap.xml`] } : {}),
   };
 }

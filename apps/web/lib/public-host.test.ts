@@ -1,20 +1,16 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import { isOfficialMarketingHost } from "./public-host";
+import { resolvePublicAppUrl } from "./public-host";
 
-describe("isOfficialMarketingHost", () => {
-  it.each(["multica.ai", "www.multica.ai", "MULTICA.AI", "multica.ai."])(
-    "recognizes %s as an official marketing host",
-    (host) => {
-      expect(isOfficialMarketingHost(host)).toBe(true);
-    },
-  );
-
-  it.each(["app.multica.ai", "api.multica.ai", "localhost", "multica.test"])(
-    "does not treat %s as the public marketing host",
-    (host) => {
-      expect(isOfficialMarketingHost(host)).toBe(false);
-    },
-  );
+describe("public metadata URL", () => {
+  it("omits public URLs without explicit configuration", () => {
+    expect(resolvePublicAppUrl({})).toBeUndefined();
+  });
+  it("uses the configured public address without query or fragment", () => {
+    expect(resolvePublicAppUrl({ NEXT_PUBLIC_APP_URL: "https://work.example.test/?x=1#top" })).toBe("https://work.example.test");
+  });
+  it.each(["/relative", "file:///tmp/site", "https://user:secret@example.test"])("rejects %s", (value) => {
+    expect(resolvePublicAppUrl({ NEXT_PUBLIC_APP_URL: value })).toBeUndefined();
+  });
 });

@@ -9,6 +9,7 @@ import { RESOURCES } from "@multica/views/locales";
 import { getRequestLocale } from "@/lib/request-locale";
 import { HTML_LANG } from "@/lib/html-lang";
 import { SITE_TITLE, TITLE_TEMPLATE } from "@/platform/document-title";
+import { resolvePublicAppUrl } from "@/lib/public-host";
 import {
   resolveBrowserApiBaseUrl,
   resolveBrowserWsUrl,
@@ -72,8 +73,10 @@ export const viewport: Viewport = {
   ],
 };
 
+const publicAppUrl = resolvePublicAppUrl(process.env);
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.multica.ai"),
+  ...(publicAppUrl ? { metadataBase: new URL(publicAppUrl) } : {}),
   title: {
     default: SITE_TITLE,
     template: TITLE_TEMPLATE,
@@ -101,6 +104,7 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   openGraph: {
+    ...(publicAppUrl ? { url: publicAppUrl } : {}),
     type: "website",
     siteName: "Multica",
     locale: "en_US",
@@ -110,9 +114,7 @@ export const metadata: Metadata = {
     site: "@multica_hq",
     creator: "@multica_hq",
   },
-  alternates: {
-    canonical: "/",
-  },
+  ...(publicAppUrl ? { alternates: { canonical: publicAppUrl } } : {}),
   robots: {
     index: true,
     follow: true,

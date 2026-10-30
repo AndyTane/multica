@@ -30,6 +30,7 @@ import { DesktopClientUsageReporter } from "./platform/client-usage-reporter";
 import { DiagnosticRouteReporter } from "./platform/diagnostic-route-reporter";
 import { flushFreezeBreadcrumb } from "./freeze-flush";
 import { DesktopAuthSessionBridge } from "./platform/auth-session-bridge";
+import { BlockingRuntimeConfigError } from "./components/runtime-config-error";
 import {
   tearDownOnLogout,
   tearDownOnSessionExpiry,
@@ -338,22 +339,6 @@ function AppContent() {
   }
 
   return user ? <DesktopShell /> : <DesktopLoginPage />;
-}
-
-function BlockingRuntimeConfigError({ message }: { message: string }) {
-  return (
-    <div className="flex h-screen items-center justify-center bg-background p-8 text-foreground">
-      <div className="max-w-xl rounded-lg border bg-card p-6 shadow-sm">
-        <h1 className="text-title font-semibold">Desktop configuration error</h1>
-        <p className="mt-3 text-body text-muted-foreground">
-          Multica Desktop could not load <code>~/.multica/desktop.json</code>. Fix or remove the file and restart the app.
-        </p>
-        <pre className="mt-4 whitespace-pre-wrap rounded-md bg-muted p-3 text-caption text-muted-foreground">
-          {message}
-        </pre>
-      </div>
-    </div>
-  );
 }
 
 // Binds the teardown steps to this renderer's real stores and IPC. Which of

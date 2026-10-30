@@ -840,7 +840,9 @@ if (!gotTheLock) {
     createWindow();
 
     setupAutoUpdater(() => mainWindow);
-    setupDaemonManager(() => mainWindow);
+    if (runtimeConfigResult.ok) {
+      setupDaemonManager(() => mainWindow);
+    }
     setupLocalDirectory(() => mainWindow);
 
     app.on("activate", () => {
