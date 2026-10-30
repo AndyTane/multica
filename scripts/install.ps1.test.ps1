@@ -17,6 +17,9 @@
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$env:MULTICA_REPO_URL = "https://source.example/owner/fork.git"
+$env:MULTICA_REPO_WEB_URL = "https://source.example/owner/fork"
+$env:MULTICA_RELEASE_API_BASE_URL = "https://source.example/api/releases"
 
 $RepoRoot = Split-Path (Split-Path $PSCommandPath -Parent) -Parent
 $InstallerPath = Join-Path $RepoRoot "scripts/install.ps1"
@@ -200,6 +203,7 @@ function docker {
     $args_ = @($args)
     if ($args_.Count -ge 1 -and $args_[0] -eq "info") { return }
     if ($args_.Count -ge 1 -and $args_[0] -eq "compose") {
+        if ($args_ -contains "config") { return @("source.example/backend:test", "source.example/web:test") }
         if ($args_ -contains "port") {
             if ($args_ -contains "backend") { return "127.0.0.1:$(Get-StubBackendPort)" }
             if ($args_ -contains "frontend") { return "127.0.0.1:$(Get-StubFrontendPort)" }
@@ -296,6 +300,10 @@ foreach ($case in $cases) {
     $probedPort = if ($probed -match "localhost:(\d+)/health") { $Matches[1] } else { $null }
     $printedBackend = if ($rendered -match "Backend:\s+http://localhost:(\d+)") { $Matches[1] } else { $null }
     $printedFrontend = if ($rendered -match "Frontend:\s+http://localhost:(\d+)") { $Matches[1] } else { $null }
+    $expectedSetup = "--profile u-workers setup self-host --server-url http://localhost:$($case.Backend) --app-url http://localhost:$($case.Frontend)"
+    if (-not $rendered.Contains($expectedSetup)) {
+        Fail-Test "[$($case.Label)] setup command does not use the published ports and isolated profile"
+    }
 
     if ($probedPort -ne $case.Backend -or $printedBackend -ne $case.Backend -or $printedFrontend -ne $case.Frontend) {
         Write-Host $rendered

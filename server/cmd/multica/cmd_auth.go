@@ -434,6 +434,9 @@ func runAuthLoginToken(cmd *cobra.Command, providedToken string) error {
 	}
 
 	serverURL := resolveLoginTokenServerURL(cmd)
+	if serverURL == "" {
+		return fmt.Errorf("no server configured; set --server-url or run multica setup before token login")
+	}
 	client := cli.NewAPIClient(serverURL, "", token)
 
 	ctx, cancel := cli.APIContext(context.Background())
@@ -452,9 +455,6 @@ func runAuthLoginToken(cmd *cobra.Command, providedToken string) error {
 	cfg.WorkspaceID = ""
 	cfg.Token = token
 	cfg.ServerURL = serverURL
-	if cfg.AppURL == "" && serverURL == defaultCloudServerURL {
-		cfg.AppURL = defaultCloudAppURL
-	}
 	if err := cli.SaveCLIConfigForProfile(cfg, profile); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}

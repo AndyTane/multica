@@ -31,10 +31,9 @@ import (
 // changes one place.
 const ChecksumManifestName = "checksums.txt"
 
-const defaultReleaseAPIBaseURL = "https://api.github.com"
-
-// MULTICA_RELEASE_API_BASE_URL points at a GitHub Releases API-compatible
-// mirror. MULTICA_RELEASE_DOWNLOAD_BASE_URL points at an artifact mirror
+// MULTICA_RELEASE_API_BASE_URL is an explicit releases collection endpoint
+// (for example, https://host/repos/owner/repo/releases). No default is provided.
+// MULTICA_RELEASE_DOWNLOAD_BASE_URL points at an artifact mirror
 // serving /<tag>/<asset-name>; when unset, the release-provided URLs win.
 const releaseAPIBaseURLEnv = "MULTICA_RELEASE_API_BASE_URL"
 const releaseDownloadBaseURLEnv = "MULTICA_RELEASE_DOWNLOAD_BASE_URL"
@@ -45,7 +44,7 @@ func releaseAPIBaseURL() string {
 	if value := strings.TrimRight(strings.TrimSpace(os.Getenv(releaseAPIBaseURLEnv)), "/"); value != "" {
 		return value
 	}
-	return defaultReleaseAPIBaseURL
+	return ""
 }
 
 func releaseDownloadBaseURL() string {
@@ -253,8 +252,12 @@ func verifyAssetSHA256(data []byte, expectedHex, assetName string) error {
 }
 
 func fetchReleaseByTag(tag string) (*GitHubRelease, error) {
+	base := releaseAPIBaseURL()
+	if base == "" {
+		return nil, fmt.Errorf("configure MULTICA_RELEASE_API_BASE_URL with your releases endpoint before updating")
+	}
 	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, releaseAPIBaseURL()+"/repos/multica-ai/multica/releases/tags/"+url.PathEscape(tag), nil)
+	req, err := http.NewRequest(http.MethodGet, base+"/tags/"+url.PathEscape(tag), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -277,10 +280,14 @@ func fetchReleaseByTag(tag string) (*GitHubRelease, error) {
 	return &release, nil
 }
 
-// FetchLatestRelease fetches the latest release tag from the multica GitHub repo.
+// FetchLatestRelease checks the explicitly configured release source on user request.
 func FetchLatestRelease() (*GitHubRelease, error) {
+	base := releaseAPIBaseURL()
+	if base == "" {
+		return nil, fmt.Errorf("configure MULTICA_RELEASE_API_BASE_URL with your releases endpoint before updating")
+	}
 	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, releaseAPIBaseURL()+"/repos/multica-ai/multica/releases/latest", nil)
+	req, err := http.NewRequest(http.MethodGet, base+"/latest", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -354,10 +361,14 @@ func GetBrewPrefix() string {
 	return strings.TrimSpace(string(out))
 }
 
-// UpdateViaBrew runs `brew upgrade multica-ai/tap/multica`.
+// UpdateViaBrew upgrades an explicitly configured Homebrew formula.
 // Returns the combined output and any error.
 func UpdateViaBrew() (string, error) {
-	cmd := exec.Command("brew", "upgrade", "multica-ai/tap/multica")
+	formula := strings.TrimSpace(os.Getenv("MULTICA_BREW_PACKAGE"))
+	if formula == "" || strings.HasPrefix(formula, "-") {
+		return "", fmt.Errorf("configure MULTICA_BREW_PACKAGE with your Homebrew formula before updating")
+	}
+	cmd := exec.Command("brew", "upgrade", formula)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("brew upgrade failed: %w", err)

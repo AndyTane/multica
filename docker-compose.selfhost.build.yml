@@ -1,9 +1,9 @@
 # Development override: build the backend/web images from the current checkout
-# instead of pulling the official GHCR images.
+# with isolated U Workers tags instead of pulling registry images.
 
 services:
   backend:
-    image: multica-backend:dev
+    image: u-workers-backend:dev
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,7 +13,7 @@ services:
         DATE: ${DATE:-unknown}
 
   frontend:
-    image: multica-web:dev
+    image: u-workers-web:dev
     build:
       context: .
       dockerfile: Dockerfile.web

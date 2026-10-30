@@ -19,12 +19,27 @@ func newLoginTestCmd() *cobra.Command {
 	return cmd
 }
 
-func TestResolveLoginTokenServerURLDefaultsToCloud(t *testing.T) {
+func TestResolveLoginTokenServerURLRequiresConfiguration(t *testing.T) {
 	redirectTestHome(t, t.TempDir())
 	t.Setenv("MULTICA_SERVER_URL", "")
 
-	if got := resolveLoginTokenServerURL(newLoginTestCmd()); got != defaultCloudServerURL {
-		t.Fatalf("resolveLoginTokenServerURL() = %q, want %q", got, defaultCloudServerURL)
+	if got := resolveLoginTokenServerURL(newLoginTestCmd()); got != "" {
+		t.Fatalf("resolveLoginTokenServerURL() = %q, want %q", got, "")
+	}
+}
+
+func TestTokenLoginWithoutServerDoesNotSaveCredentials(t *testing.T) {
+	t.Chdir(t.TempDir())
+	redirectTestHome(t, t.TempDir())
+	t.Setenv("MULTICA_SERVER_URL", "")
+	t.Setenv(cli.TaskConfigRootEnv, "")
+	err := runAuthLoginToken(newLoginTestCmd(), "mul_fake_token")
+	if err == nil || !strings.Contains(err.Error(), "no server configured") {
+		t.Fatalf("login error=%v, want explicit server configuration requirement", err)
+	}
+	cfg, _ := cli.LoadCLIConfigForProfile("")
+	if cfg.Token != "" || cfg.ServerURL != "" {
+		t.Fatal("unconfigured login persisted credentials or an upstream URL")
 	}
 }
 

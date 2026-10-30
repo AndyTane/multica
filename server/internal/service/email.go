@@ -117,7 +117,7 @@ func resolveFromEmail(smtpHost string) string {
 		if resendFrom != "" {
 			return resendFrom
 		}
-		return "noreply@multica.ai"
+		return ""
 	}
 	if smtpFrom := strings.TrimSpace(os.Getenv("SMTP_FROM_EMAIL")); smtpFrom != "" {
 		return smtpFrom
@@ -353,6 +353,9 @@ func (s *EmailService) SendVerificationCode(to, code string) error {
 		fmt.Printf("[DEV] Verification code for %s: %s\n", to, code)
 		return nil
 	}
+	if strings.TrimSpace(s.fromEmail) == "" {
+		return fmt.Errorf("RESEND_FROM_EMAIL is required when RESEND_API_KEY is set")
+	}
 	params := &resend.SendEmailRequest{
 		From:    s.fromEmail,
 		To:      []string{to},
@@ -366,10 +369,14 @@ func (s *EmailService) SendVerificationCode(to, code string) error {
 // SendInvitationEmail notifies the invitee that they have been invited to a workspace.
 // invitationID is included in the URL so the email deep-links to /invite/{id}.
 func (s *EmailService) SendInvitationEmail(to, inviterName, workspaceName, invitationID string) error {
-	appURL := strings.TrimSpace(os.Getenv("FRONTEND_ORIGIN"))
+	appURL := strings.TrimSpace(os.Getenv("MULTICA_APP_URL"))
 	if appURL == "" {
-		appURL = "https://multica.ai"
+		appURL = strings.TrimSpace(os.Getenv("FRONTEND_ORIGIN"))
 	}
+	if appURL == "" {
+		return fmt.Errorf("MULTICA_APP_URL or FRONTEND_ORIGIN is required for invitation email links")
+	}
+	appURL = strings.TrimRight(appURL, "/")
 	inviteURL := fmt.Sprintf("%s/invite/%s", appURL, invitationID)
 
 	if s.smtpHost != "" {
@@ -381,6 +388,9 @@ func (s *EmailService) SendInvitationEmail(to, inviterName, workspaceName, invit
 		return nil
 	}
 	params := buildInvitationParams(s.fromEmail, to, inviterName, workspaceName, inviteURL)
+	if strings.TrimSpace(s.fromEmail) == "" {
+		return fmt.Errorf("RESEND_FROM_EMAIL is required when RESEND_API_KEY is set")
+	}
 	_, err := s.client.Emails.Send(params)
 	return err
 }

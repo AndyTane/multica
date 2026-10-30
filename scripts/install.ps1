@@ -1,10 +1,10 @@
-# Multica installer for Windows - one command to get started.
+# U Workers installer for Windows - one command to get started.
 #
-# Install CLI (default): connects to multica.ai
-#   irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
+# Install CLI from your explicitly configured release source
+#   powershell -File scripts/install.ps1
 #
-# Self-host: starts a local Multica server + installs CLI + configures
-#   $env:MULTICA_MODE="local"; irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
+# Self-host: starts a local U Workers server + installs CLI + configures
+#   $env:MULTICA_MODE="local"; powershell -File scripts/install.ps1
 #
 
 $ErrorActionPreference = "Stop"
@@ -12,9 +12,12 @@ $ErrorActionPreference = "Stop"
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-$RepoUrl       = "https://github.com/multica-ai/multica.git"
-$RepoWebUrl    = "https://github.com/multica-ai/multica"
-$DefaultInstallDir = Join-Path $env:USERPROFILE ".multica\server"
+$RepoUrl       = $env:MULTICA_REPO_URL
+$RepoWebUrl    = $env:MULTICA_REPO_WEB_URL
+$ReleaseApiUrl = $env:MULTICA_RELEASE_API_BASE_URL
+$BinDir = if ($env:MULTICA_BIN_DIR) { $env:MULTICA_BIN_DIR } else { Join-Path $env:USERPROFILE ".u-workers\bin" }
+$CliBinary = Join-Path $BinDir "multica.exe"
+$DefaultInstallDir = Join-Path $env:USERPROFILE ".u-workers\server"
 $InstallDir    = if ($env:MULTICA_INSTALL_DIR) { $env:MULTICA_INSTALL_DIR } else { $DefaultInstallDir }
 
 # Host ports Compose reported after `up -d`; set by Setup-Server and reused by
@@ -85,8 +88,9 @@ function Get-ComposePublishedPort {
 }
 
 function Get-LatestVersion {
+    if (-not $ReleaseApiUrl) { return $null }
     try {
-        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/multica-ai/multica/releases/latest" -ErrorAction Stop
+        $release = Invoke-RestMethod -Uri "$ReleaseApiUrl/latest" -ErrorAction Stop
         return $release.tag_name
     } catch {
         return $null
@@ -128,18 +132,22 @@ function Checkout-ServerRef {
     git checkout --force $Ref 2>$null
 }
 
-function Pull-OfficialSelfHostImages {
-    docker compose -f docker-compose.selfhost.yml pull
-    if ($LASTEXITCODE -eq 0) {
+function Pull-SelfHostImages {
+    $images = @(docker compose -f docker-compose.selfhost.yml config --images)
+    if ($LASTEXITCODE -ne 0 -or $images.Count -eq 0) {
+        Write-Fail "Could not resolve your server image configuration."
+    }
+    $buildServices = @()
+    if ($images -contains "u-workers-backend:dev") { $buildServices += "backend" }
+    if ($images -contains "u-workers-web:dev") { $buildServices += "frontend" }
+    if ($buildServices.Count -gt 0) {
+        Write-Info "Building local server images from your selected source..."
+        docker compose -f docker-compose.selfhost.yml -f docker-compose.selfhost.build.yml build @buildServices
+        if ($LASTEXITCODE -ne 0) { Write-Fail "Could not build local server images." }
         return
     }
-
-    Write-Host ""
-    Write-Warn "Official images for the selected self-host channel are not published yet."
-    Write-Host "This can happen before the first GHCR release is available."
-    Write-Host "From $InstallDir, build from source instead:"
-    Write-Host "  docker compose -f docker-compose.selfhost.yml -f docker-compose.selfhost.build.yml up -d --build"
-    exit 1
+    docker compose -f docker-compose.selfhost.yml pull
+    if ($LASTEXITCODE -ne 0) { Write-Fail "Could not pull your configured server images." }
 }
 
 function Convert-ToCliArch {
@@ -216,7 +224,7 @@ function Get-WindowsCliArch {
 
 function Get-InstalledCliVersion {
     try {
-        $firstLine = multica version 2>$null | Select-Object -First 1
+        $firstLine = & $CliBinary version 2>$null | Select-Object -First 1
         if ("$firstLine" -match '\b(v?\d+(?:\.\d+)+)\b') {
             $version = $Matches[1]
             if ($version -notlike 'v*') {
@@ -233,10 +241,13 @@ function Get-InstalledCliVersion {
 # CLI Installation
 # ---------------------------------------------------------------------------
 function Install-CliBinary {
-    Write-Info "Installing Multica CLI from GitHub Releases..."
+    if (-not $ReleaseApiUrl -or -not $RepoWebUrl) {
+        Write-Fail "Set MULTICA_RELEASE_API_BASE_URL and MULTICA_REPO_WEB_URL to your release source."
+    }
+    Write-Info "Installing U Workers CLI from GitHub Releases..."
 
     if (-not [Environment]::Is64BitOperatingSystem) {
-        Write-Fail "Multica requires a 64-bit Windows installation."
+        Write-Fail "U Workers requires a 64-bit Windows installation."
     }
 
     $arch = Get-WindowsCliArch
@@ -247,10 +258,9 @@ function Install-CliBinary {
     }
 
     $version = $latest.TrimStart('v')
-    $url = "https://github.com/multica-ai/multica/releases/download/$latest/multica-cli-$version-windows-$arch.zip"
-    $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) "multica-install"
+    $url = "$RepoWebUrl/releases/download/$latest/multica-cli-$version-windows-$arch.zip"
+    $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("u-workers-install-" + [guid]::NewGuid().ToString("N"))
 
-    if (Test-Path $tmpDir) { Remove-Item $tmpDir -Recurse -Force }
     New-Item -ItemType Directory -Path $tmpDir | Out-Null
 
     Write-Info "Downloading $url ..."
@@ -262,7 +272,7 @@ function Install-CliBinary {
     }
 
     # Verify SHA256 checksum
-    $checksumUrl = "https://github.com/multica-ai/multica/releases/download/$latest/checksums.txt"
+    $checksumUrl = "$RepoWebUrl/releases/download/$latest/checksums.txt"
     try {
         $checksums = Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing -ErrorAction Stop
         $checksumContent = if ($checksums.Content -is [byte[]]) {
@@ -296,7 +306,6 @@ function Install-CliBinary {
 
     Expand-Archive -Path (Join-Path $tmpDir "multica.zip") -DestinationPath $tmpDir -Force
 
-    $binDir = Join-Path $env:USERPROFILE ".multica\bin"
     if (-not (Test-Path $binDir)) {
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
     }
@@ -313,34 +322,19 @@ function Install-CliBinary {
     Copy-Item $exeSrc (Join-Path $binDir "multica.exe") -Force
     Remove-Item $tmpDir -Recurse -Force
 
-    Add-ToUserPath $binDir
-    Write-Ok "Multica CLI installed to $binDir\multica.exe"
-}
-
-function Add-ToUserPath {
-    param([string]$Dir)
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($currentPath -and $currentPath.Split(";") -contains $Dir) {
-        return
-    }
-    $newPath = if ($currentPath) { "$currentPath;$Dir" } else { $Dir }
-    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-    # Also update current session
-    if ($env:Path -notlike "*$Dir*") {
-        $env:Path = "$Dir;$env:Path"
-    }
-    Write-Info "Added $Dir to user PATH (restart your terminal for other sessions to pick it up)."
+    Write-Ok "U Workers CLI installed to $binDir\multica.exe"
 }
 
 function Install-Cli {
-    if (Test-CommandExists "multica") {
+    if (Test-Path -LiteralPath $CliBinary -PathType Leaf) {
         $currentVer = Get-InstalledCliVersion
         $latestVer = Get-LatestVersion
+        if (-not $latestVer) { Write-Fail "Could not check your configured release source." }
 
         $currentCmp = if ($currentVer) { $currentVer -replace '^v','' } else { $null }
         $latestCmp = if ($latestVer) { $latestVer -replace '^v','' } else { $null }
 
-        $isUpToDate = $currentCmp -and -not $latestCmp
+        $isUpToDate = $false
         if (-not $isUpToDate) {
             try {
                 $isUpToDate = $currentCmp -and $latestCmp -and ([System.Version]$currentCmp -ge [System.Version]$latestCmp)
@@ -350,22 +344,22 @@ function Install-Cli {
         }
 
         if ($isUpToDate) {
-            Write-Ok "Multica CLI is up to date ($currentVer)"
+            Write-Ok "U Workers CLI is up to date ($currentVer)"
             return
         }
 
-        Write-Info "Multica CLI $currentVer installed, latest is $latestVer - upgrading..."
+        Write-Info "U Workers CLI $currentVer installed, latest is $latestVer - upgrading..."
         Install-CliBinary
 
         $newVer = Get-InstalledCliVersion
-        Write-Ok "Multica CLI upgraded ($currentVer -> $newVer)"
+        Write-Ok "U Workers CLI upgraded ($currentVer -> $newVer)"
         return
     }
 
     Install-CliBinary
 
-    if (-not (Test-CommandExists "multica")) {
-        Write-Fail "CLI installed but 'multica' not found on PATH. Restart your terminal and try again."
+    if (-not (Test-Path -LiteralPath $CliBinary -PathType Leaf)) {
+        Write-Fail "CLI binary was not created at the configured target directory."
     }
 }
 
@@ -375,7 +369,7 @@ function Install-Cli {
 function Test-Docker {
     if (-not (Test-CommandExists "docker")) {
         Write-Fail @"
-Docker is not installed. Multica self-hosting requires Docker and Docker Compose.
+Docker is not installed. U Workers self-hosting requires Docker and Docker Compose.
 
 Install Docker Desktop for Windows:
   https://docs.docker.com/desktop/install/windows-install/
@@ -397,7 +391,8 @@ After installing Docker, re-run this script with `$env:MULTICA_MODE="local"`.
 # Server setup (self-host / local)
 # ---------------------------------------------------------------------------
 function Install-Server {
-    Write-Info "Setting up Multica server..."
+    if (-not $RepoUrl) { Write-Fail "Set MULTICA_REPO_URL to your source repository." }
+    Write-Info "Setting up U Workers server..."
     $serverRef = Get-SelfHostRef
     Write-Info "Using self-host assets from $serverRef..."
 
@@ -405,7 +400,7 @@ function Install-Server {
         Write-Info "Updating existing installation at $InstallDir..."
         Write-Warn "Any local changes in $InstallDir will be overwritten."
     } else {
-        Write-Info "Cloning Multica repository..."
+        Write-Info "Cloning U Workers repository..."
         if (-not (Test-CommandExists "git")) {
             Write-Fail "Git is not installed. Please install git and re-run."
         }
@@ -439,9 +434,9 @@ function Install-Server {
         Write-Ok "Using existing .env"
     }
 
-    Write-Info "Pulling official Multica images..."
-    Pull-OfficialSelfHostImages
-    Write-Info "Starting Multica services (this may take a few minutes on first run)..."
+    Write-Info "Pulling images configured by your selected server source..."
+    Pull-SelfHostImages
+    Write-Info "Starting U Workers services (this may take a few minutes on first run)..."
     docker compose -f docker-compose.selfhost.yml up -d
 
     # Read the ports Compose actually published, once, and reuse them for both
@@ -468,7 +463,7 @@ function Install-Server {
     }
 
     if ($ready) {
-        Write-Ok "Multica server is running"
+        Write-Ok "U Workers server is running"
     } else {
         Write-Warn "Server is still starting. Check logs with:"
         Write-Host "  cd $InstallDir; docker compose -f docker-compose.selfhost.yml logs"
@@ -483,23 +478,22 @@ function Install-Server {
 # ---------------------------------------------------------------------------
 function Start-DefaultInstall {
     Write-Host ""
-    Write-Host "  Multica - Installer" -ForegroundColor White
+    Write-Host "  U Workers - Installer" -ForegroundColor White
     Write-Host ""
 
     Install-Cli
 
     Write-Host ""
     Write-Host "  ============================================" -ForegroundColor Green
-    Write-Host "  [OK] Multica CLI is ready!" -ForegroundColor Green
+    Write-Host "  [OK] U Workers CLI is ready!" -ForegroundColor Green
     Write-Host "  ============================================" -ForegroundColor Green
     Write-Host ""
     Write-Host "  Next: configure your environment"
     Write-Host ""
-    Write-Host "     multica setup               " -NoNewline; Write-Host "# Connect to Multica Cloud (multica.ai)" -ForegroundColor DarkGray
-    Write-Host "     multica setup self-host      " -NoNewline; Write-Host "# Connect to a self-hosted server" -ForegroundColor DarkGray
+    Write-Host "     & `"$CliBinary`" --profile u-workers setup self-host --server-url <YOUR_SERVER> --app-url <YOUR_APP>"
     Write-Host ""
     Write-Host "  Self-hosting? Install the server first:"
-    Write-Host '     $env:MULTICA_MODE="with-server"; irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex'
+    Write-Host '     $env:MULTICA_MODE="with-server"; powershell -File scripts/install.ps1'
     Write-Host ""
 }
 
@@ -508,7 +502,7 @@ function Start-DefaultInstall {
 # ---------------------------------------------------------------------------
 function Start-LocalInstall {
     Write-Host ""
-    Write-Host "  Multica - Self-Host Installer" -ForegroundColor White
+    Write-Host "  U Workers - Self-Host Installer" -ForegroundColor White
     Write-Host "  Provisioning server infrastructure + installing CLI"
     Write-Host ""
 
@@ -518,7 +512,7 @@ function Start-LocalInstall {
 
     Write-Host ""
     Write-Host "  ============================================" -ForegroundColor Green
-    Write-Host "  [OK] Multica server is running and CLI is ready!" -ForegroundColor Green
+    Write-Host "  [OK] U Workers server is running and CLI is ready!" -ForegroundColor Green
     Write-Host "  ============================================" -ForegroundColor Green
     Write-Host ""
     Write-Host "  Frontend:  http://localhost:$($script:SelfHostFrontendPort)"
@@ -527,13 +521,13 @@ function Start-LocalInstall {
     Write-Host ""
     Write-Host "  Next: configure your CLI to connect"
     Write-Host ""
-    Write-Host "     multica setup self-host  " -NoNewline; Write-Host "# Configure + authenticate + start daemon" -ForegroundColor DarkGray
+    Write-Host "     & `"$CliBinary`" --profile u-workers setup self-host --server-url http://localhost:$($script:SelfHostBackendPort) --app-url http://localhost:$($script:SelfHostFrontendPort)"
     Write-Host ""
     Write-Host "  Login: configure RESEND_API_KEY in .env for email codes,"
     Write-Host "  or read the generated code from backend logs when Resend is unset."
     Write-Host ""
     Write-Host "  To stop all services:"
-    Write-Host '     $env:MULTICA_MODE="stop"; irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex'
+    Write-Host '     $env:MULTICA_MODE="stop"; powershell -File scripts/install.ps1'
     Write-Host ""
 }
 
@@ -542,7 +536,7 @@ function Start-LocalInstall {
 # ---------------------------------------------------------------------------
 function Start-Stop {
     Write-Host ""
-    Write-Info "Stopping Multica services..."
+    Write-Info "Stopping U Workers services..."
 
     if (Test-Path $InstallDir) {
         Push-Location $InstallDir
@@ -554,12 +548,12 @@ function Start-Stop {
         }
         Pop-Location
     } else {
-        Write-Warn "No Multica installation found at $InstallDir"
+        Write-Warn "No U Workers installation found at $InstallDir"
     }
 
-    if (Test-CommandExists "multica") {
+    if (Test-Path -LiteralPath $CliBinary -PathType Leaf) {
         try {
-            multica daemon stop 2>$null
+            & $CliBinary --profile u-workers daemon stop 2>$null
             Write-Ok "Daemon stopped"
         } catch {}
     }
@@ -571,6 +565,15 @@ function Start-Stop {
 # Entry point
 # ---------------------------------------------------------------------------
 $mode = if ($env:MULTICA_MODE) { $env:MULTICA_MODE.ToLower() } else { "default" }
+
+if ($mode -ne "stop") {
+    if (-not $ReleaseApiUrl -or -not $RepoWebUrl) {
+        Write-Fail "Set MULTICA_RELEASE_API_BASE_URL (releases endpoint) and MULTICA_REPO_WEB_URL (repository web URL) before installing."
+    }
+    if (($mode -eq "with-server" -or $mode -eq "local") -and -not $RepoUrl) {
+        Write-Fail "Set MULTICA_REPO_URL to your source repository before provisioning."
+    }
+}
 
 switch ($mode) {
     "with-server" { Start-LocalInstall }

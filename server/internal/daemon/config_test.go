@@ -1025,12 +1025,12 @@ func TestLoadConfig_OpenCodeIdleWatchdog(t *testing.T) {
 	}
 }
 
-// TestLoadConfig_AutoUpdateDefault_CloudOn confirms the symmetric case: a
+// TestLoadConfig_AutoUpdateDefault_CloudOff confirms the symmetric case: a
 // daemon pointed at Multica's hosted cloud keeps the historical opt-in
 // auto-update default. We pass the WSS form of the URL to also exercise that
 // NormalizeServerBaseURL maps it through to the http host the detector
 // inspects.
-func TestLoadConfig_AutoUpdateDefault_CloudOn(t *testing.T) {
+func TestLoadConfig_AutoUpdateDefault_CloudOff(t *testing.T) {
 	stageFakeAgent(t)
 	cfg, err := LoadConfig(Overrides{
 		ServerURL:      "wss://api.multica.ai/ws",
@@ -1039,14 +1039,14 @@ func TestLoadConfig_AutoUpdateDefault_CloudOn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if !cfg.AutoUpdateEnabled {
-		t.Fatalf("AutoUpdateEnabled = false for Multica Cloud server, want true")
+	if cfg.AutoUpdateEnabled {
+		t.Fatalf("AutoUpdateEnabled = true; automatic updates must stay disabled")
 	}
 }
 
-// TestLoadConfig_AutoUpdateEnv_ForcesOnForSelfHost lets a self-host operator
+// TestLoadConfig_AutoUpdateEnv_CannotEnableForSelfHost lets a self-host operator
 // re-enable auto-update via env var, overriding the new conservative default.
-func TestLoadConfig_AutoUpdateEnv_ForcesOnForSelfHost(t *testing.T) {
+func TestLoadConfig_AutoUpdateEnv_CannotEnableForSelfHost(t *testing.T) {
 	stageFakeAgent(t)
 	t.Setenv("MULTICA_DAEMON_AUTO_UPDATE", "true")
 	cfg, err := LoadConfig(Overrides{
@@ -1056,8 +1056,8 @@ func TestLoadConfig_AutoUpdateEnv_ForcesOnForSelfHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if !cfg.AutoUpdateEnabled {
-		t.Fatalf("AutoUpdateEnabled = false after explicit MULTICA_DAEMON_AUTO_UPDATE=true, want true")
+	if cfg.AutoUpdateEnabled {
+		t.Fatalf("MULTICA_DAEMON_AUTO_UPDATE must not re-enable automatic updates")
 	}
 }
 

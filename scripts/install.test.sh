@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# All release and command operations below use sandbox fakes.
+export MULTICA_REPO_URL="https://source.example/owner/fork.git"
+export MULTICA_REPO_WEB_URL="https://source.example/owner/fork"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Build a self-contained sandbox with stub `curl` and a tarball that the
@@ -13,6 +17,17 @@ _setup_sandbox() {
   local payload_dir="$tmp/payload"
   mkdir -p "$stub_bin" "$install_bin" "$payload_dir"
 
+  # Exercise the Unix installer with fake platform data, including on Git Bash.
+  cat >"$stub_bin/uname" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  -s) echo Linux ;;
+  -m) echo x86_64 ;;
+  *) exit 1 ;;
+esac
+STUB
+  chmod +x "$stub_bin/uname"
+
   cat >"$payload_dir/multica" <<'STUB'
 #!/usr/bin/env bash
 echo "multica v0.3.2 (commit: test)"
@@ -23,7 +38,7 @@ STUB
   cat >"$stub_bin/curl" <<'STUB'
 #!/usr/bin/env bash
 if [[ "$*" == *"-sI"* ]]; then
-  printf 'HTTP/2 302\r\nlocation: https://github.com/multica-ai/multica/releases/tag/v0.3.2\r\n'
+  printf 'HTTP/2 302\r\nlocation: https://source.example/owner/fork/releases/tag/v0.3.2\r\n'
   exit 0
 fi
 
@@ -70,64 +85,36 @@ _run_installer() {
     return 1
   fi
 
-  if ! grep -q "Homebrew output (last 80 lines):" "$err"; then
-    echo "expected diagnostic tail in stderr" >&2
-    cat "$err" >&2 || true
+
+}
+
+test_install_ignores_original_cli_on_path() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' RETURN
+  _setup_sandbox "$tmp"
+  cat >"$tmp/stub-bin/multica" <<'STUB'
+#!/usr/bin/env bash
+echo "original deployment CLI must not run" >&2
+exit 99
+STUB
+  chmod +x "$tmp/stub-bin/multica"
+  _run_installer "$tmp"
+  ! grep -q "original deployment" "$tmp/install.err"
+  grep -q -- '--profile u-workers setup self-host' "$tmp/install.out"
+}
+
+test_install_requires_explicit_release_source() {
+  local tmp
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' RETURN
+  _setup_sandbox "$tmp"
+  if MULTICA_REPO_WEB_URL="" MULTICA_BIN_DIR="$tmp/install-bin" bash "$ROOT_DIR/scripts/install.sh" >"$tmp/out" 2>&1; then
+    echo "installer accepted an absent release source" >&2
     return 1
   fi
-}
-
-test_brew_install_failure_falls_back_to_release_binary() {
-  local tmp
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
-
-  _setup_sandbox "$tmp"
-  cat >"$tmp/stub-bin/brew" <<'STUB'
-#!/usr/bin/env bash
-case "${1:-}" in
-  tap)
-    exit 0
-    ;;
-  install)
-    echo "simulated brew install failure" >&2
-    exit 42
-    ;;
-  list)
-    exit 1
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-STUB
-  chmod +x "$tmp/stub-bin/brew"
-
-  _run_installer "$tmp"
-}
-
-test_brew_tap_failure_falls_back_to_release_binary() {
-  local tmp
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
-
-  _setup_sandbox "$tmp"
-  cat >"$tmp/stub-bin/brew" <<'STUB'
-#!/usr/bin/env bash
-case "${1:-}" in
-  tap)
-    echo "simulated brew tap failure" >&2
-    exit 17
-    ;;
-  *)
-    echo "brew $* should not be reached after tap failure" >&2
-    exit 99
-    ;;
-esac
-STUB
-  chmod +x "$tmp/stub-bin/brew"
-
-  _run_installer "$tmp"
+  grep -q 'Set MULTICA_REPO_WEB_URL' "$tmp/out"
+  [ ! -e "$tmp/install-bin/multica" ]
 }
 
 test_remote_ssh_install_prints_token_login_hint() {
@@ -166,8 +153,8 @@ STUB
     cat "$tmp/install.out" >&2 || true
     return 1
   fi
-  if ! grep -q "https://multica.ai/settings?tab=tokens" "$tmp/install.out"; then
-    echo "expected direct API Tokens settings URL in installer output" >&2
+  if ! grep -q "your server, then Settings > API Tokens" "$tmp/install.out"; then
+    echo "expected configured-server token instructions in installer output" >&2
     cat "$tmp/install.out" >&2 || true
     return 1
   fi
@@ -176,7 +163,7 @@ STUB
     cat "$tmp/install.out" >&2 || true
     return 1
   fi
-  if ! grep -q "multica login --token <YOUR_TOKEN>" "$tmp/install.out"; then
+  if ! grep -q -- "--profile u-workers login --token <YOUR_TOKEN> --server-url <YOUR_SERVER>" "$tmp/install.out"; then
     echo "expected token login command in installer output" >&2
     cat "$tmp/install.out" >&2 || true
     return 1
@@ -229,7 +216,7 @@ STUB
     cat "$tmp/install.out" >&2 || true
     return 1
   fi
-  if grep -q "multica login --token <YOUR_TOKEN>" "$tmp/install.out"; then
+  if grep -q -- "--profile u-workers login --token <YOUR_TOKEN> --server-url <YOUR_SERVER>" "$tmp/install.out"; then
     echo "did not expect token login command in local installer output" >&2
     cat "$tmp/install.out" >&2 || true
     return 1
@@ -255,6 +242,7 @@ STUB
 # ---------------------------------------------------------------------------
 _setup_server_sandbox() {
   local tmp="$1"
+  _setup_sandbox "$tmp"
   local stub_bin="$tmp/stub-bin"
   local server_dir="$tmp/server"
   mkdir -p "$stub_bin" "$server_dir/.git"
@@ -323,7 +311,7 @@ case "${1:-}" in
     subcommand=""
     for arg in "$@"; do
       case "$arg" in
-        pull | up | port | version | ps | logs | down) subcommand="$arg"; break ;;
+        config | pull | up | port | version | ps | logs | down) subcommand="$arg"; break ;;
       esac
     done
     case "$subcommand" in
@@ -340,6 +328,7 @@ case "${1:-}" in
           *) exit 1 ;;
         esac
         ;;
+      config) echo "source.example/backend:test"; echo "source.example/web:test" ;;
       version) echo "2.30.0" ;;
     esac
     exit 0
@@ -365,6 +354,10 @@ STUB
   cat >"$stub_bin/curl" <<'STUB'
 #!/usr/bin/env bash
 set -uo pipefail
+if [[ "$*" == *"-sI"* ]]; then
+  printf 'HTTP/2 302\r\nlocation: https://source.example/owner/fork/releases/tag/v0.3.2\r\n'
+  exit 0
+fi
 for arg in "$@"; do
   case "$arg" in
     http*) printf '%s\n' "$arg" >>"$MULTICA_TEST_CURL_LOG" ;;
@@ -389,7 +382,10 @@ _run_with_server() {
   if ! env -i \
     PATH="$tmp/stub-bin:/usr/bin:/bin" \
     HOME="$tmp" \
+    MULTICA_REPO_URL="$MULTICA_REPO_URL" \
+    MULTICA_REPO_WEB_URL="$MULTICA_REPO_WEB_URL" \
     MULTICA_INSTALL_DIR="$tmp/server" \
+    MULTICA_BIN_DIR="$tmp/stub-bin" \
     MULTICA_SELFHOST_REF="main" \
     MULTICA_TEST_CURL_LOG="$tmp/curl.log" \
     "$@" \
@@ -410,6 +406,10 @@ _require_server_ports() {
   probed="$(sed -n '1s#.*localhost:\([0-9]*\)/health#\1#p' "$tmp/curl.log")"
   printed_backend="$(sed -n 's#.*Backend:[^0-9]*http://localhost:\([0-9]*\).*#\1#p' "$tmp/install.out" | head -n 1)"
   printed_frontend="$(sed -n 's#.*Frontend:[^0-9]*http://localhost:\([0-9]*\).*#\1#p' "$tmp/install.out" | head -n 1)"
+  if ! grep -Fq -- "--profile u-workers setup self-host --server-url http://localhost:$expected_backend --app-url http://localhost:$expected_frontend" "$tmp/install.out"; then
+    echo "[$label] setup command does not use the published ports and isolated profile" >&2
+    return 1
+  fi
 
   if [ "$probed" != "$expected_backend" ] ||
     [ "$printed_backend" != "$expected_backend" ] ||
@@ -481,6 +481,7 @@ case "${1:-}" in
   compose)
     for arg in "$@"; do
       case "$arg" in
+        config) echo "source.example/backend:test"; exit 0 ;;
         port) exit 1 ;;
         version) echo "2.30.0"; exit 0 ;;
       esac
@@ -509,8 +510,8 @@ STUB
   fi
 }
 
-test_brew_install_failure_falls_back_to_release_binary
-test_brew_tap_failure_falls_back_to_release_binary
+test_install_ignores_original_cli_on_path
+test_install_requires_explicit_release_source
 test_remote_ssh_install_prints_token_login_hint
 test_local_install_does_not_print_token_login_hint
 test_with_server_uses_compose_published_ports

@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/multica-ai/multica/server/internal/cli"
 )
 
 // newSelfReloadTestDaemon returns a Daemon wired for trySelfReload: a stubbed
@@ -270,7 +268,6 @@ func TestAutoUpdateLoop_WatchesTheBinaryWhenAutoUpdateIsOff(t *testing.T) {
 	d, restartCalls := newSelfReloadTestDaemon(t, "0.3.7")
 	d.cfg.AutoUpdateEnabled = false
 	stubSelfVersion(t, "0.3.8", nil)
-	withStubRelease(t, &cli.GitHubRelease{TagName: "v9.9.9"}, errors.New("fetchLatestRelease must not be called"))
 	d.runUpdateFn = func(string) (string, error) {
 		t.Fatal("runUpdateFn called with auto-update disabled")
 		return "", nil
@@ -298,7 +295,6 @@ func TestAutoUpdateLoop_AlsoWatchesTheBinaryForDevBuilds(t *testing.T) {
 	d, restartCalls := newSelfReloadTestDaemon(t, "v0.3.7-42-gabcdef0")
 	d.cfg.AutoUpdateEnabled = true
 	stubSelfVersion(t, "v0.3.7-43-gbcdef01", nil)
-	withStubRelease(t, nil, errors.New("fetchLatestRelease must not be called for a dev build"))
 	shortenLoopTimers(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -323,7 +319,6 @@ func TestAutoUpdateLoop_SkipsBothHalvesForDesktop(t *testing.T) {
 	d.cfg.AutoUpdateEnabled = true
 	d.cfg.LaunchedBy = "desktop"
 	probes := stubSelfVersion(t, "0.3.8", nil)
-	withStubRelease(t, nil, errors.New("fetchLatestRelease must not be called on Desktop"))
 	shortenLoopTimers(t)
 
 	// Returns immediately rather than looping, so no cancel is needed.
@@ -423,39 +418,6 @@ func claimsPaused(t *testing.T, d *Daemon) bool {
 	d.claimMu.Lock()
 	defer d.claimMu.Unlock()
 	return d.pauseClaims
-}
-
-// TestTryAutoUpdate_ResumesClaimingWhenRestartCannotBeScheduled is the
-// permanent-stall case. tryAutoUpdate marks both cleanup switches as released
-// just before the handoff, on the assumption that the process is about to exit.
-// If triggerRestart cannot resolve a target, no exit is coming — and holding the
-// updating flag and the claim barrier for a restart that never happens leaves
-// the daemon alive but claiming nothing, forever. Every poller's tryEnterClaim
-// returns false and nothing ever clears it.
-//
-// Note this outlived the void-returning triggerRestart it came from: the failure
-// was unobservable before. trySelfReload handles the same failure, so the two
-// halves of one loop must not disagree about it.
-func TestTryAutoUpdate_ResumesClaimingWhenRestartCannotBeScheduled(t *testing.T) {
-	d, restartCalls := newAutoUpdateTestDaemon(t, "v0.1.13")
-	withStubRelease(t, &cli.GitHubRelease{TagName: "v0.1.14"}, nil)
-	d.runUpdateFn = func(string) (string, error) { return "upgraded", nil }
-
-	origResolve := resolveSelfExecutable
-	t.Cleanup(func() { resolveSelfExecutable = origResolve })
-	resolveSelfExecutable = func() (string, error) { return "", errors.New("cannot resolve executable") }
-
-	d.tryAutoUpdate(context.Background())
-
-	if restartCalls.Load() != 0 {
-		t.Fatal("cancelFunc fired without a restart binary")
-	}
-	if claimsPaused(t, d) {
-		t.Error("pauseClaims held for a restart that will never happen — the daemon would claim nothing forever")
-	}
-	if d.updating.Load() {
-		t.Error("updating flag held for a restart that will never happen — no later update or reload could run")
-	}
 }
 
 // TestTrySelfReload_YieldsToAServerTriggeredUpdate closes the ownership race,

@@ -10,18 +10,18 @@ import (
 	"time"
 )
 
-func TestProductionHTTPClientIsFixedAndBounded(t *testing.T) {
+func TestProductionHTTPClientCannotSend(t *testing.T) {
 	t.Parallel()
 	client := newHTTPClient()
 	defer client.Close()
-	if client.endpoint != "https://telemetry.multica.ai/v1/telemetry/events" {
+	if client.endpoint != "" {
 		t.Fatalf("endpoint = %q", client.endpoint)
 	}
-	if client.client.Timeout != 5*time.Second {
-		t.Fatalf("timeout = %s, want 5s", client.client.Timeout)
+	if client.client != nil {
+		t.Fatal("production telemetry must not construct an HTTP transport")
 	}
-	if client.client.Jar != nil {
-		t.Fatal("telemetry client must not have a cookie jar")
+	if got := client.Send(context.Background(), []byte(`{}`)); got != deliveryStopForDay {
+		t.Fatalf("disposition = %v, want stop", got)
 	}
 }
 
