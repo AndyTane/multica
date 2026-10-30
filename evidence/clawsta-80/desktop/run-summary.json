@@ -1,15 +1,22 @@
 {
-  "batch": "CLAWSTA-80 desktop acceptance D1",
-  "generatedAt": "2026-10-30T19:08:05.356Z",
+  "batch": "CLAWSTA-80 desktop egress observation D2",
+  "generatedAt": "2026-10-30T19:43:28.315Z",
+  "codeRevision": {
+    "head": "e537c27c594ffd6bc04dd9cc599835c925395b02",
+    "dirty": true
+  },
   "command": {
-    "spec": "pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --reporter=line",
+    "spec": "pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --grep 'packaged app boots' --reporter=line",
+    "observationMode": "continuous single pass: sampler and recorder baseline start before the app process; phases are slices of the same pass",
     "desktopExe": "C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-80-5c3a648fcc83\\workdir\\UWorkers-nice\\apps\\desktop\\dist\\win-unpacked\\U Workers.exe",
-    "acceptanceRoot": "C:\\Users\\HuaWei\\uw80-d1\\native",
+    "acceptanceRoot": "C:\\Users\\HuaWei\\uw80-d2\\native",
     "recordingProxy": "http://127.0.0.1:19090",
     "launchArgs": [
       "--proxy-server=http://127.0.0.1:19090",
       "--proxy-bypass-list=localhost;127.0.0.1;::1"
-    ]
+    ],
+    "screenshotsSkipped": true,
+    "samplerIntervalMs": 500
   },
   "exeVersionInfo": {
     "ProductName": "U Workers",
@@ -19,154 +26,443 @@
     "OriginalFilename": ""
   },
   "isolation": {
-    "userDataPath": "C:\\Users\\HuaWei\\uw80-d1\\native\\home\\AppData\\Roaming\\U Workers",
+    "userDataPath": "C:\\Users\\HuaWei\\uw80-d2\\native\\home\\AppData\\Roaming\\U Workers",
     "realAppDataPath": "C:\\Users\\HuaWei\\AppData\\Roaming\\U Workers",
-    "isolatedHome": "C:\\Users\\HuaWei\\uw80-d1\\native\\home",
-    "isolatedDesktopConfig": "C:\\Users\\HuaWei\\uw80-d1\\native\\home\\.u-workers\\desktop.json",
-    "userDataExistedBeforeRun": false,
+    "isolatedHome": "C:\\Users\\HuaWei\\uw80-d2\\native\\home",
+    "isolatedDesktopConfig": "C:\\Users\\HuaWei\\uw80-d2\\native\\home\\.u-workers\\desktop.json",
     "realAppDataExistedBeforeRun": false,
-    "realAppDataExistedAfterRun": false,
-    "realAppDataEverObserved": false,
+    "appDataParentsPrepared": true,
     "isolatedMulticaExistedBefore": false,
-    "realMulticaProfilesBeforeCount": 0,
-    "userDataExistedDuringRun": true,
-    "appDataExistedDuringRun": true,
-    "userDataRemovedAfterRun": true,
-    "isolatedMulticaDirCreated": true,
-    "newRealDesktopProfiles": []
+    "realMulticaProfilesBeforeCount": 0
   },
   "app": {
     "name": "U Workers",
     "loginWindowTitle": "U Workers",
     "mainWindowTitle": "Issues",
-    "userDataPath": "C:\\Users\\HuaWei\\uw80-d1\\native\\home\\AppData\\Roaming\\U Workers"
+    "userDataPath": "C:\\Users\\HuaWei\\uw80-d2\\native\\home\\AppData\\Roaming\\U Workers",
+    "browserAttachedAt": "2026-10-30T19:43:59.512Z",
+    "requestsAtAttach": 0,
+    "failedRequestsAtAttach": 0
   },
   "observation": {
-    "layers": {
-      "chromium": "launch args --proxy-server plus an explicit loopback bypass, and Playwright context/page request, websocket and navigation events",
-      "environment": "HTTP_PROXY/HTTPS_PROXY/NO_PROXY/NODE_USE_ENV_PROXY in the main-process environment contract; children inherit it",
-      "system": "per-second Get-NetTCPConnection sample of the packaged process tree (recursive child PIDs)"
-    },
+    "model": "one continuous pass: the TCP sampler starts before launch and the recorder baseline is taken before any control or app traffic; every phase is a time slice of the same pass",
     "controls": {
-      "chromiumSelfTest": [
-        "uw80-desktop-selftest.invalid",
-        "uw80-desktop-selftest-tls.invalid:443"
+      "controlWindows": [
+        {
+          "label": "node-env-proxy-control",
+          "start": "2026-10-30T19:43:28.346Z",
+          "end": "2026-10-30T19:43:58.500Z",
+          "hosts": [
+            "uw80-desktop-nodecontrol.invalid",
+            "uw80-desktop-nodecontrol.invalid:80"
+          ]
+        },
+        {
+          "label": "go-runtime-proxy-control",
+          "start": "2026-10-30T19:43:28.346Z",
+          "end": "2026-10-30T19:43:58.500Z",
+          "hosts": [
+            "uw80-desktop-go-control.invalid",
+            "uw80-desktop-go-control.invalid:80"
+          ]
+        },
+        {
+          "label": "chromium-self-test",
+          "start": "2026-10-30T19:44:02.888Z",
+          "end": "2026-10-30T19:44:07.270Z",
+          "hosts": [
+            "uw80-desktop-selftest.invalid",
+            "uw80-desktop-selftest-tls.invalid:443"
+          ]
+        }
       ],
-      "chromiumSelfTestFailedInApp": [
-        "http:status:502",
-        "http:recorder:true",
-        "tls:failed"
-      ],
-      "environmentProxyControl": true,
-      "environmentProxyControlHost": "uw80-desktop-nodecontrol.invalid",
-      "systemLayerControl": true,
-      "systemLayerControlRemote": "192.0.2.1:80"
+      "nodeEnvProxy": {
+        "host": "uw80-desktop-nodecontrol.invalid",
+        "recorded": true
+      },
+      "goRuntimeProxy": {
+        "attempted": true,
+        "recorded": true,
+        "skipped": false
+      },
+      "chromiumSelfTest": {
+        "results": [
+          "http:status:502",
+          "http:recorder:true",
+          "tls:failed"
+        ]
+      },
+      "systemTcpControl": {
+        "remote": "192.0.2.1:80",
+        "sampled": true
+      }
     },
-    "windowSeconds": 60,
-    "browser": {
-      "externalRequests": [],
-      "externalWebsockets": [],
-      "externalNavigations": [],
-      "requestsSinceControls": 49,
-      "isolatedApiRequests": 50,
-      "localWebsockets": [
-        "ws://127.0.0.1"
-      ],
-      "failedRequests": []
-    },
-    "environmentProxyViolations": [],
-    "systemLayer": {
-      "samples": 26,
-      "sampleErrors": 0,
-      "nonLoopback": [],
-      "observedProcesses": 8,
-      "daemonPidsSampled": 2
-    },
-    "pidTree": [
+    "phases": [
       {
-        "pid": 44116,
-        "ppid": 87276,
-        "name": "cmd.exe"
+        "name": "control-a-node-go-system",
+        "start": "2026-10-30T19:43:28.346Z",
+        "end": "2026-10-30T19:43:58.500Z",
+        "durationMs": 30154,
+        "samplerIntervalMs": 500,
+        "ok": true,
+        "errors": [],
+        "recorder": {
+          "violations": [],
+          "excludedControlEntries": [
+            {
+              "kind": "connect",
+              "host": "uw80-desktop-nodecontrol.invalid:80",
+              "method": "CONNECT",
+              "control": "node-env-proxy-control"
+            },
+            {
+              "kind": "http",
+              "host": "uw80-desktop-go-control.invalid",
+              "method": "GET",
+              "control": "go-runtime-proxy-control"
+            }
+          ]
+        },
+        "browserLayerMeasured": false,
+        "browser": null,
+        "tcp": {
+          "samples": 15,
+          "errors": 0,
+          "minGapMs": 1709,
+          "maxGapMs": 2067,
+          "nonLoopbackCount": 2,
+          "nonLoopback": [
+            {
+              "remote": "192.0.2.1:80",
+              "state": "Established",
+              "pid": 82336
+            },
+            {
+              "remote": "192.0.2.1:80",
+              "state": "Established",
+              "pid": 82336
+            }
+          ],
+          "sampledAppProcesses": 0,
+          "sampledDaemonProcesses": 0
+        }
       },
       {
-        "pid": 32528,
-        "ppid": 44116,
-        "name": "U Workers.exe"
+        "name": "startup",
+        "start": "2026-10-30T19:43:58.501Z",
+        "end": "2026-10-30T19:44:02.888Z",
+        "durationMs": 4387,
+        "samplerIntervalMs": 500,
+        "ok": true,
+        "errors": [],
+        "recorder": {
+          "violations": [],
+          "excludedControlEntries": []
+        },
+        "browserLayerMeasured": false,
+        "browser": null,
+        "tcp": {
+          "samples": 2,
+          "errors": 0,
+          "minGapMs": 2290,
+          "maxGapMs": 2290,
+          "nonLoopbackCount": 0,
+          "nonLoopback": [],
+          "sampledAppProcesses": 4,
+          "sampledDaemonProcesses": 0
+        }
       },
       {
-        "pid": 79792,
-        "ppid": 32528,
-        "name": "U Workers.exe"
+        "name": "control-b-chromium-selftest",
+        "start": "2026-10-30T19:44:02.888Z",
+        "end": "2026-10-30T19:44:07.270Z",
+        "durationMs": 4382,
+        "samplerIntervalMs": 500,
+        "ok": true,
+        "errors": [],
+        "recorder": {
+          "violations": [],
+          "excludedControlEntries": [
+            {
+              "kind": "http",
+              "host": "uw80-desktop-selftest.invalid",
+              "method": "GET",
+              "control": "chromium-self-test"
+            },
+            {
+              "kind": "connect",
+              "host": "uw80-desktop-selftest-tls.invalid:443",
+              "method": "CONNECT",
+              "control": "chromium-self-test"
+            }
+          ]
+        },
+        "browserLayerMeasured": true,
+        "browser": {
+          "externalRequests": 0,
+          "externalWebsockets": 0,
+          "externalNavigations": 0,
+          "failedRequests": 0
+        },
+        "tcp": {
+          "samples": 2,
+          "errors": 0,
+          "minGapMs": 2086,
+          "maxGapMs": 2086,
+          "nonLoopbackCount": 0,
+          "nonLoopback": [],
+          "sampledAppProcesses": 4,
+          "sampledDaemonProcesses": 0
+        }
       },
       {
-        "pid": 56212,
-        "ppid": 32528,
-        "name": "U Workers.exe"
+        "name": "login",
+        "start": "2026-10-30T19:44:07.270Z",
+        "end": "2026-10-30T19:44:11.720Z",
+        "durationMs": 4450,
+        "samplerIntervalMs": 500,
+        "ok": true,
+        "errors": [],
+        "recorder": {
+          "violations": [],
+          "excludedControlEntries": []
+        },
+        "browserLayerMeasured": true,
+        "browser": {
+          "externalRequests": 0,
+          "externalWebsockets": 0,
+          "externalNavigations": 0,
+          "failedRequests": 0
+        },
+        "tcp": {
+          "samples": 2,
+          "errors": 0,
+          "minGapMs": 2203,
+          "maxGapMs": 2203,
+          "nonLoopbackCount": 0,
+          "nonLoopback": [],
+          "sampledAppProcesses": 13,
+          "sampledDaemonProcesses": 2
+        }
       },
       {
-        "pid": 23884,
-        "ppid": 32528,
-        "name": "U Workers.exe"
+        "name": "browse",
+        "start": "2026-10-30T19:44:11.720Z",
+        "end": "2026-10-30T19:44:15.871Z",
+        "durationMs": 4151,
+        "samplerIntervalMs": 500,
+        "ok": true,
+        "errors": [],
+        "recorder": {
+          "violations": [],
+          "excludedControlEntries": []
+        },
+        "browserLayerMeasured": true,
+        "browser": {
+          "externalRequests": 0,
+          "externalWebsockets": 0,
+          "externalNavigations": 0,
+          "failedRequests": 0
+        },
+        "tcp": {
+          "samples": 2,
+          "errors": 0,
+          "minGapMs": 2026,
+          "maxGapMs": 2026,
+          "nonLoopbackCount": 0,
+          "nonLoopback": [],
+          "sampledAppProcesses": 4,
+          "sampledDaemonProcesses": 1
+        }
+      },
+      {
+        "name": "idle-60s",
+        "start": "2026-10-30T19:44:15.871Z",
+        "end": "2026-10-30T19:45:15.889Z",
+        "durationMs": 60018,
+        "samplerIntervalMs": 500,
+        "ok": true,
+        "errors": [],
+        "recorder": {
+          "violations": [],
+          "excludedControlEntries": []
+        },
+        "browserLayerMeasured": true,
+        "browser": {
+          "externalRequests": 0,
+          "externalWebsockets": 0,
+          "externalNavigations": 0,
+          "failedRequests": 0
+        },
+        "tcp": {
+          "samples": 28,
+          "errors": 0,
+          "minGapMs": 1855,
+          "maxGapMs": 2218,
+          "nonLoopbackCount": 0,
+          "nonLoopback": [],
+          "sampledAppProcesses": 4,
+          "sampledDaemonProcesses": 1
+        }
       }
     ],
-    "targetHostsSeen": [],
-    "daemonChildObserved": false,
-    "localWebsockets": [
-      "ws://127.0.0.1"
-    ],
+    "sampler": {
+      "file": "tcp-samples.jsonl",
+      "intervalMs": 500,
+      "totalSamples": 52,
+      "firstSampleAt": "2026-10-30T19:43:31.4289878Z",
+      "lastSampleAt": "2026-10-30T19:45:16.1577012Z",
+      "maxGapMs": 2290,
+      "medianGapMs": 2067,
+      "samplerErrors": 0,
+      "note": "sampling backstop, not a complete connection log; phases fail when their own window has no samples or a sampler error"
+    },
+    "recorder": {
+      "file": "recorder.jsonl",
+      "baselineOffset": 1,
+      "entriesAfterBaseline": 5,
+      "trafficEntries": 4
+    },
     "daemon": {
       "observed": true,
       "pids": [
-        75704,
-        65276
+        49512,
+        52756
       ],
-      "profileDir": "C:\\Users\\HuaWei\\uw80-d1\\native\\home\\.multica\\profiles\\u-workers-desktop-127.0.0.1-18081",
+      "firstSeenAt": "2026-10-30T19:44:11.4572715Z",
+      "profileDir": "C:\\Users\\HuaWei\\uw80-d2\\native\\home\\.multica\\profiles\\u-workers-desktop-127.0.0.1-18081",
       "profileInitialized": true,
-      "boundary": "The CLI daemonizes, so it is not part of the app's live parent chain; its detached PIDs from the isolated profile are sampled as additional TCP roots."
+      "executablePath": "C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-80-5c3a648fcc83\\workdir\\UWorkers-nice\\apps\\desktop\\dist\\win-unpacked\\resources\\app.asar.unpacked\\resources\\bin\\multica.exe",
+      "identification": "multica.exe with the packaged CLI executable path, the isolated profile needle and a creation time inside this run"
     },
-    "windowStartedAt": "2026-10-30T19:08:20.252Z",
-    "windowEndedAt": "2026-10-30T19:09:21.028Z",
-    "daemonCleanup": {
-      "stoppedPids": [
-        65276
-      ],
-      "remainingPids": 0
-    }
+    "boundaries": [
+      "Chromium network is covered by the refusing recorder from app process start plus Playwright events from the first attached window; the recorder baseline is taken before launch, so startup traffic is measured, not assumed zero.",
+      "The TCP layer is a sampling backstop (interval recorded, gaps reported), not a complete connection log; missing samples or sampler errors fail a phase instead of counting as zero.",
+      "The environment-proxy contract is verified with the same runtimes (Node and Go) in minimal local controls; that proves the contract and those runtimes, not that every runtime inside the app obeys it. The actual Go daemon is covered by its detached PIDs in the TCP sampler.",
+      "Only exact control destinations inside their own timestamp windows are excluded; there is no wildcard allowlist."
+    ]
   },
-  "screenshots": [
-    "evidence/clawsta-80/desktop/login.png",
-    "evidence/clawsta-80/desktop/main.png"
-  ],
+  "cleanup": {
+    "workspaceDaemon": {
+      "pid": 83428,
+      "source": "multica daemon status --output json",
+      "port": 19514,
+      "cliPath": "D:\\01_Projects\\multica-fork\\server\\bin\\multica.exe",
+      "aliveAfterCleanup": true
+    },
+    "preLaunch": {
+      "snapshotAt": "2026-10-30T19:43:26.720Z",
+      "preExistingAppPids": [],
+      "preExistingDaemonPids": []
+    },
+    "plans": [
+      {
+        "group": "packaged app process tree",
+        "expectedExecutablePath": "C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-80-5c3a648fcc83\\workdir\\UWorkers-nice\\apps\\desktop\\dist\\win-unpacked\\U Workers.exe",
+        "approved": [],
+        "rejected": [],
+        "candidatesSeenAtClose": [
+          {
+            "pid": 60248,
+            "name": "U Workers.exe",
+            "creationDate": "2026-10-30T19:43:58.5564320Z"
+          },
+          {
+            "pid": 77392,
+            "name": "U Workers.exe",
+            "creationDate": "2026-10-30T19:43:59.1789130Z"
+          },
+          {
+            "pid": 84348,
+            "name": "U Workers.exe",
+            "creationDate": "2026-10-30T19:43:59.1962830Z"
+          },
+          {
+            "pid": 20684,
+            "name": "U Workers.exe",
+            "creationDate": "2026-10-30T19:43:59.2902060Z"
+          }
+        ]
+      },
+      {
+        "group": "bundled CLI daemon",
+        "expectedExecutablePath": "C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-80-5c3a648fcc83\\workdir\\UWorkers-nice\\apps\\desktop\\dist\\win-unpacked\\resources\\app.asar.unpacked\\resources\\bin\\multica.exe",
+        "profileNeedle": "u-workers-desktop-127.0.0.1-18081",
+        "approved": [
+          52756
+        ],
+        "rejected": [],
+        "candidatesSeenAtClose": [
+          {
+            "pid": 52756,
+            "creationDate": "2026-10-30T19:44:08.0837800Z"
+          }
+        ]
+      }
+    ],
+    "remainingRunOwnedProcesses": {
+      "app": [],
+      "daemon": []
+    },
+    "recursiveDeletions": [
+      {
+        "label": "isolated userData",
+        "path": "C:\\Users\\HuaWei\\uw80-d2\\native\\home\\AppData\\Roaming\\U Workers",
+        "existed": true,
+        "removed": true
+      },
+      {
+        "label": "helper scripts",
+        "path": "C:\\Users\\HuaWei\\uw80-d2\\native\\state\\d2-helpers",
+        "existed": true,
+        "removed": true
+      },
+      {
+        "label": "go proxy control",
+        "path": "C:\\Users\\HuaWei\\uw80-d2\\native\\state\\go-proxy-control",
+        "existed": true,
+        "removed": true
+      }
+    ]
+  },
+  "screenshots": [],
   "scenarios": [
     {
-      "scenario": "isolated-login-page",
-      "proxyViolations": 0,
-      "externalRequests": 0
+      "scenario": "pre-launch controls",
+      "phases": [
+        "control-a-node-go-system"
+      ]
     },
     {
-      "scenario": "isolated-login",
-      "proxyViolations": 0,
-      "externalRequests": 0
+      "scenario": "startup",
+      "phases": [
+        "startup"
+      ],
+      "browserLayer": "not attached yet; recorder covers Chromium from process start"
     },
     {
-      "scenario": "browse-issues-inbox-agents",
-      "proxyViolations": 0,
-      "externalRequests": 0
+      "scenario": "control-b chromium self-test",
+      "phases": [
+        "control-b-chromium-selftest"
+      ]
     },
     {
-      "scenario": "email-code-login-browse-idle-60s",
-      "proxyViolations": 0,
-      "externalBrowserRequests": 0,
-      "externalBrowserWebsockets": 0,
-      "externalBrowserNavigations": 0,
-      "tcpSamples": 26,
-      "tcpExternalConnections": 0
+      "scenario": "login",
+      "phases": [
+        "login"
+      ]
+    },
+    {
+      "scenario": "browse",
+      "phases": [
+        "browse"
+      ]
+    },
+    {
+      "scenario": "idle",
+      "phases": [
+        "idle-60s"
+      ]
     }
-  ],
-  "boundaries": [
-    "The TCP sample is a sampling backstop, not exhaustive process-egress proof.",
-    "Cross-machine login/realtime is out of scope for this batch (needs a second authorized machine).",
-    "NSIS install, OS-level installed icon association and the tray remain unverified for this batch.",
-    "The packaged window title bar shows the localized document title after login (for example Issues); the product name is carried by the exe version resources, app.getName(), the login window title and the in-app brand mark."
   ]
 }

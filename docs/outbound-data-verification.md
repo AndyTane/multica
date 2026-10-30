@@ -3,8 +3,11 @@
 Status: acceptance run executed 2026-10-30/31 against the integration baseline
 `32099218abac46865ab2e7d1cbb5b18532525e92`; the packaged Windows desktop
 acceptance batch D1 was executed 2026-10-31 on top of `929e40690` (PR #3 head
-`6b213959c`, branch `agent/agent/079e5e4a0861`). Results and the exact
-boundary of what was and was not verified are recorded below. Policy:
+`6b213959c`, branch `agent/agent/079e5e4a0861`); the desktop egress
+observation supplement D2 was executed 2026-10-31 on the same branch
+(`e537c27c5` plus the observation fixes recorded in this file). D2 supersedes
+the D1 desktop observation scope; the D1 summary is kept as history. Results
+and the exact boundary of what was and was not verified are recorded below. Policy:
 [docs/outbound-data-policy.md](outbound-data-policy.md). Plan:
 [docs/plans/2026-10-30-u-workers-frontend-local-only.md](plans/2026-10-30-u-workers-frontend-local-only.md).
 
@@ -27,12 +30,17 @@ Verified in this run:
 - C1 follow-up: a second Windows machine serves a real LAN browser login,
   issue/attachment round-trip and business WebSocket update; its scheduled-task
   supervisor survives the starting SSH session. See the cross-machine section.
-- The packaged Windows desktop build (batch D1) boots from an isolated
-  `desktop.json`, logs in through its own UI against the isolated deployment,
-  browses Issues/Inbox/Agents, idles 60 s and produces zero non-loopback
-  traffic in all three observation layers, including the daemon the desktop
-  auto-starts from its bundled CLI. The exe carries the `U Workers` product
-  identity in its version resources.
+- The packaged Windows desktop (batch D2) was observed in one continuous pass:
+  the TCP sampler and the recorder baseline existed before the app process
+  started, and startup, engine controls, real login, browsing and a 60 s idle
+  window were each evaluated against their own time window. Every phase had
+  samples, zero recorder traffic outside exact timestamped control windows, zero
+  browser-layer egress and zero non-loopback TCP connections. The daemon the
+  desktop auto-starts from its bundled CLI was identified by executable path,
+  isolated profile and creation time, sampled from first appearance and removed
+  after attribution checks; the workspace daemon PID was protected and confirmed
+  alive. The exe carries the `U Workers` product identity in its version
+  resources.
 
 Not claimed:
 
@@ -42,6 +50,12 @@ Not claimed:
 - Mobile (excluded by the plan), real agent CLI runs, real model accounts, real
   email/message delivery, real integration accounts or real update downloads.
 - Company-network, HTTPS and Tailscale access: C1 tested the home LAN only.
+- Complete desktop connection logging. The Windows TCP layer is a sampling
+  backstop (D2 measured a `2.07 s median interval, 2.29 s maximum gap and 52
+  samples overall); it is not a complete traffic record. The env-proxy contract
+  is proven with the same Node and Go runtimes in controls, and the actual Go
+  daemon is covered by its detached PIDs in the sampler; neither statement
+  proves that every runtime inside the app honors the contract.
 - NSIS installation and post-install OS icon/start-menu association: not run.
   Tray menu: this codebase has no Electron tray implementation at all.
 
@@ -94,6 +108,26 @@ redirected profile (`<root>\home\AppData\Roaming\U Workers`) and the real
 to run unless the isolated root marker, the deployment ports and the launch
 environment all agree.
 
+### Desktop batch D2 isolated environment
+
+The D2 observation drove only the packaged desktop request scenario, in a
+fresh disposable root with a new database:
+
+| Resource | Value |
+| --- | --- |
+| Deployment root | `C:\Users\HuaWei\uw80-d2\native` (outside the repository, removed after the run) |
+| PostgreSQL cluster | fresh `initdb` cluster on 127.0.0.1:16432, database `uw80_d2_acceptance` |
+| Go API | 127.0.0.1:18081 |
+| Next.js production server | 127.0.0.1:13001 |
+| Recording proxy | 127.0.0.1:19090 |
+| Desktop profile | redirected `USERPROFILE`/`HOME` at `<root>\home` with a prepared `AppData\Roaming` and `AppData\Local`; `<root>\home\.u-workers\desktop.json` points at the ports above |
+| Packaged app | the preserved D1 `apps\desktop\dist\win-unpacked\U Workers.exe` (verified, not repackaged) |
+| Isolated daemon | bundled `resources\app.asar.unpacked\resources\bin\multica.exe` started by the desktop with profile `u-workers-desktop-127.0.0.1-18081` |
+
+The existing deployment (PostgreSQL 15432, API 8080, web 3000) and its
+workspace daemon were left untouched. The real `%APPDATA%\U Workers` and the
+real `~/.multica` desktop profile were never created.
+
 ## Build products
 
 The acceptance deployment ran real build output, not development servers:
@@ -119,6 +153,12 @@ cache (7-Zip cannot create the macOS dylib symlinks on an unprivileged Windows
 account) and bundling the `@multica/core` workspace TypeScript into the main
 process instead of externalizing it (Node 24 refuses to strip types inside
 `node_modules`, which killed the packaged main process at launch).
+
+D2 did not repackage. The preserved `U Workers.exe` was verified before the run
+(`ProductName`/`FileDescription` = `U Workers`, FileVersion `0.2.0-dirty`) and
+reused with the same isolated `desktop.json`. The isolated deployment was
+rebuilt from the D2 branch state (`v0.2.0 (e537c27c5)`) with a temporary local
+`v0.2.0` tag, deleted again after the run.
 
 ## Runbook used for the recorded evidence
 
@@ -201,6 +241,40 @@ end-to-end). Keep every path/port/database separate from any real deployment.
 7. Stop the deployment (`-Action Stop`) and the recorder by their recorded
    PIDs, then remove the isolated root.
 
+### Desktop batch D2 runbook (observation supplement)
+
+1. Reuse the preserved packaged exe and verify its version resources; rebuild
+   the isolated API/Web/PostgreSQL deployment only (fresh root, database and
+   ports as in D1) and start it with `MULTICA_DEV_VERIFICATION_CODE=888888`.
+2. Prepare the redirected profile layout: create `<root>\home\AppData\Roaming`
+   and `<root>\home\AppData\Local` before launch. A real Windows profile always
+   has these; Electron's `app.getPath("appData")` fails on a redirected profile
+   that has no `AppData` directory at all. The isolated userData directory
+   itself must still not exist before the run.
+3. Start the recorder, then take the recorder baseline before any control or app
+   traffic.
+4. Run only the desktop request-observation scenario with the isolated
+   environment from D1 plus `E2E_DESKTOP_SKIP_SCREENSHOTS=1` so the approved
+   brand screenshots are not regenerated:
+   ```
+   pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium \
+     --grep 'packaged app boots' --reporter=line
+   ```
+   The spec starts the TCP sampler before launching the app and records the
+   phase boundaries (pre-launch controls, startup, Chromium control, login,
+   browse, idle 60 s) from the same pass, then writes `run-summary.json`,
+   `recorder.jsonl` and `tcp-samples.jsonl`.
+5. Observer regression: `node --test scripts/e2e/desktop-observer.test.mjs`.
+   It proves a non-control request during any phase fails, only exact control
+   hosts inside their own timestamp windows are excluded, malformed recorder or
+   sampler metadata fails, and missing samples or sampler errors never read as
+   zero.
+6. Cleanup is attribution-checked: the spec snapshots processes before launch,
+   records the workspace daemon PID from `multica daemon status --output json`,
+   only stops processes whose executable path, isolated profile and creation
+   time are verified, fails when any run-owned process or recursive deletion
+   remains, and refuses recursive deletes outside the isolated root.
+
 ## Observation layers
 
 `scripts/e2e/recording-proxy.mjs` is a refusing HTTP proxy used only for this
@@ -225,14 +299,17 @@ Only exact observer destinations are exempted: `uw80-node-control.invalid:80`,
 fine" rule and no arbitrary marker-header exemption; markers are only written
 for the fixed values `node`, `go`, `browser-http`, `browser-tls`.
 
-The desktop batch adds a packaged-process variant of the same three-layer
-observation, and includes the daemon the desktop starts from its bundled CLI:
+The desktop batch (D2) uses a continuous observation pass instead of separate
+windows: the TCP sampler starts and the recorder baseline is taken before the
+packaged app process exists, and every phase is a timestamped slice of that same
+pass. D1 only measured the final idle window; its earlier phase counts were not
+measurements and are not relied on here.
 
 | Layer | How it is observed | Why it cannot fake a pass |
 | --- | --- | --- |
-| Chromium network (packaged app) | The app launches with `--proxy-server=http://127.0.0.1:<recorder>` and an explicit loopback bypass list; Playwright context/page request, websocket, navigation and failed-request events are recorded | Two exact self-test destinations are fetched from the packaged renderer before the window: the recorder must record both and the renderer must receive the recorder's 502 refusal body (HTTPS self-test fails at the tunnel). The desktop renderer runs with `webSecurity: false`, so the refusal is asserted as status + recorder body, not as a rejected promise. |
-| Main process and child processes (packaged app, including auto-started daemon) | The constructed main-process environment carries `HTTP(S)_PROXY`, `NO_PROXY` and `NODE_USE_ENV_PROXY=1`; children inherit it. The auto-started bundled CLI daemon is detached, so its exact PIDs are resolved from the isolated profile name and added as extra TCP roots | A Node control process with the same environment contract must be refused and recorded by the recorder; the main-process environment contract is read back from the running app; the daemon PIDs are recorded and sampled. |
-| Windows TCP table (packaged app + daemon) | `Get-NetTCPConnection` sampled every second for the packaged process tree plus the detached daemon PIDs | A deliberate `SYN_SENT` to the reserved TEST-NET-1 address `192.0.2.1:80` must appear in the sample first; the spec fails unless the sampler sees it. During the 60 s window, non-loopback connections must be zero. |
+| Chromium network (packaged app) | The app launches with `--proxy-server=http://127.0.0.1:<recorder>` and an explicit loopback bypass; the recorder baseline predates launch, and Playwright context/page request, websocket, navigation and failed-request events are attached at the first window | The recorder sees startup traffic from process start. Two exact self-test destinations are fetched from the packaged renderer in a dedicated control window: the recorder must record both and the renderer must receive the recorder's 502 refusal body (HTTPS self-test fails at the tunnel). The startup phase's browser layer is recorded as *not measured* (listeners attach at the first window); the recorder layer still covers that phase. |
+| Main process and child processes (packaged app, including auto-started daemon) | The constructed main-process environment carries `HTTP(S)_PROXY`, `NO_PROXY` and `NODE_USE_ENV_PROXY=1` and is read back from the running app; children inherit it. Same-runtime controls: a Node control and a Go control binary run with that exact environment, and the desktop's detached CLI daemon is matched by executable path + isolated profile + creation time and added as a TCP root from its first sample | Both runtime controls must be recorded and refused inside their own windows. The Node and Go controls prove the contract for those runtimes, not for every runtime inside the app; the actual daemon is additionally covered by the TCP sampler. |
+| Windows TCP table (packaged app + daemon) | `Get-NetTCPConnection` sampled continuously (`500 ms requested; measured median `2.07 s, max gap `2.29 s, 52 samples) over packaged processes plus detached daemon PIDs; sample timestamps and gaps are recorded | A deliberate connection to the reserved TEST-NET-1 address `192.0.2.1:80` must be sampled first. Every phase fails on zero samples, sampler errors or an unexpected non-loopback connection; missing data is never read as zero. The layer is a sampling backstop, not a complete connection log. |
 
 ## Scenarios and results
 
@@ -271,7 +348,7 @@ Notes:
   brand. It is not introduced by this task and does not change the network
   boundary.
 
-### Desktop batch D1 results
+### Desktop batch D1 results (historical, superseded for observation scope)
 
 Command:
 `pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --reporter=line`
@@ -292,6 +369,42 @@ Evidence: `evidence/clawsta-80/desktop/run-summary.json`, `login.png`,
 the window title bar and the taskbar icon; unrelated always-on-top desktop
 windows from other applications are hidden only for the capture and restored
 immediately afterwards.
+
+D1's recorder offset and TCP sampling only covered the final idle window, and the
+first three scenario rows were constants rather than measurements. Those
+screenshots and the D1 summary (`run-summary-d1.json`) remain as history; they
+are not used as evidence that startup, login and browse produced zero egress.
+
+### Desktop batch D2 results
+
+Command:
+`pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --grep "packaged app boots" --reporter=line`
+against the D2 isolated deployment. Result: **1 passed, exit 0** in 2.1 minutes
+(the brand web-matrix tests were not re-run in D2). The test performed one
+continuous observation pass and failed on any phase error:
+
+| Phase | Samples | Recorder violations | Non-loopback TCP | Browser layer |
+| --- | --- | --- | --- | --- |
+| pre-launch controls (Node env proxy, Go env proxy, TEST-NET-1) | 15 | 0 (2 exact control entries excluded) | 2 (both the declared `192.0.2.1:80` control) | not measured |
+| startup (launch to branded login page) | 2 | 0 | 0 | not measured (recorder covers it) |
+| Chromium self-test control | 2 | 0 (2 exact control entries excluded) | 0 | 0 |
+| real email-code login | 2 | 0 | 0 | 0 |
+| browse Issues/Inbox/Agents | 2 | 0 | 0 | 0 |
+| idle 60 s | 28 | 0 | 0 | 0 |
+
+Additional D2 facts: recorder had 4 traffic entries after the baseline, all four
+exact control destinations; the Go-runtime control was recorded as an HTTP
+request and refused; the auto-started daemon was first sampled during login,
+reached 2 PIDs at identification time and 1 during the later phases; the
+workspace daemon PID `83428` (from `multica daemon status --output json`) was
+protected and confirmed alive after cleanup; run-owned processes and deletions
+were all verified and left nothing behind.
+
+Evidence: `evidence/clawsta-80/desktop/run-summary.json` (phase summary),
+`recorder.jsonl` (sanitized recorder metadata),
+`tcp-samples.jsonl` (sanitized timestamps, PIDs and connection metadata),
+`run-summary-d1.json` (historical D1 summary). `login.png` and `main.png` are
+the approved D1 captures and were not regenerated in D2.
 
 ## Authorized capability remains
 
@@ -396,13 +509,24 @@ The instance is retained for user review; lifecycle commands are in
 - The packaged app launches through Playwright with a redirected
   `USERPROFILE`/`HOME`, reads the isolated `~/.u-workers/desktop.json`, shows
   no configuration-error page, logs in through the real login UI against the
-  isolated deployment, browses Issues/Inbox/Agents and idles for 60 s. Across
-  those steps the Chromium proxy layer, the main-process/child environment
-  contract (including the auto-started bundled CLI daemon) and the per-second
-  Windows TCP sample of the packaged process tree all report zero non-loopback
-  traffic; the exe identity, the isolated config path and the login are
-  asserted inside the test rather than observed manually. See
-  [Desktop batch D1 results](#desktop-batch-d1-results).
+  isolated deployment, browses Issues/Inbox/Agents and idles for 60 s. D2
+  observes the whole pass continuously (sampler and recorder baseline before
+  launch), evaluates each phase on its own timestamped window and fails on
+  missing samples, sampler errors or any non-control egress. The Chromium
+  recorder layer, the browser event layer, the same-runtime Node/Go env-proxy
+  controls and the TCP sampling of the packaged tree plus the detached daemon
+  all report zero non-loopback traffic. See
+  [Desktop batch D2 results](#desktop-batch-d2-results).
+- Packaging identity is unchanged from D1: the exe reports `ProductName: U Workers`,
+  `FileDescription: U Workers` and the packaged app reports
+  `app.getName() === "U Workers"`. The winCodeSign cache bypass and the
+  workspace-TypeScript bundling fix remain documented in
+  [windows-native.md](windows-native.md).
+- Cleanup is attribution-checked in D2: a pre-launch process snapshot, the
+  owned executable paths, creation times and the workspace daemon PID (from
+  `multica daemon status --output json`) gate every stop, and a recursive
+  deletion failure or leftover run-owned process fails the test instead of
+  being logged as best effort.
 - Isolation boundary: the desktop userData directory resolves under the
   redirected profile (`<root>\home\AppData\Roaming\U Workers`), not the real
   `%APPDATA%\U Workers`; the real roaming directory never existed before,
@@ -419,6 +543,13 @@ The instance is retained for user review; lifecycle commands are in
     workspace: the bundled CLI refuses `daemon start` when it detects a
     daemon-managed task marker in a parent directory. This is a harness
     requirement, not a product change.
+  - The redirected Windows profile needs a real profile layout: Chromium's
+    `app.getPath("appData")` fails when the redirected home has no `AppData`
+    directory at all. The harness creates `AppData\Roaming` and `AppData\Local`
+    before launch; a real Windows profile always has them.
+  - The TCP sampler is a sampling backstop with measured cadence recorded in the
+    evidence (`500 ms requested, `2.07 s median, `2.29 s max gap, 52 samples);
+    it is not a per-second or complete connection log.
   - The tab system owns `document.title` after login, so the OS window title
     shows the localized route name (for example `Issues`) instead of the
     product name; the login window title is `U Workers`, and the product name
@@ -471,6 +602,8 @@ Run from the repository root unless noted. Results recorded in this batch:
 | `pnpm --filter @multica/desktop typecheck` (batch D1) | PASS — exit 0 |
 | `pnpm --filter @multica/desktop test` (batch D1) | 644 tests passed; suite `scripts/package.test.mjs` fails to load (`SyntaxError: Invalid or unexpected token`) — the same base-checkout loader family recorded in item 6 above; neither that file nor its config was touched by this batch |
 | `pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --reporter=line` with the isolated desktop harness (batch D1) | PASS — 4 passed, exit 0, 1.5 min; the packaged desktop case ran (not skipped) |
+| `node --test scripts/e2e/desktop-observer.test.mjs` (batch D2) | PASS — 11/11 observer regressions: a non-control request in any phase fails; only exact control hosts inside their own windows are excluded; malformed recorder/sampler metadata fails; missing samples and sampler errors never read as zero; cleanup attribution protects the workspace daemon |
+| `pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --grep "packaged app boots" --reporter=line` with the D2 isolated harness | PASS — 1 passed, exit 0, 2.1 min; one continuous observation pass with every phase (pre-launch controls, startup, Chromium control, login, browse, idle 60 s) passing |
 
 ### Independent reviewer evidence
 
@@ -553,6 +686,19 @@ the reviewer's boundary; it produced no acceptance result and is not counted.
 | Isolated acceptance root | `C:\Users\HuaWei\uw80-d1` | removed recursively; the parent directory is absent |
 | Temporary local Git tag | `v0.2.0` (native build version stamp) | deleted with `git tag -d`; tag list is empty and nothing was pushed to a base branch |
 | Desktop packaging output | `apps/desktop/dist` | retained as local build output only (gitignored); no artifact was published |
+
+### Desktop batch D2 cleanup
+
+| Resource | PID / path | Cleanup |
+| --- | --- | --- |
+| Isolated acceptance deployment | `C:\Users\HuaWei\uw80-d2\native` (ports 16432/18081/13001, database `uw80_d2_acceptance`) | `native-windows.ps1 -Action Stop` exited 0; all ports verified closed afterwards |
+| Recording proxy | port 19090 | run-owned recorder process stopped; port verified closed |
+| Run-owned packaged app | PIDs from the pre-launch snapshot check (4 processes seen at close) | app closed by Playwright; no run-owned app process remained in the post-cleanup scan |
+| Bundled CLI daemon | `52756` (identified by packaged CLI executable path + isolated profile + creation time) | stopped only after attribution verification; `remainingRunOwnedProcesses.daemon = []` |
+| Workspace daemon (not ours) | `83428` (from `multica daemon status --output json`) | protected; confirmed alive after cleanup |
+| Isolated desktop userData, helper scripts, Go control source | inside `<root>` | each recursive delete validated as inside the isolated root, all `removed: true` |
+| Isolated acceptance root | `C:\Users\HuaWei\uw80-d2` | removed recursively after the deployment stopped |
+| Temporary local Git tag | `v0.2.0` | deleted with `git tag -d`; nothing was pushed to a base branch |
 
 ## Post-run corrections applied
 
