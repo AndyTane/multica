@@ -1,31 +1,40 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 
-const originalBeacon = Object.getOwnPropertyDescriptor(navigator, "sendBeacon");
-afterEach(() => {
-  vi.unstubAllGlobals();
-  if (originalBeacon) Object.defineProperty(navigator, "sendBeacon", originalBeacon);
-  else Reflect.deleteProperty(navigator, "sendBeacon");
-});
+afterEach(() => vi.restoreAllMocks());
 
-it("loads the real analytics dependency without making network requests", async () => {
-  const fetchRequest = vi.fn(() => Promise.reject(new Error("Network disabled in privacy test")));
-  const xhrRequest = vi.fn(() => { throw new Error("Network disabled in privacy test"); });
+it("does not report or replace the network APIs used by authorized work", async () => {
+  const fetchRequest = vi.fn(async () => ({ ok: true }));
   const beaconRequest = vi.fn(() => false);
+  const xhrRequest = vi.spyOn(XMLHttpRequest.prototype, "send").mockImplementation(() => {});
+  const addListener = vi.spyOn(window, "addEventListener");
   vi.stubGlobal("fetch", fetchRequest);
-  vi.stubGlobal("XMLHttpRequest", class {
-    // The SDK constructs an XHR for a capability probe; only send is network I/O.
-    withCredentials = false;
-    send() { xhrRequest(); }
-  });
-  Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: beaconRequest });
-  const analytics = await import("./index");
-  expect(analytics.initAnalytics({ key: "test-project-key", host: "https://collector.invalid" })).toBe(false);
-  analytics.identify("test-user");
-  analytics.captureEvent("test-event", {}, { sendInstantly: true });
-  analytics.captureException(new Error("test-error"));
-  analytics.setPersonProperties({ source: ["search"] });
-  expect(fetchRequest).not.toHaveBeenCalled();
-  expect(xhrRequest).not.toHaveBeenCalled();
-  expect(beaconRequest).not.toHaveBeenCalled();
+  vi.stubGlobal("navigator", { sendBeacon: beaconRequest });
+  try {
+    const xhr = XMLHttpRequest;
+    const webSocket = WebSocket;
+    const analytics = await import("./index");
+    expect(analytics.initAnalytics({ key: "test-project-key", host: "https://collector.invalid" })).toBe(false);
+    analytics.identify("test-user");
+    analytics.captureEvent("test-event", {}, { sendInstantly: true });
+    analytics.captureException(new Error("test-error"));
+    analytics.setPersonProperties({ source: ["search"] });
+    analytics.resetAnalytics();
+    expect(fetchRequest).not.toHaveBeenCalled();
+    expect(xhrRequest).not.toHaveBeenCalled();
+    expect(beaconRequest).not.toHaveBeenCalled();
+    expect(addListener).not.toHaveBeenCalled();
+    expect(globalThis.fetch).toBe(fetchRequest);
+    expect(XMLHttpRequest).toBe(xhr);
+    expect(WebSocket).toBe(webSocket);
+
+    // Same global API stays available for explicitly configured connections.
+    const response = await fetch("https://user-model.invalid/v1/messages", { method: "POST" });
+    expect(response.ok).toBe(true);
+    expect(fetchRequest).toHaveBeenCalledExactlyOnceWith(
+      "https://user-model.invalid/v1/messages", { method: "POST" },
+    );
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

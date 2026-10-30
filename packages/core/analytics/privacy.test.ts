@@ -1,14 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("posthog-js", () => ({
-  default: {
-    init: vi.fn(), register: vi.fn(), identify: vi.fn(), reset: vi.fn(),
-    capture: vi.fn(), captureException: vi.fn(),
-  },
-}));
-
-import posthog from "posthog-js";
 import {
   captureEvent, captureException, captureSignupSource, identify,
   initAnalytics, resetAnalytics, setPersonProperties,
@@ -17,12 +9,17 @@ import { EXTERNAL_REPORTING_ENABLED } from "./privacy";
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
   window.history.replaceState({}, "", "/");
   document.cookie = "multica_signup_source=; path=/; max-age=0";
 });
 
 describe("local build reporting policy", () => {
-  it("never starts or emits to the SDK even with a configured project key", () => {
+  it.each(["", "0", "false", "1", "true"])("cannot be enabled by old environment settings (%s)", (disabled) => {
+    vi.stubEnv("ANALYTICS_DISABLED", disabled);
+    vi.stubEnv("POSTHOG_API_KEY", "test-project-key");
+    vi.stubEnv("POSTHOG_HOST", "https://collector.invalid");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "test-project-key");
     expect(EXTERNAL_REPORTING_ENABLED).toBe(false);
     const onCaptured = vi.fn();
     identify("test-user", { email: "private@example.test" });
@@ -33,7 +30,7 @@ describe("local build reporting policy", () => {
     captureException(new Error("private error"));
     setPersonProperties({ source: ["search"] });
     resetAnalytics();
-    for (const method of Object.values(posthog)) expect(method).not.toHaveBeenCalled();
+    expect(initAnalytics({ key: "another-project", host: "https://collector.invalid" })).toBe(false);
     expect(onCaptured).not.toHaveBeenCalled();
   });
 
