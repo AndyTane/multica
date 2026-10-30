@@ -58,6 +58,7 @@ import {
   type MainRendererMessageChannel,
 } from "../shared/main-renderer-messages";
 import { AuthSessionCoordinator } from "./auth-session-coordinator";
+import { installWindowTitle } from "./window-title";
 import {
   NotificationGate,
   parseNativeNotificationPayload,
@@ -394,6 +395,7 @@ function createWindow(): BrowserWindow {
   // Calling preventDefault in the shared shortcut handler prevents both the
   // renderer keydown and the application-menu accelerator from double-firing.
   installWindowShortcutHandler(window);
+  installWindowTitle(window);
 
   // Dev-mode renderer diagnostics. When the renderer crashes hard enough
   // that DevTools can't be opened (white screen with no clickable surface),
@@ -508,6 +510,7 @@ function createIssueWindow(context: IssueWindowContext): void {
     return { action: "deny" };
   });
   installWindowShortcutHandler(window);
+  installWindowTitle(window);
 
   const initialRouteContext = sanitizeRendererRouteContext({
     surface: "tab",
