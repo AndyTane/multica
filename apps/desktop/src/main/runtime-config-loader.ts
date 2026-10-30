@@ -1,5 +1,5 @@
-import { app } from "electron";
 import { readFile } from "fs/promises";
+import { homedir } from "os";
 import { join } from "path";
 import {
   parseRuntimeConfig,
@@ -45,7 +45,7 @@ export async function loadRuntimeConfig(options: {
 }
 
 export function desktopConfigPath(): string {
-  return join(app.getPath("home"), ".u-workers", "desktop.json");
+  return join(homedir(), ".u-workers", "desktop.json");
 }
 
 function isMissingFileError(err: unknown): boolean {

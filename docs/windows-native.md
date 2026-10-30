@@ -20,6 +20,72 @@ Download the PostgreSQL 17 Windows binary archive from [EDB](https://www.enterpr
 
 The initial ports are API `18080`, web `13000`, and database `15432`. All bind to loopback. PostgreSQL uses an ICU English locale; validate search and sorting when moving from a Linux libc locale. The default database is `multica_native_rehearsal`.
 
+
+## Desktop packaging on Windows
+
+Build the unpacked Windows desktop artifact from the repository root:
+
+```powershell
+pnpm --filter @multica/desktop package -- --win --dir
+```
+
+The command must exit 0; only then has electron-builder rewritten the
+executable's version resources. Verify the identity with:
+
+```powershell
+(Get-Item 'apps\desktop\dist\win-unpacked\U Workers.exe').VersionInfo |
+  Select-Object ProductName, FileDescription
+# ProductName / FileDescription must both be "U Workers", not "Electron"
+```
+
+### winCodeSign extraction on an unprivileged Windows account
+
+electron-builder unpacks its cached `winCodeSign` toolset with 7-Zip before it
+rewrites the executable. That archive also contains macOS dylib symlinks, and
+7-Zip fails on them without the privilege to create symlinks
+(`Cannot create symbolic link ... client does not hold the required privilege`).
+The packaging run then exits before rcedit runs, so a *partially* built
+`U Workers.exe` still reports `ProductName: Electron`. The code is fine; the
+toolset cache is not.
+
+Do not enable Developer Mode and do not change repository configuration.
+Pre-extract the cache once, skipping the macOS-only payload, then rerun the
+package command:
+
+```powershell
+$cache = "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign"
+$sevenZip = (Get-ChildItem node_modules\.pnpm -Recurse -Filter 7za.exe |
+  Where-Object { $_.FullName -match '7zip-bin.*win\\x64' } |
+  Select-Object -First 1).FullName
+
+# Keep one downloaded archive, drop the failed extraction leftovers.
+$archive = Get-ChildItem $cache -Filter *.7z | Select-Object -First 1
+$temp = Join-Path $env:TEMP 'winCodeSign-2.6.0.7z'
+Copy-Item $archive.FullName $temp
+Get-ChildItem $cache | Remove-Item -Recurse -Force
+
+# Extract everything except the darwin payload (the symlinks Windows cannot create).
+& $sevenZip x -bd -y -x'!darwin*' $temp -o"$cache\winCodeSign-2.6.0" | Out-Null
+Test-Path "$cache\winCodeSign-2.6.0\rcedit-x64.exe"   # must be True
+```
+
+A correct cache holds `winCodeSign-2.6.0\rcedit-x64.exe`; electron-builder
+reuses it without extracting again. The failed extraction leaves numeric
+directories such as `197572275` plus `197572275.7z` next to the final
+directory; remove them.
+
+### Packaged main process and workspace TypeScript
+
+Shared packages under `packages/` export raw TypeScript that consuming apps
+compile (see repository AGENTS.md). In the Electron main process such a package
+must be bundled, not externalized: an externalized `require("@multica/core/...")`
+resolves to `app.asar/node_modules/.../*.ts`, and Node 24 refuses to strip types
+inside `node_modules`. The packaged app then exits with "A JavaScript error
+occurred in the main process" and `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`.
+`apps/desktop/electron.vite.config.ts` therefore excludes `@multica/core` from
+`externalizeDepsPlugin`.
+
+
 ## Restore and verify
 
 ```powershell
