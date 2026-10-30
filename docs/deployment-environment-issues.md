@@ -166,6 +166,22 @@ from the client PC over the LAN. Evidence: `evidence/clawsta-80/cross-machine/`.
 - Retest: every step in this deployment used uploaded scripts; JSON evidence was
   collected the same way.
 
+### 12. Single-origin preparation and imported-config LAN updates
+
+- Symptom: reviewer regression cases reproduced `PublicOrigin = "h"` when
+  `Prepare -Clean` received only one origin (including the localhost default).
+  `Configure -WebHost` on a Docker-imported configuration threw because that
+  JSON object did not yet have the new property.
+- Root cause: PowerShell unwraps a one-element function result to a string;
+  indexing it selects a character. Assigning a missing PSCustomObject property
+  also fails instead of creating it.
+- Fix: collect the origin result with `@(...)`, and add/replace the optional
+  LAN properties with `Add-Member -Force`.
+- Retest: real temporary configuration writes for explicit single-origin,
+  default-origin and imported-config cases now pass in
+  `scripts/native-windows.test.ps1`. The existing C1 instance used two origins
+  and was unaffected. Its browser acceptance was not repeated.
+
 ## Not verified here / company network checklist
 
 This network was a home LAN (192.168.3.0/24) plus Tailscale; the deployment

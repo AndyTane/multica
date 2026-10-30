@@ -155,7 +155,7 @@ function Initialize-NativeCleanDeployment {
         if ($nodeCommand) { $nodePath = $nodeCommand.Source }
     }
     if (-not $nodePath) { throw 'node.exe was not found on PATH; install Node.js or pass -NodeExe for a clean deployment.' }
-    $origins = Resolve-NativeBrowserOrigins $PublicOrigin $CorsOrigins $WebPort
+    $origins = @(Resolve-NativeBrowserOrigins $PublicOrigin $CorsOrigins $WebPort)
     $config = [ordered]@{
         Root = $Directory; Repo = $script:RepoRoot; DatabaseUser = 'multica'; DatabasePassword = (New-NativeRandomHex 24)
         SourceDatabase = ''; Database = $Database; DatabasePort = $DatabasePort; ApiPort = $ApiPort; WebPort = $WebPort
@@ -702,9 +702,9 @@ if ($MyInvocation.InvocationName -ne '.') {
             if ($ApiPort) { $config.ApiPort = $ApiPort }
             if ($WebPort) { $config.WebPort = $WebPort }
             if ($Database) { $config.Database = $Database }
-            if ($WebHost) { $config.WebHost = $WebHost }
-            if ($PublicOrigin) { $config.PublicOrigin = $PublicOrigin }
-            if ($CorsOrigins) { $config.BackendEnvironment.CORS_ALLOWED_ORIGINS = $CorsOrigins }
+            if ($WebHost) { $config | Add-Member -NotePropertyName WebHost -NotePropertyValue $WebHost -Force }
+            if ($PublicOrigin) { $config | Add-Member -NotePropertyName PublicOrigin -NotePropertyValue $PublicOrigin -Force }
+            if ($CorsOrigins) { $config.BackendEnvironment | Add-Member -NotePropertyName CORS_ALLOWED_ORIGINS -NotePropertyValue $CorsOrigins -Force }
             Write-NativeJson (Join-Path $Root 'deployment.json') $config
         }
         'Status' {

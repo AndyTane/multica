@@ -22,6 +22,9 @@ Verified in this run:
 - A local task/attachment workflow still works while the external network is
   unreachable, and the Linux API actually starts, migrates, serves login/
   workspace/issue APIs and a realtime WebSocket on Linux.
+- C1 follow-up: a second Windows machine serves a real LAN browser login,
+  issue/attachment round-trip and business WebSocket update; its scheduled-task
+  supervisor survives the starting SSH session. See the cross-machine section.
 
 Not claimed:
 
@@ -30,8 +33,7 @@ Not claimed:
   The recorder is scoped to the isolated acceptance deployment.
 - Mobile (excluded by the plan), real agent CLI runs, real model accounts, real
   email/message delivery, real integration accounts or real update downloads.
-- Cross-machine login/realtime: no second authorized client machine was
-  available. The Windows deployment was verified on the same host only.
+- Company-network, HTTPS and Tailscale access: C1 tested the home LAN only.
 - Electron request observation: outstanding (see [Desktop and PWA](#desktop-and-pwa)).
   Tray menu: this codebase has no Electron tray implementation at all.
 
@@ -239,11 +241,39 @@ The isolated Windows deployment was built and supervised with
 surface on the same host: real login, workspace browsing, workspace switching,
 WebSocket realtime and zero unsolicited egress.
 
-Cross-machine login and realtime require a second authorized client machine.
-None was available for this run, and this machine's own IP or the WSL instance
-is not a substitute for one. The existing deployment's LAN/HTTPS entry points
-were left untouched as required. **This remains an external blocker for the
-task, not a pass.**
+The initial run lacked a second device. Tane subsequently authorized the Chun
+desktop, and C1 completed on 2026-10-31: client `192.168.3.162` connected to
+`http://192.168.3.49:13001` on CHUN-I5-12400F-32G. The new deployment lives at
+`D:\UWorkers\clawsta80`; API `18081` and PostgreSQL `16432` bind only loopback.
+The existing deployment was untouched. Source baseline was `6b213959c`, with
+C1 deployment changes delivered in `5e54bb54f` (adopted as `27e3ae088`).
+
+- Real browser email-code login: send/verify 200; issue creation 201 and UI
+  read-back; attachment upload/download matched SHA-256 (80 bytes).
+- A second browser context updated the issue over the LAN (PUT 200, revision
+  2 to 3). The first received `issue:updated` with `status_changed=true` and
+  updated its UI within 160 ms. This is a business update, not only auth_ack.
+- The hidden SYSTEM boot task `MulticaNative-D-UWorkers-clawsta80-native`
+  owns the supervisor. A verified backend child recovered in 2.6 s; Stop/Start
+  took 4.5/1.6 s. Fresh SSH and LAN GET checks after the initiating SSH exited
+  remained healthy. A physical reboot was not performed.
+- Backend review independently confirmed the same supervisor/backend/frontend
+  process records, task running under SYSTEM, readyz and LAN login/health.
+  The deployed runner SHA-256 matched C1 source before the focused preparation
+  fixes in `scripts/native-windows.ps1`; those fixes passed local regressions
+  and were copied to the target source and lifecycle runner after verifying
+  both old/new hashes. They do not change the running two-origin configuration;
+  no service restart or browser rerun was required. Review details are in
+  `evidence/clawsta-80/cross-machine/05-backend-review.md`.
+- All 47 standalone junctions resolve inside the target deployment root. Keep
+  its source/dependency directory; another host requires a target-side rebuild.
+
+Evidence: `evidence/clawsta-80/cross-machine/`; screenshots are attached to
+CLAWSTA-81. Environment failures and reusable fixes are documented in
+[deployment-environment-issues.md](deployment-environment-issues.md). This closes
+the second-machine requirement. Company LAN, HTTPS and Tailscale were not tested.
+The instance is retained for user review; lifecycle commands are in
+[windows-native.md](windows-native.md#lan-access-and-persistence).
 
 ## Desktop and PWA
 
@@ -276,8 +306,8 @@ task, not a pass.**
 
 ## Boundaries and unverified items
 
-1. Cross-machine login/realtime and real LAN/TLS entry points: no second
-   authorized client machine available. External blocker, not verified.
+1. Company-network and HTTPS/Tailscale entry points are unverified. C1 real
+   second-machine LAN login, attachment and business realtime passed.
 2. Electron request observation, native install, OS icon and tray: outstanding
    with the exact packaging/launch results above; no tray implementation exists.
 3. Real agent runtimes, real model providers, real MCP/Git/integration accounts,

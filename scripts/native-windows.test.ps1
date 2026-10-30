@@ -154,6 +154,26 @@ try {
     Assert-NativeTest ((Get-NativeScheduledTaskName ([pscustomobject]@{ Root = 'D:\UWorkers\clawsta80\native' })) -eq 'MulticaNative-D-UWorkers-clawsta80-native') 'The scheduled task name must be derived from the deployment root.'
     Assert-NativeTest (-not (Test-NativeScheduledTask 'MulticaNative-definitely-missing-task')) 'An unregistered task must be reported as missing rather than crashing the lifecycle.'
 
+    foreach ($originCase in @(
+        @{ Name = 'single-origin'; Input = 'http://192.168.3.49:13001'; Expected = 'http://192.168.3.49:13001' },
+        @{ Name = 'default-origin'; Input = ''; Expected = 'http://localhost:13001' }
+    )) {
+        $originRoot = Join-Path $testRoot $originCase.Name
+        Initialize-NativeCleanDeployment -Directory $originRoot -PublicOrigin $originCase.Input -WebPort 13001 -PgArchive $cleanArchive -PgArchiveSha256 $archiveHash -NodeExe $shell
+        $originConfig = Read-NativeConfig $originRoot
+        Assert-NativeTest ($originConfig.PublicOrigin -eq $originCase.Expected) 'A single/default origin must remain a full URL, not its first character.'
+        $originEnvironment = Get-BackendEnvironment $originConfig
+        Assert-NativeTest ($originEnvironment.FRONTEND_ORIGIN -eq $originCase.Expected -and $originEnvironment.MULTICA_APP_URL -eq $originCase.Expected) 'Single-origin application URLs must survive configuration and environment generation.'
+        Assert-NativeTest ($originEnvironment.CORS_ALLOWED_ORIGINS -eq $originCase.Expected) 'Single-origin CORS must retain the complete origin.'
+    }
+
+    $importedRoot = Join-Path $testRoot 'imported-config'
+    New-Item -ItemType Directory -Path $importedRoot | Out-Null
+    Write-NativeJson (Join-Path $importedRoot 'deployment.json') @{ Root = $importedRoot; ApiPort = 18080; WebPort = 13000; BackendEnvironment = @{} }
+    & $sourcePath -Action Configure -Root $importedRoot -WebHost '0.0.0.0' -PublicOrigin 'http://192.168.3.49:13000' -CorsOrigins 'http://192.168.3.49:13000'
+    $importedConfig = Read-NativeConfig $importedRoot
+    Assert-NativeTest ($importedConfig.WebHost -eq '0.0.0.0' -and $importedConfig.PublicOrigin -eq 'http://192.168.3.49:13000' -and $importedConfig.BackendEnvironment.CORS_ALLOWED_ORIGINS -eq 'http://192.168.3.49:13000') 'Configure must add LAN settings to an existing Docker-imported configuration.'
+
     $versionConfig = [pscustomobject]@{ Repo = (Join-Path $testRoot 'no-git-checkout'); Version = 'v0.3.1'; Commit = '' }
     Assert-NativeTest ((Resolve-NativeBuildVersion $versionConfig) -eq 'v0.3.1') 'An explicit version must let a clean machine build from source without a Git tag.'
     Assert-NativeTest ((Resolve-NativeBuildCommit $versionConfig) -eq 'unknown') 'A source tree without Git history must stamp an unknown commit instead of failing.'

@@ -191,6 +191,11 @@ depend on an interactive login or the SSH session that started it.
 `InstallStartup` remains the per-user login alternative. When the task exists,
 `Start` runs it; otherwise it launches the supervisor child directly.
 
+For Windows OpenSSH, invoke scripts with a process-scoped execution policy:
+`powershell -NoProfile -ExecutionPolicy Bypass -File <script> -Action Status -Root <root>`.
+The default policy on the C1 host rejected a bare script invocation; no global
+execution policy was changed.
+
 ```powershell
 .\scripts\native-windows.ps1 -Action InstallTask -Root D:\UWorkers\clawsta80\native
 .\scripts\native-windows.ps1 -Action Start -Root D:\UWorkers\clawsta80\native
@@ -199,7 +204,7 @@ depend on an interactive login or the SSH session that started it.
 .\scripts\native-windows.ps1 -Action RemoveTask -Root D:\UWorkers\clawsta80\native
 ```
 
-`Status` reports the scheduled task name/state plus the supervisor, backend and
+`Status` reports the scheduled task name/registration plus the supervisor, backend and
 frontend PID and start time; logs stay in `<root>\logs`, separated per process
 start. Verified on the first clean deployment: LAN browser login, issue
 read/write, attachment round-trip and a second-session realtime update, with the
@@ -260,9 +265,9 @@ and observed results are in
 [docs/outbound-data-verification.md](outbound-data-verification.md). Keep it on
 its own root, cluster, database, ports and generated credentials; never reuse a
 production deployment or database. The same document records the boundary:
-same-host Windows verification is covered, while cross-machine login/realtime
-still needs a second authorized client machine, and desktop request observation
-is outstanding.
+same-host Windows verification and C1 cross-machine LAN login/realtime are
+covered. Company-network and HTTPS access remain untested; desktop request
+observation is tracked separately in D2.
 
 When launching PowerShell helpers for that deployment, do not keep both
 `NO_PROXY` and `no_proxy` (or the same spelling pair for `HTTP_PROXY`,
