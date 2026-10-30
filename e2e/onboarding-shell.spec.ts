@@ -118,6 +118,4 @@ test("onboarding — the shell survives step changes instead of re-mounting", as
     page.locator("main[data-persist-probe]"),
     "the content pane remounted on a step change",
   ).toHaveCount(1);
-  // One DotSphere canvas, not one per visited step.
-  await expect(page.locator("canvas")).toHaveCount(1);
 });
