@@ -50,6 +50,7 @@ vi.mock("../i18n", () => ({
     t: (sel: (s: Record<string, Record<string, string>>) => string) =>
       sel({
         image: {
+          load_external: "Load image",
           view: "View",
           download: "Download",
           copy_link: "Copy link",
@@ -694,6 +695,7 @@ describe("Attachment — image dispatch", () => {
     );
     // Without forceKind the empty filename would fall through to AttachmentCard.
     // With forceKind="image" it must render as an <img>.
+    fireEvent.click(screen.getByRole("button", { name: "Load image" }));
     expect(document.querySelector("img")).toBeTruthy();
     expect(screen.queryByText("Uploading")).toBeNull();
   });
@@ -713,6 +715,7 @@ describe("Attachment — image dispatch", () => {
         }}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Load image" }));
     fireEvent.click(screen.getByTitle("View"));
     expect(screen.queryByText("This file type can't be previewed.")).toBeNull();
     expect(screen.getByRole("dialog").querySelector("img")).toBeTruthy();
@@ -728,6 +731,7 @@ describe("Attachment — image dispatch", () => {
         }}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Load image" }));
     const img = document.querySelector("img");
     expect(img?.getAttribute("src")).toBe("https://external.example/foo.png");
     fireEvent.click(screen.getByTitle("Download"));
@@ -953,6 +957,7 @@ describe("Attachment — absolutize site-relative URLs (MUL-3192)", () => {
         }}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Load image" }));
     const img = document.querySelector("img");
     expect(img?.getAttribute("src")).toBe("https://cdn.other.test/foo.png");
   });
@@ -1191,5 +1196,22 @@ describe("Attachment — blob URL GC (MUL-7741)", () => {
     // and B still shows fallback, not A's bytes. The GC timer itself is
     // exercised by the sibling tests above.
     expect(revokeObjectURLMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("external inline resources", () => {
+  it("keeps explicit downloads available for external files", () => {
+    const url = "https://files.example.test/manual.pdf";
+    renderWithQuery(<Attachment attachment={{ kind: "url", url, filename: "manual.pdf" }} />);
+    expect(document.querySelector("iframe")).toBeNull();
+    fireEvent.mouseDown(screen.getByTitle("Download"));
+    expect(openByUrlMock).toHaveBeenCalledWith(url);
+  });
+  it("requires an explicit load before rendering an unresolved remote image", () => {
+    renderWithQuery(<Attachment attachment={{ kind: "url", url: "https://tracker.example.test/pixel.png", filename: "pixel.png" }} />);
+    expect(document.querySelector("img")).toBeNull();
+    expect(getAttachmentBlobMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Load image/ }));
+    expect(document.querySelector("img")?.getAttribute("src")).toBe("https://tracker.example.test/pixel.png");
   });
 });

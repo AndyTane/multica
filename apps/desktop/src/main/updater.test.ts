@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserWindow, WebContents } from "electron";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,6 +19,8 @@ const ctx = vi.hoisted(() => ({
   downloadUpdate: vi.fn(),
   quitAndInstall: vi.fn(),
   getVersion: vi.fn(() => "0.3.17"),
+  setFeedURL: vi.fn(),
+  showMessageBox: vi.fn(async () => ({ response: 0 })),
   userDataPath: "",
 }));
 
@@ -36,12 +38,14 @@ vi.mock("electron-updater", () => {
     }),
     checkForUpdates: ctx.checkForUpdates,
     downloadUpdate: ctx.downloadUpdate,
+    setFeedURL: ctx.setFeedURL,
     quitAndInstall: ctx.quitAndInstall,
   };
   return { autoUpdater };
 });
 
 vi.mock("electron", () => ({
+  dialog: { showMessageBox: ctx.showMessageBox },
   app: {
     getVersion: ctx.getVersion,
     getPath: vi.fn(() => ctx.userDataPath),
@@ -167,6 +171,8 @@ describe("setupAutoUpdater", () => {
     ctx.downloadUpdate.mockClear();
     ctx.quitAndInstall.mockClear();
     ctx.getVersion.mockClear();
+    ctx.setFeedURL.mockClear();
+    ctx.showMessageBox.mockReset().mockResolvedValue({ response: 0 });
   });
 
   afterEach(() => {
@@ -175,63 +181,37 @@ describe("setupAutoUpdater", () => {
     rmSync(ctx.userDataPath, { recursive: true, force: true });
   });
 
-  it("enables automatic background updates by default", async () => {
+  it("never schedules checks, even with an old enabled preference", async () => {
+    writeFileSync(updaterPreferencesPath(ctx.userDataPath), JSON.stringify({ automaticUpdates: true }));
     setupAutoUpdater(() => null);
-
-    await expect(invokeIpc("updater:get-preferences")).resolves.toEqual({
-      automaticUpdates: true,
-    });
-
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(ctx.checkForUpdates).toHaveBeenCalledTimes(1);
-  });
-
-  it("skips startup and periodic checks when automatic updates are disabled", async () => {
-    writeFileSync(
-      updaterPreferencesPath(ctx.userDataPath),
-      JSON.stringify({ automaticUpdates: false }),
-    );
-    setupAutoUpdater(() => null);
-
-    // Let the async preference load settle before advancing timers; otherwise
-    // the in-flight readFile can resolve after afterEach() removes the temp
-    // dir, default back to enabled=true, and fire a background check into the
-    // next test's freshly-cleared mock (flake on slow CI).
-    await invokeIpc("updater:get-preferences");
-
-    await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 5_000);
-
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
     expect(ctx.checkForUpdates).not.toHaveBeenCalled();
+    expect(ctx.downloadUpdate).not.toHaveBeenCalled();
   });
 
-  it("persists the automatic update preference and stops future background checks", async () => {
+  it("reports an unconfigured source without checking or downloading", async () => {
     setupAutoUpdater(() => null);
-
-    await expect(
-      invokeIpc("updater:set-automatic-updates", false),
-    ).resolves.toEqual({ automaticUpdates: false });
-    expect(
-      JSON.parse(
-        readFileSync(updaterPreferencesPath(ctx.userDataPath), "utf-8"),
-      ),
-    ).toEqual({ automaticUpdates: false });
-
-    await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 5_000);
+    await expect(invokeIpc("updater:check")).resolves.toEqual({ ok: false, error: "No update source configured." });
     expect(ctx.checkForUpdates).not.toHaveBeenCalled();
+    await expect(invokeIpc("updater:download")).rejects.toThrow("No update source configured.");
+    expect(ctx.downloadUpdate).not.toHaveBeenCalled();
   });
 
-  it("still allows an explicit manual check when automatic updates are disabled", async () => {
-    writeFileSync(
-      updaterPreferencesPath(ctx.userDataPath),
-      JSON.stringify({ automaticUpdates: false }),
-    );
-    setupAutoUpdater(() => null);
-
-    await expect(invokeIpc("updater:check")).resolves.toMatchObject({
-      ok: true,
-    });
-
-    expect(ctx.checkForUpdates).toHaveBeenCalledTimes(1);
+  it("checks a configured source only on request and downloads only after confirmation", async () => {
+    ctx.checkForUpdates.mockResolvedValueOnce({ updateInfo: { version: "0.3.18" }, isUpdateAvailable: true });
+    const source = "https://updates.example.test/desktop";
+    setupAutoUpdater(() => null, { updateUrl: source });
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+    expect(ctx.checkForUpdates).not.toHaveBeenCalled();
+    expect(ctx.setFeedURL).toHaveBeenCalledWith({ provider: "generic", url: source });
+    await expect(invokeIpc("updater:check")).resolves.toMatchObject({ ok: true, available: true, sourceUrl: source });
+    expect(ctx.downloadUpdate).not.toHaveBeenCalled();
+    await invokeIpc("updater:download");
+    expect(ctx.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ detail: source }));
+    expect(ctx.downloadUpdate).not.toHaveBeenCalled();
+    ctx.showMessageBox.mockResolvedValueOnce({ response: 1 });
+    await invokeIpc("updater:download");
+    expect(ctx.downloadUpdate).toHaveBeenCalledOnce();
   });
 
   it("forwards update progress to a live renderer", () => {

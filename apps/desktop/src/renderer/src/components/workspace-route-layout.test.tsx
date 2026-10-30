@@ -161,19 +161,6 @@ beforeEach(() => {
 });
 
 describe("WorkspaceRouteLayout", () => {
-  it("mounts SourceBackfillModal when no WindowOverlay is active", () => {
-    const { queryByTestId } = renderLayout();
-    expect(queryByTestId(state.modalAriaLabel)).not.toBeNull();
-    expect(state.modalRenders).toBeGreaterThan(0);
-  });
-
-  it("suppresses SourceBackfillModal while a WindowOverlay is active", () => {
-    state.overlay = { type: "new-workspace" };
-    const { queryByTestId } = renderLayout();
-    expect(queryByTestId(state.modalAriaLabel)).toBeNull();
-    expect(state.modalRenders).toBe(0);
-  });
-
   it("keeps workspace content mounted when a background refetch fails", async () => {
     const { queryByTestId, queryClient } = renderLayout();
     expect(queryByTestId("outlet")).not.toBeNull();

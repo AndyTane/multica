@@ -8,20 +8,12 @@ import {
   TabsTrigger,
 } from "@multica/ui/components/ui/tabs";
 
-/**
- * The Multica CLI install commands, one per platform family.
- *
- * Three surfaces render install instructions — the runtimes "add computer"
- * dialog, onboarding's CLI card, and the landing download page. They read the
- * commands from here instead of each hardcoding a string, which is how Windows
- * silently went missing from all of them while scripts/install.ps1 sat in the
- * repo. The scripts' own headers are the source of truth.
- */
+/** Use a bundled/local CLI. These commands never fetch a remote installer. */
 export const CLI_INSTALL_COMMANDS = {
   macosLinux:
-    "curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash",
+    "export U_WORKERS_CLI_PATH=/absolute/path/to/multica",
   windows:
-    "irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex",
+    "pwsh -File scripts/build-local-cli.ps1",
 } as const;
 
 export type CliInstallPlatform = keyof typeof CLI_INSTALL_COMMANDS;

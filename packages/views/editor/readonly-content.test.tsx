@@ -365,13 +365,13 @@ describe("ReadonlyContent CJK emphasis", () => {
 
   it("repairs a trailing space before a CJK strong closing delimiter", () => {
     const { container } = render(
-      <ReadonlyContent content="**为什么做，收益是什么。 **Multica 的能力边界" />,
+      <ReadonlyContent content="**为什么做，收益是什么。 **U Workers 的能力边界" />,
     );
 
     expect(container.querySelector("strong")?.textContent).toBe(
       "为什么做，收益是什么。",
     );
-    expect(container.textContent).toBe("为什么做，收益是什么。 Multica 的能力边界");
+    expect(container.textContent).toBe("为什么做，收益是什么。 U Workers 的能力边界");
   });
 
   it.each([
@@ -584,17 +584,16 @@ describe("ReadonlyContent Mermaid rendering", () => {
 });
 
 describe("ReadonlyContent HTML block rendering", () => {
-  // `language=html` fenced blocks should default to a preview iframe with
-  // sandbox="allow-scripts" (chart JS executes in an opaque origin) and
-  // must NOT be wrapped by react-markdown's default <pre>, which would
-  // clamp the iframe with monospace / overflow styles. The two-layer
-  // code+pre unwrap mirror's Mermaid's pattern.
-  it("renders an iframe with sandbox='allow-scripts' for ```html and skips the outer <pre>", () => {
+  // HTML previews require a user action. Once loaded, sandboxed frames must
+  // not be clamped by react-markdown's default pre wrapper.
+  it("loads a sandboxed HTML preview only after an explicit action and skips the outer pre", () => {
     const { container } = render(
       <ReadonlyContent
         content={["```html", '<h1 id="x">hi</h1>', "```"].join("\n")}
       />,
     );
+    expect(container.querySelector("iframe")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Load preview" }));
     const frame = container.querySelector<HTMLIFrameElement>("iframe");
     expect(frame).not.toBeNull();
     expect(frame?.getAttribute("sandbox")).toBe("allow-scripts");

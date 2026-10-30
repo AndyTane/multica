@@ -20,36 +20,36 @@ const DEFAULT_CLI_CONFIG = join(MULTICA_DIR, "config.json");
 
 describe("deriveProfileName", () => {
   it("names the profile after the target host", () => {
-    expect(deriveProfileName("https://api.multica.ai")).toBe(
-      "desktop-api.multica.ai",
+    expect(deriveProfileName("https://api.example.test")).toBe(
+      "u-workers-desktop-api.example.test",
     );
   });
 
   it("replaces the port colon so the name is path-safe", () => {
     expect(deriveProfileName("http://localhost:8080")).toBe(
-      "desktop-localhost-8080",
+      "u-workers-desktop-localhost-8080",
     );
   });
 
-  it("falls back to a fixed name on an unparseable URL", () => {
-    expect(deriveProfileName("not a url")).toBe("desktop");
+  it("rejects an unparseable URL", () => {
+    expect(() => deriveProfileName("not a url")).toThrow(/valid API URL/);
   });
 });
 
 describe("profile paths", () => {
   it("always resolves under profiles/<name>", () => {
-    const dir = join(MULTICA_DIR, "profiles", "desktop-api.multica.ai");
-    expect(profileDir("desktop-api.multica.ai")).toBe(dir);
-    expect(profileConfigPath("desktop-api.multica.ai")).toBe(
+    const dir = join(MULTICA_DIR, "profiles", "u-workers-desktop-api.example.test");
+    expect(profileDir("u-workers-desktop-api.example.test")).toBe(dir);
+    expect(profileConfigPath("u-workers-desktop-api.example.test")).toBe(
       join(dir, "config.json"),
     );
-    expect(profileLogPath("desktop-api.multica.ai")).toBe(
+    expect(profileLogPath("u-workers-desktop-api.example.test")).toBe(
       join(dir, "daemon.log"),
     );
-    expect(profilePidPath("desktop-api.multica.ai")).toBe(
+    expect(profilePidPath("u-workers-desktop-api.example.test")).toBe(
       join(dir, "daemon.pid"),
     );
-    expect(profileUserIdPath("desktop-api.multica.ai")).toBe(
+    expect(profileUserIdPath("u-workers-desktop-api.example.test")).toBe(
       join(dir, ".desktop-user-id"),
     );
   });
@@ -65,7 +65,7 @@ describe("profile paths", () => {
   });
 
   it("never yields the default CLI config path for any input", () => {
-    for (const name of ["desktop-api.multica.ai", "desktop", "x"]) {
+    for (const name of ["u-workers-desktop-api.example.test", "u-workers-desktop-localhost-8080"]) {
       expect(profileConfigPath(name)).not.toBe(DEFAULT_CLI_CONFIG);
     }
     expect(() => profileConfigPath("")).toThrow();
@@ -74,9 +74,9 @@ describe("profile paths", () => {
 
 describe("profileArgs", () => {
   it("selects the Desktop-owned profile", () => {
-    expect(profileArgs("desktop-api.multica.ai")).toEqual([
+    expect(profileArgs("u-workers-desktop-api.example.test")).toEqual([
       "--profile",
-      "desktop-api.multica.ai",
+      "u-workers-desktop-api.example.test",
     ]);
   });
 
@@ -96,14 +96,14 @@ describe("healthPortForProfile", () => {
   });
 
   it("never derives the default profile's port", () => {
-    for (const name of ["desktop-api.multica.ai", "desktop", "x", "a".repeat(50)]) {
+    for (const name of ["u-workers-desktop-api.example.test", "desktop", "x", "a".repeat(50)]) {
       expect(healthPortForProfile(name)).not.toBe(DEFAULT_HEALTH_PORT);
     }
   });
 
   it("derives a stable per-profile port above the default", () => {
-    const port = healthPortForProfile("desktop-api.multica.ai");
+    const port = healthPortForProfile("u-workers-desktop-api.example.test");
     expect(port).toBeGreaterThan(DEFAULT_HEALTH_PORT);
-    expect(port).toBe(healthPortForProfile("desktop-api.multica.ai"));
+    expect(port).toBe(healthPortForProfile("u-workers-desktop-api.example.test"));
   });
 });

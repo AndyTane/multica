@@ -16,6 +16,7 @@
 
 import { useEffect, useReducer, useRef, useState } from "react";
 import { cn } from "@multica/ui/lib/utils";
+import { Button } from "@multica/ui/components/ui/button";
 import { Dialog, DialogContent } from "@multica/ui/components/ui/dialog";
 import { useT } from "../i18n";
 import { CodeBlockIframe } from "./code-block-iframe";
@@ -98,6 +99,23 @@ interface HtmlBlockPreviewProps {
 }
 
 export function HtmlBlockPreview({ html, title }: HtmlBlockPreviewProps) {
+  const { t } = useT("editor");
+  const [loadedHtml, setLoadedHtml] = useState<string | null>(null);
+  if (loadedHtml !== html) {
+    return (
+      <div className="my-3 rounded-md border border-border p-3">
+        <p className="text-body font-medium">{title || "HTML"}</p>
+        <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.code_block.external_preview_notice)}</p>
+        <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => setLoadedHtml(html)}>
+          {t(($) => $.code_block.load_preview)}
+        </Button>
+      </div>
+    );
+  }
+  return <LoadedHtmlBlockPreview key={html} html={html} title={title} />;
+}
+
+function LoadedHtmlBlockPreview({ html, title }: HtmlBlockPreviewProps) {
   const { t } = useT("editor");
   const hostRef = useRef<HTMLDivElement>(null);
   const themeVersion = useThemeVersion();

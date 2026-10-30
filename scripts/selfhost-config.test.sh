@@ -467,7 +467,7 @@ fi
 # ---------------------------------------------------------------------------
 # The backend port alias chain, and Compose's own source precedence
 #
-#   BACKEND_PORT -> API_PORT -> SERVER_PORT -> PORT -> 8080
+#   BACKEND_PORT -> API_PORT -> SERVER_PORT -> PORT -> 18080
 #
 # Exercised through the direct Compose path, because the Makefile normalises all
 # four into PORT before a recipe ever runs — so a recipe-only test cannot see a
@@ -557,6 +557,32 @@ ambient API_PORT beats the env file|s/^PORT=18080/PORT=9100/|API_PORT=9700|9700|
 ambient SERVER_PORT beats the env file|s/^PORT=18080/PORT=9100/|SERVER_PORT=9800|9800|13000
 ambient FRONTEND_PORT beats the env file|s/^FRONTEND_PORT=13000/FRONTEND_PORT=3100/|FRONTEND_PORT=3200|18080|3200
 CASES
+
+# Every restatement of the host-port default must mean the same port. The
+# recipe cases above only prove Makefile-vs-Compose, and the local env
+# derivation and the wait script's degraded fallback restate the default too:
+# moving one of them and not the others re-opens the split-source bug in
+# slower motion.
+derived_local_defaults="$(
+  env -i PATH="$PATH" bash -c '
+    set -euo pipefail
+    . scripts/local-env.sh
+    printf "%s %s\n" "$PORT" "$FRONTEND_PORT"
+  '
+)"
+if [ "$derived_local_defaults" != "18080 13000" ]; then
+  echo "[scripts/local-env.sh] host-port defaults drifted from the fork contract"
+  echo "  expected: 18080 13000"
+  echo "  observed: $derived_local_defaults"
+  exit 1
+fi
+for expected_fallback in '${PORT:-18080}' '${FRONTEND_PORT:-13000}'; do
+  if ! grep -Fq -- "$expected_fallback" scripts/selfhost-wait.sh; then
+    echo "[scripts/selfhost-wait.sh] missing host-port fallback: $expected_fallback"
+    echo "It must match docker-compose.selfhost.yml for the degraded path."
+    exit 1
+  fi
+done
 
 # An env-file alias beats the same alias from the environment, and the probe
 # follows whatever Compose published either way.

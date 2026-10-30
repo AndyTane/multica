@@ -44,7 +44,8 @@
     "image_copied": "已复制图片",
     "copy_image_failed": "无法复制图片",
     "canvas_label": "图片画布,拖动可平移,滚动可缩放,双击可切换实际大小。",
-    "unavailable": "这张图片已失效,已跳过。"
+    "unavailable": "这张图片已失效,已跳过。",
+    "load_external": "加载图片"
   },
   "canvas": {
     "zoom_in": "放大",
@@ -120,7 +121,9 @@
     "copy_code": "复制代码",
     "show_preview": "显示预览",
     "show_source": "显示源码",
-    "fullscreen": "放大"
+    "fullscreen": "放大",
+    "load_preview": "加载预览",
+    "external_preview_notice": "此预览可能连接外部服务。"
   },
   "dynamic_block": {
     "preview": "预览",

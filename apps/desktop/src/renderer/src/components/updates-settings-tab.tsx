@@ -1,63 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { AlertCircle, ArrowDownToLine, Check, Loader2 } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
-import { Switch } from "@multica/ui/components/ui/switch";
 import { useT } from "@multica/views/i18n";
 import { SettingsCard, SettingsRow, SettingsTab } from "@multica/views/settings";
-import { toast } from "sonner";
 
 type CheckState =
   | { status: "idle" }
   | { status: "checking" }
   | { status: "up-to-date" }
-  | { status: "available"; latestVersion: string }
+  | { status: "available"; latestVersion: string; sourceUrl: string }
   | { status: "error"; message: string };
 
 export function UpdatesSettingsTab() {
   const { t } = useT("settings");
   const [state, setState] = useState<CheckState>({ status: "idle" });
-  const [automaticUpdates, setAutomaticUpdates] = useState(true);
-  const [preferencesReady, setPreferencesReady] = useState(false);
-  const [savingPreference, setSavingPreference] = useState(false);
   const currentVersion = window.desktopAPI.appInfo.version;
-
-  useEffect(() => {
-    let mounted = true;
-    void window.updater
-      .getPreferences()
-      .then((preferences) => {
-        if (mounted) setAutomaticUpdates(preferences.automaticUpdates);
-      })
-      .catch(() => {
-        // The main process falls back to enabled when preferences cannot be
-        // read. Keep the same safe default if IPC itself becomes unavailable.
-      })
-      .finally(() => {
-        if (mounted) setPreferencesReady(true);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const handleAutomaticUpdatesChange = useCallback(
-    async (enabled: boolean) => {
-      setSavingPreference(true);
-      try {
-        const preferences = await window.updater.setAutomaticUpdates(enabled);
-        setAutomaticUpdates(preferences.automaticUpdates);
-        toast.success(t(($) => $.auto_save.toast_saved), {
-          id: "settings-auto-save",
-        });
-      } catch {
-        toast.error(t(($) => $.desktop.updates.automatic_updates_save_failed));
-      } finally {
-        setSavingPreference(false);
-      }
-    },
-    [t],
-  );
 
   const handleCheck = useCallback(async () => {
     setState({ status: "checking" });
@@ -68,7 +25,7 @@ export function UpdatesSettingsTab() {
     }
     setState(
       result.available
-        ? { status: "available", latestVersion: result.latestVersion }
+        ? { status: "available", latestVersion: result.latestVersion, sourceUrl: result.sourceUrl }
         : { status: "up-to-date" },
     );
   }, []);
@@ -85,23 +42,11 @@ export function UpdatesSettingsTab() {
         </SettingsRow>
 
         <SettingsRow
-          label={t(($) => $.desktop.updates.automatic_updates_title)}
-          description={t(($) => $.desktop.updates.automatic_updates_description)}
-        >
-          <Switch
-            checked={automaticUpdates}
-            onCheckedChange={handleAutomaticUpdatesChange}
-            disabled={!preferencesReady || savingPreference}
-            aria-label={t(($) => $.desktop.updates.automatic_updates_title)}
-          />
-        </SettingsRow>
-
-        <SettingsRow
           label={t(($) => $.desktop.updates.check_section_title)}
           align="start"
           description={
             <>
-              <p>{t(($) => $.desktop.updates.check_section_description)}</p>
+
               {state.status === "up-to-date" && (
                 <p className="mt-2 inline-flex items-center gap-1.5">
                   <Check className="size-3.5 text-success" />
@@ -111,9 +56,13 @@ export function UpdatesSettingsTab() {
               {state.status === "available" && (
                 <p className="mt-2 inline-flex items-center gap-1.5">
                   <ArrowDownToLine className="size-3.5 text-primary" />
-                  {t(($) => $.desktop.updates.downloading, {
+                  {t(($) => $.desktop.updates.available, {
                     version: state.latestVersion,
                   })}
+                  <span className="break-all">{state.sourceUrl}</span>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    void window.updater.downloadUpdate().catch((error: unknown) => setState({ status: "error", message: error instanceof Error ? error.message : String(error) }));
+                  }}>{t(($) => $.desktop.updates.download_confirm)}</Button>
                 </p>
               )}
               {state.status === "error" && (

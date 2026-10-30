@@ -49,7 +49,6 @@ import {
   pickContentLang,
 } from "../../onboarding/templates";
 import { ConnectRemoteDialog } from "./connect-remote-dialog";
-import { CloudRuntimeDialog } from "./cloud-runtime-dialog";
 import { ProviderLogo } from "./provider-logo";
 import { buildWorkloadIndex, RuntimeList } from "./runtime-list";
 import { pendingRuntimeFromProfile } from "./pending-runtime";
@@ -67,8 +66,6 @@ export interface RuntimesPageProps {
   hasLocalMachine?: boolean;
   /** The bundled daemon is starting but has not registered yet. */
   bootstrapping?: boolean;
-  /** Web SaaS-only Cloud Runtime entrypoint. */
-  cloudRuntimeEnabled?: boolean;
 }
 
 function useNowTick(intervalMs = 30_000): number {
@@ -85,14 +82,12 @@ export function RuntimesPage({
   localMachineName,
   hasLocalMachine,
   bootstrapping,
-  cloudRuntimeEnabled = false,
 }: RuntimesPageProps = {}) {
   const isAuthLoading = useAuthStore((state) => state.isLoading);
   const currentUserId = useAuthStore((state) => state.user?.id);
   const wsId = useWorkspaceId();
   const qc = useQueryClient();
   const [showConnectDialog, setShowConnectDialog] = useState(false);
-  const [showCloudRuntimeDialog, setShowCloudRuntimeDialog] = useState(false);
 
   const { data: runtimes = [], isLoading: runtimesLoading } = useQuery(
     runtimeListOptions(wsId),
@@ -168,8 +163,6 @@ export function RuntimesPage({
       <PageHeaderBar
         totalCount={machines.length}
         onConnectRemote={() => setShowConnectDialog(true)}
-        cloudRuntimeEnabled={cloudRuntimeEnabled}
-        onOpenCloudRuntime={() => setShowCloudRuntimeDialog(true)}
       />
 
       {showEmpty ? (
@@ -209,9 +202,6 @@ export function RuntimesPage({
 
       {showConnectDialog && (
         <ConnectRemoteDialog onClose={() => setShowConnectDialog(false)} />
-      )}
-      {cloudRuntimeEnabled && showCloudRuntimeDialog && (
-        <CloudRuntimeDialog onClose={() => setShowCloudRuntimeDialog(false)} />
       )}
     </div>
   );
@@ -372,13 +362,9 @@ function OrphanRuntimeProfiles({
 function PageHeaderBar({
   totalCount,
   onConnectRemote,
-  cloudRuntimeEnabled,
-  onOpenCloudRuntime,
 }: {
   totalCount: number;
   onConnectRemote: () => void;
-  cloudRuntimeEnabled: boolean;
-  onOpenCloudRuntime: () => void;
 }) {
   const { t, i18n } = useT("runtimes");
   return (
@@ -393,13 +379,6 @@ function PageHeaderBar({
       }}
       actions={
         <>
-          {cloudRuntimeEnabled && (
-            <CollectionPageHeaderAction
-              icon={Cloud}
-              label={t(($) => $.cloud_runtime.action)}
-              onClick={onOpenCloudRuntime}
-            />
-          )}
           <CollectionPageHeaderAction
             icon={Plus}
             label={t(($) => $.page.connect_remote)}

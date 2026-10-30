@@ -238,11 +238,7 @@ import type {
   FeedbackContext,
   FeedbackKind,
 } from "../feedback/types";
-import type {
-  CloudRuntimeNode,
-  CreateCloudRuntimeNodeRequest,
-  ListCloudRuntimeNodesParams,
-} from "../runtimes/cloud-runtime";
+import type { CloudRuntimeNode, CreateCloudRuntimeNodeRequest, ListCloudRuntimeNodesParams } from "../types/cloud-runtime";
 import { type Logger, noopLogger } from "../logger";
 import { createRequestId, createSafeId } from "../utils";
 import { getCurrentSlug } from "../platform/workspace-storage";

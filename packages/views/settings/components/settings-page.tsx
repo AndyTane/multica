@@ -6,7 +6,6 @@ import {
   Bell,
   Blocks,
   CircleDot,
-  CreditCard,
   FolderGit2,
   Keyboard,
   KeyRound,
@@ -30,7 +29,6 @@ import { useCurrentWorkspace } from "@multica/core/paths";
 import { useFeatureEnabled } from "@multica/core/config";
 import { useCurrentMember } from "@multica/core/permissions";
 import {
-  BILLING_WORKSPACE_SUBSCRIPTIONS_FLAG,
   PLUGINS_V1_FLAG,
 } from "@multica/core/feature-flags";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
@@ -55,13 +53,13 @@ import { QuickActionsTab } from "./quick-actions-tab";
 import { KeyboardShortcutsTab } from "./keyboard-shortcuts-tab";
 import { PluginsTab } from "./plugins-tab";
 import { McpTab } from "./mcp-tab";
-import { BillingTab } from "./billing-tab";
 import { SETTINGS_ANCHOR_ATTR } from "./settings-layout";
 import { searchSettings } from "./settings-search";
 import { HighlightText } from "../../search/highlight-text";
 import { useSettingsSearchIndex } from "./use-settings-search-index";
 import { WakeupsTab } from "./wakeups-tab";
 import { CollapsedNavTrigger } from "../../layout/page-header";
+import { UnavailablePage } from "../../common/unavailable-page";
 import { useT } from "../../i18n";
 
 export interface ExtraSettingsTab {
@@ -110,10 +108,6 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
   const isMember = role === "member";
   const navigation = useNavigation();
   const pluginsEnabled = useFeatureEnabled(PLUGINS_V1_FLAG, false);
-  const billingEnabled = useFeatureEnabled(
-    BILLING_WORKSPACE_SUBSCRIPTIONS_FLAG,
-    false,
-  );
   const appsAvailable = useComposioAvailable();
   const entry = (
     value: string,
@@ -189,16 +183,6 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
             entry("members", t(($) => $.page.tabs.members), Users, <MembersTab />, {
               adminOnly: true,
             }),
-            ...(billingEnabled
-              ? [
-                  entry(
-                    "billing",
-                    t(($) => $.page.tabs.billing),
-                    CreditCard,
-                    <BillingTab />,
-                  ),
-                ]
-              : []),
           ],
         },
         {
@@ -277,8 +261,7 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
     group.subgroups.flatMap((subgroup) => subgroup.entries),
   );
   const location = resolveSettingsLocation(navigation.searchParams);
-  const candidate =
-    location.tab === "billing" && !billingEnabled ? "workspace" : location.tab;
+  const candidate = location.tab;
   const active =
     allEntries.find((item) => item.value === candidate) ?? allEntries[0]!;
   const href = (value: string) =>
@@ -352,6 +335,8 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
       if (flashTimer) clearTimeout(flashTimer);
     };
   }, [active.value, location.section]);
+
+  if (["billing", "cloud", "cloud-runtime"].includes(location.tab)) return <UnavailablePage workspaceHref={`/${workspace?.slug ?? ""}/issues`} />;
 
   const navItem = (item: SettingsEntry) => (
     <li key={item.value}>

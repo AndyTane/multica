@@ -1,18 +1,17 @@
 {
   "name": "@multica/desktop",
-  "productName": "Multica",
+  "productName": "U Workers",
   "version": "0.6.1",
   "private": true,
-  "description": "Multica Desktop — native desktop client for the Multica platform.",
-  "homepage": "https://multica.ai",
+  "description": "U Workers desktop client",
+  "homepage": "https://github.com/AndyTane/UWorkers-nice",
   "repository": {
     "type": "git",
-    "url": "https://github.com/multica-ai/multica.git",
+    "url": "https://github.com/AndyTane/UWorkers-nice.git",
     "directory": "apps/desktop"
   },
   "author": {
-    "name": "Multica",
-    "email": "support@multica.ai"
+    "name": "U Workers contributors"
   },
   "license": "SEE LICENSE IN ../../LICENSE",
   "main": "./out/main/index.js",

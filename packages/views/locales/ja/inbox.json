@@ -53,9 +53,9 @@
     "retry_with_context": "コンテキストを保持して再試行",
     "edit_advanced": "詳細フォームで編集",
     "autopilot_quota_exceeded_body": "このワークスペースは現在の期間の自動化実行上限 {{limit}} 回に達しました。実行枠が {{resetAt}} にリセットされるまで、以降の自動化は開始されません。",
-    "autopilot_quota_upgrade": "アップグレード方法を見る",
     "archive": "アーカイブ",
-    "unarchive": "アーカイブ解除"
+    "unarchive": "アーカイブ解除",
+    "autopilot_quota_details": "制限の詳細を見る"
   },
   "types": {
     "issue_assigned": "割り当て済み",

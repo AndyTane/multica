@@ -1,29 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithI18n } from "../../test/i18n";
 import { StepWelcome } from "./step-welcome";
-
-// The welcome illustration's mock cards carry issue statuses, and the status
-// label used to come from `STATUS_CONFIG.label` — the server's English seed —
-// while every other string on the screen went through `useT` (MUL-6850). A
-// non-English member met the product on a line that read half in each
-// language. These assert against the REAL locale bundles, so a regression that
-// re-introduces the English seed fails here rather than in a screenshot.
-describe("StepWelcome status labels", () => {
-  it("renders the built-in status labels in English", () => {
-    renderWithI18n(<StepWelcome onNext={vi.fn()} />);
-
-    expect(screen.getByText("In Progress")).toBeInTheDocument();
-    expect(screen.getByText("In Review")).toBeInTheDocument();
-    expect(screen.getAllByText("Done")).toHaveLength(2);
+vi.mock("@multica/core/api", () => ({ api: { getBaseUrl: () => "https://service.example.test/api" } }));
+describe("service setup", () => {
+  it("shows the configured service and continues without marketing or profile collection", async () => {
+    const next = vi.fn();
+    renderWithI18n(<StepWelcome onNext={next} />);
+    expect(screen.getByText("https://service.example.test/api")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Continue to workspace" }));
+    expect(next).toHaveBeenCalledOnce();
   });
-
-  it("localizes them rather than rendering the English seed", () => {
+  it("translates the service step", () => {
     renderWithI18n(<StepWelcome onNext={vi.fn()} />, { locale: "zh-Hans" });
-
-    expect(screen.getByText("进行中")).toBeInTheDocument();
-    expect(screen.getByText("审核中")).toBeInTheDocument();
-    expect(screen.getAllByText("已完成")).toHaveLength(2);
-    expect(screen.queryByText("In Progress")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "连接你的服务" })).toBeInTheDocument();
   });
 });

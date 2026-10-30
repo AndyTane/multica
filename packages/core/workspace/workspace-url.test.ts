@@ -28,10 +28,10 @@ describe("workspaceUrlHost", () => {
     );
   });
 
-  it("falls back to the brand host when no app URL is configured", () => {
-    expect(workspaceUrlHost("")).toBe("multica.ai");
-    expect(workspaceUrlHost("   ")).toBe("multica.ai");
-    expect(workspaceUrlHost(null)).toBe("multica.ai");
-    expect(workspaceUrlHost(undefined)).toBe("multica.ai");
+  it("uses a relative workspace path when no app URL is configured", () => {
+    expect(workspaceUrlHost("")).toBe("");
+    expect(workspaceUrlHost("   ")).toBe("");
+    expect(workspaceUrlHost(null)).toBe("");
+    expect(workspaceUrlHost(undefined)).toBe("");
   });
 });

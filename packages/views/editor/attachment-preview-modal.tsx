@@ -407,8 +407,8 @@ export function PreviewImagePrefetch({ source }: { source: PreviewSource }) {
   const state = normalize(source);
   const { url, pending } = useResignedInlineMedia(
     state.attachmentId ?? undefined,
-    state.mediaUrl,
-    true,
+    state.attachmentId ? state.mediaUrl : "",
+    !!state.attachmentId,
   );
 
   useEffect(() => {

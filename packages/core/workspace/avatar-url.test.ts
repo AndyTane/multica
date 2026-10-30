@@ -8,6 +8,9 @@ vi.mock("../api", () => ({
 }));
 
 describe("resolvePublicFileUrlWithBase", () => {
+  it.each(["https://www.gravatar.com/avatar/hash", "//secure.gravatar.com/avatar/hash", "https://cdn.libravatar.org/avatar/hash"])("omits unsolicited avatar services: %s", (url) => {
+    expect(resolvePublicFileUrlWithBase(url, "http://localhost:8080")).toBeNull();
+  });
   it("resolves root-relative URLs against base URL", () => {
     expect(resolvePublicFileUrlWithBase("/uploads/a.png", "http://127.0.0.1:8080")).toBe(
       "http://127.0.0.1:8080/uploads/a.png",

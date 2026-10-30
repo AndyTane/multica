@@ -105,12 +105,11 @@ export function ActorAvatar({
   } = useActorName();
   const paths = useWorkspacePaths();
   const resolvedName = name ?? getActorName(actorType, actorId);
-  const resolvedAvatarUrl =
+  const resolvedAvatarUrl = resolvePublicFileUrl(
     avatarUrl === undefined
       ? getActorAvatarUrl(actorType, actorId)
-      : avatarUrl?.startsWith("/")
-        ? resolvePublicFileUrl(avatarUrl)
-        : avatarUrl;
+      : avatarUrl,
+  );
   const avatar = (
     <ActorAvatarBase
       name={resolvedName}

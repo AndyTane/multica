@@ -55,9 +55,9 @@
     "retry_with_context": "Réessayer avec le contexte",
     "edit_advanced": "Modifier en mode avancé",
     "autopilot_quota_exceeded_body": "Cet espace de travail a atteint sa limite de {{limit}} exécutions d'automatisation pour la période actuelle. Les prochaines exécutions d'automatisation ne démarreront qu'après la réinitialisation du quota {{resetAt}}.",
-    "autopilot_quota_upgrade": "Voir les options de mise à niveau",
     "archive": "Archiver",
-    "unarchive": "Désarchiver"
+    "unarchive": "Désarchiver",
+    "autopilot_quota_details": "Voir les limites"
   },
   "types": {
     "issue_assigned": "Assigné",

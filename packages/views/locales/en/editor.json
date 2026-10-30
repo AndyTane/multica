@@ -44,7 +44,8 @@
     "image_copied": "Image copied",
     "copy_image_failed": "Couldn't copy image",
     "canvas_label": "Image canvas. Drag to pan, scroll to zoom, double-click to toggle actual size.",
-    "unavailable": "That image is no longer available — skipped it."
+    "unavailable": "That image is no longer available — skipped it.",
+    "load_external": "Load image"
   },
   "canvas": {
     "zoom_in": "Zoom in",
@@ -124,7 +125,9 @@
     "copy_code": "Copy code",
     "show_preview": "Show preview",
     "show_source": "Show source",
-    "fullscreen": "Fullscreen"
+    "fullscreen": "Fullscreen",
+    "load_preview": "Load preview",
+    "external_preview_notice": "This preview may contact external services."
   },
   "dynamic_block": {
     "preview": "Preview",

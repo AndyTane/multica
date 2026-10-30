@@ -1,21 +1,9 @@
 import { autoUpdater, type UpdateDownloadedEvent } from "electron-updater";
-import { app, type BrowserWindow, ipcMain } from "electron";
-import type {
-  ManualUpdateCheckResult,
-  UpdaterPreferences,
-} from "../shared/updater-types";
-import {
-  DEFAULT_UPDATER_PREFERENCES,
-  loadUpdaterPreferences,
-  saveUpdaterPreferences,
-  updaterPreferencesPath,
-} from "./updater-preferences";
+import { app, dialog, type BrowserWindow, ipcMain } from "electron";
+import type { ManualUpdateCheckResult } from "../shared/updater-types";
 
-// Silent background updates: electron-updater downloads on its own as soon
-// as `update-available` fires; we only surface UI when the package is fully
-// downloaded and ready to install on next quit.
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
 
 // Windows arm64 ships its own update metadata channel because
 // electron-builder's `latest.yml` is not arch-suffixed on Windows — both
@@ -51,9 +39,6 @@ export function configureMacX64UpdateChannel(
 // arm64 feed and runtime path remain unchanged.
 configureMacX64UpdateChannel(autoUpdater);
 
-const STARTUP_CHECK_DELAY_MS = 5_000;
-const PERIODIC_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-
 type RendererChannel =
   | "updater:update-available"
   | "updater:download-progress"
@@ -80,195 +65,91 @@ function sendToLiveRenderer(
   }
 }
 
-// Single-flight guard around checkForUpdates(). With autoDownload=true the
-// startup, periodic, and manual triggers can all kick off downloads, and
-// overlapping calls have caused duplicate download warnings in the past
-// (see electronjs.org/docs/latest/api/auto-updater). Coalesce concurrent
-// callers onto the same in-flight promise.
-let inFlightCheck: Promise<unknown> | null = null;
-function checkForUpdatesOnce(): Promise<unknown> {
-  if (inFlightCheck) return inFlightCheck;
-  const p = autoUpdater
-    .checkForUpdates()
-    .then((result) => {
-      // checkForUpdates resolves as soon as metadata is fetched; the actual
-      // download (when autoDownload=true) is exposed on result.downloadPromise.
-      // Without a handler a download failure becomes an unhandled rejection
-      // in the main process — Node may terminate it on future versions.
-      void (result as { downloadPromise?: Promise<unknown> } | null)?.downloadPromise?.catch(
-        (err) => {
-          console.error("Failed to download update:", err);
-        },
-      );
-      return result;
-    })
-    .finally(() => {
-      if (inFlightCheck === p) inFlightCheck = null;
-    });
-  inFlightCheck = p;
-  return p;
-}
 
-export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
-  const preferencesFilePath = updaterPreferencesPath(app.getPath("userData"));
-  let automaticUpdatesEnabled =
-    DEFAULT_UPDATER_PREFERENCES.automaticUpdates;
-  let startupCheckElapsed = false;
-  let startupTimer: ReturnType<typeof setTimeout> | null = null;
-  let periodicTimer: ReturnType<typeof setInterval> | null = null;
-  const preferencesReady = loadUpdaterPreferences(preferencesFilePath).then(
-    (preferences) => {
-      automaticUpdatesEnabled = preferences.automaticUpdates;
-      return preferences;
-    },
-  );
-
-  const runAutomaticCheck = (errorMessage: string): void => {
-    void preferencesReady
-      .then(() => {
-        if (!automaticUpdatesEnabled) return;
-        return checkForUpdatesOnce();
-      })
-      .catch((err) => {
-        console.error(errorMessage, err);
-      });
-  };
-
-  // Arm the startup + periodic background checks. Idempotent: an already-armed
-  // timer is left in place so re-enabling never stacks duplicate schedules.
-  const scheduleBackgroundChecks = (): void => {
-    if (startupTimer === null && !startupCheckElapsed) {
-      // Initial check shortly after startup so we don't block boot.
-      startupTimer = setTimeout(() => {
-        startupTimer = null;
-        startupCheckElapsed = true;
-        runAutomaticCheck("Failed to check for updates:");
-      }, STARTUP_CHECK_DELAY_MS);
+export function setupAutoUpdater(
+  getMainWindow: () => BrowserWindow | null,
+  options: { updateUrl?: string } = { updateUrl: process.env.U_WORKERS_UPDATE_URL },
+): void {
+  const source = options.updateUrl?.trim();
+  let sourceError = "No update source configured.";
+  let configured = false;
+  if (source) {
+    try {
+      const url = new URL(source);
+      if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) {
+        throw new Error("Update source must be an HTTP(S) URL without credentials.");
+      }
+      autoUpdater.setFeedURL({ provider: "generic", url: source });
+      configured = true;
+    } catch (error) {
+      sourceError = error instanceof Error ? error.message : String(error);
     }
-    if (periodicTimer === null) {
-      // Background poll so long-running sessions still pick up new releases
-      // without requiring the user to restart the app.
-      periodicTimer = setInterval(() => {
-        runAutomaticCheck("Periodic update check failed:");
-      }, PERIODIC_CHECK_INTERVAL_MS);
-    }
-  };
-
-  // Tear down the scheduled checks outright when automatic updates are turned
-  // off. Relying only on an in-callback preference guard leaves the timers
-  // running and lets a tick that races the preference flip still fire a check;
-  // clearing them makes "disabled" mean no future background work, full stop.
-  const cancelBackgroundChecks = (): void => {
-    if (startupTimer !== null) {
-      clearTimeout(startupTimer);
-      startupTimer = null;
-    }
-    if (periodicTimer !== null) {
-      clearInterval(periodicTimer);
-      periodicTimer = null;
-    }
-  };
+  }
+  let available = false;
+  let downloaded = false;
+  let inFlightCheck: Promise<ManualUpdateCheckResult> | null = null;
+  let inFlightDownload: Promise<unknown> | null = null;
 
   autoUpdater.on("update-available", (info) => {
-    // Forwarded for renderer-side state tracking only; the notification UI
-    // does not render an "available" affordance with autoDownload=true.
     sendToLiveRenderer(getMainWindow(), "updater:update-available", {
-      version: info.version,
-      releaseNotes: info.releaseNotes,
+      version: info.version, releaseNotes: info.releaseNotes,
     });
   });
-
   autoUpdater.on("download-progress", (progress) => {
-    sendToLiveRenderer(getMainWindow(), "updater:download-progress", {
-      percent: progress.percent,
-    });
+    sendToLiveRenderer(getMainWindow(), "updater:download-progress", { percent: progress.percent });
   });
-
   autoUpdater.on("update-downloaded", (info: UpdateDownloadedEvent) => {
+    downloaded = true;
     sendToLiveRenderer(getMainWindow(), "updater:update-downloaded", {
-      version: info.version,
-      releaseNotes: info.releaseNotes,
+      version: info.version, releaseNotes: info.releaseNotes,
     });
   });
+  autoUpdater.on("error", (err) => console.error("Updater error:", err));
 
-  autoUpdater.on("error", (err) => {
-    console.error("Auto-updater error:", err);
+  // Old preferences cannot reactivate background checks.
+  ipcMain.handle("updater:get-preferences", () => ({ automaticUpdates: false }));
+  ipcMain.handle("updater:set-automatic-updates", () => ({ automaticUpdates: false }));
+
+  ipcMain.handle("updater:check", (): Promise<ManualUpdateCheckResult> => {
+    if (!configured) return Promise.resolve({ ok: false, error: sourceError });
+    if (inFlightCheck) return inFlightCheck;
+    inFlightCheck = (async (): Promise<ManualUpdateCheckResult> => {
+      try {
+        const result = await autoUpdater.checkForUpdates();
+        available = result?.isUpdateAvailable ?? false;
+        return {
+          ok: true, currentVersion: app.getVersion(),
+          latestVersion: result?.updateInfo.version ?? app.getVersion(),
+          available, sourceUrl: source!,
+        };
+      } catch (err) {
+        available = false;
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      } finally {
+        inFlightCheck = null;
+      }
+    })();
+    return inFlightCheck;
   });
 
-  // Retained for IPC back-compat with older renderer bundles. With
-  // autoDownload=true the renderer no longer triggers this path.
-  ipcMain.handle("updater:download", () => {
-    return autoUpdater.downloadUpdate();
+  ipcMain.handle("updater:download", async () => {
+    if (!configured) throw new Error(sourceError);
+    if (!available) throw new Error("Check for an available update first.");
+    if (inFlightDownload) return inFlightDownload;
+    const download = async () => {
+      const { response } = await dialog.showMessageBox({
+        type: "question", title: "Download update",
+        message: "Download this update?", detail: source,
+        buttons: ["Cancel", "Download"], defaultId: 0, cancelId: 0,
+      });
+      if (response !== 1) return;
+      return autoUpdater.downloadUpdate();
+    };
+    inFlightDownload = download().finally(() => { inFlightDownload = null; });
+    return inFlightDownload;
   });
-
   ipcMain.handle("updater:install", () => {
+    if (!downloaded) throw new Error("Download an update first.");
     autoUpdater.quitAndInstall(false, true);
   });
-
-  ipcMain.handle(
-    "updater:get-preferences",
-    async (): Promise<UpdaterPreferences> => {
-      await preferencesReady;
-      return { automaticUpdates: automaticUpdatesEnabled };
-    },
-  );
-
-  ipcMain.handle(
-    "updater:set-automatic-updates",
-    async (_event, enabled: unknown): Promise<UpdaterPreferences> => {
-      if (typeof enabled !== "boolean") {
-        throw new TypeError("automaticUpdates must be a boolean");
-      }
-
-      await preferencesReady;
-      const wasEnabled = automaticUpdatesEnabled;
-      const preferences = { automaticUpdates: enabled };
-      await saveUpdaterPreferences(preferencesFilePath, preferences);
-      automaticUpdatesEnabled = enabled;
-
-      if (!enabled) {
-        cancelBackgroundChecks();
-      } else if (!wasEnabled) {
-        // If the startup check has already passed while the preference was off,
-        // enabling it should take effect now instead of waiting up to one hour.
-        if (startupCheckElapsed) {
-          runAutomaticCheck("Failed to check for updates:");
-        }
-        scheduleBackgroundChecks();
-      }
-
-      return preferences;
-    },
-  );
-
-  ipcMain.handle("updater:check", async (): Promise<ManualUpdateCheckResult> => {
-    try {
-      const result = (await checkForUpdatesOnce()) as
-        | { updateInfo: { version: string }; isUpdateAvailable?: boolean }
-        | null;
-      const currentVersion = app.getVersion();
-      // Trust electron-updater's own decision rather than re-deriving it from
-      // a version-string compare. The two diverge for pre-release channels,
-      // staged rollouts, downgrades, and minimum-system-version gates — in
-      // those cases updateInfo.version differs from app.getVersion() but no
-      // `update-available` event fires, so showing "available" here would
-      // promise a download prompt that never appears.
-      return {
-        ok: true,
-        currentVersion,
-        latestVersion: result?.updateInfo.version ?? currentVersion,
-        available: result?.isUpdateAvailable ?? false,
-      };
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
-  });
-
-  // Initial check shortly after startup so we don't block boot, plus a
-  // background poll for long-running sessions. Both are torn down when the
-  // user disables automatic updates and re-armed when they turn them back on.
-  scheduleBackgroundChecks();
 }

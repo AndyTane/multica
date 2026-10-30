@@ -26,8 +26,9 @@ import {
 import { Button } from "@multica/ui/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { setLoggedInCookie } from "@/features/auth/auth-cookie";
-import Link from "next/link";
 import { LoginPage, validateCliCallback } from "@multica/views/auth";
+import { ProductMark } from "@multica/ui/components/common/product-mark";
+import { PRODUCT_NAME } from "@multica/core/config/brand";
 import { useT } from "@multica/views/i18n";
 
 /**
@@ -217,6 +218,7 @@ function LoginPageContent() {
 
   return (
     <LoginPage
+      logo={<ProductMark name={PRODUCT_NAME} size={32} />}
       onSuccess={handleSuccess}
       google={
         googleClientId
@@ -233,17 +235,6 @@ function LoginPageContent() {
           : undefined
       }
       onTokenObtained={setLoggedInCookie}
-      extra={
-        <span className="text-caption text-muted-foreground">
-          {t(($) => $.web.prefer_desktop)}{" "}
-          <Link
-            href="/download"
-            className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground/70"
-          >
-            {t(($) => $.web.download)}
-          </Link>
-        </span>
-      }
     />
   );
 }

@@ -29,7 +29,6 @@ vi.mock("./quick-actions-tab", stub("QuickActionsTab"));
 vi.mock("./keyboard-shortcuts-tab", stub("KeyboardShortcutsTab"));
 vi.mock("./plugins-tab", stub("PluginsTab"));
 vi.mock("./mcp-tab", stub("McpTab"));
-vi.mock("./billing-tab", stub("BillingTab"));
 
 const shell = vi.hoisted(() => ({
   appsAvailable: false,
@@ -174,7 +173,7 @@ describe("SettingsPage Plugin feature flag", () => {
 });
 
 describe("SettingsPage workspace subscription feature flag", () => {
-  it("hides Billing and falls back to Workspace General from a direct URL", () => {
+  it("shows a local unavailable page for a retired billing URL", () => {
     navigationState.search = "tab=billing";
 
     renderWithI18n(<SettingsPage />);
@@ -183,10 +182,10 @@ describe("SettingsPage workspace subscription feature flag", () => {
       screen.queryByRole("link", { name: "Billing" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("BillingTab")).not.toBeInTheDocument();
-    expect(screen.getByText("WorkspaceTab")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Return to workspace" })).toHaveFocus();
   });
 
-  it("shows and mounts Billing only when explicitly enabled", () => {
+  it("ignores the obsolete billing feature flag", () => {
     navigationState.search = "tab=billing";
     configStore.getState().setFeatureFlags({
       [BILLING_WORKSPACE_SUBSCRIPTIONS_FLAG]: true,
@@ -194,8 +193,8 @@ describe("SettingsPage workspace subscription feature flag", () => {
 
     renderWithI18n(<SettingsPage />);
 
-    expect(screen.getByRole("link", { name: "Billing" })).toBeInTheDocument();
-    expect(screen.getByText("BillingTab")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Billing" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Return to workspace" })).toHaveFocus();
   });
 });
 
