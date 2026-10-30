@@ -7,9 +7,8 @@ import (
 	"github.com/multica-ai/multica/server/internal/privacy"
 )
 
-// Config is read once during API server startup. Endpoint selection is
-// deliberately absent: self-host telemetry can only be sent to Multica's
-// first-party collector compiled into the client.
+// Config preserves the historical opt-out contract for callers and tests.
+// The local server no longer assembles a telemetry worker or collector endpoint.
 type Config struct {
 	Enabled bool
 }

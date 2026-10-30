@@ -1,28 +1,13 @@
-// Package analytics ships product telemetry events to an external analytics
-// backend (PostHog). Events feed the acquisition → activation → expansion
-// funnel — see events.go for the event contract.
-//
-// Design:
-//   - Capture is non-blocking. Request handlers must never wait on analytics
-//     network I/O, so we enqueue into a bounded channel and a background
-//     worker flushes to PostHog in batches.
-//   - When the queue is full events are dropped (and counted). A broken
-//     analytics backend must never degrade the product.
-//   - When POSTHOG_API_KEY is empty the package runs a no-op client, which
-//     keeps local dev and self-hosted instances friction-free.
+// Package analytics preserves the event API used by handlers without collecting,
+// buffering, or transmitting telemetry. Local diagnostics remain independent.
 package analytics
 
 import (
 	"log/slog"
-	"os"
-	"strings"
 	"time"
-
-	"github.com/multica-ai/multica/server/internal/privacy"
 )
 
-// Event is a single analytics capture. Fields mirror PostHog's /capture/ shape
-// but are framework-agnostic so alternate backends can plug in later.
+// Event is the existing handler event contract. This build discards captures.
 type Event struct {
 	// Name of the event (e.g. "signup", "workspace_created").
 	Name string
@@ -52,83 +37,25 @@ type Event struct {
 	// that users can legitimately change during onboarding.
 	Set map[string]any
 
-	// Timestamp is optional; when zero the client fills in time.Now().
+	// Timestamp is optional.
 	Timestamp time.Time
 }
 
-// Client is the narrow surface the rest of the codebase depends on. Handlers
-// call Capture and move on; the implementation is responsible for buffering,
-// batching, and shipping.
+// Client is the narrow surface the rest of the codebase depends on.
 type Client interface {
 	Capture(e Event)
-	// Close drains pending events. Call once during graceful shutdown.
+	// Close is safe during graceful shutdown; there are no pending events.
 	Close()
 }
 
-// NewFromEnv returns a no-op client under the local build policy. The upstream
-// environment configuration below cannot override that policy:
-//
-//   - POSTHOG_API_KEY: project API key. Empty → no-op client.
-//   - POSTHOG_HOST:    API host (default https://us.i.posthog.com).
-//   - ANALYTICS_ENVIRONMENT: production/staging/dev. Defaults from APP_ENV.
-//   - ANALYTICS_DISABLED: set to "true"/"1" to force a no-op client even
-//     when POSTHOG_API_KEY is set (useful for CI and self-hosted opt-out).
+// NewFromEnv always returns a no-op client. Historical reporting environment
+// variables cannot re-enable a transport: this build does not include one.
 func NewFromEnv() Client {
-	if !privacy.ExternalReportingEnabled {
-		slog.Info("analytics disabled by local build policy")
-		return NoopClient{}
-	}
-	if isDisabled() {
-		slog.Info("analytics disabled via ANALYTICS_DISABLED")
-		return NoopClient{}
-	}
-	key := os.Getenv("POSTHOG_API_KEY")
-	if key == "" {
-		slog.Info("analytics: POSTHOG_API_KEY not set, using noop client")
-		return NoopClient{}
-	}
-	host := os.Getenv("POSTHOG_HOST")
-	if host == "" {
-		host = "https://us.i.posthog.com"
-	}
-	slog.Info("analytics: posthog client enabled", "host", host)
-	return NewPostHogClient(PostHogConfig{
-		APIKey:      key,
-		Host:        host,
-		Environment: EnvironmentFromEnv(),
-	})
+	slog.Info("analytics disabled by local build policy")
+	return NoopClient{}
 }
 
-func isDisabled() bool {
-	v := os.Getenv("ANALYTICS_DISABLED")
-	return v == "true" || v == "1"
-}
-
-func EnvironmentFromEnv() string {
-	if v := normalizeEnvironment(os.Getenv("ANALYTICS_ENVIRONMENT")); v != "" {
-		return v
-	}
-	if v := normalizeEnvironment(os.Getenv("APP_ENV")); v != "" {
-		return v
-	}
-	return "dev"
-}
-
-func normalizeEnvironment(v string) string {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "production", "prod":
-		return "production"
-	case "staging", "stage":
-		return "staging"
-	case "development", "dev", "test", "local":
-		return "dev"
-	default:
-		return ""
-	}
-}
-
-// NoopClient silently drops all events. Used in tests, in local dev when
-// POSTHOG_API_KEY is unset, and in self-hosted instances that opt out.
+// NoopClient silently drops all events without retaining their contents.
 type NoopClient struct{}
 
 func (NoopClient) Capture(Event) {}

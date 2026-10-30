@@ -6,9 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/featureflags"
-	"github.com/multica-ai/multica/server/internal/privacy"
 )
 
 type AppConfig struct {
@@ -47,11 +45,8 @@ type AppConfig struct {
 	// defaults absent to false (hidden).
 	VCSIntegrationAvailable bool `json:"vcs_integration_available,omitempty"`
 
-	// PostHog public config for the frontend. The key is the same Project
-	// API Key the backend uses; returning it here (instead of baking it
-	// into the frontend bundle via NEXT_PUBLIC_*) means self-hosted
-	// instances — whose server returns an empty key — automatically
-	// disable frontend event shipping too.
+	// Keep these empty fields for installed clients. This build has no
+	// reporting transport and never publishes upstream credentials or hosts.
 	PosthogKey           string `json:"posthog_key"`
 	PosthogHost          string `json:"posthog_host"`
 	AnalyticsEnvironment string `json:"analytics_environment"`
@@ -126,22 +121,14 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	config.DaemonServerURL, config.DaemonAppURL = daemonSetupURLsFromEnv()
 	config.VCSIntegrationAvailable = h.cfg.VCSIntegrationEnabled
 	config.FeatureFlags = featureflags.EvaluateFrontendPublicFlags(r.Context(), h.FeatureFlags)
+	// The upstream cloud billing routes are removed from this build. Old
+	// environment flags must not advertise them to installed clients.
+	config.FeatureFlags[featureflags.BillingWorkspaceSubscriptions] = false
 	// Only surface the build version on self-hosted deployments. The managed
 	// cloud is continuously deployed and its users can't choose the build, so
 	// the Help popover's version row would just be noise there (MUL-4108).
 	if !isOfficialCloudDeployment() {
 		config.ServerVersion = h.cfg.ServerVersion
-	}
-
-	// Preserve the response shape for installed clients while the local build
-	// always withholds external reporting configuration, even if env opts in.
-	if v := os.Getenv("ANALYTICS_DISABLED"); privacy.ExternalReportingEnabled && v != "true" && v != "1" {
-		config.PosthogKey = os.Getenv("POSTHOG_API_KEY")
-		config.PosthogHost = os.Getenv("POSTHOG_HOST")
-		config.AnalyticsEnvironment = analytics.EnvironmentFromEnv()
-		if config.PosthogHost == "" && config.PosthogKey != "" {
-			config.PosthogHost = "https://us.i.posthog.com"
-		}
 	}
 
 	writeJSON(w, http.StatusOK, config)

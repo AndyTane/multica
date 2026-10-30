@@ -418,7 +418,7 @@ func TestSetupCommandsFailClosedInTaskContext(t *testing.T) {
 	}
 
 	for name, run := range map[string]func() error{
-		"cloud":     func() error { return runSetupCloud(setupCmd, nil) },
+		"default":   func() error { return runSetupSelfHost(setupCmd, nil) },
 		"self-host": func() error { return runSetupSelfHost(setupSelfHostCmd, nil) },
 	} {
 		err := run()

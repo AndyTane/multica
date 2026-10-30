@@ -288,11 +288,6 @@ func newAPIClient(cmd *cobra.Command) (*cli.APIClient, error) {
 	return client, nil
 }
 
-const (
-	defaultCloudServerURL = "https://api.multica.ai"
-	defaultCloudAppURL    = "https://multica.ai"
-)
-
 func tryResolveServerURL(cmd *cobra.Command) string {
 	if val := tryResolveExplicitServerURL(cmd); val != "" {
 		return val
@@ -357,7 +352,7 @@ func resolveLoginTokenServerURL(cmd *cobra.Command) string {
 	if val := tryResolveHumanServerURL(cmd); val != "" {
 		return val
 	}
-	return defaultCloudServerURL
+	return ""
 }
 
 func normalizeAPIBaseURL(raw string) string {

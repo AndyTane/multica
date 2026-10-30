@@ -108,12 +108,7 @@ type Config struct {
 	// "10.0.0.0/8,127.0.0.1/32"). This is specifically to keep the per-IP
 	// webhook limiter from being bypassed by a spoofed XFF on deployments
 	// without a header-stripping reverse proxy in front.
-	TrustedProxies []netip.Prefix
-	// CloudURL enables the SaaS-only multica-cloud connection when set. Empty
-	// keeps self-hosted deployments explicit: Cloud endpoints return 403 instead
-	// of attempting to dial a hard-coded private service.
-	CloudURL                 string
-	CloudTimeout             time.Duration
+	TrustedProxies           []netip.Prefix
 	AttachmentDownloadMode   string
 	AttachmentDownloadURLTTL time.Duration
 	// AttachmentFrameAncestors are trusted browser origins allowed to embed
@@ -512,12 +507,8 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		WebhookIPRateLimiter:         NewMemoryWebhookIPRateLimiter(DefaultWebhookIPRateLimit()),
 		WebhookAbsoluteIPRateLimiter: NewMemoryWebhookAbsoluteIPRateLimiter(DefaultWebhookAbsoluteIPRateLimit()),
 		InvitationRateLimiters:       NewMemoryInvitationRateLimiters(DefaultInvitationRateLimits()),
-		CloudRuntime: cloudruntime.NewClient(cloudruntime.Config{
-			BaseURL: cfg.CloudURL,
-			Timeout: cfg.CloudTimeout,
-		}),
-		LLM: llmClient,
-		cfg: cfg,
+		LLM:                          llmClient,
+		cfg:                          cfg,
 	}
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)
 	// The default passthrough scheduler reports sweeper-race recoveries so the

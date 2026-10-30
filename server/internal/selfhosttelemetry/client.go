@@ -4,12 +4,6 @@ import (
 	"bytes"
 	"context"
 	"net/http"
-	"time"
-)
-
-const (
-	productionEndpoint = "https://telemetry.multica.ai/v1/telemetry/events"
-	httpTimeout        = 5 * time.Second
 )
 
 type deliveryDisposition int
@@ -25,28 +19,15 @@ type eventSender interface {
 	Close()
 }
 
-// HTTPClient only knows the fixed first-party V1 endpoint. The unexported test
-// constructor below permits local fake servers without creating a deployment
-// configuration surface that could redirect production telemetry.
+// HTTPClient has no production endpoint or transport. Only tests inject one
+// to exercise the historical delivery protocol against fake services.
 type HTTPClient struct {
 	endpoint string
 	client   *http.Client
 }
 
 func newHTTPClient() *HTTPClient {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	return &HTTPClient{
-		endpoint: productionEndpoint,
-		client: &http.Client{
-			Transport: transport,
-			Timeout:   httpTimeout,
-			// Never forward the snapshot to a redirect target. Endpoint ownership
-			// is part of the privacy boundary, not merely a convenience default.
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-	}
+	return &HTTPClient{}
 }
 
 func newHTTPClientForTest(endpoint string, client *http.Client) *HTTPClient {
@@ -54,6 +35,9 @@ func newHTTPClientForTest(endpoint string, client *http.Client) *HTTPClient {
 }
 
 func (c *HTTPClient) Send(ctx context.Context, body []byte) deliveryDisposition {
+	if c == nil || c.client == nil || c.endpoint == "" {
+		return deliveryStopForDay
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return deliveryStopForDay

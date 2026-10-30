@@ -230,7 +230,7 @@ func TestNewEmailService_FromEmailResolution(t *testing.T) {
 		},
 		{
 			name: "default",
-			want: "noreply@multica.ai",
+			want: "",
 		},
 	}
 
