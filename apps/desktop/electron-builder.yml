@@ -1,5 +1,5 @@
-appId: ai.multica.desktop
-productName: Multica
+appId: app.uworkers.desktop
+productName: U Workers
 directories:
   buildResources: build
 files:
@@ -30,7 +30,7 @@ extraResources:
   - from: ../../NOTICE
     to: NOTICE
 protocols:
-  - name: Multica
+  - name: U Workers
     schemes:
       - multica
 asarUnpack:
@@ -42,16 +42,16 @@ mac:
     - zip
   # Hardcoded name avoids the `@multica/desktop-*` subdirectory that
   # `${name}` produces for scoped package names.
-  # Naming scheme: multica-desktop-<version>-<platform>-<arch>.<ext>
+  # Naming scheme: u-workers-desktop-<version>-<platform>-<arch>.<ext>
   # so the filename alone surfaces kind, version, platform, and CPU arch.
-  artifactName: multica-desktop-${version}-mac-${arch}.${ext}
+  artifactName: u-workers-desktop-${version}-mac-${arch}.${ext}
   # Notarize via notarytool. Requires APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD
   # + APPLE_TEAM_ID env vars at package time. Non-mac contributors are
   # unaffected because `pnpm package` already requires the Developer ID
   # signing cert — notarization is a strict superset.
   notarize: true
 dmg:
-  artifactName: multica-desktop-${version}-mac-${arch}.${ext}
+  artifactName: u-workers-desktop-${version}-mac-${arch}.${ext}
 linux:
   # Override the Linux executable name to avoid leaking the scoped npm
   # package name (`@multica/desktop`) into the installed binary, the
@@ -66,7 +66,7 @@ linux:
   # and fall back to the theme's default app icon (the Settings gear on
   # Yaru).
   #
-  # `multica-desktop` (not `multica`) so the deb/rpm/AppImage package never
+  # `u-workers-desktop` (not `multica`) so the deb/rpm/AppImage package never
   # installs this Electron binary as `/usr/bin/multica`. The Go CLI is a
   # separate artifact (see CLI_INSTALL.md) that agents and scripts expect
   # to find at `multica` on PATH; when both packages are installed on the
@@ -76,9 +76,9 @@ linux:
   # worst failure mode: it exits 0 with empty stdout (its own Chromium flags
   # eat CLI args like `--output json`), which looks like a healthy CLI that
   # returned nothing rather than "wrong binary" (github.com/multica-ai/multica/issues/5481).
-  # `StartupWMClass=Multica` (productName-derived) is unaffected by this
+  # `StartupWMClass=U Workers` (productName-derived) is unaffected by this
   # rename — it comes from `app.getName()`, not `executableName`.
-  executableName: multica-desktop
+  executableName: u-workers-desktop
   # Pin StartupWMClass to the WM_CLASS Electron emits on X11. Electron
   # derives WM_CLASS from `app.getName()`, which reads the *packaged*
   # ASAR's `package.json` — `productName` if present, otherwise `name`.
@@ -87,16 +87,16 @@ linux:
   # `name: "@multica/desktop"`, packaged Electron emitted
   # `WM_CLASS=@multica/desktop`, which broke association with this entry
   # and reproduced #2515 on Ubuntu 0.2.31. The fix lives in two places
-  # outside this file — `productName: "Multica"` on the source
-  # package.json (so the ASAR carries it) and `app.setName("Multica")`
+  # outside this file — `productName: "U Workers"` on the source
+  # package.json (so the ASAR carries it) and `app.setName("U Workers")`
   # in the production branch of `src/main/index.ts` (belt-and-braces).
-  # Keep `StartupWMClass: Multica` pinned here so any future drift in
+  # Keep `StartupWMClass: U Workers` pinned here so any future drift in
   # those two anchors shows up as a diff against this declaration.
   # Verification on a real Ubuntu install: `xprop WM_CLASS` on a running
-  # window prints `Multica` for both fields.
+  # window prints `U Workers` for both fields.
   desktop:
     entry:
-      StartupWMClass: Multica
+      StartupWMClass: U Workers
   # Point at pre-rendered hicolor sizes. electron-builder *can* generate
   # 16/24/32/48/64/128/256/512 from a single build/icon.png, but the
   # auto-generation silently shipped only the 1024×1024 source in our
@@ -108,7 +108,7 @@ linux:
     - AppImage
     - deb
     - rpm
-  artifactName: multica-desktop-${version}-linux-${arch}.${ext}
+  artifactName: u-workers-desktop-${version}-linux-${arch}.${ext}
 rpm:
   # Disable RPM build-id symlinks. Electron apps embed the upstream Electron
   # binary, whose GNU build-id is identical across every app shipping the same
@@ -120,5 +120,5 @@ rpm:
 win:
   target:
     - nsis
-  artifactName: multica-desktop-${version}-windows-${arch}.${ext}
+  artifactName: u-workers-desktop-${version}-windows-${arch}.${ext}
 npmRebuild: false

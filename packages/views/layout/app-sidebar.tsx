@@ -1,3 +1,5 @@
+import { PRODUCT_NAME } from "@multica/core/config/brand";
+import { ProductMark } from "@multica/ui/components/common/product-mark";
 "use client";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 
@@ -614,6 +616,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
         {topSlot}
         {/* Workspace Switcher */}
         <SidebarHeader className={cn("py-3", headerClassName)} style={headerStyle}>
+          <ProductMark name={PRODUCT_NAME} variant="lockup" size={16} className="px-2 pb-2" />
           <SidebarMenu>
             <SidebarMenuItem>
               <DropdownMenu>
@@ -631,7 +634,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         )}
                       </span>
                       <span className="flex-1 truncate font-medium">
-                        {workspace?.name ?? "Multica"}
+                        {workspace?.name ?? "U Workers"}
                       </span>
                       <ChevronDown className="size-3 text-muted-foreground" />
                     </SidebarMenuButton>

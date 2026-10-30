@@ -102,7 +102,7 @@ describe("PullRequestsSection (MUL-7429)", () => {
     );
   });
 
-  it("explains a PR Multica has not received", async () => {
+  it("explains a PR U Workers has not received", async () => {
     apiMock.linkIssuePullRequest.mockRejectedValue(new ApiError("not found", 404, "Not Found"));
     renderSection();
     fireEvent.click(await screen.findByRole("button", { name: "Link pull request" }));
@@ -111,7 +111,7 @@ describe("PullRequestsSection (MUL-7429)", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Link" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Multica hasn’t received this PR yet. Check that its repository is connected.",
+      "U Workers hasn’t received this PR yet. Check that its repository is connected.",
     );
   });
 

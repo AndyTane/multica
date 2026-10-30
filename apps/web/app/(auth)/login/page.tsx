@@ -28,6 +28,8 @@ import { Loader2 } from "lucide-react";
 import { setLoggedInCookie } from "@/features/auth/auth-cookie";
 import Link from "next/link";
 import { LoginPage, validateCliCallback } from "@multica/views/auth";
+import { ProductMark } from "@multica/ui/components/common/product-mark";
+import { PRODUCT_NAME } from "@multica/core/config/brand";
 import { useT } from "@multica/views/i18n";
 
 /**
@@ -217,6 +219,7 @@ function LoginPageContent() {
 
   return (
     <LoginPage
+      logo={<ProductMark name={PRODUCT_NAME} variant="lockup" size={32} />}
       onSuccess={handleSuccess}
       google={
         googleClientId

@@ -45,7 +45,7 @@ export async function loadRuntimeConfig(options: {
 }
 
 export function desktopConfigPath(): string {
-  return join(app.getPath("home"), ".multica", "desktop.json");
+  return join(app.getPath("home"), ".u-workers", "desktop.json");
 }
 
 function isMissingFileError(err: unknown): boolean {

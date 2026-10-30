@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@multica/core/config";
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Inter, Geist_Mono, Source_Serif_4 } from "next/font/google";
@@ -91,13 +92,13 @@ export const metadata: Metadata = {
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
   },
   // Home-screen behaviour: launch without browser chrome, and label the icon
-  // "Multica" rather than the long SEO <title>. `capable` renders the
+  // "U Workers" rather than the long SEO <title>. `capable` renders the
   // standardised `mobile-web-app-capable` tag — Next 16 no longer emits the
   // deprecated apple-prefixed spelling, so iOS standalone rides on the
   // manifest's `display` instead (honoured since iOS 16.4).
   appleWebApp: {
     capable: true,
-    title: "Multica",
+    title: "U Workers",
     // `default` keeps the web view below the status bar. Going edge-to-edge
     // (`black-translucent` + viewport-fit=cover) needs env(safe-area-inset-*)
     // padding, which no surface in the app has yet.
@@ -106,13 +107,11 @@ export const metadata: Metadata = {
   openGraph: {
     ...(publicAppUrl ? { url: publicAppUrl } : {}),
     type: "website",
-    siteName: "Multica",
+    siteName: "U Workers",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    site: "@multica_hq",
-    creator: "@multica_hq",
   },
   ...(publicAppUrl ? { alternates: { canonical: publicAppUrl } } : {}),
   robots: {

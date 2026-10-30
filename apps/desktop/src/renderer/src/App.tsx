@@ -10,7 +10,7 @@ import { api } from "@multica/core/api";
 import { useHasOnboarded } from "@multica/core/paths";
 import { setCurrentWorkspace } from "@multica/core/platform";
 import { ThemeProvider } from "@multica/ui/components/common/theme-provider";
-import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
+import { ProductMark } from "@multica/ui/components/common/product-mark";
 import { Toaster } from "@multica/ui/components/ui/sonner";
 import { DesktopLoginPage } from "./pages/login";
 import { DesktopAuthRecoveryPage } from "./pages/auth-recovery";
@@ -97,7 +97,7 @@ function IssueWindowContent() {
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <MulticaIcon className="size-6 animate-pulse" />
+        <ProductMark name="U Workers" className="size-6 animate-pulse" />
       </div>
     );
   }
@@ -322,7 +322,7 @@ function AppContent() {
   if (isLoading || bootstrapping) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <MulticaIcon className="size-6 animate-pulse" />
+        <ProductMark name="U Workers" className="size-6 animate-pulse" />
       </div>
     );
   }

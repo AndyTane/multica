@@ -30,8 +30,8 @@ export const PWA_START_URL = "/inbox";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Multica",
-    short_name: "Multica",
+    name: "U Workers",
+    short_name: "U Workers",
     description:
       "Assign tasks to coding agents, track progress, and keep your team's work in one place.",
     start_url: PWA_START_URL,

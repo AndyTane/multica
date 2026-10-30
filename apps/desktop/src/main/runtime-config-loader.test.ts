@@ -4,9 +4,12 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("electron", () => ({ app: { getPath: () => "isolated-test-home" } }));
-import { loadRuntimeConfig } from "./runtime-config-loader";
+import { desktopConfigPath, loadRuntimeConfig } from "./runtime-config-loader";
 
 describe("loadRuntimeConfig", () => {
+  it("isolates configuration without migrating the original directory", () => {
+    expect(desktopConfigPath()).toBe(join("isolated-test-home", ".u-workers", "desktop.json"));
+  });
   it("uses dev env and ignores desktop.json during electron-vite dev", async () => {
     const dir = await mkdtemp(join(tmpdir(), "multica-desktop-config-"));
     const configPath = join(dir, "desktop.json");
