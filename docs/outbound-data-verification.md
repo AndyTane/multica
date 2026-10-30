@@ -11,6 +11,10 @@ and the exact boundary of what was and was not verified are recorded below. Poli
 [docs/outbound-data-policy.md](outbound-data-policy.md). Plan:
 [docs/plans/2026-10-30-u-workers-frontend-local-only.md](plans/2026-10-30-u-workers-frontend-local-only.md).
 
+Backend review: C1 and D2 are accepted; Task 8 is ready for user review.
+PR #3 includes the remaining PR #4 commits plus the narrow reviewer corrections
+described in `evidence/clawsta-80/desktop/backend-review.md`. No PR was merged.
+
 ## What is and is not claimed
 
 Verified in this run:
@@ -34,8 +38,9 @@ Verified in this run:
   the TCP sampler and the recorder baseline existed before the app process
   started, and startup, engine controls, real login, browsing and a 60 s idle
   window were each evaluated against their own time window. Every phase had
-  samples, zero recorder traffic outside exact timestamped control windows, zero
-  browser-layer egress and zero non-loopback TCP connections. The daemon the
+  samples and zero recorder traffic outside exact timestamped control windows.
+  Attached browser events showed zero non-control egress; TCP samples showed no
+  non-loopback connection except the declared pre-launch control. The daemon the
   desktop auto-starts from its bundled CLI was identified by executable path,
   isolated profile and creation time, sampled from first appearance and removed
   after attribution checks; the workspace daemon PID was protected and confirmed
@@ -51,7 +56,7 @@ Not claimed:
   email/message delivery, real integration accounts or real update downloads.
 - Company-network, HTTPS and Tailscale access: C1 tested the home LAN only.
 - Complete desktop connection logging. The Windows TCP layer is a sampling
-  backstop (D2 measured a `2.07 s median interval, 2.29 s maximum gap and 52
+  backstop (D2 measured a 2.07 s median interval, 2.29 s maximum gap and 52
   samples overall); it is not a complete traffic record. The env-proxy contract
   is proven with the same Node and Go runtimes in controls, and the actual Go
   daemon is covered by its detached PIDs in the sampler; neither statement
@@ -515,7 +520,7 @@ The instance is retained for user review; lifecycle commands are in
   missing samples, sampler errors or any non-control egress. The Chromium
   recorder layer, the browser event layer, the same-runtime Node/Go env-proxy
   controls and the TCP sampling of the packaged tree plus the detached daemon
-  all report zero non-loopback traffic. See
+  show no non-control external traffic within their recorded coverage. See
   [Desktop batch D2 results](#desktop-batch-d2-results).
 - Packaging identity is unchanged from D1: the exe reports `ProductName: U Workers`,
   `FileDescription: U Workers` and the packaged app reports
@@ -548,7 +553,7 @@ The instance is retained for user review; lifecycle commands are in
     directory at all. The harness creates `AppData\Roaming` and `AppData\Local`
     before launch; a real Windows profile always has them.
   - The TCP sampler is a sampling backstop with measured cadence recorded in the
-    evidence (`500 ms requested, `2.07 s median, `2.29 s max gap, 52 samples);
+    evidence (500 ms requested, 2.07 s median, 2.29 s max gap, 52 samples);
     it is not a per-second or complete connection log.
   - The tab system owns `document.title` after login, so the OS window title
     shows the localized route name (for example `Issues`) instead of the
@@ -603,6 +608,8 @@ Run from the repository root unless noted. Results recorded in this batch:
 | `pnpm --filter @multica/desktop test` (batch D1) | 644 tests passed; suite `scripts/package.test.mjs` fails to load (`SyntaxError: Invalid or unexpected token`) — the same base-checkout loader family recorded in item 6 above; neither that file nor its config was touched by this batch |
 | `pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --reporter=line` with the isolated desktop harness (batch D1) | PASS — 4 passed, exit 0, 1.5 min; the packaged desktop case ran (not skipped) |
 | `node --test scripts/e2e/desktop-observer.test.mjs` (batch D2) | PASS — 11/11 observer regressions: a non-control request in any phase fails; only exact control hosts inside their own windows are excluded; malformed recorder/sampler metadata fails; missing samples and sampler errors never read as zero; cleanup attribution protects the workspace daemon |
+| `node --test scripts/e2e/desktop-observer.test.mjs` (backend integration review) | PASS — 14/14; includes all six retained raw-data phase replays, injected egress, incomplete sample rejection, path traversal rejection and a Windows child-process identity/termination test |
+| `pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --grep "packaged app boots" --list` (backend integration review) | PASS — loads the integrated spec and discovers one desktop case; does not rerun Electron |
 | `pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --grep "packaged app boots" --reporter=line` with the D2 isolated harness | PASS — 1 passed, exit 0, 2.1 min; one continuous observation pass with every phase (pre-launch controls, startup, Chromium control, login, browse, idle 60 s) passing |
 
 ### Independent reviewer evidence
@@ -710,4 +717,13 @@ the reviewer's boundary; it produced no acceptance result and is not counted.
   root cause was the missing environment assignment now documented as a caution
   in the runbook.
 - The historical Electron attempt inherited the process environment. Its
-  unverified launch helper was removed; Desktop verification remains pending.
+  unverified launch helper was removed; D1/D2 subsequently closed desktop verification.
+- Backend review tightened the D2 driver: process identity is checked again
+  immediately before terminating through a process handle; failed process scans,
+  unconfirmed ownership and stop errors cannot count as successful cleanup.
+  Sampler PID groups/connection fields and resolved deletion paths are validated.
+  Browser phase deltas use each phase's end snapshot; browser control exclusions
+  only apply during the Chromium control window; missing Go controls fail.
+  A whole-pass recorder assertion also covers time between phase boundaries.
+  These corrections were checked with the narrow commands above; the original
+  D2 live run and its raw evidence were preserved, not relabeled as a new run.

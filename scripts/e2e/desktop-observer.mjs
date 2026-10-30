@@ -7,6 +7,8 @@
 // already-sanitized metadata (timestamp, kind, host, method, result, PID,
 // remote address, state).
 
+import { win32 } from "node:path";
+
 export const TRAFFIC_KINDS = new Set(["http", "connect", "upgrade"]);
 
 export class ObserverError extends Error {
@@ -83,8 +85,20 @@ export function parseSamplerLog(text) {
     if (!sample.pids || typeof sample.pids !== "object" || Array.isArray(sample.pids)) {
       throw new ObserverError("sampler sample has no pids object");
     }
+    for (const group of ["app", "daemon", "extra"]) {
+      if (!Array.isArray(sample.pids[group]) || sample.pids[group].some((pid) => !Number.isInteger(pid) || pid <= 0)) {
+        throw new ObserverError("sampler sample has an invalid PID group: " + group);
+      }
+    }
     if (!Array.isArray(sample.nonLoopback)) {
       throw new ObserverError("sampler sample has no nonLoopback array");
+    }
+    for (const connection of sample.nonLoopback) {
+      if (!connection || typeof connection.remote !== "string" || !connection.remote ||
+          typeof connection.state !== "string" || !connection.state ||
+          !Number.isInteger(connection.pid) || connection.pid <= 0) {
+        throw new ObserverError("sampler sample has an incomplete connection");
+      }
     }
     if (sample.error !== undefined && typeof sample.error !== "string") {
       throw new ObserverError("sampler sample error must be a string when present");
@@ -326,12 +340,39 @@ export function planProcessCleanup(candidates, options) {
 
 /** Recursive deletions must stay inside the run's isolated root. */
 export function assertInsideRoot(targetPath, rootPath, label) {
-  const resolvedTarget = String(targetPath).replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
-  const resolvedRoot = String(rootPath).replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
-  if (!resolvedTarget || !resolvedRoot) throw new ObserverError(label + ": path is empty");
+  if (!targetPath || !rootPath) throw new ObserverError(label + ": path is empty");
+  const resolvedTarget = win32.resolve(targetPath).replace(/\\+$/, "").toLowerCase();
+  const resolvedRoot = win32.resolve(rootPath).replace(/\\+$/, "").toLowerCase();
   if (resolvedTarget === resolvedRoot) throw new ObserverError(label + ": refusing to remove the isolated root itself");
   if (!resolvedTarget.startsWith(resolvedRoot + "\\")) {
     throw new ObserverError(label + ": refusing to remove a path outside the isolated root: " + targetPath);
   }
   return true;
+}
+
+// Use the verified process handle, not a later lookup by PID. A reused PID or
+// changed identity must fail before any termination takes place.
+export function guardedStopScript(candidate, protectedPids) {
+  if (!Number.isInteger(candidate.pid) || candidate.pid <= 0 || protectedPids.includes(candidate.pid)) {
+    throw new ObserverError("refusing to stop an invalid or protected PID");
+  }
+  requireFiniteTimestamp(candidate.creationDate, "process creation time");
+  if (!candidate.executablePath) throw new ObserverError("process executable path is missing");
+  const quote = (value) => "'" + String(value).replace(/'/g, "''") + "'";
+  return [
+    "$ErrorActionPreference = 'Stop'",
+    "$owned = Get-Process -Id " + candidate.pid + " -ErrorAction SilentlyContinue",
+    "if (-not $owned) { exit 0 }",
+    "try {",
+    "  $null = $owned.Handle",
+    "  $row = Get-CimInstance Win32_Process -Filter 'ProcessId = " + candidate.pid + "'",
+    "  if (-not $row) { exit 0 }",
+    "  if ($row.ExecutablePath -ine " + quote(candidate.executablePath) + ") { throw 'process executable changed before stop' }",
+    "  $expected = [DateTime]::Parse(" + quote(candidate.creationDate) + ", [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()",
+    // CIM timestamps have microsecond precision; the process handle retains 100 ns ticks.
+    "  if ($row.CreationDate.ToUniversalTime().Ticks -ne $expected.Ticks -or [Math]::Abs($owned.StartTime.ToUniversalTime().Ticks - $expected.Ticks) -ge 10) { throw 'process creation time changed before stop' }",
+    "  $owned.Kill()",
+    "  if (-not $owned.WaitForExit(10000)) { throw 'owned process did not exit' }",
+    "} finally { $owned.Dispose() }",
+  ].join("\n");
 }

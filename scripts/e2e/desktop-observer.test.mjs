@@ -2,10 +2,14 @@
 // Runs with the Node test runner: node --test scripts/e2e/desktop-observer.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { once } from "node:events";
 
 import {
   ObserverError,
   assertInsideRoot,
+  guardedStopScript,
   parseRecorderLog,
   parseSamplerLog,
   planProcessCleanup,
@@ -224,4 +228,68 @@ test("recursive deletion boundaries reject anything outside the isolated root", 
   assert.throws(() => assertInsideRoot("C:\\Users\\HuaWei\\AppData\\Roaming\\U Workers", root, "userData"), ObserverError);
   assert.throws(() => assertInsideRoot(root, root, "root"), ObserverError);
   assert.throws(() => assertInsideRoot(root + "-evil\\x", root, "sibling"), ObserverError);
+  assert.throws(() => assertInsideRoot(root + "\\..\\outside", root, "traversal"), ObserverError);
+});
+
+test("incomplete PID groups and connections are rejected", () => {
+  const valid = samplesBetween(START, END)[0];
+  for (const malformed of [
+    { ...valid, pids: {} },
+    { ...valid, pids: { ...valid.pids, daemon: ["2000"] } },
+    { ...valid, nonLoopback: [{}] },
+    { ...valid, nonLoopback: [{ remote: "203.0.113.5:443", state: "Established" }] },
+  ]) {
+    assert.throws(() => parseSamplerLog(JSON.stringify(malformed)), ObserverError);
+  }
+});
+
+test("retained D2 raw records reproduce all phase results and reject injected egress", () => {
+  const evidenceUrl = new URL("../../evidence/clawsta-80/desktop/", import.meta.url);
+  const read = (name) => readFileSync(new URL(name, evidenceUrl), "utf8");
+  const summary = JSON.parse(read("run-summary.json"));
+  const samples = parseSamplerLog(read("tcp-samples.jsonl"));
+  const recorderEntries = parseRecorderLog(read("recorder.jsonl"));
+  assert.equal(samples.length, summary.observation.sampler.totalSamples);
+  for (const recorded of summary.observation.phases) {
+    const options = {
+      name: recorded.name, start: recorded.start, end: recorded.end,
+      samples, recorderEntries, samplerIntervalMs: recorded.samplerIntervalMs,
+      browserDelta: recorded.browser,
+      controlWindows: summary.observation.controls.controlWindows,
+      allowedNonLoopback: recorded.name === "control-a-node-go-system" ? ["192.0.2.1:80"] : [],
+    };
+    const replay = summarizePhase(options);
+    assert.deepEqual(replay, recorded);
+    const injected = summarizePhase({ ...options, recorderEntries: [...recorderEntries, {
+      ts: new Date((Date.parse(recorded.start) + Date.parse(recorded.end)) / 2).toISOString(),
+      kind: "http", host: "unexpected.example.invalid", method: "GET",
+    }] });
+    assert.equal(injected.ok, false, recorded.name + " failed to reject egress");
+  }
+});
+
+test("guarded termination rejects changed identity and stops only its own test child", {
+  skip: process.platform !== "win32", timeout: 30000,
+}, async () => {
+  const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], {
+    stdio: "ignore", windowsHide: true,
+  });
+  await once(child, "spawn");
+  const exited = once(child, "exit");
+  const ps = (script) => execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    encoding: "utf8", timeout: 15000, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
+  });
+  try {
+    const row = JSON.parse(ps("$p = Get-CimInstance Win32_Process -Filter 'ProcessId = " + child.pid +
+      "'; [pscustomobject]@{pid=[int]$p.ProcessId; executablePath=$p.ExecutablePath; creationDate=$p.CreationDate.ToUniversalTime().ToString('o')} | ConvertTo-Json -Compress"));
+    assert.throws(() => guardedStopScript(row, [child.pid]), ObserverError);
+    assert.throws(() => ps(guardedStopScript({ ...row, executablePath: row.executablePath + ".wrong" }, [])));
+    assert.throws(() => ps(guardedStopScript({ ...row, creationDate: START }, [])));
+    assert.equal(child.exitCode, null);
+    ps(guardedStopScript(row, []));
+    await exited;
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+    await exited;
+  }
 });

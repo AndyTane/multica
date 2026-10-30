@@ -7,6 +7,8 @@ import { Socket } from "node:net";
 
 import {
   assertInsideRoot,
+  classifyRecorderEntries,
+  guardedStopScript,
   makeControlWindows,
   parseRecorderLog,
   parseSamplerLog,
@@ -63,8 +65,6 @@ const DESKTOP_GO_CONTROL_HOST = "uw80-desktop-go-control.invalid";
 const DESKTOP_CONTROL_HOSTNAMES = new Set([
   DESKTOP_SELFTEST_HTTP_HOST,
   "uw80-desktop-selftest-tls.invalid",
-  DESKTOP_NODE_CONTROL_HOST,
-  DESKTOP_GO_CONTROL_HOST,
 ]);
 const SYSTEM_LAYER_CONTROL_REMOTE = "192.0.2.1:80"; // TEST-NET-1, not routable
 const DAEMON_PROFILE_NEEDLE_PREFIX = "u-workers-desktop-127.0.0.1-";
@@ -466,15 +466,15 @@ function samePath(left: string, right: string): boolean {
   return normalize(left) === normalize(right);
 }
 
-function stopProcessById(pid: number) {
-  execFileSync("powershell.exe", ["-NoProfile", "-Command", "Stop-Process -Id " + pid + " -Force -ErrorAction SilentlyContinue"], {
+function stopOwnedProcess(candidate: ProcessInfo, protectedPids: number[]) {
+  execFileSync("powershell.exe", ["-NoProfile", "-Command", guardedStopScript(candidate, protectedPids)], {
     timeout: 15000,
     windowsHide: true,
   });
 }
 
 function removeDirVerified(targetPath: string, rootPath: string, label: string) {
-  assertInsideRoot(targetPath, rootPath, label);
+  assertInsideRoot(resolve(targetPath), resolve(rootPath), label);
   for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
       rmSync(targetPath, { recursive: true, force: true });
@@ -912,7 +912,7 @@ test.describe("packaged desktop identity and outbound observation", () => {
     // --- Cleanup attribution inputs: taken before anything of this run starts.
     const workspaceDaemonStatus = readWorkspaceDaemonStatus();
     requireDesktopHarness(
-      workspaceDaemonStatus.pid !== null,
+      workspaceDaemonStatus.pid !== null && workspaceDaemonStatus.source === "multica daemon status --output json",
       "cannot identify the workspace daemon PID; refusing to run a cleanup that cannot protect it",
     );
     const protectedPids = [workspaceDaemonStatus.pid as number];
@@ -973,11 +973,11 @@ test.describe("packaged desktop identity and outbound observation", () => {
       externalNavigations: browserObs.externalNavigations,
       failedRequests: browserObs.failedRequests,
     });
-    const browserDeltaFrom = (from: BrowserLayer): BrowserLayer => ({
-      externalRequests: browserObs.externalRequests - from.externalRequests,
-      externalWebsockets: browserObs.externalWebsockets - from.externalWebsockets,
-      externalNavigations: browserObs.externalNavigations - from.externalNavigations,
-      failedRequests: browserObs.failedRequests - from.failedRequests,
+    const browserDeltaFrom = (from: BrowserLayer, to: BrowserLayer = browserSnapshot()): BrowserLayer => ({
+      externalRequests: to.externalRequests - from.externalRequests,
+      externalWebsockets: to.externalWebsockets - from.externalWebsockets,
+      externalNavigations: to.externalNavigations - from.externalNavigations,
+      failedRequests: to.failedRequests - from.failedRequests,
     });
     let snapshotStartup: BrowserLayer = browserSnapshot();
     let snapshotControlB: BrowserLayer = browserSnapshot();
@@ -987,6 +987,7 @@ test.describe("packaged desktop identity and outbound observation", () => {
     let browserAttachedAt = "";
     let browserAttachRequests = 0;
     let browserAttachFailedRequests = 0;
+    let chromiumControlActive = false;
 
     let desktopApp: Awaited<ReturnType<typeof electron.launch>> | undefined;
     let desktopPid = 0;
@@ -1109,6 +1110,7 @@ test.describe("packaged desktop identity and outbound observation", () => {
         goControl.skipped = true;
         goControl.reason = message.split("\n")[0];
       }
+      requireDesktopHarness(goControl.recorded === true, "Go environment-proxy control was not recorded");
 
       await expect
         .poll(
@@ -1169,7 +1171,7 @@ test.describe("packaged desktop identity and outbound observation", () => {
         browserObs.requests += 1;
         const raw = request.url();
         if (raw.startsWith(runtimeConfig.apiUrl ?? "")) isolatedApiRequests += 1;
-        if (isDesktopControlUrl(raw)) return;
+        if (chromiumControlActive && isDesktopControlUrl(raw)) return;
         if (!isLocalUrl(raw)) browserObs.externalRequests += 1;
         if (!isLocalUrl(raw)) browserObs.externalRequestUrls.push(sanitizeUrl(raw));
       };
@@ -1192,7 +1194,7 @@ test.describe("packaged desktop identity and outbound observation", () => {
           }
         });
         newPage.on("requestfailed", (request) => {
-          if (isDesktopControlUrl(request.url())) return;
+          if (chromiumControlActive && isDesktopControlUrl(request.url())) return;
           if (!isLocalUrl(request.url())) {
             browserObs.failedRequests += 1;
             browserObs.failedRequestUrls.push(sanitizeUrl(request.url()));
@@ -1215,7 +1217,7 @@ test.describe("packaged desktop identity and outbound observation", () => {
         }
       });
       page.on("requestfailed", (request) => {
-        if (isDesktopControlUrl(request.url())) return;
+        if (chromiumControlActive && isDesktopControlUrl(request.url())) return;
         if (!isLocalUrl(request.url())) {
           browserObs.failedRequests += 1;
           browserObs.failedRequestUrls.push(sanitizeUrl(request.url()));
@@ -1263,9 +1265,13 @@ test.describe("packaged desktop identity and outbound observation", () => {
       await ensurePhaseSamples(launchStartedAt, 2);
       const startupEndedAt = new Date().toISOString();
       snapshotStartup = browserSnapshot();
+      expect(snapshotStartup, "non-control browser egress after attaching during startup").toEqual({
+        externalRequests: 0, externalWebsockets: 0, externalNavigations: 0, failedRequests: 0,
+      });
 
       // --- Control phase B: Chromium self-test, after the app is running.
       const controlBStart = new Date().toISOString();
+      chromiumControlActive = true;
       const selftest = await page.evaluate(async () => {
         const results: string[] = [];
         try {
@@ -1294,6 +1300,7 @@ test.describe("packaged desktop identity and outbound observation", () => {
       await sleep(1500);
       await ensurePhaseSamples(controlBStart, 2);
       const controlBEnd = new Date().toISOString();
+      chromiumControlActive = false;
       snapshotControlB = browserSnapshot();
       controlWindowsRaw.push({
         label: "chromium-self-test",
@@ -1349,10 +1356,13 @@ test.describe("packaged desktop identity and outbound observation", () => {
       const recorderEntries = readRecorderEntries().slice(recorderBaselineOffset);
       const samples = readSamplerSamples(samplerPath);
       const controlWindows = makeControlWindows(controlWindowsRaw);
+      expect(classifyRecorderEntries(recorderEntries, {
+        start: observationStartedAt, end: idleEnd, controlWindows,
+      }).violations, "non-control recorder traffic anywhere in the continuous pass").toEqual([]);
       const startupBrowser: BrowserLayer | null = null;
-      const controlBBrowser = browserDeltaFrom(snapshotStartup);
-      const loginBrowser = browserDeltaFrom(snapshotControlB);
-      const browseBrowser = browserDeltaFrom(snapshotLogin);
+      const controlBBrowser = browserDeltaFrom(snapshotStartup, snapshotControlB);
+      const loginBrowser = browserDeltaFrom(snapshotControlB, snapshotLogin);
+      const browseBrowser = browserDeltaFrom(snapshotLogin, snapshotBrowse);
       const idleBrowser = browserDeltaFrom(snapshotBrowse);
 
       phases = [
@@ -1521,12 +1531,13 @@ test.describe("packaged desktop identity and outbound observation", () => {
       }
       await sleep(2000);
 
-      let afterCloseSnapshot: ProcessInfo[] = [];
-      try {
-        afterCloseSnapshot = readProcessSnapshot();
-      } catch {
-        afterCloseSnapshot = [];
-      }
+      const afterCloseSnapshot = readProcessSnapshot();
+      const currentWorkspaceDaemon = readWorkspaceDaemonStatus();
+      requireDesktopHarness(
+        currentWorkspaceDaemon.pid !== null && currentWorkspaceDaemon.source === "multica daemon status --output json",
+        "cannot revalidate workspace daemon before cleanup",
+      );
+      protectedPids.push(currentWorkspaceDaemon.pid as number);
       const appCandidates = afterCloseSnapshot.filter(
         (row) => samePath(row.executablePath, DESKTOP_EXE) && !preExistingAppPids.includes(row.pid),
       );
@@ -1538,39 +1549,35 @@ test.describe("packaged desktop identity and outbound observation", () => {
           !preExistingDaemonPids.includes(row.pid),
       );
       const appPlan = planProcessCleanup(appCandidates, {
-        preExistingPids: preExistingAppPids,
+        preExistingPids: preLaunchSnapshot.map((row) => row.pid),
         protectedPids,
         runStartedAt,
         expectedExecutablePath: DESKTOP_EXE,
       });
       const daemonPlan = planProcessCleanup(daemonCandidates, {
-        preExistingPids: preExistingDaemonPids,
+        preExistingPids: preLaunchSnapshot.map((row) => row.pid),
         protectedPids,
         runStartedAt,
         expectedExecutablePath: daemonExePath,
       });
+      const cleanupErrors: string[] = [];
       for (const pid of appPlan.approved) {
         try {
-          stopProcessById(pid);
-        } catch {
-          /* verified below by the post-cleanup scan */
+          stopOwnedProcess(appCandidates.find((row) => row.pid === pid)!, protectedPids);
+        } catch (error) {
+          cleanupErrors.push(error instanceof Error ? error.message : String(error));
         }
       }
       for (const pid of daemonPlan.approved) {
         try {
-          stopProcessById(pid);
-        } catch {
-          /* verified below by the post-cleanup scan */
+          stopOwnedProcess(daemonCandidates.find((row) => row.pid === pid)!, protectedPids);
+        } catch (error) {
+          cleanupErrors.push(error instanceof Error ? error.message : String(error));
         }
       }
       await sleep(2500);
 
-      let afterCleanupSnapshot: ProcessInfo[] = [];
-      try {
-        afterCleanupSnapshot = readProcessSnapshot();
-      } catch {
-        afterCleanupSnapshot = [];
-      }
+      const afterCleanupSnapshot = readProcessSnapshot();
       const remainingApp = afterCleanupSnapshot.filter(
         (row) => samePath(row.executablePath, DESKTOP_EXE) && !preExistingAppPids.includes(row.pid),
       );
@@ -1608,6 +1615,7 @@ test.describe("packaged desktop identity and outbound observation", () => {
       }
 
       cleanupEvidence = {
+        errors: cleanupErrors,
         workspaceDaemon: {
           pid: workspaceDaemonStatus.pid,
           source: workspaceDaemonStatus.source,
@@ -1652,6 +1660,8 @@ test.describe("packaged desktop identity and outbound observation", () => {
       );
 
       if (evidence.error === undefined) {
+        expect(cleanupErrors, "process identity or termination check failed").toEqual([]);
+        expect([...appPlan.rejected, ...daemonPlan.rejected], "process ownership could not be confirmed").toEqual([]);
         expect(remainingApp, "packaged app processes survived the verified cleanup").toEqual([]);
         expect(remainingDaemon, "the bundled CLI daemon survived the verified cleanup").toEqual([]);
         expect(workspaceDaemonAlive, "the workspace daemon disappeared during cleanup").toBe(true);
