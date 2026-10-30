@@ -92,4 +92,29 @@ For an upgrade, take this backup, stop the deployment, build a new release, and 
 
 Before the native deployment accepts writes, rollback can restart the preserved Docker deployment. After native writes begin, export the native database and uploads back to the recovery deployment first; starting the old database snapshot alone would lose those writes.
 
+### Outbound network acceptance
+
+A native deployment can be observed for unsolicited outbound traffic without a
+machine-wide firewall: start `scripts/e2e/recording-proxy.mjs`, put
+`HTTP(S)_PROXY` at the recorder (with `NO_PROXY` covering loopback) into the
+deployment's `BackendEnvironment`/`FrontendEnvironment`, and point the browser
+context at the same recorder. The recorder records destination metadata and
+refuses every non-loopback request with 502, so an attempted request fails
+instead of being silently swallowed.
+
+The full isolated procedure, exact Playwright specs, sanitized evidence format
+and observed results are in
+[docs/outbound-data-verification.md](outbound-data-verification.md). Keep it on
+its own root, cluster, database, ports and generated credentials; never reuse a
+production deployment or database. The same document records the boundary:
+same-host Windows verification is covered, while cross-machine login/realtime
+still needs a second authorized client machine, and desktop request observation
+is outstanding.
+
+When launching PowerShell helpers for that deployment, do not keep both
+`NO_PROXY` and `no_proxy` (or the same spelling pair for `HTTP_PROXY`,
+`HTTPS_PROXY`) in the process environment: Windows environment names are
+case-insensitive and .NET cannot create a child process from that duplicated
+environment block.
+
 Run the script tests with `powershell -NoProfile -File scripts/native-windows.test.ps1`. They use temporary files and fake child processes, never PostgreSQL, Docker, or user-installed agent CLIs.

@@ -1,0 +1,108 @@
+{
+  "runId": "acceptance-20261030173631",
+  "generatedAt": "2026-10-30T17:37:46.767Z",
+  "environment": {
+    "kind": "isolated Windows-native deployment built from this checkout",
+    "buildVersion": "v0.2.0 (32099218a)",
+    "root": "C:\\Users\\HuaWei\\uw80-acceptance\\native (outside the repository; removed after the run)",
+    "ports": {
+      "api": 18081,
+      "web": 13001,
+      "database": 16432,
+      "recordingProxy": 19090
+    },
+    "pids": {
+      "api": 75828,
+      "web": 75888,
+      "recordingProxy": 34888
+    },
+    "credentials": "random per-run values stored only in the isolated root; not recorded here"
+  },
+  "scenarios": [
+    {
+      "scenario": "cold-start-login-page",
+      "proxyViolations": 0,
+      "browserExternal": 0,
+      "tcpSampleAvailable": true,
+      "tcpExternal": 0
+    },
+    {
+      "scenario": "email-code-login",
+      "proxyViolations": 0,
+      "browserExternal": 0,
+      "tcpSampleAvailable": true,
+      "tcpExternal": 0
+    },
+    {
+      "scenario": "browse-workspace-routes",
+      "proxyViolations": 0,
+      "browserExternal": 0,
+      "tcpSampleAvailable": true,
+      "tcpExternal": 0
+    },
+    {
+      "scenario": "switch-workspace",
+      "proxyViolations": 0,
+      "browserExternal": 0,
+      "tcpSampleAvailable": true,
+      "tcpExternal": 0
+    },
+    {
+      "scenario": "idle-workspace",
+      "proxyViolations": 0,
+      "browserExternal": 0,
+      "tcpSampleAvailable": true,
+      "tcpExternal": 0
+    },
+    {
+      "scenario": "external-network-unreachable",
+      "localIssueCreated": true,
+      "localAttachmentUploadStatus": 200,
+      "externalSentinel": "unreachable"
+    }
+  ],
+  "observer": {
+    "proxyRefusals": "every non-loopback attempt is recorded with host/method and refused with 502",
+    "nodeControlRecorded": true,
+    "goControlRecorded": true,
+    "browserSelftestHttpRecorded": true,
+    "browserSelftestTlsRecorded": true,
+    "unexpectedProxyEntries": 0,
+    "tcpBackstop": "netstat -ano sample of the API/web PIDs after each scenario; not exhaustive egress proof"
+  },
+  "playwright": {
+    "command": "pnpm exec playwright test e2e/background-network.spec.ts e2e/u-workers-brand.spec.ts --project=chromium --reporter=line",
+    "result": "10 passed, 1 skipped (packaged Electron artifact not launchable), exit 0"
+  },
+  "artifacts": {
+    "playwrightOutput": "evidence/clawsta-80/acceptance/playwright-output.log (raw test runner output, untracked)",
+    "browserObservation": "evidence/clawsta-80/acceptance/browser-observation.json",
+    "offlineScenario": "evidence/clawsta-80/acceptance/offline-scenario.json",
+    "linuxAcceptance": "evidence/clawsta-80/linux-acceptance.json"
+  },
+  "boundaries": [
+    "Cross-machine login/realtime unverified: no second authorized client machine.",
+    "Desktop request observation outstanding: packaged unpacked build exists but the Playwright Electron launch timed out and the electron-builder signing step failed; tray menu does not exist in the desktop source.",
+    "TCP sampling is a backstop, not exhaustive process-egress proof."
+  ],
+  "codeRevision": {
+    "integrationBaseline": "32099218abac46865ab2e7d1cbb5b18532525e92",
+    "evidenceRevision": "run executed before the post-run listener-dedup/sanitization spec fixes",
+    "postRunFixesNotRemeasuredReference": "docs/outbound-data-verification.md#executed-evidence-revision-and-post-run-fixes"
+  },
+  "caveats": [
+    "browser-observation.json request count (2652) includes one duplicated per-page request listener; the duplicate was removed after the run. Scenario assertions were zero-violation before and after; only the count metadata is inflated.",
+    "Cross-machine login/realtime remains unverified (no second authorized client machine).",
+    "Electron request observation remains outstanding; the one historical launch attempt inherited the process environment, and the sandbox/allowlist version was never successfully launched."
+  ],
+  "reviewerIndependentEvidence": {
+    "path": "workdir/reviewer-validation.txt (outside this commit)",
+    "covered": [
+      "fake-only Go privacy/analytics/llm packages",
+      "RemoteMCPProxy authorized/unapproved/notification/credential-recheck tests",
+      "configured fake VCS HTTP auth and Composio tools/session/revoke (no real Git clone/push)",
+      "recorder synthetic HTTP/CONNECT refusal with sensitive fields absent",
+      "Linux API actual startup logs and same-host Windows readiness"
+    ]
+  }
+}

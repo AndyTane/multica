@@ -1,0 +1,35 @@
+{
+  "scenario": "linux-actual-startup-isolated",
+  "platform": "Ubuntu 24.04 (WSL2) / linux x86_64",
+  "generatedAt": "2026-10-30T17:07:40.042Z",
+  "isolated": {
+    "database": "uw80_linux_acceptance on an isolated PostgreSQL 16 temp cluster (127.0.0.1:16433)",
+    "apiPort": 18082,
+    "recordingProxyPort": 19091,
+    "pids": {
+      "api": 4782,
+      "recordingProxy": 4692
+    }
+  },
+  "results": {
+    "migrationsApplied": true,
+    "healthAndReady": true,
+    "apiLoginWorkspaceIssueReadWrite": true,
+    "realtimeWebSocket": "ws-auth-ok",
+    "observerControls": {
+      "node": 0,
+      "go": 1
+    },
+    "recorder": {
+      "records": 3,
+      "unsolicited": {
+        "violations": 0,
+        "destinations": []
+      }
+    }
+  },
+  "boundary": [
+    "The Linux web frontend production build was not re-run on Linux; the Windows acceptance run covers the Next.js production server.",
+    "No second authorized client machine was available; cross-machine login/realtime is unverified."
+  ]
+}

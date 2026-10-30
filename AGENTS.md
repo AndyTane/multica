@@ -50,6 +50,7 @@ Run these from the repository root:
 | Go backend | `make test` |
 | DSH web bridge | `pnpm test:dsh-web` (fake web host; no real model calls) |
 | End-to-end | `pnpm exec playwright test` |
+| Outbound network acceptance | `e2e/background-network.spec.ts` + `e2e/u-workers-brand.spec.ts` against an isolated deployment observed through `scripts/e2e/recording-proxy.mjs`; runbook and results in [docs/outbound-data-verification.md](docs/outbound-data-verification.md). Never point these specs at a real deployment or database. |
 | Combined web/backend verification | `make check` |
 | Mobile | Commands in [apps/mobile/AGENTS.md](apps/mobile/AGENTS.md#verification) |
 

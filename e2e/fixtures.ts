@@ -158,6 +158,27 @@ export class TestApiClient {
     throw new Error(`Failed to ensure workspace ${slug}: ${res.status} ${res.statusText}`);
   }
 
+  /**
+   * Create an additional workspace and select it on this client.
+   *
+   * `ensureWorkspace` is idempotent and returns the first workspace a user
+   * already has, so flows that switch between two workspaces need a distinct
+   * create call.
+   */
+  async createWorkspace(name: string, slug: string): Promise<TestWorkspace> {
+    const res = await this.authedFetch("/api/workspaces", {
+      method: "POST",
+      body: JSON.stringify({ name, slug }),
+    });
+    if (!res.ok) {
+      throw new Error(`create workspace failed: ${res.status} ${await res.text()}`);
+    }
+    const created = (await res.json()) as TestWorkspace;
+    this.workspaceId = created.id;
+    this.workspaceSlug = created.slug;
+    return created;
+  }
+
   async markUserOnboarded() {
     if (!this.email) {
       throw new Error("Cannot mark E2E user onboarded before login");

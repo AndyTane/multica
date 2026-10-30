@@ -1,0 +1,8 @@
+{
+  "scenario": "external-network-unreachable",
+  "recorderPortClosed": true,
+  "localIssueCreated": true,
+  "localAttachmentUploadStatus": 200,
+  "externalSentinel": "unreachable",
+  "boundary": "The browser and the isolated deployment's proxy environment point at a closed recorder port. This is not a machine-wide firewall change."
+}

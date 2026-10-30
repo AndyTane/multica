@@ -1,0 +1,34 @@
+{
+  "node": {
+    "recorded": true,
+    "exitCode": 0
+  },
+  "go": {
+    "recorded": true,
+    "exitCode": 0
+  },
+  "backendEnvKeys": [
+    "JWT_SECRET",
+    "APP_ENV",
+    "MULTICA_DEV_VERIFICATION_CODE",
+    "MULTICA_PUBLIC_URL",
+    "CORS_ALLOWED_ORIGINS",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "DO_NOT_TRACK",
+    "ANALYTICS_DISABLED",
+    "POSTHOG_API_KEY",
+    "POSTHOG_HOST",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY"
+  ],
+  "frontendEnvKeys": [
+    "NODE_USE_ENV_PROXY",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "NEXT_TELEMETRY_DISABLED",
+    "NEXT_PUBLIC_WS_URL"
+  ]
+}
