@@ -10,6 +10,8 @@ const fail = code => { throw new Error(code); };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const textOf = message => (message?.content ?? []).filter(p => p.type === 'text').map(p => p.text ?? '').join('');
 const reasonOf = error => /^[a-z0-9_/-]+$/i.test(error?.message ?? '') ? error.message : 'web_bridge_failed';
+const transportFailure = error => ['web_stream_disconnected', 'web_stream_timeout', 'web_stream_overflow',
+  'web_rpc_outcome_unknown'].includes(reasonOf(error)) || /^web_rpc_http_(408|429|5\d\d)$/.test(reasonOf(error));
 
 export function localOrigin(value) {
   let url;
@@ -63,7 +65,9 @@ export async function connectWeb(config, fetchImpl = fetch, WebSocketImpl = WebS
       result = await r.json();
     } catch (error) {
       if (/^web_rpc_http_\d+$/.test(error.message)) throw error;
-      fail('web_rpc_outcome_unknown');
+      const unknown = new Error('web_rpc_outcome_unknown');
+      unknown.rpcMethod = method;
+      throw unknown;
     }
     if (result?.type !== 'server-response' || result.rpcId !== rpcId) fail('web_rpc_receipt_invalid');
     if (result.result?.ok !== true) {
@@ -199,7 +203,7 @@ function openTurn(rows, active = null) {
 export class SessionJournal {
   constructor(rpc, config, sessionId, cwd) {
     this.rpc = rpc; this.config = config; this.sessionId = sessionId; this.cwd = canonicalDirectory(cwd);
-    this.rows = []; this.cursor = -1; this.activeTurn = null; this.reconnects = 0;
+    this.rows = []; this.cursor = -1; this.activeTurn = null;
   }
   async refresh() {
     this.stream?.close();
@@ -236,7 +240,41 @@ export class SessionJournal {
       return added;
     } catch (error) { stream.close(); throw error; }
   }
-  async readNew(timeoutMs = 0) {
+  async recover(error, control = {}) {
+    let attempt = 0;
+    for (;;) {
+      if (control.cancelled) fail('cancelled_during_recovery');
+      // Log only controlled codes and endpoint names, never host errors or credentials.
+      if (attempt === 0 || (attempt & (attempt - 1)) === 0) {
+        process.stderr.write(`DSH transport recovery: attempt=${attempt + 1} ${reasonOf(error)}${error.rpcMethod ? ` (${error.rpcMethod})` : ''}\n`);
+      }
+      const delay = Math.min((this.config.reconnectMs ?? 250) * 2 ** Math.min(attempt++, 5), 5000);
+      const until = Date.now() + delay;
+      while (Date.now() < until) {
+        if (control.cancelled) fail('cancelled_during_recovery');
+        await sleep(Math.min(50, until - Date.now()));
+      }
+      try {
+        // The session-scoped snapshot includes running turns and durable outcomes.
+        // A host-wide session list can be slow and cannot identify this request's result.
+        await this.refresh();
+        return;
+      } catch (next) {
+        if (!transportFailure(next)) throw next;
+        error = next;
+      }
+    }
+  }
+  async refreshRecover(control = {}) {
+    try { return await this.refresh(); }
+    catch (error) {
+      if (!transportFailure(error)) throw error;
+      const start = this.cursor;
+      await this.recover(error, control);
+      return this.rows.slice(start + 1);
+    }
+  }
+  async readNew(timeoutMs = 0, control = {}) {
     const start = this.cursor;
     try {
       let frame = await this.stream.next(timeoutMs);
@@ -253,29 +291,23 @@ export class SessionJournal {
         frame = await this.stream.next(0);
       }
     } catch (error) {
-      if (!['web_stream_disconnected', 'web_stream_timeout', 'session_event_gap'].includes(reasonOf(error))) throw error;
-      for (;;) {
-        if (++this.reconnects > 3) fail('web_stream_reconnect_failed');
-        await sleep(this.config.reconnectMs ?? 250);
-        try { await this.refresh(); break; }
-        catch (next) {
-          if (!['web_stream_disconnected', 'web_stream_timeout', 'session_event_gap'].includes(reasonOf(next))) throw next;
-        }
-      }
+      if (!transportFailure(error) && reasonOf(error) !== 'session_event_gap') throw error;
+      // Preserve a terminal event already received even if its carrier closes immediately.
+      if (!this.rows.slice(start + 1).some(row => row.type === 'turn/end')) await this.recover(error, control);
     }
     return this.rows.slice(start + 1);
   }
   close() { this.stream?.close(); }
 }
 
-export async function prepareSession(command, config, rpc) {
+export async function prepareSession(command, config, rpc, control = {}) {
   const cwd = canonicalDirectory(command.cwd);
   const sessionId = command.resume_session_id || `multica-web-${createHash('sha256').update(command.request_id).digest('hex').slice(0, 32)}`;
   if (!safeId.test(sessionId) || !sessionId.startsWith('multica-web-')) fail('multica_session_required');
   const journal = new SessionJournal(rpc, config, sessionId, cwd);
   try {
     // Validate existing identities before adoption, including deterministic first-send retries.
-    try { await journal.refresh(); }
+    try { await journal.refreshRecover(control); }
     catch (error) {
       if (reasonOf(error) !== 'session/not-found' || command.resume_session_id) throw error;
     }
@@ -286,9 +318,9 @@ export async function prepareSession(command, config, rpc) {
     if (adopted?.sessionId !== sessionId) fail('session_receipt_mismatch');
     const checked = await rpc('workspace/create', { path: command.cwd });
     if (checked?.workspace?.workspaceId !== workspace.workspaceId || !checked.workspace.sessionIds?.includes(sessionId)) fail('workspace_membership_unconfirmed');
-    await journal.refresh();
+    await journal.refreshRecover(control);
     if (!command.resume_session_id && command.thread_name) await rpc('session/rename', { sessionId, title: `Multica · ${command.thread_name}` });
-    await journal.readNew();
+    await journal.readNew(0, control);
     return { sessionId, journal, rows: journal.rows, header: journal.header, origin: config.origin };
   } catch (error) { journal.close(); throw error; }
 }
@@ -401,7 +433,7 @@ export async function execute(command, config, emit, control, dependencies = {})
     if (command.model && (command.model.provider !== 'web' || command.model.id !== 'default') || command.reasoning_effort) fail('use_dsh_web_model_settings');
     if (command.mcp_servers?.length) fail('use_dsh_web_mcp_settings');
     const rpc = await (dependencies.connectWeb ?? connectWeb)(config);
-    prepared = await prepareSession(command, config, rpc);
+    prepared = await prepareSession(command, config, rpc, control);
     emit({ type: 'session', session_id: prepared.sessionId, resumed: Boolean(command.resume_session_id) });
     if (control.cancelled) fail('cancelled_before_delivery');
     const reader = new TurnReader(command.request_id, emit);
@@ -416,14 +448,30 @@ export async function execute(command, config, emit, control, dependencies = {})
       cli = taskCli(dependencies.env ?? process.env);
       brief = prepareBrief(command, prepared, dependencies.briefCacheDir ?? path.join(os.homedir(), '.multica', 'dsh-web-briefs'));
       text = `${cli.instructions}${brief.prefix}${command.prompt}`;
-      const receipt = await rpc('session/prompt', { sessionId: prepared.sessionId, requestId: command.request_id, mode: 'queue', content: [{ type: 'text', text }] });
-      if (receipt?.accepted !== true) fail('prompt_receipt_invalid');
+      try {
+        const receipt = await rpc('session/prompt', { sessionId: prepared.sessionId, requestId: command.request_id, mode: 'queue', content: [{ type: 'text', text }] });
+        if (receipt?.accepted !== true) fail('prompt_receipt_invalid');
+      } catch (error) {
+        if (!transportFailure(error)) throw error;
+        // Never re-post a mutation whose receipt was lost. Observe its request witness instead.
+        const deadline = Date.now() + (config.receiptTimeoutMs ?? 30000);
+        for (;;) {
+          const rows = await prepared.journal.readNew(config.pollMs ?? 250, control);
+          brief.confirm(rows, text);
+          for (const row of rows) reader.push(row);
+          if (reader.turn !== null || prepared.journal.rows.some(row => row.type === 'agent/inbox/spliced'
+            && row.data?.inserted?.some(message => message?.source?.rpcId === command.request_id))) break;
+          if (control.cancelled) fail('cancelled_during_recovery');
+          if (Date.now() >= deadline) fail('web_rpc_outcome_unknown');
+        }
+      }
       delivered = true;
     }
     let cancelDeadline;
     const consume = rows => { brief.confirm(rows, text); for (const row of rows) reader.push(row); };
     for (;;) {
-      consume(await prepared.journal.readNew(config.pollMs ?? 250));
+      if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
+      consume(await prepared.journal.readNew(config.pollMs ?? 250, control));
       if (reader.terminal) { emit({ type: 'result', session_id: prepared.sessionId, ...reader.terminal }); return; }
       if (control.cancelled && !cancelDeadline) {
         // Obtain a fresh event cut before cancelling a session shared with browser users.
@@ -445,6 +493,21 @@ export async function execute(command, config, emit, control, dependencies = {})
   } finally { prepared?.journal.close(); cli?.cleanup(); }
 }
 
+// Inspect a historical request without workspace adoption, prompts, or cancellation.
+export async function recoverRun(command, config, rpc) {
+  if (typeof command.request_id !== 'string' || typeof command.session_id !== 'string'
+    || !safeId.test(command.request_id) || !safeId.test(command.session_id)
+    || !command.session_id.startsWith('multica-web-')) fail('invalid_recovery_identity');
+  const journal = new SessionJournal(rpc, config, command.session_id, command.cwd);
+  try {
+    await journal.refresh();
+    const reader = new TurnReader(command.request_id, () => {});
+    for (const row of journal.rows) reader.push(row);
+    if (!reader.terminal) fail('request_not_completed');
+    return { v: 1, type: 'result', request_id: command.request_id, session_id: command.session_id, ...reader.terminal };
+  } finally { journal.close(); }
+}
+
 export async function probeWeb(config, rpc) {
   const stream = rpc.follow({ address: { kind: 'session', sessionId: `multica-web-probe-${randomUUID()}` } });
   try {
@@ -458,8 +521,15 @@ export async function probeWeb(config, rpc) {
 
 export async function main(args = process.argv.slice(2)) {
   const emit = frame => process.stdout.write(JSON.stringify({ v: 1, ...frame }) + '\n');
-  if (args.includes('--version')) { process.stdout.write('multica-dsh-web 1.0.1\n'); return; }
+  if (args.includes('--version')) { process.stdout.write('multica-dsh-web 1.0.2\n'); return; }
   const config = loadConfig();
+  if (args.includes('--recover')) {
+    const option = flag => args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;
+    const result = await recoverRun({ request_id: option('--request-id'), session_id: option('--session-id'), cwd: option('--cwd') },
+      config, await connectWeb(config));
+    emit(result);
+    return;
+  }
   if (args.includes('--probe')) {
     await probeWeb(config, await connectWeb(config));
     emit({ type: 'probe', runtime: 'dsh', protocol_version: 1 });
