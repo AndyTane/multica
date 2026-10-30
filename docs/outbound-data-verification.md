@@ -1,8 +1,10 @@
 # Outbound data verification (Task 8 acceptance)
 
 Status: acceptance run executed 2026-10-30/31 against the integration baseline
-`32099218abac46865ab2e7d1cbb5b18532525e92`. Results and the exact boundary of
-what was and was not verified are recorded below. Policy:
+`32099218abac46865ab2e7d1cbb5b18532525e92`; the packaged Windows desktop
+acceptance batch D1 was executed 2026-10-31 on top of `929e40690` (PR #3 head
+`6b213959c`, branch `agent/agent/079e5e4a0861`). Results and the exact
+boundary of what was and was not verified are recorded below. Policy:
 [docs/outbound-data-policy.md](outbound-data-policy.md). Plan:
 [docs/plans/2026-10-30-u-workers-frontend-local-only.md](plans/2026-10-30-u-workers-frontend-local-only.md).
 
@@ -25,6 +27,12 @@ Verified in this run:
 - C1 follow-up: a second Windows machine serves a real LAN browser login,
   issue/attachment round-trip and business WebSocket update; its scheduled-task
   supervisor survives the starting SSH session. See the cross-machine section.
+- The packaged Windows desktop build (batch D1) boots from an isolated
+  `desktop.json`, logs in through its own UI against the isolated deployment,
+  browses Issues/Inbox/Agents, idles 60 s and produces zero non-loopback
+  traffic in all three observation layers, including the daemon the desktop
+  auto-starts from its bundled CLI. The exe carries the `U Workers` product
+  identity in its version resources.
 
 Not claimed:
 
@@ -34,7 +42,7 @@ Not claimed:
 - Mobile (excluded by the plan), real agent CLI runs, real model accounts, real
   email/message delivery, real integration accounts or real update downloads.
 - Company-network, HTTPS and Tailscale access: C1 tested the home LAN only.
-- Electron request observation: outstanding (see [Desktop and PWA](#desktop-and-pwa)).
+- NSIS installation and post-install OS icon/start-menu association: not run.
   Tray menu: this codebase has no Electron tray implementation at all.
 
 ## Isolated environment
@@ -63,6 +71,29 @@ Playwright spec refuses to run unless the marker exists and unless
 `PLAYWRIGHT_BASE_URL`, `NEXT_PUBLIC_API_URL` and `DATABASE_URL` all point at
 the ports/database named by that root's `deployment.json`.
 
+### Desktop batch D1 isolated environment
+
+The desktop batch reused the same isolation pattern in a separate, disposable
+root:
+
+| Resource | Value |
+| --- | --- |
+| Deployment root | `C:\Users\HuaWei\uw80-d1\native` (outside the repository, removed after the run) |
+| PostgreSQL cluster | fresh `initdb` cluster on 127.0.0.1:16432, database `uw80_d1_acceptance` |
+| Go API | 127.0.0.1:18081 |
+| Next.js production server | 127.0.0.1:13001 |
+| Recording proxy | 127.0.0.1:19090 |
+| Desktop profile | redirected `USERPROFILE`/`HOME` at `<root>\home`; `<root>\home\.u-workers\desktop.json` points at the ports above |
+| Packaged app | `apps/desktop/dist/win-unpacked/U Workers.exe` built from this checkout |
+
+The machine's existing U Workers deployment (PostgreSQL 15432, API 8080, web
+3000) was left running and untouched; this batch only reused its PostgreSQL
+binaries for a new cluster. The desktop userData directory resolved under the
+redirected profile (`<root>\home\AppData\Roaming\U Workers`) and the real
+`%APPDATA%\U Workers` directory was never created. The Playwright spec refuses
+to run unless the isolated root marker, the deployment ports and the launch
+environment all agree.
+
 ## Build products
 
 The acceptance deployment ran real build output, not development servers:
@@ -77,6 +108,17 @@ The acceptance deployment ran real build output, not development servers:
   `v0.2.0 (32099218a)`.
 - The build emitted two benign PostCSS warnings about `::highlight(...)` in
   generated CSS; no TypeScript or build errors were reported.
+
+The desktop batch built the packaged Windows app from the same checkout with
+`pnpm --filter @multica/desktop package -- --win --dir`: exit 0, and
+`apps/desktop/dist/win-unpacked/U Workers.exe` reports `ProductName: U Workers`
+and `FileDescription: U Workers` (FileVersion `0.2.0-dirty`). The packaging
+environment needed two fixes that are documented in
+[windows-native.md](windows-native.md): a pre-extracted `winCodeSign` toolset
+cache (7-Zip cannot create the macOS dylib symlinks on an unprivileged Windows
+account) and bundling the `@multica/core` workspace TypeScript into the main
+process instead of externalizing it (Node 24 refuses to strip types inside
+`node_modules`, which killed the packaged main process at launch).
 
 ## Runbook used for the recorded evidence
 
@@ -122,6 +164,43 @@ end-to-end). Keep every path/port/database separate from any real deployment.
    isolated root/cluster. The spec's final test stops the recorder on purpose to
    create the external-network-unreachable scenario; restart it between runs.
 
+### Desktop batch D1 runbook
+
+1. Build the isolated deployment described above (`scripts/native-windows.ps1
+   -Action Build`) and start it (`-Action Start`), with
+   `MULTICA_DEV_VERIFICATION_CODE=888888` in its backend environment so the real
+   login UI can be exercised without an email provider.
+2. Start the recorder:
+   `node scripts/e2e/recording-proxy.mjs --port 19090 --log <root>/logs/recording-proxy.jsonl`.
+3. Clear the disposable desktop profile (`<root>\home\AppData\Roaming\U Workers`
+   and `<root>\home\.multica`) and confirm `%APPDATA%\U Workers` does not exist.
+4. Run the brand spec against the isolated deployment:
+   ```
+   PLAYWRIGHT_BASE_URL=http://localhost:13001
+   NEXT_PUBLIC_API_URL=http://127.0.0.1:18081
+   DATABASE_URL=postgresql://<isolated user>:<isolated password>@127.0.0.1:16432/uw80_d1_acceptance?sslmode=disable
+   MULTICA_DEV_VERIFICATION_CODE=888888
+   E2E_PROXY_URL=http://127.0.0.1:19090
+   E2E_PROXY_LOG=<root>/logs/recording-proxy.jsonl
+   E2E_ACCEPTANCE_ROOT=<root>
+   E2E_DESKTOP_EXE=<repo>/apps/desktop/dist/win-unpacked/U Workers.exe
+   E2E_DESKTOP_EVIDENCE_DIR=<repo>/evidence/clawsta-80/desktop
+   pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --reporter=line
+   ```
+5. The packaged app is launched through Playwright with a constructed
+   environment: only system essentials, `USERPROFILE`/`HOME` at the isolated
+   home, `HTTP_PROXY`/`HTTPS_PROXY` at the recorder, `NO_PROXY` for loopback and
+   `NODE_USE_ENV_PROXY=1`. Its working directory is the isolated home, outside
+   this workspace: the bundled CLI refuses `daemon start` when it detects a
+   daemon-managed task marker in a parent directory (this agent workspace has
+   one), and the daemon must be allowed to auto-start for the observation to
+   cover it.
+6. The spec writes `evidence/clawsta-80/desktop/login.png`, `main.png` and
+   `run-summary.json`, removes the disposable userData directory and stops the
+   daemon PIDs it discovered for the isolated profile.
+7. Stop the deployment (`-Action Stop`) and the recorder by their recorded
+   PIDs, then remove the isolated root.
+
 ## Observation layers
 
 `scripts/e2e/recording-proxy.mjs` is a refusing HTTP proxy used only for this
@@ -145,6 +224,15 @@ Only exact observer destinations are exempted: `uw80-node-control.invalid:80`,
 `uw80-browser-selftest-tls.invalid:443`. There is no wildcard ".invalid is
 fine" rule and no arbitrary marker-header exemption; markers are only written
 for the fixed values `node`, `go`, `browser-http`, `browser-tls`.
+
+The desktop batch adds a packaged-process variant of the same three-layer
+observation, and includes the daemon the desktop starts from its bundled CLI:
+
+| Layer | How it is observed | Why it cannot fake a pass |
+| --- | --- | --- |
+| Chromium network (packaged app) | The app launches with `--proxy-server=http://127.0.0.1:<recorder>` and an explicit loopback bypass list; Playwright context/page request, websocket, navigation and failed-request events are recorded | Two exact self-test destinations are fetched from the packaged renderer before the window: the recorder must record both and the renderer must receive the recorder's 502 refusal body (HTTPS self-test fails at the tunnel). The desktop renderer runs with `webSecurity: false`, so the refusal is asserted as status + recorder body, not as a rejected promise. |
+| Main process and child processes (packaged app, including auto-started daemon) | The constructed main-process environment carries `HTTP(S)_PROXY`, `NO_PROXY` and `NODE_USE_ENV_PROXY=1`; children inherit it. The auto-started bundled CLI daemon is detached, so its exact PIDs are resolved from the isolated profile name and added as extra TCP roots | A Node control process with the same environment contract must be refused and recorded by the recorder; the main-process environment contract is read back from the running app; the daemon PIDs are recorded and sampled. |
+| Windows TCP table (packaged app + daemon) | `Get-NetTCPConnection` sampled every second for the packaged process tree plus the detached daemon PIDs | A deliberate `SYN_SENT` to the reserved TEST-NET-1 address `192.0.2.1:80` must appear in the sample first; the spec fails unless the sampler sees it. During the 60 s window, non-loopback connections must be zero. |
 
 ## Scenarios and results
 
@@ -182,6 +270,28 @@ Notes:
   production-only behavior here rather than silently accepting a stale upstream
   brand. It is not introduced by this task and does not change the network
   boundary.
+
+### Desktop batch D1 results
+
+Command:
+`pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --reporter=line`
+against the isolated deployment with `E2E_DESKTOP_EXE` and
+`E2E_ACCEPTANCE_ROOT` set. Result: **4 passed, exit 0** in 1.5 minutes (three web
+brand tests plus the packaged-desktop acceptance test; the desktop test is no
+longer skipped).
+
+| Scenario (desktop test step) | Observation result |
+| --- | --- |
+| Control liveness (Chromium self-test, Node env-proxy control, system-layer TEST-NET-1 control) | All recorded and refused/observed as expected; main-process env contract present; 2 detached daemon PIDs detected and sampled |
+| Boot from isolated `desktop.json` | Login UI shown, no configuration-error page; `app.getName()` is `U Workers`; exe `ProductName`/`FileDescription` are `U Workers`; userData resolved under the isolated profile |
+| Real email-code login through the packaged UI | 0 recorder violations / 0 external browser requests / 0 non-loopback TCP samples; 50 requests to the isolated API; loopback WebSocket connected |
+| Browse Issues, Inbox and Agents, then idle 60 s | 0 / 0 / 0; 26 TCP samples over 8 packaged processes plus both daemon PIDs, zero non-loopback connections; recorder log empty for the window |
+
+Evidence: `evidence/clawsta-80/desktop/run-summary.json`, `login.png`,
+`main.png`. The screenshots are full-desktop captures (DPI-aware) and include
+the window title bar and the taskbar icon; unrelated always-on-top desktop
+windows from other applications are hidden only for the capture and restored
+immediately afterwards.
 
 ## Authorized capability remains
 
@@ -277,23 +387,42 @@ The instance is retained for user review; lifecycle commands are in
 
 ## Desktop and PWA
 
-- `pnpm --filter @multica/desktop build` (electron-vite main/preload/renderer
-  bundles) succeeded.
-- `pnpm --filter @multica/desktop package -- --win --dir` was attempted once.
-  It produced `apps/desktop/dist/win-unpacked/U Workers.exe` and a large
-  `app.asar`, but the packaging command failed at electron-builder's winCodeSign
-  extraction (`Cannot create symbolic link ... libcrypto.dylib ... client does
-  not hold the required privilege`). Because that step failed before version
-  metadata rewriting, the produced `U Workers.exe` still reports
-  `ProductName: Electron` in its file version info, so the OS-level product
-  identity was not accepted as verified.
-- The attempted Playwright `_electron.launch` timed out after 60 seconds.
-  It forwarded the test process environment and supplied environment variables
-  that the packaged runtime does not use for its server configuration.
-  Production reads `~/.u-workers/desktop.json`.
-  Final review removed that unverified launch path; the spec keeps an explicit
-  pending Desktop case. A follow-up must validate isolated profile/configuration
-  setup, launch the packaged app and observe its requests before this item passes.
+- `pnpm --filter @multica/desktop package -- --win --dir` now exits 0 from this
+  checkout. `apps/desktop/dist/win-unpacked/U Workers.exe` reports
+  `ProductName: U Workers`, `FileDescription: U Workers`, and the packaged app
+  reports `app.getName() === "U Workers"`. The winCodeSign cache bypass and the
+  workspace-TypeScript bundling fix are documented in
+  [windows-native.md](windows-native.md).
+- The packaged app launches through Playwright with a redirected
+  `USERPROFILE`/`HOME`, reads the isolated `~/.u-workers/desktop.json`, shows
+  no configuration-error page, logs in through the real login UI against the
+  isolated deployment, browses Issues/Inbox/Agents and idles for 60 s. Across
+  those steps the Chromium proxy layer, the main-process/child environment
+  contract (including the auto-started bundled CLI daemon) and the per-second
+  Windows TCP sample of the packaged process tree all report zero non-loopback
+  traffic; the exe identity, the isolated config path and the login are
+  asserted inside the test rather than observed manually. See
+  [Desktop batch D1 results](#desktop-batch-d1-results).
+- Isolation boundary: the desktop userData directory resolves under the
+  redirected profile (`<root>\home\AppData\Roaming\U Workers`), not the real
+  `%APPDATA%\U Workers`; the real roaming directory never existed before,
+  during or after the run, and no real `~/.multica` desktop profile was
+  created. The isolated userData and the auto-started daemon were removed at
+  the end of the test.
+- Known observation gaps recorded rather than hidden:
+  - The task book's literal `--proxy-bypass-list=<-loopback>` removes
+    Chromium's implicit loopback bypass, which would route the isolated API and
+    WebSocket through the refusing recorder and break login. The launch uses an
+    explicit loopback bypass list (`localhost;127.0.0.1;::1`) instead, which
+    keeps only loopback direct — the stated intent.
+  - The packaged app must run with its working directory outside this agent
+    workspace: the bundled CLI refuses `daemon start` when it detects a
+    daemon-managed task marker in a parent directory. This is a harness
+    requirement, not a product change.
+  - The tab system owns `document.title` after login, so the OS window title
+    shows the localized route name (for example `Issues`) instead of the
+    product name; the login window title is `U Workers`, and the product name
+    is carried by the exe resources, `app.getName()` and the in-app brand mark.
 - Tray: `apps/desktop/src` contains no Electron `Tray` implementation in this
   codebase (searched the main-process sources). There is no tray menu surface
   here to brand or observe; that part of the plan's wording does not correspond
@@ -308,8 +437,8 @@ The instance is retained for user review; lifecycle commands are in
 
 1. Company-network and HTTPS/Tailscale entry points are unverified. C1 real
    second-machine LAN login, attachment and business realtime passed.
-2. Electron request observation, native install, OS icon and tray: outstanding
-   with the exact packaging/launch results above; no tray implementation exists.
+2. Native (NSIS) install and OS-level installed icon/start-menu association:
+   not run in this batch. Tray: no implementation exists in this codebase.
 3. Real agent runtimes, real model providers, real MCP/Git/integration accounts,
    real emails/messages and real update downloads: deliberately not used. Fake
    transports and tests cover the code paths.
@@ -338,6 +467,10 @@ Run from the repository root unless noted. Results recorded in this batch:
 | `pnpm exec playwright test e2e/background-network.spec.ts e2e/u-workers-brand.spec.ts --project=chromium --reporter=line` | PASS — 10 passed, 1 skipped (packaged Electron artifact), exit 0, 37.9 s |
 | Linux actual-startup run (WSL Ubuntu 24.04) | PASS — migrations, `/health`/`/readyz`, login/workspace/issue API, realtime WebSocket `auth_ack`, zero unsolicited recorder entries |
 | `node --test apps/desktop/scripts/package.test.mjs` | FAIL — known integration-base loader failure, reproduced; not counted as a pass |
+| `pnpm --filter @multica/desktop package -- --win --dir` (batch D1) | PASS — exit 0; `U Workers.exe` ProductName/FileDescription `U Workers`, FileVersion `0.2.0-dirty` |
+| `pnpm --filter @multica/desktop typecheck` (batch D1) | PASS — exit 0 |
+| `pnpm --filter @multica/desktop test` (batch D1) | 644 tests passed; suite `scripts/package.test.mjs` fails to load (`SyntaxError: Invalid or unexpected token`) — the same base-checkout loader family recorded in item 6 above; neither that file nor its config was touched by this batch |
+| `pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --reporter=line` with the isolated desktop harness (batch D1) | PASS — 4 passed, exit 0, 1.5 min; the packaged desktop case ran (not skipped) |
 
 ### Independent reviewer evidence
 
@@ -408,6 +541,18 @@ After cleanup the four isolated ports had no listeners; the only remnant was a
 short-lived `TIME_WAIT` socket. A later attempt to recreate the deployment to
 re-measure the listener-count fix was stopped and its partial root removed, per
 the reviewer's boundary; it produced no acceptance result and is not counted.
+
+### Desktop batch D1 cleanup
+
+| Resource | PID / path | Cleanup |
+| --- | --- | --- |
+| Isolated acceptance deployment | `C:\Users\HuaWei\uw80-d1\native` (ports 16432/18081/13001, database `uw80_d1_acceptance`) | `native-windows.ps1 -Action Stop` exited 0; all four ports verified closed afterwards |
+| Recording proxy | port 19090 | every run-owned recorder process stopped; port verified closed |
+| Packaged app and bundled daemon | run-owned PIDs (the daemon PIDs were resolved per run from the isolated profile, e.g. `[25988, 43104]`) | app closed by Playwright; detached daemon PIDs stopped by exact PID, `daemonCleanup.remainingPids: 0` |
+| Isolated desktop userData | `<root>\home\AppData\Roaming\U Workers` | removed by the test (`userDataRemovedAfterRun: true`); the real `%APPDATA%\U Workers` never existed before, during or after the run |
+| Isolated acceptance root | `C:\Users\HuaWei\uw80-d1` | removed recursively; the parent directory is absent |
+| Temporary local Git tag | `v0.2.0` (native build version stamp) | deleted with `git tag -d`; tag list is empty and nothing was pushed to a base branch |
+| Desktop packaging output | `apps/desktop/dist` | retained as local build output only (gitignored); no artifact was published |
 
 ## Post-run corrections applied
 
