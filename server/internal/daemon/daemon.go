@@ -1062,6 +1062,12 @@ func (d *Daemon) resolveAgentEntryWithHeal(ctx context.Context, provider string,
 	healed, ok := d.resolvedPaths[provider]
 	d.resolvedPathsMu.RUnlock()
 	if ok && agentExecutablePresent(healed.path) {
+		// A vanished original entry is expected after migration to another
+		// installer. Its resolution error must not poison subsequent launches
+		// of the replacement whose path and version were already verified.
+		if !agentExecutablePresent(entry.Path) {
+			launchOutcome.failure = nil
+		}
 		entry.Path = healed.path
 		launchOutcome.adopted = healed
 		return entry, healed.version, launchOutcome
