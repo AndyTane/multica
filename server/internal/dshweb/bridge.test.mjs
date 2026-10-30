@@ -146,6 +146,47 @@ async function run(f, request, control = { cancelled: false }, dependencies = {}
 }
 const prompts = f => f.calls.filter(call => call.method === 'session/prompt');
 
+test('provider failures reach the result with their code, HTTP status and message', async t => {
+  const reason = { kind: 'error', error: {
+    code: 'QUOTA', status: 402, message: 'Insufficient Balance (request_id: test-request)',
+  } };
+  const f = await fixture(t, { hold: true, afterAppend(session, append) {
+    append(session, [{ type: 'turn/end', data: { turn: session.turn, reason } }]);
+  } });
+  const frames = await run(f, command(f, 'provider-failure'));
+  assert.equal(frames.at(-1).status, 'failed');
+  assert.deepEqual(frames.at(-1).error, {
+    code: 'dsh_turn_ended', message: 'QUOTA (HTTP 402): Insufficient Balance (request_id: test-request)',
+  });
+  assert.equal(prompts(f).length, 1);
+});
+
+test('turn errors preserve useful details while bounding and redacting provider text', () => {
+  const cases = [
+    [{ kind: 'error', error: { code: 'RATE_LIMIT', status: 429, message: 'Too many requests' } }, 'RATE_LIMIT (HTTP 429): Too many requests'],
+    [{ kind: 'error', error: { message: 'Model unavailable' } }, 'Model unavailable'],
+    [{ kind: 'error', error: { code: 'QUOTA', status: 402 } }, 'QUOTA (HTTP 402)'],
+    [{ kind: 'error', error: { code: {}, status: '402', message: {} } }, 'error'],
+    [{ kind: 'error' }, 'error'],
+    [{ kind: 'user', error: { message: 'Ignore this' } }, 'user'],
+    [{ kind: 'error', error: { message: 'Denied\nAuthorization: Bearer test-secret; api_key=sk-private-key https://host/?token=launch-secret' } },
+      'Denied Authorization: [redacted]; api_key=[redacted] https://host/?token=[redacted]'],
+  ];
+  for (const [reason, expected] of cases) {
+    const reader = new TurnReader('failure-request', () => {});
+    reader.push({ type: 'turn/start', data: { turn: 1 } });
+    reader.push({ type: 'user/message', data: { source: { rpcId: 'failure-request' } } });
+    reader.push({ type: 'turn/end', data: { turn: 1, reason } });
+    assert.equal(reader.terminal.error.message, expected);
+    assert.equal(reader.terminal.status, reason.kind === 'user' ? 'cancelled' : 'failed');
+  }
+  const reader = new TurnReader('long-error', () => {});
+  reader.push({ type: 'turn/start', data: { turn: 1 } });
+  reader.push({ type: 'user/message', data: { source: { rpcId: 'long-error' } } });
+  reader.push({ type: 'turn/end', data: { turn: 1, reason: { kind: 'error', error: { message: 'x'.repeat(10000) } } } });
+  assert.ok(reader.terminal.error.message.length <= 2048);
+});
+
 test('new messages and resume work through the event API without any DSH session files', async t => {
   const f = await fixture(t);
   const first = await run(f, command(f, 'api-first', { thread_name: 'TEST-1' }));
