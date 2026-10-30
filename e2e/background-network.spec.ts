@@ -281,11 +281,11 @@ function readProxyLog(): ProxyLogEntry[] {
   return readFileSync(PROXY_LOG, "utf8")
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
-    .flatMap((line) => {
+    .map((line, index) => {
       try {
-        return [JSON.parse(line) as ProxyLogEntry];
+        return JSON.parse(line) as ProxyLogEntry;
       } catch {
-        return [];
+        throw new Error(`Invalid recorder metadata at line ${index + 1}; cannot verify outbound traffic.`);
       }
     });
 }
@@ -360,8 +360,9 @@ function sampleExternalTcp(pids: number[]): TcpSample {
     if (protocol !== "TCP" && protocol !== "TCPv6") continue;
     if (state !== "ESTABLISHED" && state !== "SYN_SENT") continue;
     if (!targets.has(Number(pidRaw))) continue;
-    const remoteHost = remote.replace(/^\[/, "").replace(/\]:\d+$/, "").replace(/:\d+$/, "");
-    const host = remoteHost.includes(":") ? remoteHost.slice(0, remoteHost.lastIndexOf(":")) : remoteHost;
+    const host = remote.startsWith("[")
+      ? remote.slice(1, remote.lastIndexOf("]"))
+      : remote.slice(0, remote.lastIndexOf(":"));
     if (host === "127.0.0.1" || host === "::1" || host === "0.0.0.0" || host === "::") continue;
     external.push(remote);
   }

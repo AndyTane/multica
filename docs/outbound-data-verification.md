@@ -94,7 +94,7 @@ end-to-end). Keep every path/port/database separate from any real deployment.
 3. Start the recorder:
    `node scripts/e2e/recording-proxy.mjs --port 19090 --log <root>/logs/recording-proxy.jsonl`.
 4. Run the Node and Go observer controls with `HTTP(S)_PROXY` pointing at the
-   recorder and `NEXT_PUBLIC_API_URL=/NO_PROXY` covering loopback, then write
+   recorder and `NO_PROXY` covering loopback, then write
    `<root>/observer-controls.json` with the recorded/exit-code results and the
    backend/frontend proxy env keys.
 5. Start the deployment: `scripts/native-windows.ps1 -Action Start -Root <root>`.
@@ -257,17 +257,13 @@ task, not a pass.**
   metadata rewriting, the produced `U Workers.exe` still reports
   `ProductName: Electron` in its file version info, so the OS-level product
   identity was not accepted as verified.
-- Exactly one Playwright `_electron.launch` of that unpacked executable was
-  attempted. That historical attempt still forwarded the test process
-  environment (`...process.env`); the explicit throwaway
-  `APPDATA`/`USERPROFILE`/`HOME` sandbox with an allowlisted environment was
-  added to the spec afterwards but the launch was never retried successfully
-  (it timed out after 60 s before the sandbox version existed). The sandbox is
-  the only supported way to run that test now; no further retries were made
-  without a concrete launch fix. Desktop request observation and native
-  install/tray/OS-icon verification are therefore **outstanding**, not silently
-  skipped as passing; the brand spec skips the packaged-app test when no
-  launchable artifact is supplied and states this boundary.
+- The attempted Playwright `_electron.launch` timed out after 60 seconds.
+  It forwarded the test process environment and supplied environment variables
+  that the packaged runtime does not use for its server configuration.
+  Production reads `~/.u-workers/desktop.json`.
+  Final review removed that unverified launch path; the spec keeps an explicit
+  pending Desktop case. A follow-up must validate isolated profile/configuration
+  setup, launch the packaged app and observe its requests before this item passes.
 - Tray: `apps/desktop/src` contains no Electron `Tray` implementation in this
   codebase (searched the main-process sources). There is no tray menu surface
   here to brand or observe; that part of the plan's wording does not correspond
@@ -304,7 +300,7 @@ Run from the repository root unless noted. Results recorded in this batch:
 | --- | --- |
 | `pnpm typecheck` | PASS — 10/10 packages, exit 0 |
 | `pnpm lint` | PASS — 7/7 packages, 0 errors (warnings only), exit 0 |
-| `pnpm test` | FAIL — `@multica/web` `app/text-contrast.test.ts` case `product UI expresses text hierarchy with tokens, not transparency` timed out (9.5 s) in the full parallel run. The same file passes in isolation (23/23 in 1.8 s) and on the warm-cache pipeline run; this is parallel-load flakiness, not a Task 8 change (this batch changes no product/web source). Recorded, not counted as a green check. |
+| `pnpm test` | FAIL — `@multica/web` `app/text-contrast.test.ts` case `product UI expresses text hierarchy with tokens, not transparency` timed out (9.5 s) in the full parallel run. The file passed alone (23/23 in 1.8 s). Load sensitivity is a possible explanation; the full run is still recorded as failed. |
 | `pnpm test:dsh-web` | PASS — 40/40 tests, exit 0 |
 | `go test ./internal/privacy ./internal/analytics ./pkg/llm -count=1` (server/) | PASS — reporting disabled gates and fake-transport model streaming/retry |
 | `go test ./internal/handler -run '<autopilot subscriber/revocation tests>' -count=1` with `DATABASE_URL` at the isolated acceptance database | PASS — 5 tests/subtests (create subscribers, concurrent revoke, dispatch fan-out, no-subscriber skip, delete/archive) |
@@ -353,6 +349,9 @@ produced by the code revision before these small post-run fixes:
 - the browser self-test no longer sends a custom preflight header;
 - the unproven PowerShell acceptance driver was removed in favour of the
   runbook above.
+- final review made malformed recorder JSON fail the verification, corrected
+  IPv6 TCP address parsing and removed the unverified optional Desktop launch.
+  These changes received a spec-loading check, not another deployed run.
 
 Per the reviewer's completion boundary, the removed deployment was not
 recreated to re-measure the listener count. The record above states this
@@ -389,6 +388,5 @@ the reviewer's boundary; it produced no acceptance result and is not counted.
   failure was replaced by the runbook's neutral build-then-run note; the actual
   root cause was the missing environment assignment now documented as a caution
   in the runbook.
-- The historical Electron attempt inherited the process environment; the spec's
-  current sandbox/allowlist environment is the only supported form and was never
-  successfully launched. No Electron retry was made without a concrete fix.
+- The historical Electron attempt inherited the process environment. Its
+  unverified launch helper was removed; Desktop verification remains pending.

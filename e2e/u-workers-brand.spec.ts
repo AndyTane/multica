@@ -1,7 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 import { loginAsDefault } from "./helpers";
 
@@ -12,7 +9,7 @@ import { loginAsDefault } from "./helpers";
  * Asserts user-visible identity: document titles, product mark accessible
  * names, manifest/PWA metadata, bundled icons and the absence of upstream
  * official-cloud hosts in served HTML. Desktop-only surfaces are covered by a
- * separate test that runs only when a packaged Electron artifact is supplied.
+ * pending test below; packaged-process observation has not passed this batch.
  */
 
 const PRODUCT_NAME = "U Workers";
@@ -118,63 +115,8 @@ test.describe("U Workers brand surfaces", () => {
     await expect(page.locator(`a[href*="/${slug}/issues"]`).first()).toBeVisible();
   });
 
-  test("packaged desktop app reports the U Workers identity", async () => {
-    const executable = process.env.E2E_ELECTRON_EXECUTABLE;
-    test.skip(
-      !executable,
-      "No launchable packaged Electron artifact was supplied. The isolated " +
-        "Windows unpacked build was produced, but electron-builder's signing " +
-        "step failed (winCodeSign symlink extraction) and a Playwright Electron " +
-        "launch of the unpacked executable timed out in this environment; the " +
-        "Desktop request observation remains outstanding. " +
-        "See docs/outbound-data-verification.md.",
-    );
-
-    // Never let a packaged-app check touch the real user's U Workers
-    // profile, settings, CLI profile or credentials: build a throwaway
-    // profile tree and point Windows/Electron/Node at it for this launch.
-    const sandbox = mkdtempSync(join(tmpdir(), "uw80-electron-"));
-    const appData = join(sandbox, "appdata");
-    const profile = join(sandbox, "profile");
-    const temp = join(sandbox, "tmp");
-    const { _electron } = await import("playwright");
-    let electronApp: Awaited<ReturnType<typeof _electron.launch>> | undefined;
-    try {
-      electronApp = await _electron.launch({
-        executablePath: executable,
-        args: [],
-        env: {
-          ...process.env,
-          NODE_ENV: "production",
-          APPDATA: appData,
-          LOCALAPPDATA: join(sandbox, "localappdata"),
-          USERPROFILE: profile,
-          HOME: profile,
-          TEMP: temp,
-          TMP: temp,
-          MULTICA_SERVER_URL: process.env.NEXT_PUBLIC_API_URL ?? "",
-          MULTICA_APP_URL: process.env.PLAYWRIGHT_BASE_URL ?? "",
-        },
-      });
-      const identity = await electronApp.evaluate(async ({ app }) => ({
-        packaged: app.isPackaged,
-        name: app.getName(),
-        userData: app.getPath("userData"),
-        version: app.getVersion(),
-      }));
-      expect(identity.packaged).toBe(true);
-      expect(identity.name).toBe(PRODUCT_NAME);
-      const userData = identity.userData.replace(/\\/g, "/");
-      expect(userData.startsWith(sandbox.replace(/\\/g, "/"))).toBe(true);
-      expect(userData).toMatch(/\/U Workers$/);
-      expect(identity.version).toMatch(/^\d+\.\d+\.\d+/);
-
-      const window = await electronApp.firstWindow();
-      await window.waitForLoadState("domcontentloaded");
-      await expect(window).toHaveTitle(/U Workers/);
-    } finally {
-      if (electronApp) await electronApp.close();
-      rmSync(sandbox, { recursive: true, force: true });
-    }
-  });
+  // The attempted package failed and its launch timed out. Do not expose an
+  // unverified launch path: production reads ~/.u-workers/desktop.json, not
+  // MULTICA_SERVER_URL, and process/profile isolation needs separate validation.
+  test.skip("packaged desktop identity and outbound observation require a verified isolated launch", async () => {});
 });

@@ -93,7 +93,7 @@
   "caveats": [
     "browser-observation.json request count (2652) includes one duplicated per-page request listener; the duplicate was removed after the run. Scenario assertions were zero-violation before and after; only the count metadata is inflated.",
     "Cross-machine login/realtime remains unverified (no second authorized client machine).",
-    "Electron request observation remains outstanding; the one historical launch attempt inherited the process environment, and the sandbox/allowlist version was never successfully launched."
+    "Electron request observation remains outstanding; the historical launch inherited the process environment and timed out. Final review removed the unverified launch helper and retained an explicit pending case."
   ],
   "reviewerIndependentEvidence": {
     "path": "workdir/reviewer-validation.txt (outside this commit)",
