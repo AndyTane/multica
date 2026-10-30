@@ -57,7 +57,7 @@ export async function connectWeb(config, fetchImpl = fetch, WebSocketImpl = WebS
     let result;
     try {
       const r = await fetchImpl(`${origin}/api/${method}`, {
-        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(method === 'session/cancel' ? 2000 : 10000),
+        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(method === 'session/cancel' ? 2000 : config.rpcTimeoutMs ?? 10000),
         headers: { 'Content-Type': 'application/json', Origin: origin, Cookie: cookies[0] },
         body: JSON.stringify({ type: 'client-request', rpcId, method, payload: { args: { request } } }),
       });
@@ -305,21 +305,41 @@ export async function prepareSession(command, config, rpc, control = {}) {
   const sessionId = command.resume_session_id || `multica-web-${createHash('sha256').update(command.request_id).digest('hex').slice(0, 32)}`;
   if (!safeId.test(sessionId) || !sessionId.startsWith('multica-web-')) fail('multica_session_required');
   const journal = new SessionJournal(rpc, config, sessionId, cwd);
+  // These startup operations are idempotent by canonical path, explicit session
+  // identity, or exact title. Retrying a prompt is deliberately outside this path.
+  const setup = async (method, request) => {
+    let attempt = 0;
+    for (;;) {
+      if (control.cancelled) fail('cancelled_before_delivery');
+      try { return await rpc(method, request); }
+      catch (error) {
+        if (!transportFailure(error)) throw error;
+        if (attempt === 0 || (attempt & (attempt - 1)) === 0) {
+          process.stderr.write(`DSH startup recovery: attempt=${attempt + 1} ${reasonOf(error)} (${method})\n`);
+        }
+        const until = Date.now() + Math.min((config.reconnectMs ?? 250) * 2 ** Math.min(attempt++, 5), 5000);
+        while (Date.now() < until) {
+          if (control.cancelled) fail('cancelled_before_delivery');
+          await sleep(Math.min(50, until - Date.now()));
+        }
+      }
+    }
+  };
   try {
     // Validate existing identities before adoption, including deterministic first-send retries.
     try { await journal.refreshRecover(control); }
     catch (error) {
       if (reasonOf(error) !== 'session/not-found' || command.resume_session_id) throw error;
     }
-    const created = await rpc('workspace/create', { path: command.cwd });
+    const created = await setup('workspace/create', { path: command.cwd });
     const workspace = created?.workspace;
     if (!workspace?.workspaceId || canonicalDirectory(workspace.path) !== cwd) fail('workspace_receipt_mismatch');
-    const adopted = await rpc('session/create', { sessionId, workspaceId: workspace.workspaceId });
+    const adopted = await setup('session/create', { sessionId, workspaceId: workspace.workspaceId });
     if (adopted?.sessionId !== sessionId) fail('session_receipt_mismatch');
-    const checked = await rpc('workspace/create', { path: command.cwd });
+    const checked = await setup('workspace/create', { path: command.cwd });
     if (checked?.workspace?.workspaceId !== workspace.workspaceId || !checked.workspace.sessionIds?.includes(sessionId)) fail('workspace_membership_unconfirmed');
     await journal.refreshRecover(control);
-    if (!command.resume_session_id && command.thread_name) await rpc('session/rename', { sessionId, title: `Multica · ${command.thread_name}` });
+    if (!command.resume_session_id && command.thread_name) await setup('session/rename', { sessionId, title: `Multica · ${command.thread_name}` });
     await journal.readNew(0, control);
     return { sessionId, journal, rows: journal.rows, header: journal.header, origin: config.origin };
   } catch (error) { journal.close(); throw error; }
@@ -521,7 +541,7 @@ export async function probeWeb(config, rpc) {
 
 export async function main(args = process.argv.slice(2)) {
   const emit = frame => process.stdout.write(JSON.stringify({ v: 1, ...frame }) + '\n');
-  if (args.includes('--version')) { process.stdout.write('multica-dsh-web 1.0.2\n'); return; }
+  if (args.includes('--version')) { process.stdout.write('multica-dsh-web 1.0.3\n'); return; }
   const config = loadConfig();
   if (args.includes('--recover')) {
     const option = flag => args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;

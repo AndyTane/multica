@@ -43,3 +43,13 @@ The incident's four completed responses were also recovered from the existing li
 - `go vet ./cmd/multica-dsh-web ./pkg/agent`: passed.
 - Candidate `1.0.2` built successfully and authenticated `--probe` passed against the existing DSH host.
 - `git diff --check`: passed. Frontend/mobile checks were not run; those components were not changed.
+
+## CLAWSTA-68 startup regression follow-up
+
+The user reported another failure at 14:28. Its two Multica runs, `01a18ad8-a1c7-74b0-b9e6-2504ca240531` (11:26:55–11:27:09) and `01a18b7e-445d-751b-b940-d839f98144aa` (14:27:50–14:28:06), failed before the bridge emitted a session frame. Both deterministic session identities exist on the host, with initialization events at 11:27:07–08 and 14:28:04–05 respectively, and no original request's prompt witness or turn. This was a startup failure, not a running turn whose completed result needed recovery.
+
+Version 1.0.2 recovered session history but still allowed `workspace/create`, `session/create`, membership confirmation and `session/rename` transport failures to escape preparation. The HTTP deadline was ten seconds. The original failed-call endpoint was not retained; event timestamps and absent prompt witnesses establish that preparation failed around session initialization, but do not distinguish its individual RPC. All four preparation calls now retry in place, with capped backoff and cancellation. Host source confirms workspace creation resolves the same path and explicit session creation joins an existing in-flight creation and checks its directory. Session identities, receipt validation and membership checks remain unchanged. Prompt submission is never retried by this helper.
+
+Six new regressions cover repeated failures before mutation, dropped receipts after mutation, lost membership confirmation, initialization exceeding the HTTP deadline with the host's same-session creation coalescing, cancellation, and fatal protocol errors. The five affected regressions failed against 1.0.2 before implementation. The bridge suite now contains 52 cases.
+
+Preparation was also exercised against both original CLAWSTA-68 empty sessions, with one accepted `session/create` receipt deliberately discarded in each case. The retry completed preparation under the same session ID and confirmed workspace membership. No prompt or cancel calls were made. Detailed receipts are attached to CLAWSTA-61 separately rather than committed. This verifies the startup boundary; the complete skills-development task remains for its assigned executor.
