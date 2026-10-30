@@ -16,7 +16,7 @@ async function fixture(t, behavior = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'multica-dsh-api-test-'));
   const cwd = path.join(root, 'project');
   fs.mkdirSync(cwd);
-  const sessions = new Map(), calls = [], timers = [], followers = new Set();
+  const sessions = new Map(), creations = new Map(), calls = [], timers = [], followers = new Set();
   const entry = event => ({ type: 'event', event });
   function seed(id, options = {}) {
     const session = { header: { id, version: 99, createdAt: Date.now(), cwd, isSeeded: false, ...options }, rows: [], turn: 0 };
@@ -54,11 +54,22 @@ async function fixture(t, behavior = {}) {
     assert.equal(request.headers.cookie, 'dsh=test-cookie');
     const args = payload.args.request;
     calls.push({ method, args });
+    if (behavior.failBefore?.[method] > 0) {
+      behavior.failBefore[method]--; request.socket.destroy(); return;
+    }
     let value;
     if (method === 'workspace/create') value = { workspace: { workspaceId: 'ws-test', path: cwd, sessionIds: [...sessions.keys()] } };
     else if (method === 'session/create') {
       assert.equal(args.workspaceId, 'ws-test');
-      if (!sessions.has(args.sessionId)) seed(args.sessionId);
+      if (!sessions.has(args.sessionId)) {
+        if (!creations.has(args.sessionId)) creations.set(args.sessionId, (async () => {
+          if (behavior.createDelayMs > 0) {
+            await new Promise(resolve => timers.push(setTimeout(resolve, behavior.createDelayMs)));
+          }
+          seed(args.sessionId);
+        })());
+        await creations.get(args.sessionId);
+      }
       value = { sessionId: args.sessionId };
     } else if (method === 'session/rename') value = { title: args.title };
     else if (method === 'session/page') {
@@ -94,6 +105,10 @@ async function fixture(t, behavior = {}) {
       value = { accepted: true };
       if (behavior.disconnectPrompt) { request.socket.destroy(); return; }
     } else throw new Error(`Unexpected method ${method}`);
+    if (behavior.dropReceipts?.[method] > 0) {
+      behavior.dropReceipts[method]--; request.socket.destroy(); return;
+    }
+    if (behavior.dropRpcReceipt?.(method, calls)) { request.socket.destroy(); return; }
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ type: 'server-response', rpcId, result: { ok: true, value } }));
   });
@@ -253,6 +268,62 @@ test('missing resume identities are not silently recreated', async t => {
   const result = await run(f, command(f, 'missing-resume', { resume_session_id: 'multica-web-missing' }));
   assert.equal(result.at(-1).error.code, 'session/not-found');
   assert.equal(f.sessions.size, 0);
+  assert.equal(prompts(f).length, 0);
+});
+
+for (const failureMode of ['failBefore', 'dropReceipts']) {
+  test(`startup recovers repeated ${failureMode} without changing identity or duplicating prompts`, async t => {
+    const f = await fixture(t, { [failureMode]: { 'workspace/create': 5, 'session/create': 5, 'session/rename': 5 } });
+    const frames = await run(f, command(f, `startup-${failureMode}`, { thread_name: 'TEST-68' }));
+    assert.equal(frames.at(-1).status, 'completed');
+    assert.equal(f.sessions.size, 1);
+    assert.equal(new Set(f.calls.filter(c => c.method === 'session/create').map(c => c.args.sessionId)).size, 1);
+    assert.equal(prompts(f).length, 1);
+  });
+}
+
+test('workspace membership confirmation recovers a lost receipt before delivering the prompt', async t => {
+  const f = await fixture(t, { dropRpcReceipt: (method, calls) => method === 'workspace/create'
+    && calls.filter(c => c.method === method).length === 2 });
+  const frames = await run(f, command(f, 'membership-retry'));
+  assert.equal(frames.at(-1).status, 'completed');
+  assert.equal(f.calls.filter(c => c.method === 'workspace/create').length, 3);
+  assert.equal(prompts(f).length, 1);
+});
+
+test('slow session initialization outlives the HTTP deadline and keeps the original identity', async t => {
+  const f = await fixture(t, { createDelayMs: 600 });
+  f.config.rpcTimeoutMs = 200;
+  f.config.receiptTimeoutMs = 5000;
+  const frames = await run(f, command(f, 'slow-startup'));
+  assert.equal(frames.at(-1).status, 'completed');
+  assert.equal(f.sessions.size, 1);
+  assert.ok(f.calls.filter(c => c.method === 'session/create').length >= 2);
+  assert.equal(prompts(f).length, 1);
+});
+
+test('startup cancellation stops retries without submitting a prompt or cancelling DSH', async t => {
+  const f = await fixture(t, { failBefore: { 'session/create': 1000 } });
+  const control = { cancelled: false };
+  const pending = run(f, command(f, 'cancel-startup'), control);
+  await waitUntil(() => f.calls.some(c => c.method === 'session/create'));
+  control.cancelled = true;
+  const frames = await pending;
+  assert.equal(frames.at(-1).status, 'cancelled');
+  assert.equal(prompts(f).length, 0);
+  assert.equal(f.calls.filter(c => c.method === 'session/cancel').length, 0);
+});
+
+test('startup protocol failures remain fatal and are not retried', async t => {
+  const f = await fixture(t);
+  const rpc = await connectWeb(f.config);
+  const wrapped = async (method, args) => {
+    if (method === 'session/create') throw new Error('session/cwd-conflict');
+    return rpc(method, args);
+  };
+  wrapped.follow = rpc.follow;
+  const frames = await run(f, command(f, 'fatal-startup'), undefined, { connectWeb: async () => wrapped });
+  assert.equal(frames.at(-1).error.code, 'session/cwd-conflict');
   assert.equal(prompts(f).length, 0);
 });
 
