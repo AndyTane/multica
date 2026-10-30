@@ -1,0 +1,138 @@
+{
+  "batch": "CLAWSTA-81 / C1 cross-machine acceptance",
+  "started_at": "2026-10-30T19:21:42.793Z",
+  "client": {
+    "host": "client PC",
+    "lan_ip": "192.168.3.162"
+  },
+  "server": {
+    "host": "CHUN-I5-12400F-32G",
+    "lan_ip": "192.168.3.49",
+    "web_entry": "http://192.168.3.49:13001",
+    "api_port": 18081,
+    "web_port": 13001,
+    "database_port": 16432
+  },
+  "browser": {
+    "name": "chromium",
+    "version": "156.0.8078.4",
+    "headless": true
+  },
+  "login": {
+    "reset": "reset-ok",
+    "code_length": 6,
+    "entry_url": "http://192.168.3.49:13001/login",
+    "landing_path": "/c1-cross-machine/issues",
+    "http": [
+      {
+        "path": "/auth/send-code",
+        "status": 200
+      },
+      {
+        "path": "/auth/verify-code",
+        "status": 200
+      }
+    ]
+  },
+  "issue": {
+    "identifier": "C1CR-4",
+    "id_prefix": "01a18e42...",
+    "title_created": "C1 cross-machine realtime task 19:21:50",
+    "create_http": [
+      201
+    ],
+    "read_title_visible": true
+  },
+  "attachment": {
+    "uploaded_name": "lan-upload.txt",
+    "uploaded_bytes": 80,
+    "uploaded_sha256": "42fe842e8816c84ec267ce367979edabb46a917c43d820ebc5945756c6bdcbd7",
+    "downloaded_bytes": 80,
+    "downloaded_sha256": "42fe842e8816c84ec267ce367979edabb46a917c43d820ebc5945756c6bdcbd7",
+    "content_match": true,
+    "download_http": [
+      {
+        "path": "/api/attachments",
+        "status": 200
+      }
+    ]
+  },
+  "realtime": {
+    "second_session": {
+      "mechanism": "independent browser context, same test user, PUT /api/issues/{id} over LAN",
+      "http": {
+        "get": 200,
+        "put": 200
+      },
+      "revision_before": 2,
+      "revision_after": 3,
+      "resulting_status": "in_progress",
+      "resulting_title_match": true
+    },
+    "first_session_ui_updated": true,
+    "ui_update_latency_ms": 160,
+    "issue_updated_events_for_issue": 1,
+    "issue_updated_status_changed": true,
+    "observed_event_types": [
+      "subscriber:added",
+      "activity:created",
+      "issue:created",
+      "issue:updated",
+      "issue_attachments:changed"
+    ],
+    "issue_updated_events_window": [
+      {
+        "at": "2026-10-30T19:22:13.234Z",
+        "type": "issue:updated",
+        "issue_id_prefix": "01a18e42",
+        "issue_number": 4,
+        "status_changed": true,
+        "issue_status": "in_progress"
+      }
+    ],
+    "ws_events_total": 9,
+    "ws_event_log": [
+      {
+        "at": "2026-10-30T19:22:13.233Z",
+        "type": "activity:created",
+        "issue_id_prefix": "01a18e42"
+      },
+      {
+        "at": "2026-10-30T19:22:13.234Z",
+        "type": "activity:created",
+        "issue_id_prefix": "01a18e42"
+      },
+      {
+        "at": "2026-10-30T19:22:13.234Z",
+        "type": "issue:updated",
+        "issue_id_prefix": "01a18e42",
+        "issue_number": 4,
+        "status_changed": true,
+        "issue_status": "in_progress"
+      }
+    ]
+  },
+  "ws_event_types": [
+    "subscriber:added",
+    "activity:created",
+    "issue:created",
+    "activity:created",
+    "issue:updated",
+    "issue_attachments:changed",
+    "activity:created",
+    "activity:created",
+    "issue:updated"
+  ],
+  "failures": [
+    "console: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "console: %c19:21:43.634 [api] color:#F44336;font-weight:bold ← 401 /api/me {rid: daf30a63, duration: 37ms, error: missing authorization}"
+  ],
+  "finished_at": "2026-10-30T19:22:15.453Z",
+  "result": {
+    "login_ok": true,
+    "issue_create_and_read_ok": true,
+    "attachment_roundtrip_ok": true,
+    "realtime_ok": true,
+    "all_passed": true
+  }
+}

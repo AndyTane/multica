@@ -2,7 +2,7 @@
 
 This workflow runs PostgreSQL, the Go API, and the production web application as native Windows processes. Docker is needed only to export an existing Docker deployment. The CLI/agent daemon remains a separate process and keeps its existing identity and credentials.
 
-Use `scripts/native-windows.ps1` from the repository root. Keep the checkout and installed dependencies available: Windows standalone dependency junctions may refer to their original locations. Build the frontend on Windows; Linux binaries and native Node dependencies are not portable to Windows.
+Use `scripts/native-windows.ps1` from the repository root. Keep the checkout and installed dependencies available: Windows standalone dependency junctions may refer to their original locations, so a built release is valid only on the machine that built it (moving it to another machine requires a rebuild there). Build the frontend on Windows; Linux binaries and native Node dependencies are not portable to Windows.
 
 ## Preparation
 
@@ -19,6 +19,116 @@ Download the PostgreSQL 17 Windows binary archive from [EDB](https://www.enterpr
 `Prepare` imports the current `multica-*` containers' application settings and database credentials. It restricts the deployment directory to the current Windows user and SYSTEM. Configuration and backups contain credentials; keep them outside the repository and do not publish them.
 
 The initial ports are API `18080`, web `13000`, and database `15432`. All bind to loopback. PostgreSQL uses an ICU English locale; validate search and sorting when moving from a Linux libc locale. The default database is `multica_native_rehearsal`.
+
+
+## Desktop packaging on Windows
+
+Build the unpacked Windows desktop artifact from the repository root:
+
+```powershell
+pnpm --filter @multica/desktop package -- --win --dir
+```
+
+The command must exit 0; only then has electron-builder rewritten the
+executable's version resources. Verify the identity with:
+
+```powershell
+(Get-Item 'apps\desktop\dist\win-unpacked\U Workers.exe').VersionInfo |
+  Select-Object ProductName, FileDescription
+# ProductName / FileDescription must both be "U Workers", not "Electron"
+```
+
+### winCodeSign extraction on an unprivileged Windows account
+
+electron-builder unpacks its cached `winCodeSign` toolset with 7-Zip before it
+rewrites the executable. That archive also contains macOS dylib symlinks, and
+7-Zip fails on them without the privilege to create symlinks
+(`Cannot create symbolic link ... client does not hold the required privilege`).
+The packaging run then exits before rcedit runs, so a *partially* built
+`U Workers.exe` still reports `ProductName: Electron`. The code is fine; the
+toolset cache is not.
+
+Do not enable Developer Mode and do not change repository configuration.
+Pre-extract the cache once, skipping the macOS-only payload, then rerun the
+package command:
+
+```powershell
+$cache = "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign"
+$sevenZip = (Get-ChildItem node_modules\.pnpm -Recurse -Filter 7za.exe |
+  Where-Object { $_.FullName -match '7zip-bin.*win\\x64' } |
+  Select-Object -First 1).FullName
+
+# Keep one downloaded archive, drop the failed extraction leftovers.
+$archive = Get-ChildItem $cache -Filter *.7z | Select-Object -First 1
+$temp = Join-Path $env:TEMP 'winCodeSign-2.6.0.7z'
+Copy-Item $archive.FullName $temp
+Get-ChildItem $cache | Remove-Item -Recurse -Force
+
+# Extract everything except the darwin payload (the symlinks Windows cannot create).
+& $sevenZip x -bd -y -x'!darwin*' $temp -o"$cache\winCodeSign-2.6.0" | Out-Null
+Test-Path "$cache\winCodeSign-2.6.0\rcedit-x64.exe"   # must be True
+```
+
+A correct cache holds `winCodeSign-2.6.0\rcedit-x64.exe`; electron-builder
+reuses it without extracting again. The failed extraction leaves numeric
+directories such as `197572275` plus `197572275.7z` next to the final
+directory; remove them.
+
+### Packaged main process and workspace TypeScript
+
+Shared packages under `packages/` export raw TypeScript that consuming apps
+compile (see repository AGENTS.md). In the Electron main process such a package
+must be bundled, not externalized: an externalized `require("@multica/core/...")`
+resolves to `app.asar/node_modules/.../*.ts`, and Node 24 refuses to strip types
+inside `node_modules`. The packaged app then exits with "A JavaScript error
+occurred in the main process" and `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`.
+`apps/desktop/electron.vite.config.ts` therefore excludes `@multica/core` from
+`externalizeDepsPlugin`.
+
+## Clean machine deployment (no Docker source)
+
+`Prepare` without `-Clean` imports application settings and database credentials
+from the existing `multica-*` Docker containers, so it only works where those
+containers exist. A machine that has never run this deployment uses the clean
+path, which generates its own credentials, verifies the PostgreSQL archive and
+records the pinned toolchain:
+
+```powershell
+.\scripts\native-windows.ps1 -Action Prepare -Clean -Root D:\UWorkers\clawsta80\native `
+  -Database multica_clawsta80 -DatabasePort 16432 -ApiPort 18081 -WebPort 13001 `
+  -PublicOrigin http://192.168.3.49:13001 `
+  -CorsOrigins "http://192.168.3.49:13001,http://100.73.70.87:13001" `
+  -WebHost 0.0.0.0 `
+  -PgArchive D:\UWorkers\clawsta80\downloads\postgresql-17.11-1-windows-x64-binaries.zip `
+  -PgArchiveSha256 6EABDF00D2893713B75DB4336A23C3FDF505F056E217EC6E2E95D901750CFEA3 `
+  -Version v0.2.0 `
+  -NodeExe "C:\Program Files\nodejs\node.exe" `
+  -GoExe D:\UWorkers\clawsta80\tools\go\bin\go.exe `
+  -PnpmCmd D:\UWorkers\clawsta80\tools\pnpm\bin\pnpm.cjs `
+  -GoModCache D:\UWorkers\clawsta80\tools\gomodcache
+.\scripts\native-windows.ps1 -Action Build -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action Start -Root D:\UWorkers\clawsta80\native
+```
+
+- `-PublicOrigin` becomes `FRONTEND_ORIGIN` and `MULTICA_APP_URL`; `-CorsOrigins`
+  is the exact browser-origin allowlist, and every entry must be an origin
+  (scheme, host, optional port), not an application path.
+- `-WebHost` defaults to loopback. Use `0.0.0.0` only together with a firewall
+  rule restricted to the LAN subnet that should reach the deployment (plus any
+  Tailscale/remote address); the API and database stay on loopback.
+- The PostgreSQL archive is checksum-verified before extraction, is extracted
+  only when `runtime\pgsql\bin\psql.exe` is missing, and never replaces an
+  existing `runtime\pgsql`. Download it from the EDB binary archive page in
+  Preparation.
+- `-Version` is required when the checkout has no reachable `v*` tag, as is
+  normal for a PR-branch clone. `-GoExe`, `-PnpmCmd` and `-GoModCache` pin the
+  build to task-local tools; with `-GoModCache` the build runs with
+  `GOPROXY=off` against that verified module cache (useful where
+  `proxy.golang.org` is unreachable).
+- `Prepare -Clean` refuses an existing `deployment.json` and prints no secrets;
+  generated credentials stay in that ACL-protected file.
+- `Configure` can later change `-ApiPort`, `-WebPort`, `-Database`, `-WebHost`,
+  `-PublicOrigin` and `-CorsOrigins` while the deployment is stopped.
 
 ## Restore and verify
 
@@ -57,6 +167,83 @@ The agent daemon discovers Claude's native `%USERPROFILE%\.local\bin\claude.exe`
 
 Preserve the Docker containers and volumes until the native deployment has been accepted. Stop Docker Desktop to release its overhead. Ubuntu or other WSL distributions may still consume memory independently.
 
+## LAN access and persistence
+
+The API and PostgreSQL stay loopback-only; only the web listener may be
+reachable from other machines. With `-WebHost 0.0.0.0` the Next server listens
+on every interface while `REMOTE_API_URL` still resolves to `127.0.0.1:<api>`, so
+browser traffic goes through the Next rewrite (including `/ws`) instead of
+opening the API port. Add the exact browser origins to `CORS_ALLOWED_ORIGINS`
+and leave `NEXT_PUBLIC_WS_URL` empty so the page host and protocol are used.
+
+Allow the web port from the network that should reach it, not from one client,
+and keep the batch-specific rule name so widening and removal stay exact. This
+deployment's rule admits the whole `192.168.3.0/24` LAN and keeps the Tailscale
+exception:
+
+```powershell
+# Create the rule on a new host (replace 192.168.3.0/24 with that site's LAN CIDR).
+New-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' -Direction Inbound `
+  -Action Allow -Protocol TCP -LocalPort 13001 -RemoteAddress 192.168.3.0/24,100.102.214.78
+
+# Widen an existing rule the same way. PowerShell reads the value back in mask
+# form (192.168.3.0/255.255.255.0).
+Set-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' `
+  -RemoteAddress 192.168.3.0/24,100.102.214.78
+
+# Read the effective scope back; address and port filters are separate objects.
+Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+  Select-Object DisplayName, Enabled, Direction, Action, Profile
+(Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+  Get-NetFirewallAddressFilter).RemoteAddress
+(Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+  Get-NetFirewallPortFilter) | Select-Object Protocol, LocalPort
+
+# Return to the narrower C1 scope (one client plus its Tailscale address).
+Set-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' `
+  -RemoteAddress 192.168.3.162,100.102.214.78
+
+# Or drop the rule entirely.
+Remove-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001'
+```
+
+Never widen this to `Any` or the public internet, and do not add the API or
+database ports to the rule: every LAN device uses the same one web origin, so
+`CORS_ALLOWED_ORIGINS` stays the exact origin list (never `*`). A company
+network replaces `192.168.3.0/24` with its own site CIDR; when the rule is
+delivered by Group Policy, apply the same display name in the GPO instead. The
+B1 re-check (2026-10-31) widened the C1 rule this way and re-read the effective
+scope; sanitized results are in
+[evidence/clawsta-83/01-lan-firewall.json](../evidence/clawsta-83/01-lan-firewall.json).
+
+`InstallTask` registers the hidden supervisor as a Windows scheduled task that
+runs as SYSTEM at boot and restarts on failure, so the deployment does not
+depend on an interactive login or the SSH session that started it.
+`InstallStartup` remains the per-user login alternative. When the task exists,
+`Start` runs it; otherwise it launches the supervisor child directly.
+
+For Windows OpenSSH, invoke scripts with a process-scoped execution policy:
+`powershell -NoProfile -ExecutionPolicy Bypass -File <script> -Action Status -Root <root>`.
+The default policy on the C1 host rejected a bare script invocation; no global
+execution policy was changed.
+
+```powershell
+.\scripts\native-windows.ps1 -Action InstallTask -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action Start -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action Status -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action Stop -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action RemoveTask -Root D:\UWorkers\clawsta80\native
+```
+
+`Status` reports the scheduled task name/registration plus the supervisor, backend and
+frontend PID and start time; logs stay in `<root>\logs`, separated per process
+start. Verified on the first clean deployment: LAN browser login, issue
+read/write, attachment round-trip and a second-session realtime update, with the
+host still serving after the starting SSH session closed. See
+[deployment-environment-issues.md](deployment-environment-issues.md) for the
+issues found on that machine and `evidence/clawsta-80/cross-machine/` for the
+sanitized results.
+
 ## Operations and recovery
 
 ### External reporting policy
@@ -76,6 +263,8 @@ These controls do not disable local logs/metrics, configured model providers, or
 .\scripts\native-windows.ps1 -Action Stop -Root D:\MulticaData\native
 .\scripts\native-windows.ps1 -Action Start -Root D:\MulticaData\native
 .\scripts\native-windows.ps1 -Action RemoveStartup -Root D:\MulticaData\native
+.\scripts\native-windows.ps1 -Action InstallTask -Root D:\MulticaData\native
+.\scripts\native-windows.ps1 -Action RemoveTask -Root D:\MulticaData\native
 ```
 
 Stop verifies each child by PID, executable, and process start time. It stops the application processes, then shuts down this PostgreSQL cluster in `fast` mode. Schedule stops/upgrades when tasks are idle; the application children are terminated by their supervisor.
@@ -91,5 +280,30 @@ For a consistent native backup, stop application processes while leaving Postgre
 For an upgrade, take this backup, stop the deployment, build a new release, and start. The migrator runs before the API. Restore overwrites no existing database. Keep tested backups and previous releases.
 
 Before the native deployment accepts writes, rollback can restart the preserved Docker deployment. After native writes begin, export the native database and uploads back to the recovery deployment first; starting the old database snapshot alone would lose those writes.
+
+### Outbound network acceptance
+
+A native deployment can be observed for unsolicited outbound traffic without a
+machine-wide firewall: start `scripts/e2e/recording-proxy.mjs`, put
+`HTTP(S)_PROXY` at the recorder (with `NO_PROXY` covering loopback) into the
+deployment's `BackendEnvironment`/`FrontendEnvironment`, and point the browser
+context at the same recorder. The recorder records destination metadata and
+refuses every non-loopback request with 502, so an attempted request fails
+instead of being silently swallowed.
+
+The full isolated procedure, exact Playwright specs, sanitized evidence format
+and observed results are in
+[docs/outbound-data-verification.md](outbound-data-verification.md). Keep it on
+its own root, cluster, database, ports and generated credentials; never reuse a
+production deployment or database. The same document records the boundary:
+same-host Windows verification and C1 cross-machine LAN login/realtime are
+covered. Company-network and HTTPS access remain untested; desktop request
+observation is tracked separately in D2.
+
+When launching PowerShell helpers for that deployment, do not keep both
+`NO_PROXY` and `no_proxy` (or the same spelling pair for `HTTP_PROXY`,
+`HTTPS_PROXY`) in the process environment: Windows environment names are
+case-insensitive and .NET cannot create a child process from that duplicated
+environment block.
 
 Run the script tests with `powershell -NoProfile -File scripts/native-windows.test.ps1`. They use temporary files and fake child processes, never PostgreSQL, Docker, or user-installed agent CLIs.

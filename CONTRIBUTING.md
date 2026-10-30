@@ -413,6 +413,25 @@ Notes:
 - E2E tests create their own workspace and issue fixtures
 - the check flow starts backend/frontend only if they are not already running
 
+### Network acceptance (isolated deployment)
+
+`e2e/background-network.spec.ts` and `e2e/u-workers-brand.spec.ts` are
+acceptance checks for the outbound-data boundary. They need a deployment started
+with the recording proxy from `scripts/e2e/recording-proxy.mjs`: the recorder
+turns unsolicited external attempts into recorded failures, and the Node/Go
+observation layers are proven live with exact control requests. The specs also
+refuse to run unless the target URLs/database match a marked isolated
+acceptance root.
+
+Never point these specs at a real deployment, database or `.env`. Build the
+isolated deployment from production artifacts with its own PostgreSQL cluster,
+ports and generated credentials, then follow the runbook in
+[docs/outbound-data-verification.md](docs/outbound-data-verification.md). That
+document records the observed evidence, the verified boundaries (same-host
+Windows deployment, Linux API startup, desktop status) and the outstanding
+cross-machine check. These specs are not part of `make check`, because that
+flow intentionally uses the ordinary development environment.
+
 ## Local Codex Daemon
 
 Run the local daemon:

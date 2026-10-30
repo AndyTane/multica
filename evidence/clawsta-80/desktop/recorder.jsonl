@@ -1,0 +1,5 @@
+{"ts":"2026-10-30T19:43:28.735Z","kind":"connect","trigger":"connect","method":"CONNECT","host":"uw80-desktop-nodecontrol.invalid:80","marker":null,"result":"refused-502"}
+{"ts":"2026-10-30T19:43:58.481Z","kind":"http","trigger":"http-request","method":"GET","host":"uw80-desktop-go-control.invalid","marker":null,"result":"refused-502"}
+{"ts":"2026-10-30T19:43:58.484Z","kind":"client-error","trigger":"client-error","result":"ECONNRESET"}
+{"ts":"2026-10-30T19:44:02.900Z","kind":"http","trigger":"http-request","method":"GET","host":"uw80-desktop-selftest.invalid","marker":null,"result":"refused-502"}
+{"ts":"2026-10-30T19:44:02.904Z","kind":"connect","trigger":"connect","method":"CONNECT","host":"uw80-desktop-selftest-tls.invalid:443","marker":null,"result":"refused-502"}

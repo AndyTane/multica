@@ -1,0 +1,172 @@
+{
+  "batch": "CLAWSTA-80 desktop acceptance D1",
+  "generatedAt": "2026-10-30T19:08:05.356Z",
+  "command": {
+    "spec": "pnpm exec playwright test e2e/u-workers-brand.spec.ts --project=chromium --reporter=line",
+    "desktopExe": "C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-80-5c3a648fcc83\\workdir\\UWorkers-nice\\apps\\desktop\\dist\\win-unpacked\\U Workers.exe",
+    "acceptanceRoot": "C:\\Users\\HuaWei\\uw80-d1\\native",
+    "recordingProxy": "http://127.0.0.1:19090",
+    "launchArgs": [
+      "--proxy-server=http://127.0.0.1:19090",
+      "--proxy-bypass-list=localhost;127.0.0.1;::1"
+    ]
+  },
+  "exeVersionInfo": {
+    "ProductName": "U Workers",
+    "FileDescription": "U Workers",
+    "FileVersion": "0.2.0-dirty",
+    "ProductVersion": "0.2.0.0",
+    "OriginalFilename": ""
+  },
+  "isolation": {
+    "userDataPath": "C:\\Users\\HuaWei\\uw80-d1\\native\\home\\AppData\\Roaming\\U Workers",
+    "realAppDataPath": "C:\\Users\\HuaWei\\AppData\\Roaming\\U Workers",
+    "isolatedHome": "C:\\Users\\HuaWei\\uw80-d1\\native\\home",
+    "isolatedDesktopConfig": "C:\\Users\\HuaWei\\uw80-d1\\native\\home\\.u-workers\\desktop.json",
+    "userDataExistedBeforeRun": false,
+    "realAppDataExistedBeforeRun": false,
+    "realAppDataExistedAfterRun": false,
+    "realAppDataEverObserved": false,
+    "isolatedMulticaExistedBefore": false,
+    "realMulticaProfilesBeforeCount": 0,
+    "userDataExistedDuringRun": true,
+    "appDataExistedDuringRun": true,
+    "userDataRemovedAfterRun": true,
+    "isolatedMulticaDirCreated": true,
+    "newRealDesktopProfiles": []
+  },
+  "app": {
+    "name": "U Workers",
+    "loginWindowTitle": "U Workers",
+    "mainWindowTitle": "Issues",
+    "userDataPath": "C:\\Users\\HuaWei\\uw80-d1\\native\\home\\AppData\\Roaming\\U Workers"
+  },
+  "observation": {
+    "layers": {
+      "chromium": "launch args --proxy-server plus an explicit loopback bypass, and Playwright context/page request, websocket and navigation events",
+      "environment": "HTTP_PROXY/HTTPS_PROXY/NO_PROXY/NODE_USE_ENV_PROXY in the main-process environment contract; children inherit it",
+      "system": "per-second Get-NetTCPConnection sample of the packaged process tree (recursive child PIDs)"
+    },
+    "controls": {
+      "chromiumSelfTest": [
+        "uw80-desktop-selftest.invalid",
+        "uw80-desktop-selftest-tls.invalid:443"
+      ],
+      "chromiumSelfTestFailedInApp": [
+        "http:status:502",
+        "http:recorder:true",
+        "tls:failed"
+      ],
+      "environmentProxyControl": true,
+      "environmentProxyControlHost": "uw80-desktop-nodecontrol.invalid",
+      "systemLayerControl": true,
+      "systemLayerControlRemote": "192.0.2.1:80"
+    },
+    "windowSeconds": 60,
+    "browser": {
+      "externalRequests": [],
+      "externalWebsockets": [],
+      "externalNavigations": [],
+      "requestsSinceControls": 49,
+      "isolatedApiRequests": 50,
+      "localWebsockets": [
+        "ws://127.0.0.1"
+      ],
+      "failedRequests": []
+    },
+    "environmentProxyViolations": [],
+    "systemLayer": {
+      "samples": 26,
+      "sampleErrors": 0,
+      "nonLoopback": [],
+      "observedProcesses": 8,
+      "daemonPidsSampled": 2
+    },
+    "pidTree": [
+      {
+        "pid": 44116,
+        "ppid": 87276,
+        "name": "cmd.exe"
+      },
+      {
+        "pid": 32528,
+        "ppid": 44116,
+        "name": "U Workers.exe"
+      },
+      {
+        "pid": 79792,
+        "ppid": 32528,
+        "name": "U Workers.exe"
+      },
+      {
+        "pid": 56212,
+        "ppid": 32528,
+        "name": "U Workers.exe"
+      },
+      {
+        "pid": 23884,
+        "ppid": 32528,
+        "name": "U Workers.exe"
+      }
+    ],
+    "targetHostsSeen": [],
+    "daemonChildObserved": false,
+    "localWebsockets": [
+      "ws://127.0.0.1"
+    ],
+    "daemon": {
+      "observed": true,
+      "pids": [
+        75704,
+        65276
+      ],
+      "profileDir": "C:\\Users\\HuaWei\\uw80-d1\\native\\home\\.multica\\profiles\\u-workers-desktop-127.0.0.1-18081",
+      "profileInitialized": true,
+      "boundary": "The CLI daemonizes, so it is not part of the app's live parent chain; its detached PIDs from the isolated profile are sampled as additional TCP roots."
+    },
+    "windowStartedAt": "2026-10-30T19:08:20.252Z",
+    "windowEndedAt": "2026-10-30T19:09:21.028Z",
+    "daemonCleanup": {
+      "stoppedPids": [
+        65276
+      ],
+      "remainingPids": 0
+    }
+  },
+  "screenshots": [
+    "evidence/clawsta-80/desktop/login.png",
+    "evidence/clawsta-80/desktop/main.png"
+  ],
+  "scenarios": [
+    {
+      "scenario": "isolated-login-page",
+      "proxyViolations": 0,
+      "externalRequests": 0
+    },
+    {
+      "scenario": "isolated-login",
+      "proxyViolations": 0,
+      "externalRequests": 0
+    },
+    {
+      "scenario": "browse-issues-inbox-agents",
+      "proxyViolations": 0,
+      "externalRequests": 0
+    },
+    {
+      "scenario": "email-code-login-browse-idle-60s",
+      "proxyViolations": 0,
+      "externalBrowserRequests": 0,
+      "externalBrowserWebsockets": 0,
+      "externalBrowserNavigations": 0,
+      "tcpSamples": 26,
+      "tcpExternalConnections": 0
+    }
+  ],
+  "boundaries": [
+    "The TCP sample is a sampling backstop, not exhaustive process-egress proof.",
+    "Cross-machine login/realtime is out of scope for this batch (needs a second authorized machine).",
+    "NSIS install, OS-level installed icon association and the tray remain unverified for this batch.",
+    "The packaged window title bar shows the localized document title after login (for example Issues); the product name is carried by the exe version resources, app.getName(), the login window title and the in-app brand mark."
+  ]
+}

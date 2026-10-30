@@ -1,0 +1,39 @@
+﻿{
+    "captured_at":  "2026-10-30T19:26:10.0120691Z",
+    "host":  "CHUN-I5-12400F-",
+    "proxy":  "Current WinHTTP proxy settings:\r\n\r\n    Direct access (no proxy server).",
+    "results":  [
+                    {
+                        "host":  "proxy.golang.org",
+                        "tcp443":  false
+                    },
+                    {
+                        "host":  "sum.golang.org",
+                        "tcp443":  false
+                    },
+                    {
+                        "host":  "goproxy.cn",
+                        "tcp443":  true
+                    },
+                    {
+                        "host":  "github.com",
+                        "tcp443":  true
+                    },
+                    {
+                        "host":  "registry.npmjs.org",
+                        "tcp443":  true
+                    },
+                    {
+                        "host":  "nodejs.org",
+                        "tcp443":  true
+                    },
+                    {
+                        "host":  "get.enterprisedb.com",
+                        "tcp443":  true
+                    },
+                    {
+                        "host":  "go.dev",
+                        "tcp443":  true
+                    }
+                ]
+}

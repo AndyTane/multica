@@ -1,0 +1,51 @@
+{
+  "captured_at": "2026-10-30T21:24:16Z",
+  "issue": "CLAWSTA-83 / B1",
+  "purpose": "Widen the web-entry firewall rule from the single verifying laptop (plus its Tailscale address) to the whole LAN subnet, then read the effective rule and the listener isolation back from a fresh SSH session. Sanitized: names, addresses, ports and HTTP status codes only.",
+  "server": {
+    "hostname": "Chun-i5-12400F-32G",
+    "lan_ip": "192.168.3.49",
+    "web_entry": "http://192.168.3.49:13001"
+  },
+  "client": {
+    "lan_ip": "192.168.3.162",
+    "tailscale_ip": "100.102.214.78"
+  },
+  "firewall_rule": {
+    "name": "UWorkers-CLAWSTA80-Web-13001",
+    "enabled": true,
+    "direction": "Inbound",
+    "action": "Allow",
+    "profile": "Any",
+    "protocol": "TCP",
+    "local_port": 13001,
+    "remote_address_before_c1": ["192.168.3.162", "100.102.214.78"],
+    "remote_address_now": ["192.168.3.0/255.255.255.0", "100.102.214.78"],
+    "widen_command": "Set-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' -RemoteAddress 192.168.3.0/24,100.102.214.78",
+    "restore_command": "Set-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' -RemoteAddress 192.168.3.162,100.102.214.78",
+    "readback_commands": [
+      "Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' | Select-Object DisplayName, Enabled, Direction, Action, Profile",
+      "(Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' | Get-NetFirewallAddressFilter).RemoteAddress",
+      "(Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' | Get-NetFirewallPortFilter) | Select-Object Protocol, LocalPort"
+    ]
+  },
+  "listener_isolation": {
+    "web": "0.0.0.0:13001",
+    "api": "127.0.0.1:18081",
+    "postgres": "127.0.0.1:16432"
+  },
+  "lan_http_from_client": {
+    "captured_at": "2026-10-30T21:23:13Z",
+    "root": { "status": 307, "location": "http://192.168.3.49:13001/login" },
+    "login": { "status": 200 },
+    "api_me": { "status": 401, "body": "{\"error\":\"missing authorization\"}" },
+    "api_18081_from_lan": "TCP connect timeout",
+    "postgres_16432_from_lan": "TCP connect timeout"
+  },
+  "not_verified": [
+    "a second LAN device beyond the verifying client PC: the subnet-wide scope is proven by the rule readback, not a per-device matrix",
+    "company-network reachability and its own LAN CIDR",
+    "public-internet exposure: deliberately not opened"
+  ],
+  "service_lifecycle": "read-only checks; the running deployment was not restarted, redeployed or reconfigured for this evidence"
+}

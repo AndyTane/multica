@@ -5,7 +5,14 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // Workspace packages export raw TypeScript compiled by their consuming
+    // apps (repo AGENTS.md). Externalizing @multica/core would ship
+    // `@multica/core/config/brand.ts` into app.asar/node_modules and the
+    // packaged main process would die on Node 24 with
+    // ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING ("A JavaScript error
+    // occurred in the main process"). Bundle the workspace package instead,
+    // the main-process counterpart of the preload requirement below.
+    plugins: [externalizeDepsPlugin({ exclude: ["@multica/core"] })],
   },
   preload: {
     // `@electron-toolkit/preload` must be bundled INTO the preload script:

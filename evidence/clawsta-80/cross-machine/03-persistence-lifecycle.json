@@ -1,0 +1,137 @@
+﻿{
+    "captured_at":  "2026-10-30T19:22:45.4375536Z",
+    "server":  {
+                   "hostname":  "CHUN-I5-12400F-",
+                   "os":  "Microsoft Windows 11 专业版",
+                   "os_build":  "10.0.26300.0",
+                   "powershell":  "5.1.26100.9711",
+                   "node":  "v24.21.0",
+                   "pnpm":  "10.28.2",
+                   "go":  "go version go1.26.9 windows/amd64",
+                   "postgres_binaries":  "postgres (PostgreSQL) 17.11",
+                   "lan_ip":  "192.168.3.49",
+                   "tailscale_ip":  "100.73.70.87",
+                   "release":  "D:\\UWorkers\\clawsta80\\native\\releases\\v0.2.0-20261031030941",
+                   "public_origin":  "http://192.168.3.49:13001",
+                   "web_host":  "0.0.0.0",
+                   "api_port":  18081,
+                   "web_port":  13001,
+                   "database_port":  16432,
+                   "database":  "multica_clawsta80"
+               },
+    "health":  {
+                   "readyz":  {
+                                  "status":  "ok",
+                                  "checks":  {
+                                                 "db":  "ok",
+                                                 "migrations":  "ok"
+                                             }
+                              },
+                   "health":  {
+                                  "status":  "ok",
+                                  "pid":  8588,
+                                  "commit":  "unknown",
+                                  "started_at":  "2026-10-30T19:10:55Z"
+                              },
+                   "web_login_status":  200,
+                   "web_login_bytes":  314126,
+                   "lan_web_status":  200
+               },
+    "listeners":  [
+                      {
+                          "port":  18081,
+                          "address":  "127.0.0.1",
+                          "pid":  8588,
+                          "process":  "server"
+                      },
+                      {
+                          "port":  16432,
+                          "address":  "127.0.0.1",
+                          "pid":  7400,
+                          "process":  "postgres"
+                      },
+                      {
+                          "port":  13001,
+                          "address":  "0.0.0.0",
+                          "pid":  19600,
+                          "process":  "node"
+                      }
+                  ],
+    "scheduled_task":  {
+                           "name":  "MulticaNative-D-UWorkers-clawsta80-native",
+                           "state":  "Running",
+                           "principal":  "SYSTEM",
+                           "run_level":  "Highest",
+                           "hidden":  "True",
+                           "trigger":  "MSFT_TaskBootTrigger",
+                           "last_run":  "2026-10-30T19:10:52.0000000Z",
+                           "last_result":  267009
+                       },
+    "firewall":  {
+                     "display_name":  "UWorkers-CLAWSTA80-Web-13001",
+                     "enabled":  "True",
+                     "direction":  "Inbound",
+                     "action":  "Allow",
+                     "protocol":  "TCP",
+                     "local_port":  "13001",
+                     "remote_address":  "192.168.3.162,100.102.214.78",
+                     "profile":  "Any"
+                 },
+    "build":  {
+                  "release":  "D:\\UWorkers\\clawsta80\\native\\releases\\v0.2.0-20261031030941",
+                  "server_bytes":  46824448,
+                  "migrate_bytes":  11453952,
+                  "junction_count":  47,
+                  "junction_targets_within_deployment_root":  true,
+                  "junction_target_sample":  [
+                                                 "D:\\UWorkers\\clawsta80\\repo\\node_modules\\.pnpm\\next@16.3.8_@opentelemetry+_e515f7b9c5966baa234a8105998d93ec\\node_modules\\next",
+                                                 "D:\\UWorkers\\clawsta80\\repo\\node_modules\\.pnpm\\shiki@3.23.0\\node_modules\\shiki",
+                                                 "D:\\UWorkers\\clawsta80\\repo\\node_modules\\.pnpm\\@babel+helper-string-parser@7.27.1\\node_modules\\@babel\\helper-string-parser",
+                                                 "D:\\UWorkers\\clawsta80\\repo\\node_modules\\.pnpm\\@babel+helper-validator-identifier@7.28.5\\node_modules\\@babel\\helper-validator-identifier",
+                                                 "D:\\UWorkers\\clawsta80\\repo\\node_modules\\.pnpm\\hast-util-to-html@9.0.5\\node_modules\\hast-util-to-html",
+                                                 "D:\\UWorkers\\clawsta80\\repo\\node_modules\\.pnpm\\@shikijs+types@3.23.0\\node_modules\\@shikijs\\types",
+                                                 "D:\\UWorkers\\clawsta80\\repo\\node_modules\\.pnpm\\@shikijs+vscode-textmate@10.0.2\\node_modules\\@shikijs\\vscode-textmate",
+                                                 "D:\\UWorkers\\clawsta80\\repo\\node_modules\\.pnpm\\oniguruma-to-es@4.3.5\\node_modules\\oniguruma-to-es"
+                                             ],
+                  "foreign_target_count":  0
+              },
+    "restart_proof":  {
+                          "before":  {
+                                         "pid":  8588,
+                                         "started_at":  "2026-10-30T19:10:55.7883640Z",
+                                         "executable_matches_record":  true
+                                     },
+                          "after":  {
+                                        "pid":  15768,
+                                        "started_at":  "2026-10-30T19:22:49.4266037Z",
+                                        "replaced_pid":  8588,
+                                        "recovered_seconds":  2.6,
+                                        "readyz_ok":  true
+                                    },
+                          "supervisor_unchanged":  true,
+                          "frontend_unchanged":  true
+                      },
+    "lifecycle":  {
+                      "stop":  {
+                                   "at":  "2026-10-30T19:22:50.4811497Z",
+                                   "state_cleared":  true,
+                                   "listeners_after_stop":  0,
+                                   "seconds":  4.5
+                               },
+                      "start":  {
+                                    "at":  "2026-10-30T19:22:54.8417984Z",
+                                    "ready_at":  "2026-10-30T19:22:56.4477349Z",
+                                    "supervisor_pid":  7736,
+                                    "backend_pid":  4836,
+                                    "frontend_pid":  4624,
+                                    "seconds":  1.6
+                                },
+                      "readyz_after_start":  "ok"
+                  },
+    "database":  {
+                     "version":  "PostgreSQL 17.11 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit",
+                     "migrations_applied":  "598",
+                     "public_tables":  "125"
+                 },
+    "finished_at":  "2026-10-30T19:22:56.6729028Z"
+}

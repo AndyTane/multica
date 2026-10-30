@@ -3,7 +3,14 @@ import { mkdtemp, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { describe, expect, it, vi } from "vitest";
-vi.mock("electron", () => ({ app: { getPath: () => "isolated-test-home" } }));
+// The packaged runtime config must resolve the same home directory as the
+// daemon preferences and profiles (os.homedir), not Electron's app.getPath
+// ("home"): on Windows the latter reads the shell-known folder and ignores
+// USERPROFILE, which splits one redirected home across two directories.
+vi.mock("os", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("os")>();
+  return { ...actual, homedir: () => "isolated-test-home" };
+});
 import { desktopConfigPath, loadRuntimeConfig } from "./runtime-config-loader";
 
 describe("loadRuntimeConfig", () => {
