@@ -1230,7 +1230,9 @@
       "up_to_date": "Vous avez la dernière version.",
       "downloading": "La v{{version}} se télécharge en arrière-plan — vous serez averti quand elle sera prête à installer.",
       "check_now": "Vérifier maintenant",
-      "checking": "Vérification…"
+      "checking": "Vérification…",
+      "available": "Mise à jour v{{version}} disponible",
+      "download_confirm": "Télécharger..."
     },
     "daemon": {
       "title": "Démon",

@@ -965,7 +965,9 @@
       "up_to_date": "최신 버전입니다.",
       "downloading": "v{{version}}을(를) 백그라운드에서 다운로드 중입니다. 설치 준비가 끝나면 알림을 드립니다.",
       "check_now": "지금 확인",
-      "checking": "확인 중..."
+      "checking": "확인 중...",
+      "available": "업데이트 v{{version}} 사용 가능",
+      "download_confirm": "다운로드..."
     },
     "daemon": {
       "title": "데몬",

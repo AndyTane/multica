@@ -59,11 +59,14 @@ describe("CodeBlockView — html language toggle", () => {
     vi.useRealTimers();
   });
 
-  it("defaults to preview view: renders an iframe with sandbox='allow-scripts' and keeps the <pre> mounted (hidden)", () => {
+  it("defaults to source and loads a sandboxed preview only after a click", () => {
     render(<CodeBlockView {...makeProps("html", "<p>hello</p>")} />);
     act(() => {
       vi.advanceTimersByTime(250);
     });
+    expect(document.querySelector("iframe")).toBeNull();
+    expect(screen.getByTestId("nvc").closest("pre")?.className).not.toContain("sr-only");
+    fireEvent.click(screen.getByTitle("Show preview"));
     const frame = document.querySelector("iframe");
     expect(frame).toBeTruthy();
     expect(frame?.getAttribute("title")).toBe("Localized HTML preview");
@@ -82,6 +85,7 @@ describe("CodeBlockView — html language toggle", () => {
     act(() => {
       vi.advanceTimersByTime(250);
     });
+    fireEvent.click(screen.getByTitle("Show preview"));
     expect(document.querySelector("iframe")).toBeTruthy();
     const toggle = screen.getByTitle("Show source");
     fireEvent.click(toggle);

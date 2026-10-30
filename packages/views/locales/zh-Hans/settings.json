@@ -1225,7 +1225,9 @@
       "up_to_date": "已是最新版本。",
       "downloading": "v{{version}} 正在后台下载——准备好安装时会通知你。",
       "check_now": "立即检查",
-      "checking": "检查中..."
+      "checking": "检查中...",
+      "available": "发现更新 v{{version}}",
+      "download_confirm": "下载..."
     },
     "daemon": {
       "title": "守护进程",

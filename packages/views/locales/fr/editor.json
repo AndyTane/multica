@@ -44,7 +44,8 @@
     "image_copied": "Image copiée",
     "copy_image_failed": "Impossible de copier l'image",
     "canvas_label": "Zone d'image. Faites glisser pour déplacer, faites défiler pour zoomer, double-cliquez pour basculer en taille réelle.",
-    "unavailable": "Cette image n'est plus disponible — elle a été ignorée."
+    "unavailable": "Cette image n'est plus disponible — elle a été ignorée.",
+    "load_external": "Charger l’image"
   },
   "canvas": {
     "zoom_in": "Zoom avant",
@@ -124,7 +125,9 @@
     "copy_code": "Copier le code",
     "show_preview": "Afficher l'aperçu",
     "show_source": "Afficher la source",
-    "fullscreen": "Plein écran"
+    "fullscreen": "Plein écran",
+    "load_preview": "Charger l’aperçu",
+    "external_preview_notice": "Cet aperçu peut contacter des services externes."
   },
   "dynamic_block": {
     "preview": "Aperçu",

@@ -22,7 +22,7 @@ import type {
   LocalRuntimeProbe,
 } from "../shared/daemon-types";
 import { daemonStatusAlive } from "../shared/daemon-types";
-import { ensureManagedCli, managedCliPath } from "./cli-bootstrap";
+import { managedCliPath } from "./cli-bootstrap";
 import { decideVersionAction } from "./version-decision";
 import {
   deriveProfileName,
@@ -316,7 +316,7 @@ function observeDaemonBoundary(status: DaemonStatus): void {
 }
 
 async function fetchHealth(): Promise<DaemonStatus> {
-  // While the CLI is being downloaded or has permanently failed, short-circuit
+  // While local CLI resolution is pending or has failed, short-circuit
   // polling — there's nothing to probe yet and /health calls would just return
   // "stopped", which would overwrite the correct setup state in the UI.
   if (currentState === "installing_cli" || currentState === "cli_not_found") {
@@ -454,7 +454,7 @@ function bundledCliPath(): string {
 
 async function probeCliBinary(
   bin: string,
-  source: "bundled" | "managed" | "path",
+  source: "bundled" | "managed" | "path" | "user-configured",
 ): Promise<string | null> {
   try {
     const stdout = await new Promise<string>((resolve, reject) => {
@@ -485,10 +485,9 @@ async function probeCliBinary(
 /**
  * Returns a usable `multica` binary path. Priority:
  *   1. Cached result from a previous successful resolve.
- *   2. Bundled binary shipped with the Desktop app (`bundle-cli.mjs`).
+ *   2. User-specified U_WORKERS_CLI_PATH, then bundled binary shipped with the Desktop app (`bundle-cli.mjs`).
  *   3. Managed binary already installed in userData (`managedCliPath`).
- *   4. Download + install latest release into userData.
- *   5. `multica` on PATH (dev convenience / user-installed via brew).
+ *   4. `multica` on PATH (dev convenience / user-installed via brew).
  * Returns `null` only when all of the above fail.
  *
  * Bundled is preferred so Desktop iterates in lockstep with Go changes in
@@ -496,13 +495,20 @@ async function probeCliBinary(
  * TS side is ahead of the last published CLI release.
  *
  * This function is idempotent and safe to call concurrently — in-flight
- * installs are de-duplicated via `cliResolvePromise`.
+ * lookups are de-duplicated via `cliResolvePromise`.
  */
 async function resolveCliBinary(): Promise<string | null> {
   if (cachedCliBinary !== undefined) return cachedCliBinary;
   if (cliResolvePromise) return cliResolvePromise;
 
   cliResolvePromise = (async () => {
+    const specified = process.env.U_WORKERS_CLI_PATH?.trim();
+    if (specified) {
+      const version = await probeCliBinary(specified, "user-configured");
+      cachedCliBinary = version ? specified : null;
+      cachedCliBinaryVersion = version;
+      return cachedCliBinary;
+    }
     const bundled = bundledCliPath();
     if (existsSync(bundled)) {
       const version = await probeCliBinary(bundled, "bundled");
@@ -522,23 +528,6 @@ async function resolveCliBinary(): Promise<string | null> {
         cachedCliBinaryVersion = version;
         return managed;
       }
-    }
-
-    try {
-      const installed = await ensureManagedCli({
-        forceInstall: existsSync(managed),
-      });
-      const version = await probeCliBinary(installed, "managed");
-      if (version) {
-        cachedCliBinary = installed;
-        cachedCliBinaryVersion = version;
-        return installed;
-      }
-      console.warn(
-        `[daemon] managed CLI at ${installed} failed validation after install`,
-      );
-    } catch (err) {
-      console.warn("[daemon] CLI auto-install failed, falling back to PATH:", err);
     }
 
     const onPath = findCliOnPath();
@@ -1471,8 +1460,7 @@ export function setupDaemonManager(
     return error === "" ? { success: true } : { success: false, error };
   });
 
-  // First-run CLI install kicks off here. Status bar shows "Setting up…"
-  // until the managed binary is on disk (instant on subsequent launches).
+  // Resolve only bundled or user-installed binaries before profile polling.
   currentState = "installing_cli";
   sendStatus({ state: "installing_cli" });
   void lifecycleOperations.runBackground(() => bootstrapCli());

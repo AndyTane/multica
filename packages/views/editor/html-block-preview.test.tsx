@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render as renderDom, screen } from "@testing-library/react";
 
 vi.mock("../i18n", async () => {
   const editor = (await import("../locales/en/editor.json")).default;
@@ -22,6 +22,22 @@ vi.mock("./code-block-static", () => ({
 
 import { HtmlBlockPreview } from "./html-block-preview";
 import { HTML_BLOCK_MESSAGE_KEY } from "./utils/html-block-document";
+
+// Existing viewer tests exercise the explicitly loaded preview.
+function render(ui: Parameters<typeof renderDom>[0]) {
+  const result = renderDom(ui);
+  for (const button of screen.queryAllByRole("button", { name: "Load preview" })) fireEvent.click(button);
+  return result;
+}
+
+it("mounts no iframe until the user loads the preview", () => {
+  const view = renderDom(<HtmlBlockPreview html='<img src="https://tracker.example.test/pixel">' />);
+  expect(document.querySelector("iframe")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Load preview" }));
+  expect(document.querySelector("iframe")).not.toBeNull();
+  view.rerender(<HtmlBlockPreview html='<img src="https://other.example.test/pixel">' />);
+  expect(document.querySelector("iframe")).toBeNull();
+});
 
 beforeEach(() => window.sessionStorage.clear());
 afterEach(() => vi.restoreAllMocks());
