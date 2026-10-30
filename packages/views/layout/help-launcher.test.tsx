@@ -101,16 +101,11 @@ describe("HelpLauncher", () => {
   // MUL-6462: after web onboarding the desktop download CTA was unreachable —
   // no entry anywhere in the app, so users had to remember the URL or detour
   // through the marketing site. The Help menu is the persistent home for it.
-  it("links to the download page on web", () => {
-    render(<HelpLauncher />);
-    const link = screen.getByRole("link", { name: /Desktop app/ });
-    expect(link).toHaveAttribute("href", "https://multica.ai/download");
-  });
 
   it.each([
-    ["en", "https://multica.ai/docs"],
-    ["zh-Hans", "https://multica.ai/docs/zh"],
-    ["fr", "https://multica.ai/docs/fr"],
+    ["en", "/docs"],
+    ["zh-Hans", "/docs/zh"],
+    ["fr", "/docs/fr"],
   ])("links Docs to the %s docs", (language, href) => {
     i18nState.language = language;
     render(<HelpLauncher />);

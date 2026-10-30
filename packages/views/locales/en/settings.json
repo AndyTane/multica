@@ -402,7 +402,6 @@
       "quick_actions": "Quick Actions",
       "plugins": "Plugins",
       "mcp": "MCP servers",
-      "billing": "Billing",
       "code": "Code",
       "channels": "Messaging",
       "apps": "Connected apps"
@@ -821,7 +820,8 @@
     "feature_auto_link_description": "Links a PR to the issue whose ID, e.g. {{example}}, is in its title or branch name, or follows “Closes” in its description.",
     "status_paused": "Paused",
     "pause": "Pause GitHub features",
-    "resume": "Resume GitHub features"
+    "resume": "Resume GitHub features",
+    "feature_co_author_description": "Append an agent co-author footer to commits."
   },
   "vcs": {
     "section_title": "Self-hosted Git",

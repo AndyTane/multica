@@ -27,6 +27,7 @@ export const MAIN_RENDERER_MESSAGE_CHANNELS = [
   "invite:open",
   "inbox:open",
   "settings:open",
+  "unavailable:open",
   TAB_SELECTION_SHORTCUT_CHANNEL,
 ] as const;
 

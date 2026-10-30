@@ -11,8 +11,9 @@ it("omits public discovery addresses when no public URL is configured", () => {
   expect(sitemap()).toEqual([]);
 });
 
-it("uses a configured remote address for discovery", () => {
+it("keeps retired marketing routes out of discovery even with a configured address", () => {
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://work.example.test");
-  expect(robots().sitemap).toEqual(["https://work.example.test/sitemap.xml"]);
-  expect(sitemap()[0]?.url).toBe("https://work.example.test");
+  expect(robots().rules).toEqual({ userAgent: "*", disallow: "/" });
+  expect(robots().sitemap).toBeUndefined();
+  expect(sitemap()).toEqual([]);
 });

@@ -401,7 +401,6 @@
       "quick_actions": "快捷操作",
       "plugins": "插件",
       "mcp": "MCP 服务器",
-      "billing": "账单与套餐",
       "code": "代码",
       "channels": "消息渠道",
       "apps": "已连接应用"
@@ -817,7 +816,8 @@
     "feature_auto_link_description": "PR 标题或分支名含任务编号（如 {{example}}），或正文里写了 \"Closes {{example}}\" 时，自动关联到对应任务。",
     "status_paused": "已暂停",
     "pause": "暂停 GitHub 功能",
-    "resume": "恢复 GitHub 功能"
+    "resume": "恢复 GitHub 功能",
+    "feature_co_author_description": "为智能体提交附加共同作者声明。"
   },
   "vcs": {
     "section_title": "自托管 Git",

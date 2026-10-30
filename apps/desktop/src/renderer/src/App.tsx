@@ -31,6 +31,7 @@ import { DiagnosticRouteReporter } from "./platform/diagnostic-route-reporter";
 import { flushFreezeBreadcrumb } from "./freeze-flush";
 import { DesktopAuthSessionBridge } from "./platform/auth-session-bridge";
 import { BlockingRuntimeConfigError } from "./components/runtime-config-error";
+import { UnavailablePage } from "@multica/views/common/unavailable-page";
 import {
   tearDownOnLogout,
   tearDownOnSessionExpiry,
@@ -106,6 +107,8 @@ function IssueWindowContent() {
 }
 
 function AppContent() {
+  const [retiredDeepLink, setRetiredDeepLink] = useState(false);
+  useEffect(() => window.desktopAPI.onUnavailableOpen?.(() => setRetiredDeepLink(true)), []);
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
   const authStatus = useAuthStore((s) => s.status);
@@ -316,6 +319,7 @@ function AppContent() {
     }
   }, [user, workspaceListReady, wsCount]);
 
+  if (retiredDeepLink) return <UnavailablePage onReturn={() => setRetiredDeepLink(false)} />;
   if (authStatus === "recovering") {
     return <DesktopAuthRecoveryPage />;
   }

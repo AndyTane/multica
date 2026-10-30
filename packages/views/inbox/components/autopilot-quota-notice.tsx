@@ -41,7 +41,7 @@ export function AutopilotQuotaNotice({
         </div>
       )}
       <Button className="mt-4" size="sm" onClick={onOpenRecovery}>
-        {t(($) => $.detail.autopilot_quota_upgrade)}
+        {t(($) => $.detail.autopilot_quota_details)}
       </Button>
     </>
   );

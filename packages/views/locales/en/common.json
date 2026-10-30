@@ -128,5 +128,10 @@
   },
   "navigation": {
     "open_in_new_tab": "Open in new tab"
+  },
+  "unavailable": {
+    "title": "Page unavailable",
+    "description": "This cloud or billing page is not available in U Workers.",
+    "back": "Return to workspace"
   }
 }

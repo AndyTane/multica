@@ -110,6 +110,13 @@ describe("openInNewTab", () => {
 });
 
 describe("push", () => {
+  it.each(["/billing/return", "/cloud", "/cloud-runtime/nodes"])("opens a local unavailable surface for %s", (path) => {
+    const getAdapter = renderProvider();
+    const before = acmeGroup();
+    getAdapter().push(path);
+    expect(overlay.open).toHaveBeenCalledWith({ type: "unavailable" });
+    expect(acmeGroup()).toBe(before);
+  });
   it("navigates the active session in-tab (url + virtual history)", () => {
     const getAdapter = renderProvider();
 

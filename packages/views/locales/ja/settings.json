@@ -401,7 +401,6 @@
       "quick_actions": "クイックアクション",
       "plugins": "プラグイン",
       "mcp": "MCP サーバー",
-      "billing": "請求とプラン",
       "code": "コード",
       "channels": "メッセージング",
       "apps": "接続済みアプリ"
@@ -817,7 +816,8 @@
     "feature_auto_link_description": "タイトルかブランチ名にタスク番号（例: {{example}}）を含む PR、または説明に「Closes {{example}}」と書いた PR を、そのタスクに関連付けます。",
     "status_paused": "一時停止中",
     "pause": "GitHub 機能を一時停止",
-    "resume": "GitHub 機能を再開"
+    "resume": "GitHub 機能を再開",
+    "feature_co_author_description": "エージェントのコミットに共同作者の表記を追加します。"
   },
   "vcs": {
     "section_title": "セルフホスト Git",

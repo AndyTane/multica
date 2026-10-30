@@ -1,3 +1,5 @@
+import { UnavailablePage } from "@multica/views/common/unavailable-page";
+import { useTabStore } from "./stores/tab-store";
 import { useEffect } from "react";
 import { createMemoryRouter, Outlet, useMatches } from "react-router-dom";
 import type { RouteObject } from "react-router-dom";
@@ -70,6 +72,11 @@ function DesktopSettingsRoute() {
  * Pages with dynamic titles (e.g. issue detail) override by setting
  * document.title directly via useDocumentTitle().
  */
+function DesktopUnavailablePage() {
+  const slug = useTabStore((s) => s.activeWorkspaceSlug);
+  return <UnavailablePage workspaceHref={slug ? `/${slug}/issues` : "/workspaces/new"} />;
+}
+
 function TitleSync() {
   const matches = useMatches();
   const title = [...matches]
@@ -117,6 +124,8 @@ export const appRoutes: RouteObject[] = [
     errorElement: <DesktopRouteErrorPage />,
     children: [
       { index: true, element: null },
+      { path: "billing/*", element: <DesktopUnavailablePage /> },
+      { path: "cloud-runtime/*", element: <DesktopUnavailablePage /> },
       {
         path: ":workspaceSlug",
         element: <WorkspaceRouteLayout />,
@@ -127,6 +136,9 @@ export const appRoutes: RouteObject[] = [
           // safety net instead of an in-router <Navigate> (MUL-4741
           // invariant 1: the router never self-navigates).
           { index: true, element: null },
+          { path: "billing/*", element: <DesktopUnavailablePage /> },
+          { path: "cloud-runtime/*", element: <DesktopUnavailablePage /> },
+          { path: "runtimes/cloud", element: <DesktopUnavailablePage /> },
           {
             path: "issues",
             element: <IssuesPage />,

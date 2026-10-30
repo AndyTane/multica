@@ -128,5 +128,10 @@
   },
   "navigation": {
     "open_in_new_tab": "새 탭에서 열기"
+  },
+  "unavailable": {
+    "title": "사용할 수 없는 페이지",
+    "description": "U Workers에서는 이 클라우드 또는 결제 페이지를 제공하지 않습니다.",
+    "back": "워크스페이스로 돌아가기"
   }
 }

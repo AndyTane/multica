@@ -3,6 +3,12 @@ import { NextRequest } from "next/server";
 import { MULTICA_LOCALE_HEADER } from "./lib/locale-routing";
 import { config, proxy } from "./proxy";
 
+it.each(["/billing", "/billing/checkout", "/cloud", "/cloud-runtime/nodes"])("resolves retired %s locally", (path) => {
+  const response = proxy(makeRequest(path));
+  expect(response.headers.get("x-middleware-rewrite")).toBe("https://app.multica.test/billing/return");
+  expect(response.headers.get("location")).toBeNull();
+});
+
 function makeRequest(
   path: string,
   cookies: Record<string, string> = {},

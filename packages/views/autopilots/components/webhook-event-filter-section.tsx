@@ -1,5 +1,7 @@
 "use client";
 
+import { docsHref as configuredDocsHref } from "../../common/docs-locale";
+
 import { useState } from "react";
 import { X, Plus, Filter, ExternalLink } from "lucide-react";
 import { cn } from "@multica/ui/lib/utils";
@@ -19,10 +21,10 @@ export function WebhookEventFilterSection({
   const [newEvent, setNewEvent] = useState("");
   const [newActions, setNewActions] = useState("");
   const docsHref = i18n.language?.startsWith("zh")
-    ? `https://multica.ai/docs/zh/autopilots#${encodeURIComponent("事件过滤")}`
+    ? `${configuredDocsHref("autopilots", "zh")}#${encodeURIComponent("事件过滤")}`
     : i18n.language?.startsWith("fr")
-      ? `https://multica.ai/docs/fr/autopilots#${encodeURIComponent("filtres-dévénements")}`
-      : "https://multica.ai/docs/autopilots#event-filters";
+      ? `${configuredDocsHref("autopilots", "fr")}#${encodeURIComponent("filtres-dévénements")}`
+      : `${configuredDocsHref("autopilots")}#event-filters`;
 
   const addFilter = () => {
     const event = newEvent.trim();

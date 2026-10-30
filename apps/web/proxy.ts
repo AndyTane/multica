@@ -47,6 +47,11 @@ function nextWithLocale(req: NextRequest): NextResponse {
 // edge.
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  // Retired cloud/billing links resolve locally, before any configured proxy.
+  if (/^\/(?:cloud|cloud-runtime|billing)(?:\/|$)/.test(pathname) && pathname !== "/billing/return") {
+    const url = req.nextUrl.clone(); url.pathname = "/billing/return"; url.search = "";
+    return NextResponse.rewrite(url);
+  }
   const runtimeDestination = runtimeRewriteDestination(pathname, process.env);
   if (runtimeDestination) {
     const url = new URL(runtimeDestination);

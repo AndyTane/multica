@@ -55,9 +55,9 @@
     "retry_with_context": "Retry with context",
     "edit_advanced": "Edit as advanced form",
     "autopilot_quota_exceeded_body": "This workspace has reached its limit of {{limit}} autopilot runs for the current period. Further autopilot runs will not start until the allowance resets {{resetAt}}.",
-    "autopilot_quota_upgrade": "View upgrade options",
     "archive": "Archive",
-    "unarchive": "Unarchive"
+    "unarchive": "Unarchive",
+    "autopilot_quota_details": "View limit details"
   },
   "types": {
     "issue_assigned": "Assigned",

@@ -128,5 +128,10 @@
   },
   "navigation": {
     "open_in_new_tab": "新しいタブで開く"
+  },
+  "unavailable": {
+    "title": "このページは利用できません",
+    "description": "U Workers ではこのクラウド・請求ページは提供していません。",
+    "back": "ワークスペースに戻る"
   }
 }

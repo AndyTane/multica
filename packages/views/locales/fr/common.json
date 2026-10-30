@@ -128,5 +128,10 @@
   },
   "navigation": {
     "open_in_new_tab": "Ouvrir dans un nouvel onglet"
+  },
+  "unavailable": {
+    "title": "Page indisponible",
+    "description": "Cette page cloud ou de facturation n’est pas disponible dans U Workers.",
+    "back": "Retour à l’espace"
   }
 }

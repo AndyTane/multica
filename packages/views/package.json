@@ -11,6 +11,7 @@
   "exports": {
     "./navigation": "./navigation/index.ts",
     "./common/actor-avatar": "./common/actor-avatar.tsx",
+    "./common/unavailable-page": "./common/unavailable-page.tsx",
     "./common/cli-install-command": "./common/cli-install-command.tsx",
     "./editor": "./editor/index.ts",
     "./issues/components": "./issues/components/index.ts",
@@ -34,7 +35,6 @@
     "./members": "./members/index.ts",
     "./inbox": "./inbox/index.ts",
     "./runtimes": "./runtimes/index.ts",
-    "./billing": "./billing/index.ts",
     "./dashboard": "./dashboard/index.ts",
     "./squads": "./squads/index.ts",
     "./squads/components": "./squads/components/index.ts",

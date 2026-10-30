@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { InvitePage } from "@multica/views/invite";
+import { UnavailablePage } from "@multica/views/common/unavailable-page";
 import { InvitationsPage } from "@multica/views/invitations";
 import { OnboardingFlow } from "@multica/views/onboarding";
 import { useNavigation } from "@multica/views/navigation";
@@ -29,6 +30,7 @@ import { useLocalRuntimesPending } from "../platform/use-local-runtimes-pending"
 export function WindowOverlay() {
   const overlay = useWindowOverlayStore((s) => s.overlay);
   if (!overlay) return null;
+  if (overlay.type === "unavailable") return <div className="fixed inset-0 z-50"><UnavailablePage onReturn={() => useWindowOverlayStore.getState().close()} /></div>;
   return <WindowOverlayInner />;
 }
 

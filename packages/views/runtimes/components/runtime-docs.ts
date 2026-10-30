@@ -1,7 +1,7 @@
-import { docsLocalePrefix } from "../../common/docs-locale";
+import { docsHref } from "../../common/docs-locale";
 
 export function daemonRuntimesDocsHref(language?: string): string {
-  return `https://multica.ai/docs${docsLocalePrefix(language)}/daemon-runtimes`;
+  return docsHref("daemon-runtimes", language);
 }
 
 export function customRuntimeDocsHref(language?: string): string {

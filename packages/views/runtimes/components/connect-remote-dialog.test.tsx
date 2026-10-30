@@ -39,7 +39,7 @@ const wsEventState = vi.hoisted(() => ({
 }));
 
 const WINDOWS_CMD =
-  "irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex";
+  "pwsh -File scripts/build-local-cli.ps1";
 
 vi.mock("@multica/core/realtime", () => ({
   useWSEvent: (_event: string, handler: (payload: unknown) => void) => {
@@ -86,16 +86,16 @@ describe("ConnectRemoteDialog", () => {
     clipboard.copyText.mockReset().mockResolvedValue(true);
   });
 
-  it("uses cloud setup commands by default", () => {
+  it("requires explicit service addresses when unconfigured", () => {
     const { baseElement } = renderDialog();
 
     expect(baseElement).toHaveTextContent("multica setup");
-    expect(baseElement).not.toHaveTextContent("multica setup self-host");
+    expect(baseElement).toHaveTextContent("multica setup self-host");
     expect(baseElement).toHaveTextContent(
-      "multica config set server_url https://api.multica.ai",
+      "multica config set server_url <SERVER_URL>",
     );
     expect(baseElement).toHaveTextContent(
-      "multica config set app_url https://multica.ai",
+      "multica config set app_url <APP_URL>",
     );
   });
 

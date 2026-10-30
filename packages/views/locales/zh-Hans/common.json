@@ -128,5 +128,10 @@
   },
   "navigation": {
     "open_in_new_tab": "在新标签页打开"
+  },
+  "unavailable": {
+    "title": "此页面不可用",
+    "description": "U Workers 不提供这个云服务或计费页面。",
+    "back": "返回工作区"
   }
 }

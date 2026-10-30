@@ -190,6 +190,11 @@ function handleDeepLink(url: string): void {
     const parsed = new URL(url);
     if (parsed.protocol !== `${PROTOCOL}:`) return;
 
+    if (["billing", "cloud", "cloud-runtime"].includes(parsed.hostname)) {
+      dispatchToMainRenderer("unavailable:open", null);
+      return;
+    }
+
     // multica://auth/callback?token=<jwt>
     if (parsed.hostname === "auth" && parsed.pathname === "/callback") {
       const token = parsed.searchParams.get("token");

@@ -401,7 +401,6 @@
       "quick_actions": "퀵 액션",
       "plugins": "플러그인",
       "mcp": "MCP 서버",
-      "billing": "결제 및 요금제",
       "code": "코드",
       "channels": "메신저",
       "apps": "연결된 앱"
@@ -817,7 +816,8 @@
     "feature_auto_link_description": "제목이나 브랜치 이름에 태스크 번호(예: {{example}})가 있거나 설명에 \"Closes {{example}}\"가 있는 PR을 해당 태스크에 연결합니다.",
     "status_paused": "일시 중지됨",
     "pause": "GitHub 기능 일시 중지",
-    "resume": "GitHub 기능 재개"
+    "resume": "GitHub 기능 재개",
+    "feature_co_author_description": "에이전트 커밋에 공동 작성자 표기를 추가합니다."
   },
   "vcs": {
     "section_title": "셀프 호스팅 Git",
