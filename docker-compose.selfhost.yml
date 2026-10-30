@@ -53,7 +53,7 @@ services:
       retries: 5
 
   backend:
-    image: ${MULTICA_BACKEND_IMAGE:-multica-backend}:${MULTICA_IMAGE_TAG:-dev}
+    image: ${MULTICA_BACKEND_IMAGE:-u-workers-backend}:${MULTICA_IMAGE_TAG:-dev}
     depends_on:
       postgres:
         condition: service_healthy
@@ -218,7 +218,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${MULTICA_WEB_IMAGE:-multica-web}:${MULTICA_IMAGE_TAG:-dev}
+    image: ${MULTICA_WEB_IMAGE:-u-workers-web}:${MULTICA_IMAGE_TAG:-dev}
     depends_on:
       - backend
     ports:
