@@ -1,0 +1,62 @@
+{
+  "captured_at": "2026-10-30T19:23:28Z",
+  "purpose": "Cross-machine LAN access and a fresh SSH read after the starting SSH session ended; the deployment does not depend on the original terminal.",
+  "client": {
+    "hostname": "HUAWEI-PC",
+    "lan_ip": "192.168.3.162",
+    "tailscale_ip": "100.102.214.78"
+  },
+  "server": {
+    "hostname": "CHUN-I5-12400F-32G",
+    "lan_ip": "192.168.3.49",
+    "web_entry": "http://192.168.3.49:13001",
+    "status_from_fresh_ssh": {
+      "Running": true,
+      "ApiPort": 18081,
+      "WebPort": 13001,
+      "DatabasePort": 16432,
+      "Database": "multica_clawsta80",
+      "Release": "D:\\UWorkers\\clawsta80\\native\\releases\\v0.2.0-20261031030941",
+      "PublicOrigin": "http://192.168.3.49:13001",
+      "ScheduledTask": "MulticaNative-D-UWorkers-clawsta80-native",
+      "ScheduledTaskInstalled": true,
+      "Supervisor": {
+        "Pid": 7736,
+        "StartedAt": "2026-10-30T19:22:54.9930105Z",
+        "Executable": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+      },
+      "Backend": {
+        "Pid": 4836,
+        "StartedAt": "2026-10-30T19:22:55.5546558Z",
+        "Executable": "D:\\UWorkers\\clawsta80\\native\\releases\\v0.2.0-20261031030941\\server.exe"
+      },
+      "Frontend": {
+        "Pid": 4624,
+        "StartedAt": "2026-10-30T19:22:55.5835551Z",
+        "Executable": "C:\\Program Files\\nodejs\\node.exe"
+      }
+    }
+  },
+  "http_over_lan": {
+    "root_status": 307,
+    "login_status": 200,
+    "health_json": {
+      "status": "ok",
+      "pid": 4836,
+      "commit": "unknown",
+      "started_at": "2026-10-30T19:22:55Z"
+    },
+    "readyz_loopback_from_fresh_ssh": {
+      "status": "ok",
+      "checks": {
+        "db": "ok",
+        "migrations": "ok"
+      }
+    },
+    "note": "GET / over the LAN redirects to /login (307); /login returns the real server-rendered page; /health is proxied to the API."
+  },
+  "listener_isolation": {
+    "api_18081_from_lan": "closed",
+    "postgres_16432_from_lan": "closed"
+  }
+}

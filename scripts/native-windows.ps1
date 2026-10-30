@@ -1,14 +1,26 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Prepare', 'Build', 'Backup', 'Restore', 'Start', 'Stop', 'Status', 'Run', 'InstallStartup', 'RemoveStartup', 'Configure')]
+    [ValidateSet('Prepare', 'Build', 'Backup', 'Restore', 'Start', 'Stop', 'Status', 'Run', 'InstallStartup', 'RemoveStartup', 'InstallTask', 'RemoveTask', 'Configure')]
     [string]$Action = 'Status',
     [string]$Root = (Join-Path $env:LOCALAPPDATA 'Multica\native'),
     [string]$BackupPath,
     [ValidateSet('Docker', 'Native')][string]$BackupSource = 'Native',
     [string]$Database,
+    [int]$DatabasePort,
     [int]$ApiPort,
     [int]$WebPort,
-    [switch]$KeepDatabase
+    [switch]$KeepDatabase,
+    [switch]$Clean,
+    [string]$PublicOrigin,
+    [string]$CorsOrigins,
+    [string]$WebHost,
+    [string]$PgArchive,
+    [string]$PgArchiveSha256,
+    [string]$Version,
+    [string]$NodeExe,
+    [string]$GoExe,
+    [string]$PnpmCmd,
+    [string]$GoModCache
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,6 +37,232 @@ function Write-NativeJson {
 function Read-NativeConfig {
     param([string]$Directory)
     Get-Content -LiteralPath (Join-Path $Directory 'deployment.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+}
+
+function New-NativeRandomHex {
+    param([int]$ByteCount = 32)
+    $bytes = New-Object byte[] $ByteCount
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $generator.GetBytes($bytes) } finally { $generator.Dispose() }
+    return (($bytes | ForEach-Object { $_.ToString('x2') }) -join '')
+}
+
+function Resolve-NativePublicOrigin {
+    param($Config)
+    if ($Config.PublicOrigin) { return [string]$Config.PublicOrigin }
+    return 'http://localhost:' + $Config.WebPort
+}
+
+function Resolve-NativeBrowserOrigins {
+    param([string]$PublicOrigin, [string]$CorsOrigins, [int]$WebPort)
+    $values = @()
+    if ($PublicOrigin) { $values += $PublicOrigin }
+    if ($CorsOrigins) { $values += ($CorsOrigins -split ',') }
+    $origins = New-Object System.Collections.Generic.List[string]
+    foreach ($raw in $values) {
+        $value = ([string]$raw).Trim().TrimEnd('/')
+        if (-not $value) { continue }
+        $uri = $null
+        if (-not [Uri]::TryCreate($value, [UriKind]::Absolute, [ref]$uri)) { throw "Invalid browser origin: $value" }
+        if (@('http', 'https') -notcontains $uri.Scheme) { throw "Browser origin must be http or https: $value" }
+        if ($uri.AbsolutePath -ne '/') { throw "Browser origin must not include a path: $value" }
+        if (-not $origins.Contains($value)) { $origins.Add($value) }
+    }
+    if ($origins.Count -eq 0) { $origins.Add('http://localhost:' + $WebPort) }
+    return $origins
+}
+
+function Invoke-NativeGitQuery {
+    param([string]$Repository, [string[]]$Arguments)
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git -or -not $Repository) { return [pscustomobject]@{ ExitCode = -1; Output = '' } }
+    $previous = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $git.Source -C $Repository @Arguments 2>&1
+        return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = (([string[]]$output) -join [Environment]::NewLine).Trim() }
+    } finally { $ErrorActionPreference = $previous }
+}
+
+function Resolve-NativeBuildVersion {
+    param($Config)
+    if ($Config.Version) {
+        if ([string]$Config.Version -notmatch '^v\d+\.\d+\.\d+') { throw 'The configured release version must look like v1.2.3.' }
+        return [string]$Config.Version
+    }
+    $described = Invoke-NativeGitQuery $Config.Repo @('describe', '--tags', '--match', 'v[0-9]*', '--always', '--dirty')
+    $version = [string]$described.Output
+    if ($described.ExitCode -ne 0 -or -not $version) { throw 'Tagged source version required: build from a tagged Git checkout or pass -Version vX.Y.Z with Prepare -Clean.' }
+    if ($version -notmatch '^v\d+\.\d+\.\d+') { throw 'Tagged source version required: build from a tagged Git checkout or pass -Version vX.Y.Z with Prepare -Clean.' }
+    return $version
+}
+
+function Resolve-NativeBuildCommit {
+    param($Config)
+    $revision = Invoke-NativeGitQuery $Config.Repo @('rev-parse', '--short', 'HEAD')
+    if ($revision.ExitCode -eq 0 -and $revision.Output) { return [string]$revision.Output }
+    if ($Config.Commit) { return [string]$Config.Commit }
+    return 'unknown'
+}
+
+function Expand-NativePostgresArchive {
+    param([string]$RuntimeDirectory, [string]$Archive, [string]$Sha256)
+    if (-not $Archive -or -not (Test-Path -LiteralPath $Archive)) { throw 'A PostgreSQL Windows binaries archive is required for a clean deployment; download it from the EDB binary archive page.' }
+    if (-not $Sha256) { throw 'A SHA-256 checksum is required to verify the PostgreSQL archive.' }
+    $hash = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
+    if ($hash -ne $Sha256.Trim().ToUpperInvariant()) { throw 'The PostgreSQL archive does not match the provided SHA-256 checksum.' }
+    New-Item -ItemType Directory -Path $RuntimeDirectory -Force | Out-Null
+    $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+    if (-not (Test-Path -LiteralPath $tar)) { $tar = 'tar.exe' }
+    & $tar -xf $Archive -C $RuntimeDirectory
+    if ($LASTEXITCODE -ne 0) { throw "PostgreSQL archive extraction failed (exit $LASTEXITCODE)." }
+    if (-not (Test-Path -LiteralPath (Join-Path $RuntimeDirectory 'pgsql\bin\psql.exe'))) { throw 'The PostgreSQL archive did not contain pgsql\bin\psql.exe.' }
+}
+
+function Initialize-NativeCleanDeployment {
+    param(
+        [string]$Directory, [string]$Database, [int]$DatabasePort, [int]$ApiPort, [int]$WebPort,
+        [string]$PublicOrigin, [string]$CorsOrigins, [string]$WebHost, [string]$PgArchive, [string]$PgArchiveSha256,
+        [string]$Version, [string]$NodeExe, [string]$GoExe, [string]$PnpmCmd, [string]$GoModCache
+    )
+    if (-not $Database) { $Database = 'multica' }
+    if ($Database -notmatch '^[a-z][a-z0-9_]{0,62}$') { throw 'A simple lowercase database name is required.' }
+    if (-not $DatabasePort) { $DatabasePort = 15432 }
+    if (-not $ApiPort) { $ApiPort = 18080 }
+    if (-not $WebPort) { $WebPort = 13000 }
+    if ($DatabasePort -eq $ApiPort -or $DatabasePort -eq $WebPort -or $ApiPort -eq $WebPort) { throw 'The database, API, and web ports must differ.' }
+    foreach ($port in @($DatabasePort, $ApiPort, $WebPort)) {
+        if ($port -lt 1 -or $port -gt 65535) { throw "Invalid port: $port." }
+    }
+    if ($Version -and $Version -notmatch '^v\d+\.\d+\.\d+') { throw 'The configured release version must look like v1.2.3.' }
+    if (-not $WebHost) { $WebHost = '127.0.0.1' }
+    if ($WebHost -notin @('127.0.0.1', '0.0.0.0', '::1')) { throw 'The web bind host must be 127.0.0.1, ::1, or 0.0.0.0.' }
+    $Directory = [IO.Path]::GetFullPath($Directory)
+    New-Item -ItemType Directory -Path $Directory -Force | Out-Null
+    $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    Invoke-NativeCommand 'icacls.exe' @($Directory, '/inheritance:r', '/grant:r', ('*' + $sid + ':(OI)(CI)F'), '*S-1-5-18:(OI)(CI)F') | Out-Null
+    foreach ($child in @('downloads', 'runtime', 'releases', 'backups', 'logs', 'state', 'data', 'uploads')) {
+        New-Item -ItemType Directory -Path (Join-Path $Directory $child) -Force | Out-Null
+    }
+    $configFile = Join-Path $Directory 'deployment.json'
+    if (Test-Path -LiteralPath $configFile) { throw 'The deployment is already configured; clean prepare refuses to overwrite existing credentials and ports.' }
+    if (-not (Test-Path -LiteralPath (Join-Path $Directory 'runtime\pgsql\bin\psql.exe'))) {
+        Expand-NativePostgresArchive (Join-Path $Directory 'runtime') $PgArchive $PgArchiveSha256
+    }
+    $nodePath = ''
+    if ($NodeExe) { $nodePath = $NodeExe } else {
+        $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
+        if ($nodeCommand) { $nodePath = $nodeCommand.Source }
+    }
+    if (-not $nodePath) { throw 'node.exe was not found on PATH; install Node.js or pass -NodeExe for a clean deployment.' }
+    $origins = Resolve-NativeBrowserOrigins $PublicOrigin $CorsOrigins $WebPort
+    $config = [ordered]@{
+        Root = $Directory; Repo = $script:RepoRoot; DatabaseUser = 'multica'; DatabasePassword = (New-NativeRandomHex 24)
+        SourceDatabase = ''; Database = $Database; DatabasePort = $DatabasePort; ApiPort = $ApiPort; WebPort = $WebPort
+        PublicOrigin = $origins[0]; WebHost = $WebHost; Node = $nodePath; GoExe = $GoExe; PnpmCmd = $PnpmCmd; GoModCache = $GoModCache
+        Version = $Version; Release = ''
+        BackendEnvironment = [ordered]@{
+            APP_ENV = 'production'
+            JWT_SECRET = (New-NativeRandomHex 32)
+            FRONTEND_ORIGIN = $origins[0]
+            CORS_ALLOWED_ORIGINS = ($origins -join ',')
+            MULTICA_APP_URL = $origins[0]
+        }
+        FrontendEnvironment = [ordered]@{}
+        CreatedAt = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    Write-NativeJson $configFile $config
+    Copy-Item -LiteralPath $script:ScriptFile -Destination (Join-Path $Directory 'runtime\native-windows.ps1') -Force
+    Write-Host ('Clean native deployment configuration written to ' + $Directory + '; generated secrets stay in deployment.json.')
+}
+
+function Get-NativeScheduledTaskName {
+    param($Config)
+    $suffix = ([string]$Config.Root) -replace '[^A-Za-z0-9]+', '-'
+    return 'MulticaNative-' + $suffix.Trim('-')
+}
+
+function Invoke-NativeSchtasks {
+    param([string[]]$Arguments)
+    $schtasks = Join-Path $env:SystemRoot 'System32\schtasks.exe'
+    $previous = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $schtasks @Arguments 2>&1
+        return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = (([string[]]$output) -join [Environment]::NewLine).Trim() }
+    } finally { $ErrorActionPreference = $previous }
+}
+
+function Test-NativeScheduledTask {
+    param([string]$TaskName)
+    return ((Invoke-NativeSchtasks @('/query', '/tn', $TaskName)).ExitCode -eq 0)
+}
+
+function Get-NativeScheduledTaskXml {
+    param([string]$RunnerPath, [string]$Root)
+    $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $RunnerPath + '" -Action Run -Root "' + $Root + '"'
+    $description = 'Multica native deployment supervisor for ' + $Root
+    return @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>$([Security.SecurityElement]::Escape($description))</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <BootTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT30S</Delay>
+    </BootTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>S-1-5-18</UserId>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+    <Enabled>true</Enabled>
+    <Hidden>true</Hidden>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>$([Security.SecurityElement]::Escape($shell))</Command>
+      <Arguments>$([Security.SecurityElement]::Escape($arguments))</Arguments>
+    </Exec>
+  </Actions>
+</Task>
+"@
+}
+
+function Set-NativeScheduledTask {
+    param($Config, [bool]$Enabled)
+    $taskName = Get-NativeScheduledTaskName $Config
+    if (-not $Enabled) {
+        $removed = Invoke-NativeSchtasks @('/delete', '/tn', $taskName, '/f')
+        if ($removed.ExitCode -eq 0) { Write-Host ('Scheduled task removed: ' + $taskName) } else { Write-Host ('Scheduled task was not present: ' + $taskName) }
+        return
+    }
+    $runner = Join-Path $Config.Root 'runtime\native-windows.ps1'
+    if (-not (Test-Path -LiteralPath $runner)) { throw 'The native runner is missing; re-run Prepare to stage it.' }
+    $xml = Get-NativeScheduledTaskXml $runner $Config.Root
+    $tempFile = Join-Path $Config.Root ('state\task-' + [guid]::NewGuid().ToString('N') + '.xml')
+    try {
+        [IO.File]::WriteAllText($tempFile, $xml, [Text.UnicodeEncoding]::new($false, $true))
+        $created = Invoke-NativeSchtasks @('/create', '/tn', $taskName, '/xml', $tempFile, '/f')
+        if ($created.ExitCode -ne 0) { throw ('Scheduled task creation failed: ' + $created.Output) }
+    } finally { Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue }
+    Write-Host ('Scheduled task registered: ' + $taskName + ' (hidden supervisor, SYSTEM, at startup).')
 }
 
 function Get-NativeEnvironment {
@@ -133,6 +371,15 @@ function Invoke-NativeSql {
     } finally { $env:PGPASSWORD = $savedPassword }
 }
 
+function Initialize-NativeDatabase {
+    param($Config)
+    $name = [string]$Config.Database
+    if ($name -notmatch '^[a-z][a-z0-9_]{0,62}$') { throw 'A simple lowercase database name is required.' }
+    $existing = @(Invoke-NativeSql $Config ("SELECT 1 FROM pg_database WHERE datname='" + $name + "';"))
+    if ($existing.Count -gt 0 -and [string]$existing[-1]) { return }
+    Invoke-NativeSql $Config ('CREATE DATABASE "' + $name + '" TEMPLATE template0 LOCALE_PROVIDER icu ICU_LOCALE ''en-US'' LOCALE ''C'' ENCODING ''UTF8'';') | Out-Null
+}
+
 function Start-NativePostgres {
     param($Config)
     $pgBin = Get-PostgresBin $Config.Root
@@ -183,18 +430,24 @@ function Initialize-NativeDeployment {
 
 function Build-NativeDeployment {
     param($Config)
-    $version = (git -C $Config.Repo describe --tags --match 'v[0-9]*' --always --dirty).Trim()
-    if ($version -notmatch '^v\d+\.\d+\.\d+') { throw 'Tagged source version required.' }
-    $commit = (git -C $Config.Repo rev-parse --short HEAD).Trim()
+    $version = Resolve-NativeBuildVersion $Config
+    $commit = Resolve-NativeBuildCommit $Config
     $release = Join-Path $Config.Root ('releases\' + $version + '-' + (Get-Date -Format 'yyyyMMddHHmmss'))
     New-Item -ItemType Directory -Path $release -Force | Out-Null
     Push-Location -LiteralPath (Join-Path $Config.Repo 'server')
     $savedGo = $env:GOMAXPROCS; $savedCgo = $env:CGO_ENABLED
+    $savedModCache = $env:GOMODCACHE; $savedGoProxy = $env:GOPROXY; $savedSumDb = $env:GOSUMDB
+    $goExe = if ($Config.GoExe) { [string]$Config.GoExe } else { 'go.exe' }
     try {
         $env:GOMAXPROCS = '2'; $env:CGO_ENABLED = '0'
-        Invoke-NativeCommand 'go.exe' @('build', '-p', '2', '-ldflags', "-s -w -X main.version=$version -X main.commit=$commit", '-o', (Join-Path $release 'server.exe'), './cmd/server')
-        Invoke-NativeCommand 'go.exe' @('build', '-p', '2', '-ldflags', '-s -w', '-o', (Join-Path $release 'migrate.exe'), './cmd/migrate')
-    } finally { $env:GOMAXPROCS = $savedGo; $env:CGO_ENABLED = $savedCgo; Pop-Location }
+        if ($Config.GoModCache) { $env:GOMODCACHE = [string]$Config.GoModCache; $env:GOPROXY = 'off'; $env:GOSUMDB = 'off' }
+        Invoke-NativeCommand $goExe @('build', '-p', '2', '-ldflags', "-s -w -X main.version=$version -X main.commit=$commit", '-o', (Join-Path $release 'server.exe'), './cmd/server')
+        Invoke-NativeCommand $goExe @('build', '-p', '2', '-ldflags', '-s -w', '-o', (Join-Path $release 'migrate.exe'), './cmd/migrate')
+    } finally {
+        $env:GOMAXPROCS = $savedGo; $env:CGO_ENABLED = $savedCgo
+        $env:GOMODCACHE = $savedModCache; $env:GOPROXY = $savedGoProxy; $env:GOSUMDB = $savedSumDb
+        Pop-Location
+    }
     Copy-Item -LiteralPath (Join-Path $Config.Repo 'server\migrations') -Destination (Join-Path $release 'migrations') -Recurse
     foreach ($notice in @('LICENSE', 'NOTICE')) { Copy-Item -LiteralPath (Join-Path $Config.Repo $notice) -Destination (Join-Path $release $notice) }
     Push-Location -LiteralPath $Config.Repo
@@ -203,7 +456,13 @@ function Build-NativeDeployment {
         $env:STANDALONE = 'true'; $env:NODE_OPTIONS = '--max-old-space-size=2048'; $env:NEXT_PUBLIC_APP_VERSION = $version
         $env:MULTICA_BUILD_CPUS = '2'
         $env:NEXT_TELEMETRY_DISABLED = '1'
-        & pnpm.cmd --filter '@multica/web' build
+        $nodeExe = if ($Config.Node) { [string]$Config.Node } else { (Get-Command node.exe).Source }
+        if ($Config.PnpmCmd -and ([string]$Config.PnpmCmd -match '\.(cjs|js)$')) {
+            & $nodeExe $Config.PnpmCmd --filter '@multica/web' build
+        } else {
+            $pnpmExe = if ($Config.PnpmCmd) { [string]$Config.PnpmCmd } else { 'pnpm.cmd' }
+            & $pnpmExe --filter '@multica/web' build
+        }
         if ($LASTEXITCODE -ne 0) { throw 'Native frontend build failed.' }
     } finally { $env:STANDALONE = $savedStandalone; $env:NODE_OPTIONS = $savedNodeOptions; $env:NEXT_PUBLIC_APP_VERSION = $savedVersion; $env:MULTICA_BUILD_CPUS = $savedBuildCpus; $env:NEXT_TELEMETRY_DISABLED = $savedNextTelemetry; Pop-Location }
     $webOutput = Join-Path $Config.Repo 'apps\web\.next'
@@ -287,8 +546,9 @@ function Get-BackendEnvironment {
     $environment.DATABASE_URL = Get-DatabaseUrl $Config
     $environment.DATABASE_MAX_CONNS = '10'; $environment.DATABASE_MIN_CONNS = '2'
     $environment.LOCAL_UPLOAD_DIR = Join-Path $Config.Root 'uploads'
-    $environment.FRONTEND_ORIGIN = 'http://localhost:' + $Config.WebPort
-    $environment.MULTICA_APP_URL = $environment.FRONTEND_ORIGIN
+    $publicOrigin = Resolve-NativePublicOrigin $Config
+    $environment.FRONTEND_ORIGIN = $publicOrigin
+    $environment.MULTICA_APP_URL = $publicOrigin
     $environment.MULTICA_DAEMON_SERVER_URL = 'http://localhost:' + $Config.ApiPort
     # Deployment privacy policy takes precedence over imported/inherited settings.
     $environment.DO_NOT_TRACK = '1'; $environment.ANALYTICS_DISABLED = 'true'
@@ -298,7 +558,8 @@ function Get-BackendEnvironment {
 
 function Get-FrontendEnvironment {
     param($Config)
-    $environment = @{ NODE_ENV = 'production'; HOSTNAME = '127.0.0.1'; PORT = [string]$Config.WebPort; REMOTE_API_URL = ('http://127.0.0.1:' + $Config.ApiPort); NEXT_PUBLIC_WS_URL = ''; NEXT_TELEMETRY_DISABLED = '1' }
+    $webHost = if ($Config.WebHost) { [string]$Config.WebHost } else { '127.0.0.1' }
+    $environment = @{ NODE_ENV = 'production'; HOSTNAME = $webHost; PORT = [string]$Config.WebPort; REMOTE_API_URL = ('http://127.0.0.1:' + $Config.ApiPort); NEXT_PUBLIC_WS_URL = ''; NEXT_TELEMETRY_DISABLED = '1' }
     foreach ($property in $Config.FrontendEnvironment.PSObject.Properties) {
         if ($property.Name -notin @('HOSTNAME', 'PORT', 'REMOTE_API_URL', 'NODE_ENV')) { $environment[$property.Name] = [string]$property.Value }
     }
@@ -316,6 +577,7 @@ function Invoke-NativeSupervisor {
     try {
         if (Test-Path -LiteralPath $stopFile) { Remove-Item -LiteralPath $stopFile -Force }
         Start-NativePostgres $Config
+        Initialize-NativeDatabase $Config
         $backendEnvironment = Get-BackendEnvironment $Config
         $savedDb = $env:DATABASE_URL
         try {
@@ -383,7 +645,12 @@ function Start-NativeDeployment {
     $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $runner = Join-Path $Config.Root 'runtime\native-windows.ps1'
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $null = Start-NativeChild $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $runner, '-Action', 'Run', '-Root', $Config.Root) $Config.Root @{} (Join-Path $Config.Root "logs\supervisor-$stamp.log")
+    $taskName = Get-NativeScheduledTaskName $Config
+    if (Test-NativeScheduledTask $taskName) {
+        Invoke-NativeCommand (Join-Path $env:SystemRoot 'System32\schtasks.exe') @('/run', '/tn', $taskName)
+    } else {
+        $null = Start-NativeChild $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $runner, '-Action', 'Run', '-Root', $Config.Root) $Config.Root @{} (Join-Path $Config.Root "logs\supervisor-$stamp.log")
+    }
     $deadline = (Get-Date).AddSeconds(90)
     do {
         try {
@@ -410,7 +677,14 @@ function Set-NativeStartup {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
-    if ($Action -eq 'Prepare') { Initialize-NativeDeployment $Root; return }
+    if ($Action -eq 'Prepare') {
+        if ($Clean) {
+            Initialize-NativeCleanDeployment -Directory $Root -Database $Database -DatabasePort $DatabasePort -ApiPort $ApiPort -WebPort $WebPort -PublicOrigin $PublicOrigin -CorsOrigins $CorsOrigins -WebHost $WebHost -PgArchive $PgArchive -PgArchiveSha256 $PgArchiveSha256 -Version $Version -NodeExe $NodeExe -GoExe $GoExe -PnpmCmd $PnpmCmd -GoModCache $GoModCache
+        } else {
+            Initialize-NativeDeployment $Root
+        }
+        return
+    }
     $config = Read-NativeConfig $Root
     switch ($Action) {
         'Build' { Build-NativeDeployment $config }
@@ -421,17 +695,29 @@ if ($MyInvocation.InvocationName -ne '.') {
         'Run' { Invoke-NativeSupervisor $config }
         'InstallStartup' { Set-NativeStartup $config $true }
         'RemoveStartup' { Set-NativeStartup $config $false }
+        'InstallTask' { Set-NativeScheduledTask $config $true }
+        'RemoveTask' { Set-NativeScheduledTask $config $false }
         'Configure' {
             if (Test-Path -LiteralPath (Join-Path $Root 'state\processes.json')) { throw 'Stop the native deployment before changing configuration.' }
             if ($ApiPort) { $config.ApiPort = $ApiPort }
             if ($WebPort) { $config.WebPort = $WebPort }
             if ($Database) { $config.Database = $Database }
+            if ($WebHost) { $config.WebHost = $WebHost }
+            if ($PublicOrigin) { $config.PublicOrigin = $PublicOrigin }
+            if ($CorsOrigins) { $config.BackendEnvironment.CORS_ALLOWED_ORIGINS = $CorsOrigins }
             Write-NativeJson (Join-Path $Root 'deployment.json') $config
         }
         'Status' {
             $stateFile = Join-Path $Root 'state\processes.json'
             $state = if (Test-Path -LiteralPath $stateFile) { Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
-            [pscustomobject]@{ Running = ($state -and (Test-NativeProcessRecord $state.Supervisor)); ApiPort = $config.ApiPort; WebPort = $config.WebPort; DatabasePort = $config.DatabasePort; Database = $config.Database; Release = $config.Release } | ConvertTo-Json
+            $taskName = Get-NativeScheduledTaskName $config
+            [pscustomobject]@{
+                Running = ($state -and (Test-NativeProcessRecord $state.Supervisor)); ApiPort = $config.ApiPort; WebPort = $config.WebPort
+                DatabasePort = $config.DatabasePort; Database = $config.Database; Release = $config.Release
+                PublicOrigin = (Resolve-NativePublicOrigin $config)
+                ScheduledTask = $taskName; ScheduledTaskInstalled = (Test-NativeScheduledTask $taskName)
+                Supervisor = $state.Supervisor; Backend = $state.Backend; Frontend = $state.Frontend
+            } | ConvertTo-Json -Depth 5
         }
     }
 }

@@ -2,7 +2,7 @@
 
 This workflow runs PostgreSQL, the Go API, and the production web application as native Windows processes. Docker is needed only to export an existing Docker deployment. The CLI/agent daemon remains a separate process and keeps its existing identity and credentials.
 
-Use `scripts/native-windows.ps1` from the repository root. Keep the checkout and installed dependencies available: Windows standalone dependency junctions may refer to their original locations. Build the frontend on Windows; Linux binaries and native Node dependencies are not portable to Windows.
+Use `scripts/native-windows.ps1` from the repository root. Keep the checkout and installed dependencies available: Windows standalone dependency junctions may refer to their original locations, so a built release is valid only on the machine that built it (moving it to another machine requires a rebuild there). Build the frontend on Windows; Linux binaries and native Node dependencies are not portable to Windows.
 
 ## Preparation
 
@@ -85,6 +85,50 @@ occurred in the main process" and `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`.
 `apps/desktop/electron.vite.config.ts` therefore excludes `@multica/core` from
 `externalizeDepsPlugin`.
 
+## Clean machine deployment (no Docker source)
+
+`Prepare` without `-Clean` imports application settings and database credentials
+from the existing `multica-*` Docker containers, so it only works where those
+containers exist. A machine that has never run this deployment uses the clean
+path, which generates its own credentials, verifies the PostgreSQL archive and
+records the pinned toolchain:
+
+```powershell
+.\scripts\native-windows.ps1 -Action Prepare -Clean -Root D:\UWorkers\clawsta80\native `
+  -Database multica_clawsta80 -DatabasePort 16432 -ApiPort 18081 -WebPort 13001 `
+  -PublicOrigin http://192.168.3.49:13001 `
+  -CorsOrigins "http://192.168.3.49:13001,http://100.73.70.87:13001" `
+  -WebHost 0.0.0.0 `
+  -PgArchive D:\UWorkers\clawsta80\downloads\postgresql-17.11-1-windows-x64-binaries.zip `
+  -PgArchiveSha256 6EABDF00D2893713B75DB4336A23C3FDF505F056E217EC6E2E95D901750CFEA3 `
+  -Version v0.2.0 `
+  -NodeExe "C:\Program Files\nodejs\node.exe" `
+  -GoExe D:\UWorkers\clawsta80\tools\go\bin\go.exe `
+  -PnpmCmd D:\UWorkers\clawsta80\tools\pnpm\bin\pnpm.cjs `
+  -GoModCache D:\UWorkers\clawsta80\tools\gomodcache
+.\scripts\native-windows.ps1 -Action Build -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action Start -Root D:\UWorkers\clawsta80\native
+```
+
+- `-PublicOrigin` becomes `FRONTEND_ORIGIN` and `MULTICA_APP_URL`; `-CorsOrigins`
+  is the exact browser-origin allowlist, and every entry must be an origin
+  (scheme, host, optional port), not an application path.
+- `-WebHost` defaults to loopback. Use `0.0.0.0` only together with a firewall
+  rule restricted to the client addresses; the API and database stay on
+  loopback.
+- The PostgreSQL archive is checksum-verified before extraction, is extracted
+  only when `runtime\pgsql\bin\psql.exe` is missing, and never replaces an
+  existing `runtime\pgsql`. Download it from the EDB binary archive page in
+  Preparation.
+- `-Version` is required when the checkout has no reachable `v*` tag, as is
+  normal for a PR-branch clone. `-GoExe`, `-PnpmCmd` and `-GoModCache` pin the
+  build to task-local tools; with `-GoModCache` the build runs with
+  `GOPROXY=off` against that verified module cache (useful where
+  `proxy.golang.org` is unreachable).
+- `Prepare -Clean` refuses an existing `deployment.json` and prints no secrets;
+  generated credentials stay in that ACL-protected file.
+- `Configure` can later change `-ApiPort`, `-WebPort`, `-Database`, `-WebHost`,
+  `-PublicOrigin` and `-CorsOrigins` while the deployment is stopped.
 
 ## Restore and verify
 
@@ -123,6 +167,47 @@ The agent daemon discovers Claude's native `%USERPROFILE%\.local\bin\claude.exe`
 
 Preserve the Docker containers and volumes until the native deployment has been accepted. Stop Docker Desktop to release its overhead. Ubuntu or other WSL distributions may still consume memory independently.
 
+## LAN access and persistence
+
+The API and PostgreSQL stay loopback-only; only the web listener may be
+reachable from other machines. With `-WebHost 0.0.0.0` the Next server listens
+on every interface while `REMOTE_API_URL` still resolves to `127.0.0.1:<api>`, so
+browser traffic goes through the Next rewrite (including `/ws`) instead of
+opening the API port. Add the exact browser origins to `CORS_ALLOWED_ORIGINS`
+and leave `NEXT_PUBLIC_WS_URL` empty so the page host and protocol are used.
+
+Allow the web test port only from the verifying client addresses, and keep the
+batch-specific rule name so removal is exact:
+
+```powershell
+New-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' -Direction Inbound `
+  -Action Allow -Protocol TCP -LocalPort 13001 -RemoteAddress 192.168.3.162,100.102.214.78
+Remove-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001'
+```
+
+`InstallTask` registers the hidden supervisor as a Windows scheduled task that
+runs as SYSTEM at boot and restarts on failure, so the deployment does not
+depend on an interactive login or the SSH session that started it.
+`InstallStartup` remains the per-user login alternative. When the task exists,
+`Start` runs it; otherwise it launches the supervisor child directly.
+
+```powershell
+.\scripts\native-windows.ps1 -Action InstallTask -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action Start -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action Status -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action Stop -Root D:\UWorkers\clawsta80\native
+.\scripts\native-windows.ps1 -Action RemoveTask -Root D:\UWorkers\clawsta80\native
+```
+
+`Status` reports the scheduled task name/state plus the supervisor, backend and
+frontend PID and start time; logs stay in `<root>\logs`, separated per process
+start. Verified on the first clean deployment: LAN browser login, issue
+read/write, attachment round-trip and a second-session realtime update, with the
+host still serving after the starting SSH session closed. See
+[deployment-environment-issues.md](deployment-environment-issues.md) for the
+issues found on that machine and `evidence/clawsta-80/cross-machine/` for the
+sanitized results.
+
 ## Operations and recovery
 
 ### External reporting policy
@@ -142,6 +227,8 @@ These controls do not disable local logs/metrics, configured model providers, or
 .\scripts\native-windows.ps1 -Action Stop -Root D:\MulticaData\native
 .\scripts\native-windows.ps1 -Action Start -Root D:\MulticaData\native
 .\scripts\native-windows.ps1 -Action RemoveStartup -Root D:\MulticaData\native
+.\scripts\native-windows.ps1 -Action InstallTask -Root D:\MulticaData\native
+.\scripts\native-windows.ps1 -Action RemoveTask -Root D:\MulticaData\native
 ```
 
 Stop verifies each child by PID, executable, and process start time. It stops the application processes, then shuts down this PostgreSQL cluster in `fast` mode. Schedule stops/upgrades when tasks are idle; the application children are terminated by their supervisor.

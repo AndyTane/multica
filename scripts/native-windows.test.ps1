@@ -101,7 +101,70 @@ try {
         try { Start-NativeDeployment $config } catch { $rejected = $_.Exception.Message -like '*already occupied*' }
         Assert-NativeTest $rejected 'Start must refuse a port owned by another application before launching children.'
     } finally { $occupiedPort.Stop() }
-    Write-Host 'PASS: native Windows configuration, environment isolation, process ownership, and state tests.'
+    # Clean deployment preparation, scheduled-task persistence, and tagless build stamping.
+    $cleanArchive = Join-Path $testRoot 'postgres-archive.zip'
+    $archiveSource = Join-Path $testRoot 'archive-source'
+    New-Item -ItemType Directory -Path (Join-Path $archiveSource 'pgsql\bin') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $archiveSource 'pgsql\bin\psql.exe'), '')
+    Compress-Archive -Path (Join-Path $archiveSource 'pgsql') -DestinationPath $cleanArchive
+    $archiveHash = (Get-FileHash -LiteralPath $cleanArchive -Algorithm SHA256).Hash
+    $cleanRoot = Join-Path $testRoot 'clean-deploy'
+    Initialize-NativeCleanDeployment -Directory $cleanRoot -Database 'multica_test' -DatabasePort 16432 -ApiPort 18081 -WebPort 13001 -PublicOrigin 'http://192.168.3.49:13001' -CorsOrigins 'http://100.73.70.87:13001' -PgArchive $cleanArchive -PgArchiveSha256 $archiveHash -Version 'v0.2.0' -NodeExe $shell
+    $cleanConfig = Read-NativeConfig $cleanRoot
+    Assert-NativeTest ($cleanConfig.PublicOrigin -eq 'http://192.168.3.49:13001') 'A clean deployment must record its public browser origin.'
+    Assert-NativeTest ($cleanConfig.BackendEnvironment.APP_ENV -eq 'production') 'A clean deployment must run the production application environment.'
+    Assert-NativeTest ($cleanConfig.BackendEnvironment.JWT_SECRET.Length -eq 64) 'A clean deployment must generate its own JWT secret.'
+    Assert-NativeTest ($cleanConfig.DatabasePassword.Length -eq 48) 'A clean deployment must generate its own database password.'
+    Assert-NativeTest ($cleanConfig.DatabasePort -eq 16432 -and $cleanConfig.ApiPort -eq 18081 -and $cleanConfig.WebPort -eq 13001) 'Clean deployment ports must be honored.'
+    Assert-NativeTest ($cleanConfig.Version -eq 'v0.2.0') 'A clean deployment must record its explicit release version.'
+    Assert-NativeTest ($cleanConfig.BackendEnvironment.CORS_ALLOWED_ORIGINS -eq 'http://192.168.3.49:13001,http://100.73.70.87:13001') 'CORS must list exactly the configured browser origins.'
+    Assert-NativeTest (Test-Path -LiteralPath (Join-Path $cleanRoot 'runtime\pgsql\bin\psql.exe')) 'A verified PostgreSQL archive must be extracted into the deployment runtime.'
+    Assert-NativeTest (Test-Path -LiteralPath (Join-Path $cleanRoot 'runtime\native-windows.ps1')) 'Prepare must stage the lifecycle runner inside the deployment.'
+    $cleanBackendEnv = Get-BackendEnvironment $cleanConfig
+    Assert-NativeTest ($cleanBackendEnv.FRONTEND_ORIGIN -eq 'http://192.168.3.49:13001') 'The LAN origin must replace the loopback frontend origin.'
+    Assert-NativeTest ($cleanBackendEnv.MULTICA_APP_URL -eq 'http://192.168.3.49:13001') 'Application links must use the LAN origin.'
+    Assert-NativeTest ($cleanBackendEnv.CORS_ALLOWED_ORIGINS -eq 'http://192.168.3.49:13001,http://100.73.70.87:13001') 'Backend CORS must preserve the configured browser origins.'
+    $rejected = $false
+    try { Initialize-NativeCleanDeployment -Directory $cleanRoot -Database 'multica_test' -DatabasePort 16432 -ApiPort 18081 -WebPort 13001 -NodeExe $shell } catch { $rejected = $_.Exception.Message -like '*already configured*' }
+    Assert-NativeTest $rejected 'Clean prepare must refuse to overwrite an existing deployment and its credentials.'
+    $rejected = $false
+    try { Initialize-NativeCleanDeployment -Directory (Join-Path $testRoot 'clean-bad-archive') -Database 'multica_bad' -DatabasePort 16433 -ApiPort 18082 -WebPort 13002 -PgArchive $cleanArchive -PgArchiveSha256 ('0' * 64) -NodeExe $shell } catch { $rejected = $_.Exception.Message -like '*SHA-256*' }
+    Assert-NativeTest $rejected 'Clean prepare must reject a PostgreSQL archive that fails checksum verification.'
+    $rejected = $false
+    try { Resolve-NativeBrowserOrigins -PublicOrigin 'http://example.test/app' -CorsOrigins '' -WebPort 13000 } catch { $rejected = $true }
+    Assert-NativeTest $rejected 'Browser origins must be origins, not application paths.'
+
+    Assert-NativeTest ($cleanConfig.WebHost -eq '127.0.0.1') 'A clean deployment must default the web listener to loopback.'
+    $lanConfig = $cleanConfig.PSObject.Copy()
+    $lanConfig.WebHost = '0.0.0.0'
+    $lanFrontendEnv = Get-FrontendEnvironment $lanConfig
+    Assert-NativeTest ($lanFrontendEnv.HOSTNAME -eq '0.0.0.0') 'A LAN deployment must bind the web listener to the configured interface.'
+    Assert-NativeTest ($lanFrontendEnv.REMOTE_API_URL -eq 'http://127.0.0.1:18081') 'Even a LAN web listener must reach the API over loopback.'
+
+    $rejected = $false
+    try { Initialize-NativeDatabase ([pscustomobject]@{ Database = 'bad-name; DROP DATABASE x'; DatabaseUser = 'example'; DatabasePassword = 'x'; DatabasePort = 1; Root = $testRoot }) } catch { $rejected = $_.Exception.Message -like '*lowercase database name*' }
+    Assert-NativeTest $rejected 'The supervisor must reject an unsafe application database name before contacting PostgreSQL.'
+
+    $xmlText = Get-NativeScheduledTaskXml -RunnerPath 'C:\Deploy & Test\runtime\native-windows.ps1' -Root 'C:\Deploy & Test'
+    $taskXml = [xml]$xmlText
+    Assert-NativeTest ($taskXml.Task.Principals.Principal.UserId -eq 'S-1-5-18') 'The persistence task must run as SYSTEM so it survives SSH sessions and reboots.'
+    Assert-NativeTest ($taskXml.Task.Settings.Hidden -eq 'true') 'The persistence task must stay hidden.'
+    Assert-NativeTest ($taskXml.Task.Triggers.BootTrigger.Enabled -eq 'true') 'The persistence task must start at boot.'
+    Assert-NativeTest ($taskXml.Task.Actions.Exec.Arguments -like '*C:\Deploy & Test\runtime\native-windows.ps1*') 'Task arguments must survive XML escaping.'
+    Assert-NativeTest ((Get-NativeScheduledTaskName ([pscustomobject]@{ Root = 'D:\UWorkers\clawsta80\native' })) -eq 'MulticaNative-D-UWorkers-clawsta80-native') 'The scheduled task name must be derived from the deployment root.'
+    Assert-NativeTest (-not (Test-NativeScheduledTask 'MulticaNative-definitely-missing-task')) 'An unregistered task must be reported as missing rather than crashing the lifecycle.'
+
+    $versionConfig = [pscustomobject]@{ Repo = (Join-Path $testRoot 'no-git-checkout'); Version = 'v0.3.1'; Commit = '' }
+    Assert-NativeTest ((Resolve-NativeBuildVersion $versionConfig) -eq 'v0.3.1') 'An explicit version must let a clean machine build from source without a Git tag.'
+    Assert-NativeTest ((Resolve-NativeBuildCommit $versionConfig) -eq 'unknown') 'A source tree without Git history must stamp an unknown commit instead of failing.'
+    $rejected = $false
+    try { Resolve-NativeBuildVersion ([pscustomobject]@{ Repo = (Join-Path $testRoot 'no-git-checkout'); Version = 'dev'; Commit = '' }) } catch { $rejected = $_.Exception.Message -like '*v1.2.3*' }
+    Assert-NativeTest $rejected 'An invalid release version must be rejected before the build starts.'
+    $rejected = $false
+    try { Resolve-NativeBuildVersion ([pscustomobject]@{ Repo = (Join-Path $testRoot 'no-git-checkout'); Version = ''; Commit = '' }) } catch { $rejected = $_.Exception.Message -like '*Tagged source version required*' }
+    Assert-NativeTest $rejected 'A tagless checkout without an explicit version must fail with an actionable error.'
+
+    Write-Host 'PASS: native Windows configuration, environment isolation, process ownership, state, clean-deploy, persistence-task, and build-stamp tests.'
 } finally {
     $resolvedRoot = [IO.Path]::GetFullPath($testRoot)
     $expectedParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
