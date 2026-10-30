@@ -517,7 +517,7 @@ func assertVersion(t *testing.T, node string) {
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0 (stderr %q)", code, stderr.String())
 	}
-	if got, want := stdout.String(), "multica-dsh-web 1.0.1\n"; got != want {
+	if got, want := stdout.String(), "multica-dsh-web 1.0.3\n"; got != want {
 		t.Fatalf("stdout = %q, want %q (stderr %q)", got, want, stderr.String())
 	}
 }

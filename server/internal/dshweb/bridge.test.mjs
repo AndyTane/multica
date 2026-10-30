@@ -8,14 +8,15 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import WS, { WebSocketServer } from 'ws';
-import { execute, localOrigin, loadConfig, taskCli, connectWeb, TurnReader, SessionJournal, probeWeb } from './bridge.mjs';
+import { execute, localOrigin, loadConfig, taskCli, connectWeb, TurnReader, SessionJournal, probeWeb, recoverRun } from './bridge.mjs';
+import { postRecoveredResult } from '../../../scripts/recover-dsh-run.mjs';
 
 // This host has no DSH data directory or session files. Only its public wire contract exists.
 async function fixture(t, behavior = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'multica-dsh-api-test-'));
   const cwd = path.join(root, 'project');
   fs.mkdirSync(cwd);
-  const sessions = new Map(), calls = [], timers = [], followers = new Set();
+  const sessions = new Map(), creations = new Map(), calls = [], timers = [], followers = new Set();
   const entry = event => ({ type: 'event', event });
   function seed(id, options = {}) {
     const session = { header: { id, version: 99, createdAt: Date.now(), cwd, isSeeded: false, ...options }, rows: [], turn: 0 };
@@ -53,14 +54,26 @@ async function fixture(t, behavior = {}) {
     assert.equal(request.headers.cookie, 'dsh=test-cookie');
     const args = payload.args.request;
     calls.push({ method, args });
+    if (behavior.failBefore?.[method] > 0) {
+      behavior.failBefore[method]--; request.socket.destroy(); return;
+    }
     let value;
     if (method === 'workspace/create') value = { workspace: { workspaceId: 'ws-test', path: cwd, sessionIds: [...sessions.keys()] } };
     else if (method === 'session/create') {
       assert.equal(args.workspaceId, 'ws-test');
-      if (!sessions.has(args.sessionId)) seed(args.sessionId);
+      if (!sessions.has(args.sessionId)) {
+        if (!creations.has(args.sessionId)) creations.set(args.sessionId, (async () => {
+          if (behavior.createDelayMs > 0) {
+            await new Promise(resolve => timers.push(setTimeout(resolve, behavior.createDelayMs)));
+          }
+          seed(args.sessionId);
+        })());
+        await creations.get(args.sessionId);
+      }
       value = { sessionId: args.sessionId };
     } else if (method === 'session/rename') value = { title: args.title };
     else if (method === 'session/page') {
+      if (behavior.pageFailures > 0) { behavior.pageFailures--; request.socket.destroy(); return; }
       const session = sessions.get(args.address.sessionId);
       assert.ok(Number.isInteger(args.throughSeq));
       assert.ok(args.throughSeq <= session.rows.length - 1);
@@ -71,7 +84,7 @@ async function fixture(t, behavior = {}) {
       else append(session, [{ type: 'turn/end', data: { turn: session.turn, reason: { kind: 'user' } } }]);
       value = { accepted: true };
     } else if (method === 'session/prompt') {
-      if (behavior.disconnectPrompt) { request.socket.destroy(); return; }
+      if (behavior.disconnectPrompt && !behavior.acceptDisconnectedPrompt) { request.socket.destroy(); return; }
       const session = sessions.get(args.sessionId), turn = ++session.turn;
       assert.equal(args.mode, 'queue');
       timers.push(setTimeout(() => {
@@ -84,13 +97,18 @@ async function fixture(t, behavior = {}) {
           ...(behavior.extraEvents ?? []),
           ...behavior.hold ? [] : [
             { type: 'assistant/message', data: { turn, message: { content: [{ type: 'text', text: `reply-${turn}` }], source: { provider: 'test', model: 'fake' } }, usage: { inputTokens: 20, outputTokens: 2 } } },
-            { type: 'turn/end', data: { turn, reason: { kind: 'completed' } } },
+            { type: 'turn/end', data: { turn, reason: { kind: behavior.endReason ?? 'completed' } } },
           ],
         ]);
         behavior.afterAppend?.(session, append);
       }, 15));
       value = { accepted: true };
+      if (behavior.disconnectPrompt) { request.socket.destroy(); return; }
     } else throw new Error(`Unexpected method ${method}`);
+    if (behavior.dropReceipts?.[method] > 0) {
+      behavior.dropReceipts[method]--; request.socket.destroy(); return;
+    }
+    if (behavior.dropRpcReceipt?.(method, calls)) { request.socket.destroy(); return; }
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ type: 'server-response', rpcId, result: { ok: true, value } }));
   });
@@ -112,6 +130,7 @@ async function fixture(t, behavior = {}) {
         return;
       }
       const session = sessions.get(args.address.sessionId);
+      if (behavior.followFailures > 0) { behavior.followFailures--; socket.terminate(); return; }
       const follower = { socket, session, send };
       followers.add(follower);
       socket.on('close', () => followers.delete(follower));
@@ -134,7 +153,7 @@ async function fixture(t, behavior = {}) {
     fs.rmSync(root, { recursive: true, force: true });
   });
   return { cwd, root, sessions, calls, append, seed, followers, behavior,
-    config: { origin, accessLog, pollMs: 5, reconnectMs: 5, streamTimeoutMs: 1000 } };
+    config: { origin, accessLog, pollMs: 5, reconnectMs: 5, streamTimeoutMs: 1000, receiptTimeoutMs: 60 } };
 }
 
 const command = (f, id, extra = {}) => ({ v: 1, type: 'execute', request_id: id, cwd: f.cwd, prompt: 'Do the requested work', mcp_servers: [], ...extra });
@@ -249,6 +268,62 @@ test('missing resume identities are not silently recreated', async t => {
   const result = await run(f, command(f, 'missing-resume', { resume_session_id: 'multica-web-missing' }));
   assert.equal(result.at(-1).error.code, 'session/not-found');
   assert.equal(f.sessions.size, 0);
+  assert.equal(prompts(f).length, 0);
+});
+
+for (const failureMode of ['failBefore', 'dropReceipts']) {
+  test(`startup recovers repeated ${failureMode} without changing identity or duplicating prompts`, async t => {
+    const f = await fixture(t, { [failureMode]: { 'workspace/create': 5, 'session/create': 5, 'session/rename': 5 } });
+    const frames = await run(f, command(f, `startup-${failureMode}`, { thread_name: 'TEST-68' }));
+    assert.equal(frames.at(-1).status, 'completed');
+    assert.equal(f.sessions.size, 1);
+    assert.equal(new Set(f.calls.filter(c => c.method === 'session/create').map(c => c.args.sessionId)).size, 1);
+    assert.equal(prompts(f).length, 1);
+  });
+}
+
+test('workspace membership confirmation recovers a lost receipt before delivering the prompt', async t => {
+  const f = await fixture(t, { dropRpcReceipt: (method, calls) => method === 'workspace/create'
+    && calls.filter(c => c.method === method).length === 2 });
+  const frames = await run(f, command(f, 'membership-retry'));
+  assert.equal(frames.at(-1).status, 'completed');
+  assert.equal(f.calls.filter(c => c.method === 'workspace/create').length, 3);
+  assert.equal(prompts(f).length, 1);
+});
+
+test('slow session initialization outlives the HTTP deadline and keeps the original identity', async t => {
+  const f = await fixture(t, { createDelayMs: 600 });
+  f.config.rpcTimeoutMs = 200;
+  f.config.receiptTimeoutMs = 5000;
+  const frames = await run(f, command(f, 'slow-startup'));
+  assert.equal(frames.at(-1).status, 'completed');
+  assert.equal(f.sessions.size, 1);
+  assert.ok(f.calls.filter(c => c.method === 'session/create').length >= 2);
+  assert.equal(prompts(f).length, 1);
+});
+
+test('startup cancellation stops retries without submitting a prompt or cancelling DSH', async t => {
+  const f = await fixture(t, { failBefore: { 'session/create': 1000 } });
+  const control = { cancelled: false };
+  const pending = run(f, command(f, 'cancel-startup'), control);
+  await waitUntil(() => f.calls.some(c => c.method === 'session/create'));
+  control.cancelled = true;
+  const frames = await pending;
+  assert.equal(frames.at(-1).status, 'cancelled');
+  assert.equal(prompts(f).length, 0);
+  assert.equal(f.calls.filter(c => c.method === 'session/cancel').length, 0);
+});
+
+test('startup protocol failures remain fatal and are not retried', async t => {
+  const f = await fixture(t);
+  const rpc = await connectWeb(f.config);
+  const wrapped = async (method, args) => {
+    if (method === 'session/create') throw new Error('session/cwd-conflict');
+    return rpc(method, args);
+  };
+  wrapped.follow = rpc.follow;
+  const frames = await run(f, command(f, 'fatal-startup'), undefined, { connectWeb: async () => wrapped });
+  assert.equal(frames.at(-1).error.code, 'session/cwd-conflict');
   assert.equal(prompts(f).length, 0);
 });
 
@@ -427,7 +502,7 @@ test('reconnection refuses changed history instead of associating another result
   await assert.rejects(journal.refresh(), { message: 'session_history_changed' });
 });
 
-test('repeated broken reconnections stop after a bounded number of attempts', async t => {
+test('malformed history remains fatal during recovery', async t => {
   const f = await fixture(t), sessionId = 'multica-web-reconnect-limit';
   f.seed(sessionId);
   const rpc = await connectWeb(f.config), journal = new SessionJournal(rpc, f.config, sessionId, f.cwd);
@@ -435,7 +510,131 @@ test('repeated broken reconnections stop after a bounded number of attempts', as
   await journal.refresh();
   f.behavior.snapshot = snapshot => { snapshot.cursor = 1; };
   [...f.followers][0].socket.terminate();
-  await assert.rejects(journal.readNew(100), { message: 'web_stream_reconnect_failed' });
+  await assert.rejects(journal.readNew(100), { message: 'session_event_gap' });
+});
+
+test('more than three separate stream losses do not fail an active task', async t => {
+  const f = await fixture(t, { hold: true }), frames = [];
+  const pending = execute(command(f, 'many-disconnects'), f.config, frame => frames.push(frame), { cancelled: false }, { env: {} });
+  await waitUntil(() => frames.some(frame => frame.type === 'tool_result'));
+  const session = [...f.sessions.values()][0];
+  for (let i = 0; i < 5; i++) {
+    const before = f.calls.filter(call => call.method === 'session/follow').length;
+    [...f.followers].forEach(follower => follower.socket.terminate());
+    await waitUntil(() => f.calls.filter(call => call.method === 'session/follow').length > before && f.followers.size > 0);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(frames.some(frame => frame.type === 'result'), false);
+  }
+  f.append(session, [
+    { type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: 'recovered' }] } } },
+    { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+  ]);
+  await pending;
+  assert.equal(frames.at(-1).status, 'completed');
+  assert.equal(frames.at(-1).output, 'recovered');
+  assert.equal(prompts(f).length, 1);
+  assert.equal(frames.filter(frame => frame.type === 'tool_result').length, 1);
+  assert.ok(f.calls.filter(call => call.method === 'session/follow').length > 5);
+});
+
+for (const endReason of ['completed', 'error']) {
+  test(`an outage exceeding three reconnects recovers the actual ${endReason} outcome`, async t => {
+    const f = await fixture(t, { hold: true }), frames = [];
+    const pending = execute(command(f, `outage-${endReason}`), f.config, frame => frames.push(frame), { cancelled: false }, { env: {} });
+    await waitUntil(() => frames.some(frame => frame.type === 'tool_result'));
+    f.behavior.followFailures = 5;
+    f.behavior.pageFailures = 2;
+    f.behavior.pageSize = 2;
+    [...f.followers].forEach(follower => follower.socket.terminate());
+    f.append([...f.sessions.values()][0], [
+      { type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: 'durable-result' }] } } },
+      { type: 'turn/end', data: { turn: 1, reason: { kind: endReason } } },
+    ]);
+    await pending;
+    assert.equal(frames.at(-1).status, endReason === 'completed' ? 'completed' : 'failed');
+    assert.equal(frames.at(-1).output, 'durable-result');
+    assert.deepEqual(frames.filter(frame => frame.type === 'text').map(frame => frame.content), ['durable-result']);
+    assert.equal(prompts(f).length, 1);
+    assert.equal(f.behavior.pageFailures, 0);
+  });
+}
+
+test('a lost prompt receipt is resolved by its durable witness without resubmission', async t => {
+  const f = await fixture(t, { disconnectPrompt: true, acceptDisconnectedPrompt: true });
+  f.config.receiptTimeoutMs = 5000;
+  const frames = await run(f, command(f, 'lost-receipt'));
+  assert.equal(frames.at(-1).status, 'completed');
+  assert.equal(prompts(f).length, 1);
+});
+
+test('historical recovery returns the original result while a later browser turn is running', async t => {
+  const f = await fixture(t);
+  const first = await run(f, command(f, 'historical-request'));
+  const sessionId = first.at(-1).session_id;
+  f.append(f.sessions.get(sessionId), [
+    { type: 'turn/start', data: { turn: 2 } },
+    { type: 'user/message', data: { content: [{ type: 'text', text: 'browser follow-up' }], source: { rpcId: 'browser' } } },
+  ]);
+  f.calls.length = 0;
+  const result = await recoverRun({ request_id: 'historical-request', session_id: sessionId, cwd: f.cwd }, f.config, await connectWeb(f.config));
+  assert.equal(result.status, 'completed');
+  assert.equal(result.output, first.at(-1).output);
+  assert.ok(f.calls.every(call => ['session/follow', 'session/page'].includes(call.method)));
+  await assert.rejects(recoverRun({ request_id: 'browser', session_id: sessionId, cwd: f.cwd }, f.config, await connectWeb(f.config)),
+    { message: 'request_not_completed' });
+  await assert.rejects(recoverRun({ request_id: 'unknown', session_id: sessionId, cwd: f.cwd }, f.config, await connectWeb(f.config)),
+    { message: 'request_not_completed' });
+  await assert.rejects(recoverRun({ session_id: sessionId, cwd: f.cwd }, f.config, await connectWeb(f.config)),
+    { message: 'invalid_recovery_identity' });
+});
+
+test('the standalone recovery entry never adopts a workspace or submits another prompt', async t => {
+  const f = await fixture(t), request = command(f, 'recovery-cli');
+  const first = await run(f, request);
+  const file = path.join(f.root, 'recovery-config.json');
+  fs.writeFileSync(file, JSON.stringify(f.config));
+  f.calls.length = 0;
+  const child = spawn(process.execPath, [fileURLToPath(new URL('./bridge.mjs', import.meta.url)), '--recover',
+    '--request-id', request.request_id, '--session-id', first.at(-1).session_id, '--cwd', f.cwd],
+  { env: { ...process.env, MULTICA_DSH_WEB_CONFIG: file }, windowsHide: true });
+  let output = '', errors = '';
+  child.stdout.on('data', bytes => { output += bytes; });
+  child.stderr.on('data', bytes => { errors += bytes; });
+  const code = await new Promise(resolve => child.on('exit', resolve));
+  assert.equal(code, 0, errors);
+  assert.equal(JSON.parse(output).output, first.at(-1).output);
+  assert.ok(f.calls.every(call => ['session/follow', 'session/page'].includes(call.method)));
+});
+
+test('recovered results post as UTF-8 files, strip dispatching mentions and retain the body on failure', async t => {
+  const f = await fixture(t), run = { id: 'original-run', issue_id: 'original-issue' };
+  const result = { status: 'completed', output: '中文结果 [@DSH](mention://agent/agent-id)' };
+  let bodyFile;
+  const invoke = args => {
+    assert.deepEqual(args.slice(0, 4), ['issue', 'comment', 'add', run.issue_id]);
+    bodyFile = args[args.indexOf('--content-file') + 1];
+    const body = fs.readFileSync(bodyFile, 'utf8');
+    assert.match(body, /中文结果 @DSH/);
+    assert.ok(!body.includes('mention://agent'));
+    return 'posted';
+  };
+  assert.equal(postRecoveredResult(run, result, invoke, f.root), 'posted');
+  assert.equal(fs.existsSync(bodyFile), false);
+  assert.throws(() => postRecoveredResult(run, result, args => { invoke(args); throw new Error('unconfirmed'); }, f.root), /body preserved/);
+  assert.equal(fs.existsSync(bodyFile), true);
+});
+
+test('cancellation interrupts an unavailable transport without cancelling a different turn', async t => {
+  const f = await fixture(t, { hold: true }), control = { cancelled: false }, frames = [];
+  const pending = execute(command(f, 'cancel-outage'), f.config, frame => frames.push(frame), control, { env: {} });
+  await waitUntil(() => frames.some(frame => frame.type === 'tool_result'));
+  f.behavior.followFailures = 1000;
+  [...f.followers].forEach(follower => follower.socket.terminate());
+  await waitUntil(() => f.behavior.followFailures < 1000);
+  control.cancelled = true;
+  await pending;
+  assert.equal(frames.at(-1).status, 'cancelled');
+  assert.equal(f.calls.filter(call => call.method === 'session/cancel').length, 0);
 });
 
 test('probe checks the event API without creating a workspace, session or prompt', async t => {
