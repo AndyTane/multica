@@ -19,7 +19,7 @@ from the client PC over the LAN. Evidence: `evidence/clawsta-80/cross-machine/`.
 | Listeners | API `127.0.0.1:18081`, PG `127.0.0.1:16432`, web `0.0.0.0:13001` |
 | Database | `multica_clawsta80`, 598 migrations, 125 public tables |
 | Persistence | Scheduled task `MulticaNative-D-UWorkers-clawsta80-native`, SYSTEM, boot trigger, hidden |
-| Firewall | `UWorkers-CLAWSTA80-Web-13001` inbound TCP 13001 from 192.168.3.162 and 100.102.214.78 only |
+| Firewall | `UWorkers-CLAWSTA80-Web-13001` inbound TCP 13001. C1 source `192.168.3.162,100.102.214.78`; widened to `192.168.3.0/24,100.102.214.78` on 2026-10-31 — see 13. |
 
 ## Environment issues and fixes
 
@@ -182,6 +182,56 @@ from the client PC over the LAN. Evidence: `evidence/clawsta-80/cross-machine/`.
   `scripts/native-windows.test.ps1`. The existing C1 instance used two origins
   and was unaffected. Its browser acceptance was not repeated.
 
+### 13. LAN web entry was open only to the verifying laptop
+
+- Symptom: the C1 firewall rule allowed TCP 13001 only from the client PC
+  (`192.168.3.162`) and its Tailscale address (`100.102.214.78`). Every other
+  device on the same `192.168.3.0/24` LAN was blocked even though the web
+  listener already bound `0.0.0.0`.
+- Root cause: the rule was scoped to the addresses used to verify C1, not to the
+  network the deployment is meant to serve.
+- Fix: point the existing rule at the LAN subnet and keep the Tailscale
+  exception:
+
+  ```powershell
+  Set-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' `
+    -RemoteAddress 192.168.3.0/24,100.102.214.78
+  ```
+
+  Readback (address and port filters are separate objects; PowerShell reports
+  the scope in mask form):
+
+  ```powershell
+  Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+    Select-Object DisplayName, Enabled, Direction, Action, Profile
+  (Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+    Get-NetFirewallAddressFilter).RemoteAddress
+  (Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+    Get-NetFirewallPortFilter) | Select-Object Protocol, LocalPort
+  ```
+
+- Retest: readback is `Enabled=True, Inbound, Allow, Profile=Any, TCP 13001,
+  192.168.3.0/255.255.255.0, 100.102.214.78`; listeners stay web
+  `0.0.0.0:13001`, API `127.0.0.1:18081`, PostgreSQL `127.0.0.1:16432`. From
+  the client PC `GET /login` is 200 and `/api/me` is 401 (still requires
+  auth); TCP to 18081 and 16432 from the LAN times out. Sanitized results:
+  [evidence/clawsta-83/01-lan-firewall.json](../evidence/clawsta-83/01-lan-firewall.json).
+- Boundary: one client PC was used; the subnet-wide scope is proven by the rule
+  readback, not by a per-device matrix. CORS stays the exact origin list (never
+  `*`), the API and database stay loopback-only, and nothing was opened to the
+  public internet. No service was restarted or redeployed for this change.
+- Restore the narrower scope if the deployment must go back to the single
+  verifying client (or drop the rule with `Remove-NetFirewallRule`):
+
+  ```powershell
+  Set-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' `
+    -RemoteAddress 192.168.3.162,100.102.214.78
+  ```
+
+  On another network, replace `192.168.3.0/24` with that site's LAN CIDR before
+  widening; keep the batch-specific rule name so removal stays exact. When a
+  Group Policy delivers the rule, apply the same display name in the GPO.
+
 ## Not verified here / company network checklist
 
 This network was a home LAN (192.168.3.0/24) plus Tailscale; the deployment
@@ -199,6 +249,8 @@ run, and these are the likely failure points, in the order this run hit them:
    account can change that, so probe `initdb` once before promising a deployment.
 4. Scheduled tasks and firewall rules can be group-policy managed; capture the
    pre-existing values and keep the batch-specific rule name so removal is exact.
+   The B1 LAN scope (`192.168.3.0/24`) is this home LAN's; substitute the
+   company site CIDR and read the effective source set back after applying it.
 5. Address space: reserve the web/API/database ports in the site IPAM before the
    run; the loopback-only API/PG design only needs one LAN-reachable port.
 6. Time sync and TLS trust for client browsers: the LAN entry is plain HTTP in

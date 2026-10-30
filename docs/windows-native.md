@@ -114,8 +114,8 @@ records the pinned toolchain:
   is the exact browser-origin allowlist, and every entry must be an origin
   (scheme, host, optional port), not an application path.
 - `-WebHost` defaults to loopback. Use `0.0.0.0` only together with a firewall
-  rule restricted to the client addresses; the API and database stay on
-  loopback.
+  rule restricted to the LAN subnet that should reach the deployment (plus any
+  Tailscale/remote address); the API and database stay on loopback.
 - The PostgreSQL archive is checksum-verified before extraction, is extracted
   only when `runtime\pgsql\bin\psql.exe` is missing, and never replaces an
   existing `runtime\pgsql`. Download it from the EDB binary archive page in
@@ -176,14 +176,45 @@ browser traffic goes through the Next rewrite (including `/ws`) instead of
 opening the API port. Add the exact browser origins to `CORS_ALLOWED_ORIGINS`
 and leave `NEXT_PUBLIC_WS_URL` empty so the page host and protocol are used.
 
-Allow the web test port only from the verifying client addresses, and keep the
-batch-specific rule name so removal is exact:
+Allow the web port from the network that should reach it, not from one client,
+and keep the batch-specific rule name so widening and removal stay exact. This
+deployment's rule admits the whole `192.168.3.0/24` LAN and keeps the Tailscale
+exception:
 
 ```powershell
+# Create the rule on a new host (replace 192.168.3.0/24 with that site's LAN CIDR).
 New-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' -Direction Inbound `
-  -Action Allow -Protocol TCP -LocalPort 13001 -RemoteAddress 192.168.3.162,100.102.214.78
+  -Action Allow -Protocol TCP -LocalPort 13001 -RemoteAddress 192.168.3.0/24,100.102.214.78
+
+# Widen an existing rule the same way. PowerShell reads the value back in mask
+# form (192.168.3.0/255.255.255.0).
+Set-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' `
+  -RemoteAddress 192.168.3.0/24,100.102.214.78
+
+# Read the effective scope back; address and port filters are separate objects.
+Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+  Select-Object DisplayName, Enabled, Direction, Action, Profile
+(Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+  Get-NetFirewallAddressFilter).RemoteAddress
+(Get-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' |
+  Get-NetFirewallPortFilter) | Select-Object Protocol, LocalPort
+
+# Return to the narrower C1 scope (one client plus its Tailscale address).
+Set-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001' `
+  -RemoteAddress 192.168.3.162,100.102.214.78
+
+# Or drop the rule entirely.
 Remove-NetFirewallRule -DisplayName 'UWorkers-CLAWSTA80-Web-13001'
 ```
+
+Never widen this to `Any` or the public internet, and do not add the API or
+database ports to the rule: every LAN device uses the same one web origin, so
+`CORS_ALLOWED_ORIGINS` stays the exact origin list (never `*`). A company
+network replaces `192.168.3.0/24` with its own site CIDR; when the rule is
+delivered by Group Policy, apply the same display name in the GPO instead. The
+B1 re-check (2026-10-31) widened the C1 rule this way and re-read the effective
+scope; sanitized results are in
+[evidence/clawsta-83/01-lan-firewall.json](../evidence/clawsta-83/01-lan-firewall.json).
 
 `InstallTask` registers the hidden supervisor as a Windows scheduled task that
 runs as SYSTEM at boot and restarts on failure, so the deployment does not
