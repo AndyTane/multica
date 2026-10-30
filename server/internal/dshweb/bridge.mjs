@@ -400,6 +400,22 @@ function prepareBrief(command, prepared, directory) {
   };
 }
 
+// Only the provider's public failure summary crosses the bridge, never error details or request headers.
+function turnFailureMessage(reason) {
+  if (reason?.kind !== 'error') return String(reason?.kind ?? 'unknown');
+  const error = reason.error;
+  const code = typeof error?.code === 'string' && /^[a-z0-9_/-]{1,80}$/i.test(error.code) ? error.code : '';
+  const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? `HTTP ${error.status}` : '';
+  const label = code && status ? `${code} (${status})` : code || status;
+  const message = typeof error?.message === 'string' ? error.message
+    .replace(/\bBearer\s+[^\s,;]+/gi, '[redacted]')
+    .replace(/\bsk-[a-z0-9_-]+/gi, '[redacted]')
+    .replace(/([?&](?:token|api[_-]?key|access[_-]?token|secret)=)[^&#\s]+/gi, '$1[redacted]')
+    .replace(/\b((?:api[_-]?key|access[_-]?token|token|authorization|cookie|secret)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1[redacted]')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+  return ([label, message].filter(Boolean).join(': ') || 'error').slice(0, 2048);
+}
+
 export class TurnReader {
   constructor(requestId, emit) { this.requestId = requestId; this.emit = emit; this.turn = null; this.activeTurn = null; this.output = ''; this.pending = []; this.toolNames = new Map(); }
   push(row) {
@@ -441,7 +457,7 @@ export class TurnReader {
         break;
       }
       case 'turn/end': this.terminal = { status: data.reason?.kind === 'completed' ? 'completed' : data.reason?.kind === 'user' ? 'cancelled' : 'failed', output: this.output,
-        ...(data.reason?.kind === 'completed' ? {} : { error: { code: 'dsh_turn_ended', message: String(data.reason?.kind ?? 'unknown') } }) }; break;
+        ...(data.reason?.kind === 'completed' ? {} : { error: { code: 'dsh_turn_ended', message: turnFailureMessage(data.reason) } }) }; break;
     }
   }
 }
