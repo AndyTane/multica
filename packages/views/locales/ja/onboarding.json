@@ -128,7 +128,6 @@
   },
   "service": {
     "title": "サービスに接続",
-    "description": "ワークスペースで使用する認証済み U Workers サービスです。",
     "address": "サービスのアドレス",
     "continue": "ワークスペースへ進む"
   },

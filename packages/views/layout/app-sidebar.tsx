@@ -617,7 +617,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
         {topSlot}
         {/* Workspace Switcher */}
         <SidebarHeader className={cn("py-3", headerClassName)} style={headerStyle}>
-          <ProductMark name={PRODUCT_NAME} variant="lockup" size={16} className="px-2 pb-2" />
+          <ProductMark name={PRODUCT_NAME} variant="lockup" size={20} className="px-2 pt-1 pb-3" />
           <SidebarMenu>
             <SidebarMenuItem>
               <DropdownMenu>

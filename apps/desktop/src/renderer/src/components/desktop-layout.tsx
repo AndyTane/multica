@@ -137,7 +137,7 @@ function MainCanvas({
           role="status"
         >
           <div className="flex flex-col items-center gap-4">
-            <ProductMark name="U Workers" className="size-8 animate-pulse" />
+            <ProductMark name="U Workers" size={32} className="animate-pulse" />
             <p className="text-body text-muted-foreground">{loadingLabel}</p>
           </div>
         </div>

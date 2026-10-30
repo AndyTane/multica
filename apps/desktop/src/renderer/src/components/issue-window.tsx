@@ -67,7 +67,7 @@ function IssueWindowRoute() {
     return (
       <IssueWindowFrame>
         <div className="flex min-h-0 flex-1 items-center justify-center">
-          <ProductMark name="U Workers" className="size-6 animate-pulse" />
+          <ProductMark name="U Workers" size={24} className="animate-pulse" />
         </div>
       </IssueWindowFrame>
     );

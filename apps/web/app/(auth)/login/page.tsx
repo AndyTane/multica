@@ -218,7 +218,7 @@ function LoginPageContent() {
 
   return (
     <LoginPage
-      logo={<ProductMark name={PRODUCT_NAME} variant="lockup" size={32} />}
+      logo={<ProductMark name={PRODUCT_NAME} size={32} />}
       onSuccess={handleSuccess}
       google={
         googleClientId

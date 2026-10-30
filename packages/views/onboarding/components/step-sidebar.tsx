@@ -155,7 +155,7 @@ export function StepSidebar({
         <div className="relative flex min-h-0 flex-1 flex-col pt-5">
           <header className="flex min-h-9 shrink-0 items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-2">
-              <ProductMark name="U Workers" className="size-5 shrink-0 text-foreground" />
+              <ProductMark name="U Workers" size={20} className="text-foreground" />
               <span className="truncate text-label font-medium text-foreground">
                 {t(($) => $.step_nav.wordmark)}
               </span>

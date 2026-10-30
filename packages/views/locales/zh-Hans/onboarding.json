@@ -128,7 +128,6 @@
   },
   "service": {
     "title": "连接你的服务",
-    "description": "当前已登录这个 U Workers 服务，工作区将在这里创建。",
     "address": "服务地址",
     "continue": "继续创建工作区"
   },

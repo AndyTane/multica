@@ -129,7 +129,6 @@
   },
   "service": {
     "title": "Connectez votre service",
-    "description": "Voici le service U Workers authentifié pour votre espace de travail.",
     "address": "Adresse du service",
     "continue": "Continuer vers l’espace"
   },

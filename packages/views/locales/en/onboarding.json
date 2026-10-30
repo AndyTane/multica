@@ -129,7 +129,6 @@
   },
   "service": {
     "title": "Connect to your service",
-    "description": "This is the authenticated U Workers service for your workspace.",
     "address": "Service address",
     "continue": "Continue to workspace"
   },

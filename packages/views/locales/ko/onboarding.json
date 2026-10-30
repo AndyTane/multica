@@ -128,7 +128,6 @@
   },
   "service": {
     "title": "서비스 연결",
-    "description": "워크스페이스에 사용할 인증된 U Workers 서비스입니다.",
     "address": "서비스 주소",
     "continue": "워크스페이스로 계속"
   },

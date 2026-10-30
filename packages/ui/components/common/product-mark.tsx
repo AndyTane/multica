@@ -1,20 +1,18 @@
-import type { ComponentProps } from "react";
+import { useId, type ComponentProps } from "react";
 import { cn } from "../../lib/utils";
 
 type ProductMarkProps = Omit<ComponentProps<"span">, "children"> & {
   name: string;
   variant?: "mark" | "wordmark" | "lockup";
-  size?: 16 | 24 | 32;
+  size?: 16 | 20 | 24 | 32;
 };
 
-// Pixel-aligned U and W stems. The small master opens the counters; the large
-// master tightens the joins. Each size is drawn separately, never scaled down
-// from the application icon. All surfaces inherit the surrounding foreground.
-const masters = {
-  16: { path: "M1.5 4v6a2.5 2.5 0 0 0 5 0V4M8.5 4l1.3 8h1.1l1.1-4 1.1 4h1.1l1-8", weight: 1.5 },
-  24: { path: "M2.5 5.5v9a3.5 3.5 0 0 0 7 0v-9M12 5.5l2 13h1.5l2-7 2 7H21l2-13", weight: 2 },
-  32: { path: "M3 7v12a5 5 0 0 0 10 0V7M16 7l2.5 18h2l3-10 3 10h2L30.5 7", weight: 2.5 },
-};
+// A squircle tile with a single knocked-out U. Drawn on a 24-unit grid; the
+// stroke is optically compensated per size so the counter stays open at 16px
+// and does not turn heavy at 32px. The tile inherits the foreground colour, so
+// the U always shows the surface underneath.
+const strokeBySize = { 16: 3.4, 20: 3.2, 24: 3, 32: 2.75 } as const;
+const wordmarkBySize = { 16: 14, 20: 15, 24: 17, 32: 22 } as const;
 
 export function ProductMark({
   name,
@@ -24,21 +22,41 @@ export function ProductMark({
   style,
   ...props
 }: ProductMarkProps) {
+  const maskId = useId();
   return (
     <span
       role="img"
       aria-label={name}
-      className={cn("inline-flex shrink-0 items-center gap-2", className)}
-      style={{ lineHeight: 1, ...style }}
+      className={cn("inline-flex shrink-0 items-center", className)}
+      style={{ lineHeight: 1, gap: Math.round(size * 0.4), ...style }}
       {...props}
     >
       {variant !== "wordmark" && (
-        <svg aria-hidden="true" focusable="false" viewBox={`0 0 ${size} ${size}`} width={size} height={size} className="shrink-0" fill="none" stroke="currentColor" strokeWidth={masters[size].weight} strokeLinejoin="round">
-          <path d={masters[size].path} />
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" width={size} height={size} className="shrink-0">
+          <mask id={maskId}>
+            <rect width="24" height="24" fill="white" />
+            <path
+              d="M8.25 6.75v5.5a3.75 3.75 0 0 0 7.5 0v-5.5"
+              fill="none"
+              stroke="black"
+              strokeWidth={strokeBySize[size]}
+              strokeLinecap="round"
+            />
+          </mask>
+          <rect width="24" height="24" rx="7" fill="currentColor" mask={`url(#${maskId})`} />
         </svg>
       )}
       {variant !== "mark" && (
-        <span aria-hidden="true" style={{ fontFamily: "var(--font-inter), Inter Variable, sans-serif", fontWeight: 600, letterSpacing: "-0.035em", fontSize: size * 0.75, whiteSpace: "nowrap" }}>
+        <span
+          aria-hidden="true"
+          style={{
+            fontFamily: "var(--font-inter), Inter Variable, sans-serif",
+            fontWeight: 600,
+            letterSpacing: "-0.02em",
+            fontSize: wordmarkBySize[size],
+            whiteSpace: "nowrap",
+          }}
+        >
           {name}
         </span>
       )}

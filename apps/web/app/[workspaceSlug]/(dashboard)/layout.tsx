@@ -18,7 +18,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <WorkspaceDocumentTitle />
       </Suspense>
       <DashboardLayout
-        loadingIndicator={<ProductMark name="U Workers" className="size-6" />}
+        loadingIndicator={<ProductMark name="U Workers" size={24} />}
         searchSlot={<SearchTrigger />}
         extra={
           <>

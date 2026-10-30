@@ -97,7 +97,7 @@ export default function WorkspaceLayout({
 
   const loadingIndicator = (
     <div className="flex h-svh items-center justify-center">
-      <ProductMark name="U Workers" className="size-6 animate-pulse" />
+      <ProductMark name="U Workers" size={24} className="animate-pulse" />
     </div>
   );
 

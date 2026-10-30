@@ -98,7 +98,7 @@ function IssueWindowContent() {
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <ProductMark name="U Workers" className="size-6 animate-pulse" />
+        <ProductMark name="U Workers" size={24} className="animate-pulse" />
       </div>
     );
   }
@@ -326,7 +326,7 @@ function AppContent() {
   if (isLoading || bootstrapping) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <ProductMark name="U Workers" className="size-6 animate-pulse" />
+        <ProductMark name="U Workers" size={24} className="animate-pulse" />
       </div>
     );
   }
