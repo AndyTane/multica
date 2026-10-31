@@ -117,3 +117,43 @@ P5准备/代码批次先不部署。代码与界面验收后明确接续：DSH�
 - 完整 Go handler 套件与完整 views 套件在本 Windows 环境因上述既有原因非全绿，合并前应在 CI/Linux 复跑。
 - ja/ko/fr 文案为本批编写并通过 parity，仍建议母语校对。
 
+## P5-R2 集中修复执行结果（候选）
+
+接续 `953a8294f` 完成复审剩余项（范围 `953a8294f..证据提交`，PR #7 总 base `8c61cdef`）。仍只是候选：未部署、未合并、未改 HTTPS 任务，未操作承载 Multica/DSH 的实例，未触碰 Tane 身份与正式密码。逐项证据与截图索引见 `evidence/clawsta-77/p5-r2/README.md`。
+
+### B1 邀请身份与实例注册策略
+
+- `CreateInvitation` 只在邮箱账号已验证（`email_verified`）时才由邮箱推导 `invitee_user_id`；未验证账号不再成为 UUID 授权。反向次序已用真实 handler 覆盖：先开放注册他人邮箱，再向该邮箱发工作区邀请，进攻方既看不到也接受不了（邀请未绑定，接受 403）；已验证账号仍正常绑定并接受。
+- `findOrCreateUser` 遇未验证同邮箱账号返回明确拒绝，不自动合并、不保留进攻方已设密码。
+- 开放注册、邮箱验证码、Google 三个建号入口共用同一策略：部署开关、实例 `open_registration`（默认关）与邮箱/域名白名单；工作区邀请不再等于实例注册授权，策略在真正建号时重读。生产邮箱/Google 仍关闭，未新建验证服务。
+
+### B2 删除真实性与账号写入一致性
+
+- 删除依赖清单新增阻断项 `chat_history`（`chat_session.creator_id` 级联会带走会话与消息）和 `active_task`（queued/dispatched/running，按 accountable/initiator/originator 关联，同一任务只计一次）。preview 与 DELETE 共用判定，DELETE 在事务内重查；被拒后聊天、消息、活动任务与归属均不变。任务结束后可删，已完成任务保留并置空归属。
+- `UpsertClientUsage` 改为单事务：账号锁 → 活账号复核 → 工作区锁/成员校验 → upsert；删号在扫描前取同一账号锁，因此不会在末次扫描后插入用量行。CLI 的凭据/邀请写入同样在锁后复核活账号；确定性锁竞争测试在写入排队时删除账号，两种次序都不留孤儿。
+- 既有管理员互删、邀请重发/兑换、改密并发回归继续通过。
+
+### B3 WS 握手与撤销的共同边界
+
+- Hub 维护撤销计数与每账号最后撤销标记；握手在验票前取计数，注册在 `DisconnectUser` 打标记的同一把锁内复核并把连接加入集合。撤销后旧会话无法再入房，新登录（新版本）正常连接，其他用户不受影响。
+- 复审附件复现用例已由真实 `HandleWebSocket`/Hub/网络跑通并保留为回归；另用真实改密与删号 handler + 隔离 PostgreSQL 验证：目标 socket 立即关闭，旁观连接继续收到工作区事件。
+
+### U1–U4
+
+- U1：开放注册改用 `SettingsRow`（「开放注册」+ 后果说明 + 控件位 Switch）；添加用户表单、邀请面板、账号行与改密卡片补内边距（浏览器实测 16/14、16/16）。
+- U2：删除对话框取消按钮为通用「取消」，不再显示「完成」。
+- U3：桌面登录页消费一次性改密标记并传给共享登录页，首次显示、再次挂载不再重复；新增桌面登录页测试。
+- U4：`BLOCKER_CODES` 与五语言新增 `chat_history`（有聊天记录）与 `active_task`（有进行中的任务）；未知阻断码合并为「另有 N 项依赖需先处理」（N 为 count 之和）而不是丢弃；确认按钮仍由服务端 `can_delete` 约束；补充新码、未知回退与预览失败/畸形用例。
+
+### 验证
+
+- Go：`go build ./...`、`go vet ./...` 通过；realtime（含复审复现用例）、auth、P5/P5-R1/P5-R2、建号/Google/邮箱验证码、`cmd/local-auth` 在隔离库 `multica_p5candidate` 全部通过。完整 `internal/handler` 套件仍为本机既有失败与超时，已如实记录，未称为通过，也未新增 CI 门槛。
+- 前端：core/views/web/desktop typecheck 通过；web 245 项、desktop 653 项（`scripts/package.test.mjs` 既有失败）、受影响 views 5 文件 289 项（含五语言 parity）通过；lint 0 error；web 候选构建通过。
+- 真实浏览器：隔离 staging（候选 API 18082 + web 13003 + Caddy `tls internal` 13444，隔离库经 SSH 隧道）26/26 步通过：管理员登录、管理 tab 浅/深色与中文、改密卡片、聊天记录与进行中任务两种删除阻断（确认禁用、取消文案）、普通用户无管理入口且管理员 API 403、改密成功提示、旧密码拒绝、新密码登录。截图见 `evidence/clawsta-77/p5-r2/browser/`，均为合成 `@staging.invalid` 身份，无密码/邀请明文。
+- 证书校验限制：本非交互会话无法把 staging CA 装入 Windows 根存储（导入接口报 UI 不允许、直接写根存储被保护机制删除、机器存储无提权），浏览器改用 `ignoreHTTPSErrors: false` + 仅针对该 staging 叶子证书 SPKI 的 Chromium 例外；另用普通 TLS 客户端信任 staging 根独立验证了证书链与 `localhost` 主机名。这是本批唯一的环境性偏离，已在证据中写明。
+
+### 未完成
+
+- 不部署、不合并；native 备份/Build/迁移/HTTPS 切换与正式引导仍留部署批次。
+- 完整 Go handler 与完整 views 套件在本 Windows 环境因既有原因非全绿，合并前应在 CI/Linux 复跑。
+- ja/ko/fr 仍建议母语校对；本次未新增翻译流程门槛。

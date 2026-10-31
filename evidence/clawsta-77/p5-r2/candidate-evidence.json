@@ -1,0 +1,102 @@
+{
+  "batch": "P5-R2",
+  "issue": "CLAWSTA-77",
+  "branch": "agent/dsh/p5-registration",
+  "pr": 7,
+  "pr_base_commit": "8c61cdef31aa86cffa616f315540e58fbb82d625",
+  "batch_base_commit": "953a8294f2407c156b4690666c2a87dc993d9efb",
+  "commits": {
+    "b1_identity": "7dd1e6e2a",
+    "b2_deletion_and_writes": "3649e7da9",
+    "b3_websocket_boundary": "2195e26db",
+    "u1_u2_u4_settings": "24b8bb00b",
+    "u3_desktop_notice": "f455ec3b3",
+    "evidence": "branch tip after this file"
+  },
+  "staging": {
+    "isolated_database": "multica_p5candidate",
+    "database_host": "desktop PostgreSQL via SSH tunnel 16432 -> 127.0.0.1:16432",
+    "migrations_applied_through": "582_user_email_verified",
+    "live_deployment_touched": false,
+    "https": "Caddy tls internal at https://localhost:13444",
+    "test_identity_domain": "staging.invalid",
+    "secrets_policy": "per-run password generated in shell memory; stdin/environment only; no file, log, comment, evidence or screenshot; scratch removed at teardown",
+    "certificate_validation": "OS root-store install blocked in this non-interactive session; browser used ignoreHTTPSErrors=false with a leaf-SPKI-scoped Chromium exception and an independent TLS chain+hostname check passed against the staging root"
+  },
+  "verification": {
+    "go_build": "pass",
+    "go_vet": "pass",
+    "go_tests": {
+      "internal/realtime reviewer reproducer and P5R2": "pass",
+      "internal/realtime + internal/auth": "pass",
+      "internal/handler TestP5R2|TestP5R1|TestP5": "pass (67.9s)",
+      "internal/handler signup/google/email-code": "pass (80.6s)",
+      "cmd/local-auth": "pass (17.3s, 11 tests)",
+      "internal/handler (full)": "pre-existing environmental failures and 15m package timeout; bounded baseline at 953a8294f reproduced the same failure classes (details in full-handler-failures.txt)"
+    },
+    "frontend": {
+      "core/views/web/desktop typecheck": "pass",
+      "web tests": "25 files / 245 tests pass",
+      "desktop tests": "62 files / 653 tests pass; 1 pre-existing scripts/package.test.mjs suite failure",
+      "targeted views tests": "5 files / 289 tests pass (includes five-language parity)",
+      "full views suite": "13 failed files / 26 failed tests against 460 passed files / 5889 passed tests under full parallelism; all 13 failing files pass alone; none is a changed file",
+      "desktop login test": "7 tests pass",
+      "lint": "0 errors (pre-existing warnings only)",
+      "web build": "pass"
+    },
+    "browser_acceptance": {
+      "passed": 26,
+      "failed": 0,
+      "evidence": "browser/browser-evidence.json",
+      "screenshots": [
+        "browser/01-admin-tab-light.png",
+        "browser/02-admin-tab-dark.png",
+        "browser/03-admin-tab-zh.png",
+        "browser/04-password-card-zh.png",
+        "browser/05-delete-preview-chat-history.png",
+        "browser/06-delete-preview-active-task.png",
+        "browser/07-password-changed-notice.png"
+      ]
+    }
+  },
+  "closed": {
+    "b1": [
+      "CreateInvitation derives invitee_user_id only from a verified account",
+      "reverse ordering open-register-then-invite cannot claim the invitation (real handlers)",
+      "findOrCreateUser refuses unverified same-email auto-merge",
+      "one instance registration policy across OpenRegistration/email-code/Google",
+      "workspace invitation is not an instance registration grant"
+    ],
+    "b2": [
+      "chat_history deletion blocker (no implicit chat deletion)",
+      "active_task deletion blocker across accountable/initiator/originator with dedupe",
+      "preview and DELETE share the blocker decision, DELETE re-checks in transaction",
+      "client_usage write/delete share the account lock with live-user recheck",
+      "CLI credential/invite writes take the account lock and recheck the live account",
+      "both orders and an in-flight-write barrier leave no orphan rows"
+    ],
+    "b3": [
+      "registration and revocation share one locked state boundary",
+      "reviewer reproducer passes against real HandleWebSocket/Hub/network",
+      "new valid sessions still connect; other accounts unaffected",
+      "real password-change and delete handlers close the affected socket (isolated PostgreSQL)"
+    ],
+    "u1_u2_u4": [
+      "SettingsRow for open registration; padded add-user form, invitation panel and user rows",
+      "padded password-change card",
+      "delete dialog cancel is a generic Cancel",
+      "chat_history and active_task blocker codes and five-language copy",
+      "unknown blockers merged into one counted line, never dropped",
+      "confirmation still gated by server can_delete"
+    ],
+    "u3": [
+      "desktop login page shows the password-changed notice once"
+    ]
+  },
+  "open": [
+    "no deployment, merge or HTTPS switch; native build/backup/migrate and the real host onboarding remain in the deployment batch",
+    "OS-level staging CA trust could not be installed in this non-interactive session; browser used a leaf-SPKI-scoped exception with an independent chain validation",
+    "full Go handler and full views suites keep their recorded pre-existing failures; re-run on CI/Linux before merge",
+    "native language review of ja/ko/fr copy is advisable"
+  ]
+}

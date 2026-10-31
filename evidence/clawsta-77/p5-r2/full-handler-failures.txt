@@ -1,0 +1,53 @@
+CLAWSTA-77 P5-R2 - full internal/handler suite in this Windows candidate environment
+
+Command (isolated candidate database, 15 minute package timeout):
+
+  bash p5r2-db.sh bash -c 'cd UWorkers-nice/server && go test ./internal/handler -count=1 -timeout 900s'
+
+Result: FAIL (901.8s), panic: test timed out after 15m0s while running
+TestWorkerReplyDelivery. The package does not complete in this environment.
+
+Top-level failures observed in that run (18 "--- FAIL" lines, 13 top-level):
+
+  TestStableIDSuffixMatchesDaemon                                (Windows path separator)
+  TestAutopilotQuotaManualAndWebhookEnforcement                  (runtime offline at dispatch)
+  TestGetAutopilotRun_ReturnsFullPayload                         (runtime offline at dispatch)
+  TestTriggerAutopilot_InternalFailureDoesNotEchoError           (runtime offline at dispatch)
+  TestWebhookHandler_ActiveDispatchesRunWithPayload              (runtime offline at dispatch)
+  TestWebhookHandler_EmptyFiltersAllowsAll                       (runtime offline at dispatch)
+  TestPendingQueueHeadMatchesClaimForEqualCreatedAt              (runtime offline at dispatch)
+  TestMigration467BackfillsTriggerCreatorFromAutopilot           (runtime offline at dispatch)
+  TestClaimTaskByRuntime_ChatProjectContext                      (claim returned nil)
+  TestClaimTask_IssueProjectInForeignWorkspace_DegradesToWorkspaceRepos
+  TestClaimTask_ProjectResourceFromForeignWorkspace_IsFilteredOut
+  TestClaimTask_AutopilotRunOnlyForeignWorkspace_CancelsTask
+  TestCreateComment_ThreadReplyDoesNotEscalateToAssignee         (5 subtests; thread owner task not claimable)
+
+Bounded baseline check at 953a8294f (the P5-R2 base commit) in a detached
+git worktree and a separately migrated database (multica_p5candidate_base):
+
+  git worktree add --detach .../p5r2-base 953a8294f
+  P5R2_DB=multica_p5candidate_base bash p5r2-db.sh go run ./cmd/migrate up
+  P5R2_DB=multica_p5candidate_base bash p5r2-db.sh go test ./internal/handler       -run 'TestClaimTask|TestCreateComment_ThreadReplyDoesNotEscalateToAssignee' -count=1
+
+Base result was the same failure classes, e.g.:
+
+  --- FAIL: TestClaimTasksByRuntime_ClaimPollHintSchedulesNextDeferredTask (next deferred delay = 5234ms, want 1..5000ms)
+  --- FAIL: TestClaimTask_ProjectGithubReposOverrideWorkspaceRepos (expected task in response)
+  --- FAIL: TestClaimTask_ProjectDescriptionInjected (expected task in response)
+  --- FAIL: TestClaimTask_ProjectWithoutRepos_FallsBackToWorkspaceRepos (expected task in response)
+  --- FAIL: TestClaimTask_AutopilotRunOnly_PopulatesWorkspaceAndProjectContext (expected a task in response, got nil)
+  --- FAIL: TestClaimTaskByRuntime_TaskWorkspaceMismatch_CancelsAndRejects (expected 500, got 200)
+
+The CreateComment replying tests are order-dependent: they pass in isolation at
+both 953a8294f and this branch, and their file (comment_trigger_preview_test.go)
+runs before every P5 test file, so this batch's new tests cannot influence them.
+
+Targeted suites that are green on this branch (isolated database):
+  go test ./internal/handler -run 'TestP5R2|TestP5R1|TestP5' -count=1
+  go test ./internal/handler -run 'TestSignup|TestFindOrCreate|TestGoogle|TestSendCode|TestVerifyCode|TestEmailCode|TestWorkspaceInvitation|TestAccountWrites|TestP5' -count=1
+  go test ./internal/realtime ./internal/auth -count=1
+  go test ./cmd/local-auth -count=1
+
+No new CI gate was added; the full package must be re-run on the CI/Linux
+runner before merge.
