@@ -288,13 +288,17 @@ FROM workspace_invitation wi
 JOIN workspace w ON w.id = wi.workspace_id
 JOIN "user" u ON u.id = wi.inviter_id
 WHERE wi.status = 'pending'
-  AND (wi.invitee_user_id = $1 OR wi.invitee_email = $2)
+  AND (
+    wi.invitee_user_id = $1
+    OR ($2::boolean AND wi.invitee_email = $3)
+  )
   AND wi.expires_at > now()
 ORDER BY wi.created_at DESC
 `
 
 type ListPendingInvitationsForUserParams struct {
 	InviteeUserID pgtype.UUID `json:"invitee_user_id"`
+	EmailVerified bool        `json:"email_verified"`
 	InviteeEmail  string      `json:"invitee_email"`
 }
 
@@ -314,8 +318,12 @@ type ListPendingInvitationsForUserRow struct {
 	InviterEmail  string             `json:"inviter_email"`
 }
 
+// `email_verified` gates the email half of the identity match: an address
+// typed at open registration is a claim, not proof of mailbox control, so it
+// must not surface (or later accept) an invitation minted for that mailbox.
+// The UUID half is an explicit binding and stays authoritative.
 func (q *Queries) ListPendingInvitationsForUser(ctx context.Context, arg ListPendingInvitationsForUserParams) ([]ListPendingInvitationsForUserRow, error) {
-	rows, err := q.db.Query(ctx, listPendingInvitationsForUser, arg.InviteeUserID, arg.InviteeEmail)
+	rows, err := q.db.Query(ctx, listPendingInvitationsForUser, arg.InviteeUserID, arg.EmailVerified, arg.InviteeEmail)
 	if err != nil {
 		return nil, err
 	}

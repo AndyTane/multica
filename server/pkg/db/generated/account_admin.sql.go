@@ -33,17 +33,8 @@ func (q *Queries) CountUserOwnedRuntimes(ctx context.Context, ownerID pgtype.UUI
 	return count, err
 }
 
-const deleteLocalPasswordCredentialByUserID = `-- name: DeleteLocalPasswordCredentialByUserID :exec
-DELETE FROM local_password_credential WHERE user_id = $1
-`
-
-func (q *Queries) DeleteLocalPasswordCredentialByUserID(ctx context.Context, userID pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteLocalPasswordCredentialByUserID, userID)
-	return err
-}
-
 const deleteUserAutopilotCollaborators = `-- name: DeleteUserAutopilotCollaborators :exec
-DELETE FROM autopilot_collaborator WHERE user_id = $1
+DELETE FROM autopilot_collaborator WHERE user_id = $1 AND user_type = 'member'
 `
 
 func (q *Queries) DeleteUserAutopilotCollaborators(ctx context.Context, userID pgtype.UUID) error {
@@ -52,11 +43,20 @@ func (q *Queries) DeleteUserAutopilotCollaborators(ctx context.Context, userID p
 }
 
 const deleteUserAutopilotSubscribers = `-- name: DeleteUserAutopilotSubscribers :exec
-DELETE FROM autopilot_subscriber WHERE user_id = $1
+DELETE FROM autopilot_subscriber WHERE user_id = $1 AND user_type = 'member'
 `
 
 func (q *Queries) DeleteUserAutopilotSubscribers(ctx context.Context, userID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteUserAutopilotSubscribers, userID)
+	return err
+}
+
+const deleteUserChannelBindings = `-- name: DeleteUserChannelBindings :exec
+DELETE FROM channel_user_binding WHERE multica_user_id = $1
+`
+
+func (q *Queries) DeleteUserChannelBindings(ctx context.Context, multicaUserID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserChannelBindings, multicaUserID)
 	return err
 }
 
@@ -97,7 +97,7 @@ func (q *Queries) DeleteUserFeedback(ctx context.Context, userID pgtype.UUID) er
 }
 
 const deleteUserIssueSubscriptions = `-- name: DeleteUserIssueSubscriptions :exec
-DELETE FROM issue_subscriber WHERE user_id = $1
+DELETE FROM issue_subscriber WHERE user_id = $1 AND user_type = 'member'
 `
 
 func (q *Queries) DeleteUserIssueSubscriptions(ctx context.Context, userID pgtype.UUID) error {
@@ -111,6 +111,24 @@ DELETE FROM issue_view_preference WHERE user_id = $1
 
 func (q *Queries) DeleteUserIssueViewPreferences(ctx context.Context, userID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteUserIssueViewPreferences, userID)
+	return err
+}
+
+const deleteUserIssueViews = `-- name: DeleteUserIssueViews :exec
+DELETE FROM issue_view WHERE owner_id = $1
+`
+
+func (q *Queries) DeleteUserIssueViews(ctx context.Context, ownerID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserIssueViews, ownerID)
+	return err
+}
+
+const deleteUserLarkBindings = `-- name: DeleteUserLarkBindings :exec
+DELETE FROM lark_user_binding WHERE multica_user_id = $1
+`
+
+func (q *Queries) DeleteUserLarkBindings(ctx context.Context, multicaUserID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserLarkBindings, multicaUserID)
 	return err
 }
 
@@ -132,12 +150,12 @@ func (q *Queries) DeleteUserNotificationPreferences(ctx context.Context, userID 
 	return err
 }
 
-const deleteUserPasswordCredential = `-- name: DeleteUserPasswordCredential :exec
+const deleteUserPasswordCredentialByUserID = `-- name: DeleteUserPasswordCredentialByUserID :exec
 DELETE FROM local_password_credential WHERE user_id = $1
 `
 
-func (q *Queries) DeleteUserPasswordCredential(ctx context.Context, userID pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteUserPasswordCredential, userID)
+func (q *Queries) DeleteUserPasswordCredentialByUserID(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserPasswordCredentialByUserID, userID)
 	return err
 }
 
@@ -186,6 +204,194 @@ func (q *Queries) DeleteUserWorkspaceInvitations(ctx context.Context, inviteeUse
 	return err
 }
 
+const detachUserAgentInvocationTargets = `-- name: DetachUserAgentInvocationTargets :exec
+UPDATE agent_invocation_target SET created_by = NULL WHERE created_by = $1
+`
+
+// Detach nullable attribution on shared history. The rows stay: only the
+// pointer to the removed account is cleared, so a task, skill, wakeup or
+// package authored by that person keeps existing with an unattributed author.
+func (q *Queries) DetachUserAgentInvocationTargets(ctx context.Context, createdBy pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserAgentInvocationTargets, createdBy)
+	return err
+}
+
+const detachUserAgentTaskQueue = `-- name: DetachUserAgentTaskQueue :exec
+UPDATE agent_task_queue
+SET accountable_user_id = CASE WHEN accountable_user_id = $1 THEN NULL ELSE accountable_user_id END,
+    initiator_user_id = CASE WHEN initiator_user_id = $1 THEN NULL ELSE initiator_user_id END,
+    originator_user_id = CASE WHEN originator_user_id = $1 THEN NULL ELSE originator_user_id END
+WHERE accountable_user_id = $1 OR initiator_user_id = $1 OR originator_user_id = $1
+`
+
+func (q *Queries) DetachUserAgentTaskQueue(ctx context.Context, accountableUserID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserAgentTaskQueue, accountableUserID)
+	return err
+}
+
+const detachUserArchivedAgents = `-- name: DetachUserArchivedAgents :exec
+UPDATE agent SET archived_by = NULL WHERE archived_by = $1
+`
+
+// agent.archived_by references "user" with no delete action, so the pointer is
+// cleared before the row is removed. The agent itself is shared history.
+func (q *Queries) DetachUserArchivedAgents(ctx context.Context, archivedBy pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserArchivedAgents, archivedBy)
+	return err
+}
+
+const detachUserChannelChatContextGenerations = `-- name: DetachUserChannelChatContextGenerations :exec
+UPDATE channel_chat_context_generation SET initiator_user_id = NULL WHERE initiator_user_id = $1
+`
+
+func (q *Queries) DetachUserChannelChatContextGenerations(ctx context.Context, initiatorUserID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserChannelChatContextGenerations, initiatorUserID)
+	return err
+}
+
+const detachUserIssueWakeups = `-- name: DetachUserIssueWakeups :exec
+UPDATE issue_wakeup SET created_by = NULL WHERE created_by = $1
+`
+
+func (q *Queries) DetachUserIssueWakeups(ctx context.Context, createdBy pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserIssueWakeups, createdBy)
+	return err
+}
+
+const detachUserPluginPackages = `-- name: DetachUserPluginPackages :exec
+UPDATE plugin_package SET created_by = NULL WHERE created_by = $1
+`
+
+func (q *Queries) DetachUserPluginPackages(ctx context.Context, createdBy pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserPluginPackages, createdBy)
+	return err
+}
+
+const detachUserProjectResources = `-- name: DetachUserProjectResources :exec
+UPDATE project_resource SET created_by = NULL WHERE created_by = $1
+`
+
+func (q *Queries) DetachUserProjectResources(ctx context.Context, createdBy pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserProjectResources, createdBy)
+	return err
+}
+
+const detachUserRuntimeProfiles = `-- name: DetachUserRuntimeProfiles :exec
+UPDATE runtime_profile SET created_by = NULL WHERE created_by = $1
+`
+
+func (q *Queries) DetachUserRuntimeProfiles(ctx context.Context, createdBy pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserRuntimeProfiles, createdBy)
+	return err
+}
+
+const detachUserSkills = `-- name: DetachUserSkills :exec
+UPDATE skill SET created_by = NULL WHERE created_by = $1
+`
+
+func (q *Queries) DetachUserSkills(ctx context.Context, createdBy pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserSkills, createdBy)
+	return err
+}
+
+const detachUserWorkspaceMCPServers = `-- name: DetachUserWorkspaceMCPServers :exec
+UPDATE workspace_mcp_server SET created_by = NULL WHERE created_by = $1
+`
+
+func (q *Queries) DetachUserWorkspaceMCPServers(ctx context.Context, createdBy pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachUserWorkspaceMCPServers, createdBy)
+	return err
+}
+
+const inspectInstanceUserDependencies = `-- name: InspectInstanceUserDependencies :many
+SELECT code, kind, count FROM (
+    SELECT 'workspace_owner'::text AS code, 'blocker'::text AS kind, count(*) AS count
+    FROM member m WHERE m.user_id = $1 AND m.role = 'owner'
+    UNION ALL
+    SELECT 'runtime_owner', 'blocker', count(*) FROM agent_runtime ar WHERE ar.owner_id = $1
+    UNION ALL
+    SELECT 'agent_owner', 'blocker', count(*) FROM agent a WHERE a.owner_id = $1
+    UNION ALL
+    SELECT 'channel_installation', 'blocker', count(*) FROM channel_installation ci WHERE ci.installer_user_id = $1
+    UNION ALL
+    SELECT 'lark_installation', 'blocker', count(*) FROM lark_installation li WHERE li.installer_user_id = $1
+    UNION ALL
+    SELECT 'share_link_creator', 'blocker', count(*) FROM workspace_share_link wsl WHERE wsl.created_by = $1
+    UNION ALL
+    SELECT 'source_context_capture', 'blocker', count(*) FROM issue_source_context isc WHERE isc.captured_by_user_id = $1
+    UNION ALL
+    SELECT 'registration_invite', 'remove', count(*) FROM registration_invite ri WHERE ri.user_id = $1 OR ri.created_by = $1
+    UNION ALL
+    SELECT 'password', 'remove', count(*) FROM local_password_credential lpc WHERE lpc.user_id = $1
+    UNION ALL
+    SELECT 'personal_access_token', 'remove', count(*) FROM personal_access_token pat WHERE pat.user_id = $1
+    UNION ALL
+    SELECT 'task_token', 'remove', count(*) FROM task_token tt WHERE tt.user_id = $1
+    UNION ALL
+    SELECT 'membership', 'remove', count(*) FROM member m WHERE m.user_id = $1
+    UNION ALL
+    SELECT 'workspace_invitation', 'remove', count(*) FROM workspace_invitation wi WHERE wi.invitee_user_id = $1 OR wi.inviter_id = $1
+    UNION ALL
+    SELECT 'identity_binding', 'remove',
+           (SELECT count(*) FROM channel_user_binding cub WHERE cub.multica_user_id = $1)
+         + (SELECT count(*) FROM lark_user_binding lub WHERE lub.multica_user_id = $1)
+    UNION ALL
+    SELECT 'notification_preference', 'remove', count(*) FROM notification_preference np WHERE np.user_id = $1
+    UNION ALL
+    SELECT 'pinned_item', 'remove', count(*) FROM pinned_item pi WHERE pi.user_id = $1
+    UNION ALL
+    SELECT 'feedback', 'remove', count(*) FROM feedback f WHERE f.user_id = $1
+    UNION ALL
+    SELECT 'client_usage', 'remove', count(*) FROM client_usage_daily cud WHERE cud.user_id = $1
+    UNION ALL
+    SELECT 'issue_subscription', 'remove', count(*) FROM issue_subscriber iss WHERE iss.user_id = $1 AND iss.user_type = 'member'
+    UNION ALL
+    SELECT 'composio_connection', 'remove', count(*) FROM user_composio_connection ucc WHERE ucc.user_id = $1
+    UNION ALL
+    SELECT 'seat_capacity', 'remove', count(*) FROM seat_capacity_outbox sco WHERE sco.user_id = $1
+    UNION ALL
+    SELECT 'chat_pin', 'remove', count(*) FROM chat_pinned_agent cpa WHERE cpa.user_id = $1
+    UNION ALL
+    SELECT 'autopilot_collaborator', 'remove', count(*) FROM autopilot_collaborator ac WHERE ac.user_id = $1 AND ac.user_type = 'member'
+    UNION ALL
+    SELECT 'autopilot_subscriber', 'remove', count(*) FROM autopilot_subscriber asub WHERE asub.user_id = $1 AND asub.user_type = 'member'
+    UNION ALL
+    SELECT 'issue_view_preference', 'remove', count(*) FROM issue_view_preference ivp WHERE ivp.user_id = $1
+    UNION ALL
+    SELECT 'issue_view', 'remove', count(*) FROM issue_view iv WHERE iv.owner_id = $1
+    UNION ALL
+    SELECT 'account', 'remove', count(*) FROM "user" u WHERE u.id = $1
+) probes
+WHERE count > 0
+ORDER BY (kind = 'blocker') DESC, code
+`
+
+type InspectInstanceUserDependenciesRow struct {
+	Code  string `json:"code"`
+	Kind  string `json:"kind"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) InspectInstanceUserDependencies(ctx context.Context, userID pgtype.UUID) ([]InspectInstanceUserDependenciesRow, error) {
+	rows, err := q.db.Query(ctx, inspectInstanceUserDependencies, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []InspectInstanceUserDependenciesRow{}
+	for rows.Next() {
+		var i InspectInstanceUserDependenciesRow
+		if err := rows.Scan(&i.Code, &i.Kind, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserIDsWithLocalPassword = `-- name: ListUserIDsWithLocalPassword :many
 SELECT user_id FROM local_password_credential
 `
@@ -226,8 +432,21 @@ type ListUserWorkspaceOwnershipsRow struct {
 }
 
 // Instance user administration helpers (P5).
-// The account deletion flow enumerates the account-level dependencies it owns;
-// workspace-owned business content is not deleted here.
+//
+// Delete preview and delete share InspectInstanceUserDependencies: one query
+// enumerates every schema reference to an account and classifies it. The
+// preview endpoint returns exactly that result, and the delete transaction
+// re-runs it under the account locks before and after cleanup, so the preview
+// and the mutation cannot drift apart.
+//
+// Classification:
+//
+//	blocker  the row represents ownership or an audit attribution that cannot
+//	         be reassigned, so the account cannot be deleted until an operator
+//	         resolves it. Shared business history is never silently deleted.
+//	remove   an account-scoped row that is removed with the account.
+//	(absent) nullable shared-history attribution is detached (SET NULL) by the
+//	         cleanup statements below.
 func (q *Queries) ListUserWorkspaceOwnerships(ctx context.Context, userID pgtype.UUID) ([]ListUserWorkspaceOwnershipsRow, error) {
 	rows, err := q.db.Query(ctx, listUserWorkspaceOwnerships, userID)
 	if err != nil {

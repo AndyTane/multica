@@ -1415,6 +1415,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 	// WebSocket
 	mc := &membershipChecker{queries: queries}
+	sessions := &sessionValidator{queries: queries}
 	pr := &patResolver{queries: queries, cache: patCache}
 	slugResolver := realtime.SlugResolver(func(ctx context.Context, slug string) (string, error) {
 		ws, err := queries.GetWorkspaceBySlug(ctx, slug)
@@ -1424,7 +1425,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		return util.UUIDToString(ws.ID), nil
 	})
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
-		realtime.HandleWebSocket(hub, mc, pr, slugResolver, w, r)
+		realtime.HandleWebSocket(hub, mc, sessions, pr, slugResolver, w, r)
 	})
 
 	// Local file serving (when using local storage). Served through the
@@ -1633,6 +1634,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Put("/api/admin/registration", h.UpdateRegistrationSettings)
 		r.Get("/api/admin/users", h.ListInstanceUsers)
 		r.Post("/api/admin/users", h.AddInstanceUser)
+		r.Get("/api/admin/users/{id}/delete-preview", h.GetInstanceUserDeletePreview)
 		r.Post("/api/admin/users/{id}/invite", h.RegenerateInstanceInvite)
 		r.Delete("/api/admin/users/{id}/invite", h.RevokeInstanceInvite)
 		r.Delete("/api/admin/users/{id}", h.DeleteInstanceUser)
@@ -2458,6 +2460,33 @@ func (mc *membershipChecker) IsMember(ctx context.Context, userID, workspaceID s
 		WorkspaceID: parseUUID(workspaceID),
 	})
 	return err == nil
+}
+
+// sessionValidator implements realtime.SessionValidator against the live
+// account row. It is the same authority the HTTP auth middleware applies to
+// every request: the row must exist, the account must not be temporarily
+// disabled, and a session-bearing credential must carry the current
+// auth_version. PATs pass a negative version and are checked for liveness only.
+type sessionValidator struct {
+	queries *db.Queries
+}
+
+func (sv *sessionValidator) ValidateSession(ctx context.Context, userID string, authVersion int64) bool {
+	id, err := util.ParseUUID(userID)
+	if err != nil {
+		return false
+	}
+	user, err := sv.queries.GetUser(ctx, id)
+	if err != nil {
+		return false
+	}
+	if auth.IsTemporarilyDisabledUser(util.UUIDToString(user.ID), user.Email) {
+		return false
+	}
+	if authVersion >= 0 && user.AuthVersion != authVersion {
+		return false
+	}
+	return true
 }
 
 // patResolver implements realtime.PATResolver using database queries.

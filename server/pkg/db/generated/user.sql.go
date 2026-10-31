@@ -38,7 +38,7 @@ func (q *Queries) CountInstanceAdmins(ctx context.Context) (int64, error) {
 const createUser = `-- name: CreateUser :one
 INSERT INTO "user" (name, email, avatar_url)
 VALUES ($1, $2, $3)
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type CreateUserParams struct {
@@ -67,6 +67,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Timezone,
 		&i.IsInstanceAdmin,
 		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -81,7 +82,7 @@ func (q *Queries) DeleteUserRow(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version FROM "user"
+SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified FROM "user"
 WHERE id = $1
 `
 
@@ -105,12 +106,13 @@ func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
 		&i.Timezone,
 		&i.IsInstanceAdmin,
 		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version FROM "user"
+SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified FROM "user"
 WHERE email = $1
 `
 
@@ -134,6 +136,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Timezone,
 		&i.IsInstanceAdmin,
 		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -184,7 +187,7 @@ UPDATE "user" SET
     cloud_waitlist_reason = $3,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type JoinCloudWaitlistParams struct {
@@ -216,6 +219,7 @@ func (q *Queries) JoinCloudWaitlist(ctx context.Context, arg JoinCloudWaitlistPa
 		&i.Timezone,
 		&i.IsInstanceAdmin,
 		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -271,7 +275,7 @@ UPDATE "user" SET
     onboarded_at = COALESCE(onboarded_at, now()),
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 func (q *Queries) MarkUserOnboarded(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -294,6 +298,7 @@ func (q *Queries) MarkUserOnboarded(ctx context.Context, id pgtype.UUID) (User, 
 		&i.Timezone,
 		&i.IsInstanceAdmin,
 		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -303,7 +308,7 @@ UPDATE "user" SET
     onboarding_questionnaire = COALESCE($1, onboarding_questionnaire),
     updated_at = now()
 WHERE id = $2
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type PatchUserOnboardingParams struct {
@@ -335,6 +340,7 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 		&i.Timezone,
 		&i.IsInstanceAdmin,
 		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -344,7 +350,7 @@ UPDATE "user" SET
     starter_content_state = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type SetStarterContentStateParams struct {
@@ -377,6 +383,7 @@ func (q *Queries) SetStarterContentState(ctx context.Context, arg SetStarterCont
 		&i.Timezone,
 		&i.IsInstanceAdmin,
 		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -422,7 +429,7 @@ UPDATE "user" SET
     END,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type UpdateUserParams struct {
@@ -473,6 +480,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Timezone,
 		&i.IsInstanceAdmin,
 		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }

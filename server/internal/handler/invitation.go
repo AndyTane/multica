@@ -380,7 +380,7 @@ func (h *Handler) GetMyInvitation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load user")
 		return
 	}
-	if strings.ToLower(user.Email) != inv.InviteeEmail && uuidToString(inv.InviteeUserID) != userID {
+	if !invitationBelongsToUser(inv, user) {
 		writeError(w, http.StatusForbidden, "invitation does not belong to you")
 		return
 	}
@@ -397,6 +397,18 @@ func (h *Handler) GetMyInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// invitationBelongsToUser decides whether an invitation is addressed to this
+// account. A user_id binding is explicit and authoritative. The email match is
+// an identity CLAIM: it counts only when the account has verified that address.
+// An account created by open self-registration has not, so typing someone
+// else's invited mailbox must not surface or accept their invitation.
+func invitationBelongsToUser(inv db.WorkspaceInvitation, user db.User) bool {
+	if inv.InviteeUserID.Valid && uuidToString(inv.InviteeUserID) == uuidToString(user.ID) {
+		return true
+	}
+	return user.EmailVerified && strings.ToLower(user.Email) == strings.ToLower(inv.InviteeEmail)
 }
 
 // ---------------------------------------------------------------------------
@@ -418,7 +430,8 @@ func (h *Handler) ListMyInvitations(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.Queries.ListPendingInvitationsForUser(r.Context(), db.ListPendingInvitationsForUserParams{
 		InviteeUserID: user.ID,
-		InviteeEmail:  user.Email,
+		InviteeEmail:  strings.ToLower(user.Email),
+		EmailVerified: user.EmailVerified,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list invitations")
@@ -475,7 +488,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load user")
 		return
 	}
-	if strings.ToLower(user.Email) != inv.InviteeEmail && uuidToString(inv.InviteeUserID) != userID {
+	if !invitationBelongsToUser(inv, user) {
 		writeError(w, http.StatusForbidden, "invitation does not belong to you")
 		return
 	}
@@ -660,7 +673,7 @@ func (h *Handler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load user")
 		return
 	}
-	if strings.ToLower(user.Email) != inv.InviteeEmail && uuidToString(inv.InviteeUserID) != userID {
+	if !invitationBelongsToUser(inv, user) {
 		writeError(w, http.StatusForbidden, "invitation does not belong to you")
 		return
 	}

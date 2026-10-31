@@ -352,6 +352,13 @@ func (h *Handler) JoinByShareLink(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID:  link.WorkspaceID,
 		InviteeEmail: strings.ToLower(user.Email),
 	})
+	// An unverified address is not an identity claim: settling by email would
+	// let an open-registration account consume an invitation minted for a
+	// mailbox it merely typed. Unverified accounts still join through the link
+	// (the capability is the link); they just leave that row to its owner.
+	if !user.EmailVerified {
+		pendingErr = pgx.ErrNoRows
+	}
 	switch {
 	case pendingErr == nil:
 		// AcceptInvitation re-checks status='pending' under the row lock, so

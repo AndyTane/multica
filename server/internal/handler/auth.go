@@ -162,6 +162,15 @@ func isSixDigitCode(code string) bool {
 }
 
 func (h *Handler) issueJWT(user db.User) (string, error) {
+	return h.issueJWTWithVersion(user, user.AuthVersion)
+}
+
+// issueJWTWithVersion signs a session for an auth_version the caller read in
+// the SAME snapshot as the credential it verified. Password login uses the
+// explicit form: a password change that commits between verification and
+// signing must invalidate the token being minted, and that only happens when
+// the token carries the version that was current for the verified hash.
+func (h *Handler) issueJWTWithVersion(user db.User, authVersion int64) (string, error) {
 	if auth.IsTemporarilyDisabledUser(uuidToString(user.ID), user.Email) {
 		return "", auth.ErrTemporarilyDisabledUser
 	}
@@ -179,7 +188,7 @@ func (h *Handler) issueJWT(user db.User) (string, error) {
 		"email": user.Email,
 		"name":  user.Name,
 		"sid":   sid,
-		"ver":   user.AuthVersion,
+		"ver":   authVersion,
 		"exp":   time.Now().Add(auth.AuthTokenTTL()).Unix(),
 		"iat":   time.Now().Unix(),
 	})
@@ -190,6 +199,11 @@ func (h *Handler) issueJWT(user db.User) (string, error) {
 // none exists. isNew reports whether this call created the user — the signup
 // event fires on that edge, covering both the verification-code and Google
 // OAuth entry points.
+//
+// Accounts created here are VERIFIED by construction: every caller proves
+// control of the mailbox first (a delivered verification code, or Google's
+// verified email claim). Open self-registration is the only path that stores an
+// unverified address, and it uses CreateUnverifiedUser explicitly.
 func (h *Handler) findOrCreateUser(ctx context.Context, email string) (user db.User, isNew bool, err error) {
 	if auth.IsTemporarilyDisabledUserEmail(email) {
 		return db.User{}, false, auth.ErrTemporarilyDisabledUser

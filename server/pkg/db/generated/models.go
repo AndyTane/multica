@@ -1642,6 +1642,7 @@ type User struct {
 	Timezone        pgtype.Text `json:"timezone"`
 	IsInstanceAdmin bool        `json:"is_instance_admin"`
 	AuthVersion     int64       `json:"auth_version"`
+	EmailVerified   bool        `json:"email_verified"`
 }
 
 type UserComposioConnection struct {

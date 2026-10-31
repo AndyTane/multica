@@ -80,7 +80,13 @@ func (h *Handler) PasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	credential, err := h.Queries.GetLocalPasswordCredentialByUsername(r.Context(), username)
+	// The credential hash and the account auth_version are read as ONE row, so
+	// the version signed into the token is the version that was current for the
+	// hash this request verifies. Reading them separately let a password change
+	// commit in between: the request compared the old password but signed a
+	// token carrying the new version, handing the old credential a valid
+	// session after it had been revoked.
+	state, err := h.Queries.GetLocalPasswordLoginState(r.Context(), username)
 	if err != nil {
 		if !isNotFound(err) {
 			slog.Warn("local password credential lookup failed", append(logger.RequestAttrs(r), "error", err)...)
@@ -94,15 +100,17 @@ func (h *Handler) PasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !auth.VerifyLocalPassword(credential.PasswordHash, req.Password) {
+	if !auth.VerifyLocalPassword(state.PasswordHash, req.Password) {
 		writeError(w, http.StatusUnauthorized, passwordLoginGenericError)
 		return
 	}
 
-	// Credential matched; now resolve the user it belongs to. A credential whose
-	// user row is gone fails exactly like a wrong password, and a disabled user
-	// gets the same 403 the other login methods return.
-	user, err := h.Queries.GetUser(r.Context(), credential.UserID)
+	// Credential matched; now resolve the full row for the response. The
+	// version must still equal the one read with the hash: if a password change
+	// committed between the two reads, this login verified a credential that is
+	// already gone and must fail like a wrong password rather than mint a
+	// session with the newer version.
+	user, err := h.Queries.GetUser(r.Context(), state.UserID)
 	if err != nil {
 		if isNotFound(err) {
 			writeError(w, http.StatusUnauthorized, passwordLoginGenericError)
@@ -112,12 +120,16 @@ func (h *Handler) PasswordLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to sign in")
 		return
 	}
+	if user.AuthVersion != state.AuthVersion {
+		writeError(w, http.StatusUnauthorized, passwordLoginGenericError)
+		return
+	}
 	if auth.IsTemporarilyDisabledUser(uuidToString(user.ID), user.Email) {
 		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
 		return
 	}
 
-	tokenString, err := h.issueJWT(user)
+	tokenString, err := h.issueJWTWithVersion(user, state.AuthVersion)
 	if err != nil {
 		if errors.Is(err, auth.ErrTemporarilyDisabledUser) {
 			writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)

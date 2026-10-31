@@ -178,7 +178,7 @@ func TestP5ChangePasswordRevokesOldSessions(t *testing.T) {
 		"new_password":     newPassword,
 	})
 	req.Header.Set("X-User-ID", userID)
-	testutil.Call(t, h.ChangeCurrentPassword, req).Want(http.StatusUnauthorized)
+	testutil.Call(t, h.ChangeCurrentPassword, req).Want(http.StatusBadRequest)
 
 	req = p5JSONRequest(t, http.MethodPost, "/api/me/password", map[string]string{
 		"current_password": oldPassword,

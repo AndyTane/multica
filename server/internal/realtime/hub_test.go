@@ -62,7 +62,7 @@ func (s staticPATResolver) ResolveToken(_ context.Context, token string) (string
 func TestAuthenticateTokenRejectsTemporarilyDisabledJWTUser(t *testing.T) {
 	token := makeTestTokenForUser(t, "514492f7-b30f-4147-bd33-c0e8ce5d6d4f", "")
 
-	uid, errMsg := authenticateToken(token, nil, context.Background())
+	uid, _, errMsg := authenticateToken(token, nil, nil, context.Background())
 	if uid != "" {
 		t.Fatalf("expected no user ID, got %q", uid)
 	}
@@ -72,9 +72,9 @@ func TestAuthenticateTokenRejectsTemporarilyDisabledJWTUser(t *testing.T) {
 }
 
 func TestAuthenticateTokenRejectsTemporarilyDisabledPATUser(t *testing.T) {
-	uid, errMsg := authenticateToken("mul_disabled", staticPATResolver{
+	uid, _, errMsg := authenticateToken("mul_disabled", staticPATResolver{
 		"mul_disabled": "1d542296-17c6-484a-9914-dcee589be116",
-	}, context.Background())
+	}, nil, context.Background())
 	if uid != "" {
 		t.Fatalf("expected no user ID, got %q", uid)
 	}
@@ -91,7 +91,7 @@ func newTestHub(t *testing.T) (*Hub, *httptest.Server) {
 	mc := &mockMembershipChecker{}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		HandleWebSocket(hub, mc, nil, nil, w, r)
+		HandleWebSocket(hub, mc, nil, nil, nil, w, r)
 	})
 	server := httptest.NewServer(mux)
 	return hub, server

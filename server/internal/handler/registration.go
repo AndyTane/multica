@@ -176,32 +176,16 @@ func (h *Handler) RedeemRegistrationInvite(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	ctx := r.Context()
-	invite, err := h.Queries.GetRegistrationInviteByTokenHash(ctx, auth.RegistrationTokenHash(token))
+	tokenHash := auth.RegistrationTokenHash(token)
+	// Resolve the target outside the transaction only to learn which account
+	// key to take. Every decision below re-reads the same rows after the lock,
+	// so this read cannot authorize anything by itself.
+	lookup, err := h.Queries.GetRegistrationInviteByTokenHash(ctx, tokenHash)
 	if err != nil {
 		if !isNotFound(err) {
 			slog.Warn("registration invite lookup failed", append(logger.RequestAttrs(r), "error", err)...)
 		}
 		writeErrorCode(w, http.StatusBadRequest, "invalid_invite", registrationInviteGenericError)
-		return
-	}
-	if invite.ConsumedAt.Valid || invite.RevokedAt.Valid || !invite.ExpiresAt.Valid || !time.Now().Before(invite.ExpiresAt.Time) {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_invite", registrationInviteGenericError)
-		return
-	}
-	user, err := h.Queries.GetUser(ctx, invite.UserID)
-	if err != nil {
-		writeErrorCode(w, http.StatusBadRequest, "invalid_invite", registrationInviteGenericError)
-		return
-	}
-	if auth.IsTemporarilyDisabledUser(uuidToString(user.ID), user.Email) {
-		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
-		return
-	}
-	if _, err := h.Queries.GetLocalPasswordCredentialByUserID(ctx, user.ID); err == nil {
-		writeErrorCode(w, http.StatusConflict, "already_activated", "this account already has a password")
-		return
-	} else if !isNotFound(err) {
-		writeError(w, http.StatusInternalServerError, "failed to check account state")
 		return
 	}
 	tx, err := h.TxStarter.Begin(ctx)
@@ -211,6 +195,41 @@ func (h *Handler) RedeemRegistrationInvite(w http.ResponseWriter, r *http.Reques
 	}
 	defer tx.Rollback(ctx)
 	qtx := h.Queries.WithTx(tx)
+	// Redemption, regeneration, revocation and account deletion all serialize
+	// on this account key. Without it a regenerate could revoke and re-mint
+	// between this request's validity check and its consume.
+	if err := lockAccountKey(ctx, qtx, accountUserKey(lookup.UserID)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to set password")
+		return
+	}
+	invite, err := qtx.GetRegistrationInviteByTokenHash(ctx, tokenHash)
+	if err != nil {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_invite", registrationInviteGenericError)
+		return
+	}
+	if invite.ConsumedAt.Valid || invite.RevokedAt.Valid || !invite.ExpiresAt.Valid || !time.Now().Before(invite.ExpiresAt.Time) {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_invite", registrationInviteGenericError)
+		return
+	}
+	user, err := qtx.GetUser(ctx, invite.UserID)
+	if err != nil {
+		writeErrorCode(w, http.StatusBadRequest, "invalid_invite", registrationInviteGenericError)
+		return
+	}
+	if auth.IsTemporarilyDisabledUser(uuidToString(user.ID), user.Email) {
+		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+		return
+	}
+	// An account that already has a password is refused inside the lock: a
+	// concurrent redemption or a rotate-after-redemption must not be able to
+	// turn a first-time invitation into a password reset.
+	if _, err := qtx.GetLocalPasswordCredentialByUserID(ctx, user.ID); err == nil {
+		writeErrorCode(w, http.StatusConflict, "already_activated", "this account already has a password")
+		return
+	} else if !isNotFound(err) {
+		writeError(w, http.StatusInternalServerError, "failed to check account state")
+		return
+	}
 	consumed, err := qtx.ConsumeRegistrationInvite(ctx, invite.ID)
 	if err != nil || consumed != 1 {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_invite", registrationInviteGenericError)
@@ -298,7 +317,10 @@ func (h *Handler) OpenRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 	qtx := h.Queries.WithTx(tx)
-	user, err := qtx.CreateUser(ctx, db.CreateUserParams{Name: name, Email: email})
+	// Open registration creates an UNVERIFIED identity: the address is what the
+	// registrant typed, so it must not unlock invitations addressed to that
+	// mailbox. Invitation redemption and admin provisioning stay verified.
+	user, err := qtx.CreateUnverifiedUser(ctx, db.CreateUnverifiedUserParams{Name: name, Email: email})
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
