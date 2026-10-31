@@ -244,7 +244,7 @@ host still serving after the starting SSH session closed. See
 issues found on that machine and `evidence/clawsta-80/cross-machine/` for the
 sanitized results.
 
-## HTTPS entry (P2)
+## HTTPS entry (P2/P3)
 
 The LAN deployment fronts the loopback API and web server with Caddy; plain HTTP
 on the old port only redirects. The exact files that are deployed live in

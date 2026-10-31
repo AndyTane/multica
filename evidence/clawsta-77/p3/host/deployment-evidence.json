@@ -1,0 +1,95 @@
+{
+    "generated_at":  "2026-10-31T03:52:24.8149389Z",
+    "identity":  {
+                     "present":  true,
+                     "display_name":  "Tane",
+                     "onboarded":  true,
+                     "own_workspace_owner":  "uworkers",
+                     "membership_scope":  "uworkers:owner",
+                     "member_of_existing_c1_workspace":  false
+                 },
+    "existing_acceptance_account":  {
+                                        "present":  true,
+                                        "c1_owner":  true
+                                    },
+    "credentials":  {
+                        "total":  0,
+                        "formal_credential_set":  false
+                    },
+    "https_entry":  {
+                        "task_settings":  {
+                                              "name":  "UWorkers-CLAWSTA80-HTTPS",
+                                              "state":  "Running",
+                                              "execution_time_limit":  "PT0S",
+                                              "restart_count":  999,
+                                              "restart_interval":  "PT1M",
+                                              "disallow_start_if_on_batteries":  false,
+                                              "stop_if_going_on_batteries":  false,
+                                              "multiple_instances":  "IgnoreNew",
+                                              "principal":  "SYSTEM",
+                                              "logon_type":  "ServiceAccount",
+                                              "run_level":  "Highest",
+                                              "triggers":  [
+                                                               "MSFT_TaskBootTrigger"
+                                                           ]
+                                          },
+                        "supervisor_verified":  true,
+                        "caddy_processes":  1,
+                        "https_listening":  true,
+                        "http_redirect_listening":  true,
+                        "health_http_status":  200,
+                        "tls_verify_result":  0
+                    },
+    "tls":  {
+                "ca_subject":  "CN=Caddy Local Authority - 2026 ECC Root",
+                "ca_sha256":  "BC77D804B7EDA0FA405E3CBB833097A1348044654393704CC3FCDAAD86D6EC25",
+                "ca_trusted_in_machine_store":  true,
+                "leaf_ip_san":  "IP Address=192.168.3.49"
+            },
+    "deployment":  {
+                       "release":  "D:\\UWorkers\\clawsta80\\native\\releases\\v0.2.0-20261031111027",
+                       "app_source_commit":  "065e20ad00af6bf43da0fb24e3cfd522bf95ff7d",
+                       "deployment_script_sha256":  "F531993716C76CF19A667163633263F19B19BB14AA039475E10E64BFF42B2E44",
+                       "caddyfile_sha256":  "E70021D19C9DC886D981EAB05C146FC6B30DE8797BB07C714E5B745A04F6AAFF",
+                       "caddy_version":  "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+                       "backups":  [
+                                       "native-20261031-110818",
+                                       "native-20261031-114617"
+                                   ],
+                       "releases":  [
+                                        "v0.2.0-20261031030941",
+                                        "v0.2.0-20261031111027"
+                                    ],
+                       "public_origin":  "https://192.168.3.49:13443",
+                       "firewall":  [
+                                        {
+                                            "name":  "UWorkers-CLAWSTA80-Web-13001",
+                                            "enabled":  "True",
+                                            "direction":  "Inbound",
+                                            "action":  "Allow",
+                                            "remote":  "192.168.3.0/255.255.255.0,100.102.214.78",
+                                            "local_port":  "13001"
+                                        },
+                                        {
+                                            "name":  "UWorkers-CLAWSTA80-HTTPS-13443",
+                                            "enabled":  "True",
+                                            "direction":  "Inbound",
+                                            "action":  "Allow",
+                                            "remote":  "192.168.3.0/255.255.255.0",
+                                            "local_port":  "13443"
+                                        }
+                                    ]
+                   },
+    "local_login_entry":  {
+                              "script":  "D:\\UWorkers\\clawsta80\\native\\Set-UWorkers-Login.ps1",
+                              "cmd":  "D:\\UWorkers\\clawsta80\\native\\Set-UWorkers-Login.cmd",
+                              "desktop_shortcut_present":  true,
+                              "script_present":  true,
+                              "cmd_present":  true,
+                              "identity_file_acl_protected":  true,
+                              "identity_file_acl_rules":  [
+                                                              "NT AUTHORITY\\SYSTEM",
+                                                              "CHUN-I5-12400F-\\Administrator"
+                                                          ]
+                          }
+}

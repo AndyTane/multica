@@ -4,10 +4,10 @@
 # owns only the TLS reverse proxy that fronts them, and it must keep running
 # independently of whichever agent or SSH session started it:
 #
-#   -Action Start    register the ONSTART scheduled task (once) and run it now
+#   -Action Start    apply the ONSTART task definition (idempotent) and run it
 #   -Action Run      the supervisor loop the scheduled task executes
 #   -Action Stop     stop the proxy (verified PID + start time)
-#   -Action Status   task, process, listeners, certificate and upstream checks
+#   -Action Status   task settings, process, listeners, certificate and upstream checks
 #   -Action Trust    install the local CA root into this host's machine store
 #   -Action Untrust  remove that trust entry
 #   -Action ExportRoot  copy the public root certificate out for clients
@@ -83,20 +83,42 @@ function Get-OwnedProcess {
     if (-not $state.Caddy) { return $null }
     $process = Get-Process -Id ([int]$state.Caddy.Pid) -ErrorAction SilentlyContinue
     if (-not $process) { return $null }
-    if ($process.Path -ne [string]$state.Caddy.Executable) { return $null }
-    $recorded = [datetime]::Parse([string]$state.Caddy.StartedAt, $null, [Globalization.DateTimeStyles]::RoundtripKind)
-    $delta = ($process.StartTime.ToUniversalTime() - $recorded.ToUniversalTime()).TotalSeconds
-    if ([math]::Abs($delta) -gt 2) { return $null }
+    $processPath = $null
+    try { $processPath = $process.Path } catch { }
+    $recordedPath = [string]$state.Caddy.Executable
+    if ($processPath -and $recordedPath -and $processPath -ne $recordedPath) { return $null }
+    if (-not $processPath -and $recordedPath -and $recordedPath -ne $script:Exe) { return $null }
+    try {
+        $recorded = [datetime]::Parse([string]$state.Caddy.StartedAt, $null, [Globalization.DateTimeStyles]::RoundtripKind)
+        $delta = ($process.StartTime.ToUniversalTime() - $recorded.ToUniversalTime()).TotalSeconds
+        if ([math]::Abs($delta) -gt 10) { return $null }
+    } catch { }
     return $process
 }
 
 function Get-ProcessRecord {
-    param($Process)
+    param($Process, [string]$FallbackExecutable)
+    $executable = $null
+    $startedAt = $null
+    try { $executable = $Process.Path } catch { }
+    if (-not $executable) { $executable = $FallbackExecutable }
+    try { $startedAt = $Process.StartTime.ToUniversalTime().ToString('o') } catch { $startedAt = (Get-Date).ToUniversalTime().ToString('o') }
     return [ordered]@{
         Pid = $Process.Id
-        Executable = $Process.Path
-        StartedAt = $Process.StartTime.ToUniversalTime().ToString('o')
+        Executable = $executable
+        StartedAt = $startedAt
     }
+}
+
+function Get-ManagedCaddyProcesses {
+    # The proxy is managed by exact executable path (never by process name), so
+    # an orphaned caddy is always attributable to this deployment's https dir.
+    $processes = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $script:Exe })
+    $result = @()
+    foreach ($process in $processes) {
+        $result += Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue
+    }
+    return @($result | Where-Object { $_ -ne $null })
 }
 
 function Wait-Listening {
@@ -111,14 +133,57 @@ function Wait-Listening {
     return $false
 }
 
-function Register-ScheduledTaskIfMissing {
-    $query = Invoke-Schtasks @('/Query', '/TN', $script:TaskName)
-    if ($query.ExitCode -eq 0) { return }
+function New-HttpsTaskDefinition {
     $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Action Run -Root "' + $Root + '"'
-    $create = Invoke-Schtasks @('/Create', '/TN', $script:TaskName, '/SC', 'ONSTART', '/RU', 'SYSTEM', '/RL', 'HIGHEST', '/TR', ('"' + $shell + '" ' + $arguments), '/F')
-    if ($create.ExitCode -ne 0) { throw ('Failed to register HTTPS scheduled task: ' + $create.Output) }
-    Write-LifecycleLog ('registered scheduled task ' + $script:TaskName)
+    $action = New-ScheduledTaskAction -Execute $shell -Argument $arguments
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    # No execution time limit (0 = unlimited works around the default PT72H that
+    # silently kills a daily-use supervisor after three days), restart on
+    # failure, and no battery conditions so a laptop host cannot pause the proxy.
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
+    return [pscustomobject]@{ Action = $action; Trigger = $trigger; Principal = $principal; Settings = $settings }
+}
+
+function Get-TaskSettingsSnapshot {
+    $task = Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue
+    if (-not $task) { return $null }
+    $settings = $task.Settings
+    return [ordered]@{
+        name = $script:TaskName
+        state = [string]$task.State
+        execution_time_limit = [string]$settings.ExecutionTimeLimit
+        restart_count = [int]$settings.RestartCount
+        restart_interval = [string]$settings.RestartInterval
+        disallow_start_if_on_batteries = [bool]$settings.DisallowStartIfOnBatteries
+        stop_if_going_on_batteries = [bool]$settings.StopIfGoingOnBatteries
+        multiple_instances = [string]$settings.MultipleInstances
+        principal = [string]$task.Principal.UserId
+        logon_type = [string]$task.Principal.LogonType
+        run_level = [string]$task.Principal.RunLevel
+        triggers = @($task.Triggers | ForEach-Object { $_.CimClass.CimClassName })
+    }
+}
+
+function Ensure-ScheduledTask {
+    $definition = New-HttpsTaskDefinition
+    $existing = Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue
+    if ($existing) {
+        # Applies the settings to the existing task even while it is running;
+        # Set-ScheduledTask leaves the running instance alone, so Start never
+        # restarts a healthy supervisor just to update its definition.
+        $null = Set-ScheduledTask -TaskName $script:TaskName -Action $definition.Action -Trigger $definition.Trigger -Principal $definition.Principal -Settings $definition.Settings
+        Write-LifecycleLog 'scheduled task settings applied to existing task'
+    } else {
+        $null = Register-ScheduledTask -TaskName $script:TaskName -Action $definition.Action -Trigger $definition.Trigger -Principal $definition.Principal -Settings $definition.Settings -Force
+        Write-LifecycleLog ('registered scheduled task ' + $script:TaskName)
+    }
+    $snapshot = Get-TaskSettingsSnapshot
+    if ([string]$snapshot.execution_time_limit -eq 'PT72H') { throw 'scheduled task still carries the default 72-hour execution limit' }
+    if ($snapshot.disallow_start_if_on_batteries -or $snapshot.stop_if_going_on_batteries) { throw 'scheduled task still stops on battery conditions' }
+    if ([int]$snapshot.restart_count -lt 1) { throw 'scheduled task has no restart-on-failure setting' }
+    return $snapshot
 }
 
 function Invoke-Run {
@@ -128,7 +193,12 @@ function Invoke-Run {
     try {
         while (-not (Test-Path -LiteralPath $script:StopFile)) {
             $caddy = Start-Process -FilePath $script:Exe -ArgumentList @('run', '--config', $script:Caddyfile, '--adapter', 'caddyfile') -PassThru -WindowStyle Hidden
-            $record = [ordered]@{ Caddy = (Get-ProcessRecord $caddy); UpdatedAt = (Get-Date).ToUniversalTime().ToString('o') }
+            $supervisor = Get-Process -Id $PID -ErrorAction SilentlyContinue
+            $record = [ordered]@{
+                Supervisor = if ($supervisor) { Get-ProcessRecord $supervisor $PSCommandPath } else { $null }
+                Caddy = Get-ProcessRecord $caddy $script:Exe
+                UpdatedAt = (Get-Date).ToUniversalTime().ToString('o')
+            }
             [IO.File]::WriteAllText($script:StateFile, ($record | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
             Write-LifecycleLog ('caddy started pid=' + $caddy.Id)
             while (-not $caddy.HasExited) {
@@ -150,45 +220,105 @@ function Invoke-Run {
     }
 }
 
-function Invoke-Start {
-    Register-ScheduledTaskIfMissing
-    $run = Invoke-Schtasks @('/Run', '/TN', $script:TaskName)
-    if ($run.ExitCode -ne 0) { throw ('Failed to start HTTPS task: ' + $run.Output) }
-    if (-not (Wait-Listening $script:ListenPort 60)) {
-        throw 'HTTPS listener did not come up within 60 seconds; inspect https\logs\access.log and https\logs\supervisor.log'
+function Get-TaskState {
+    $task = Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue
+    if (-not $task) { return '' }
+    return [string]$task.State
+}
+
+function Complete-Stop {
+    # Ends the task and clears any proxy process whose exact executable path is
+    # this deployment's caddy.exe. The supervisor is normally stopped through
+    # the stop file; the pid check below only handles an orphan left behind by
+    # an abrupt task termination, never a process matched by name.
+    [void](Invoke-Schtasks @('/End', '/TN', $script:TaskName))
+    $deadline = (Get-Date).AddSeconds(15)
+    while ((Get-Date) -lt $deadline) {
+        if (@(Get-ManagedCaddyProcesses).Count -eq 0) { break }
+        Start-Sleep -Milliseconds 500
     }
-    Write-Output ('HTTPS entry listening on https://' + $script:ListenAddress + ':' + $script:ListenPort)
+    $remaining = @(Get-ManagedCaddyProcesses)
+    foreach ($process in $remaining) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        Write-Output ('stopped orphan caddy pid ' + $process.Id)
+    }
+    $deadline = (Get-Date).AddSeconds(15)
+    while ((Get-Date) -lt $deadline) {
+        if (@(Get-ManagedCaddyProcesses).Count -eq 0) { break }
+        Start-Sleep -Milliseconds 500
+    }
+    Remove-Item -LiteralPath $script:StateFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $script:StopFile -Force -ErrorAction SilentlyContinue
+    Write-Output ('HTTPS entry stopped; caddy_procs=' + @(Get-ManagedCaddyProcesses).Count + ' task_state=' + (Get-TaskState))
 }
 
 function Invoke-Stop {
     New-Item -ItemType Directory -Path (Split-Path -Parent $script:StopFile) -Force | Out-Null
     Set-Content -LiteralPath $script:StopFile -Value 'stop' -Encoding ascii
-    [void](Invoke-Schtasks @('/End', '/TN', $script:TaskName))
-    $deadline = (Get-Date).AddSeconds(30)
+    # Give the supervisor the chance to stop its own child first (2s poll loop).
+    $deadline = (Get-Date).AddSeconds(20)
     while ((Get-Date) -lt $deadline) {
-        if (-not (Get-OwnedProcess)) { break }
-        Start-Sleep -Seconds 1
+        if (@(Get-ManagedCaddyProcesses).Count -eq 0) { break }
+        Start-Sleep -Milliseconds 500
     }
-    $owned = Get-OwnedProcess
-    if ($owned) {
-        Stop-Process -Id $owned.Id -Force -ErrorAction SilentlyContinue
-        Write-Output ('forced stop of verified caddy pid ' + $owned.Id)
+    Complete-Stop
+}
+
+function Invoke-Start {
+    $snapshot = Ensure-ScheduledTask
+    $taskState = Get-TaskState
+    $managed = @(Get-ManagedCaddyProcesses)
+    $healthy = ($taskState -eq 'Running') -and ($managed.Count -ge 1)
+    if (-not $healthy) {
+        if ($managed.Count -ge 1 -or $taskState -eq 'Running') {
+            Write-LifecycleLog ('resetting proxy before start: task_state=' + $taskState + ' caddy_procs=' + $managed.Count)
+            New-Item -ItemType Directory -Path (Split-Path -Parent $script:StopFile) -Force | Out-Null
+            Set-Content -LiteralPath $script:StopFile -Value 'stop' -Encoding ascii
+            Complete-Stop
+        }
+        Start-ScheduledTask -TaskName $script:TaskName
+        Write-LifecycleLog 'scheduled task started'
+    } else {
+        Write-LifecycleLog 'proxy already running; task settings updated in place'
     }
-    Remove-Item -LiteralPath $script:StateFile -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $script:StopFile -Force -ErrorAction SilentlyContinue
-    Write-Output 'HTTPS entry stopped'
+    if (-not (Wait-Listening $script:ListenPort 60)) {
+        throw 'HTTPS listener did not come up within 60 seconds; inspect https\logs\access.log and https\logs\supervisor.log'
+    }
+    $finalState = Get-TaskState
+    $finalManaged = @(Get-ManagedCaddyProcesses)
+    Write-Output ('HTTPS entry listening on https://' + $script:ListenAddress + ':' + $script:ListenPort)
+    Write-Output ('task_state=' + $finalState + ' caddy_procs=' + $finalManaged.Count)
+    Write-Output ('task_settings=' + ($snapshot | ConvertTo-Json -Compress))
+    if ($finalState -ne 'Running') { throw ('HTTPS scheduled task is not running after start: ' + $finalState) }
+    if ($finalManaged.Count -ne 1) { throw ('exactly one caddy process expected after start, found ' + $finalManaged.Count) }
+}
+
+function Get-OwnedSupervisor {
+    # The supervisor is our own '-Action Run' process. Verify it by PID, script
+    # path in the command line and recorded start time, never by process name.
+    if (-not (Test-Path -LiteralPath $script:StateFile)) { return $null }
+    $state = Get-Content -LiteralPath $script:StateFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $state.Supervisor) { return $null }
+    $process = Get-Process -Id ([int]$state.Supervisor.Pid) -ErrorAction SilentlyContinue
+    if (-not $process) { return $null }
+    $details = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $process.Id) -ErrorAction SilentlyContinue
+    if (-not $details) { return $null }
+    $commandLine = [string]$details.CommandLine
+    if ($commandLine -notlike '*-Action Run*') { return $null }
+    if ($commandLine -notlike ('*' + $PSCommandPath + '*')) { return $null }
+    try {
+        $recorded = [datetime]::Parse([string]$state.Supervisor.StartedAt, $null, [Globalization.DateTimeStyles]::RoundtripKind)
+        $delta = ($process.StartTime.ToUniversalTime() - $recorded.ToUniversalTime()).TotalSeconds
+        if ([math]::Abs($delta) -gt 10) { return $null }
+    } catch { }
+    return $process
 }
 
 function Invoke-Status {
-    $task = Invoke-Schtasks @('/Query', '/TN', $script:TaskName, '/FO', 'LIST')
-    $taskOk = $task.ExitCode -eq 0
-    $taskState = ''
-    if ($taskOk) {
-        # The task state label is OS-localized; report the query output as-is
-        # instead of pattern-matching an English word.
-        $taskState = [string]$task.Output.Trim()
-    }
-    $owned = Get-OwnedProcess
+    $taskSnapshot = Get-TaskSettingsSnapshot
+    $taskOk = ($null -ne $taskSnapshot)
+    $supervisor = Get-OwnedSupervisor
+    $managed = @(Get-ManagedCaddyProcesses)
     $listening = $false
     try { $listening = [bool](Get-NetTCPConnection -State Listen -LocalPort $script:ListenPort -ErrorAction SilentlyContinue) } catch { }
     $redirectListening = $false
@@ -204,9 +334,12 @@ function Invoke-Status {
     }
     [pscustomobject]@{
         task_installed = $taskOk
-        task_state = $taskState
-        caddy_running = [bool]$owned
-        caddy_pid = if ($owned) { $owned.Id } else { $null }
+        task_settings = $taskSnapshot
+        caddy_running = ($managed.Count -ge 1)
+        caddy_pid = if ($managed.Count -ge 1) { $managed[0].Id } else { $null }
+        caddy_processes = $managed.Count
+        supervisor_pid = if ($supervisor) { $supervisor.Id } else { $null }
+        supervisor_verified = [bool]$supervisor
         https_listening = $listening
         http_redirect_listening = $redirectListening
         ca_root = $cert

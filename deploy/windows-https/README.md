@@ -3,7 +3,8 @@
 This directory contains the exact files that front the native Windows
 deployment with TLS and the local-admin login entry used for the CLAWSTA-80
 desktop. They were verified on 2026-10-31 against the live deployment
-(`D:\UWorkers\clawsta80\native`); see `evidence/clawsta-77/p2/`.
+(`D:\UWorkers\clawsta80\native`; P2 evidence in `evidence/clawsta-77/p2/`, P3
+identity/lifecycle evidence in `evidence/clawsta-77/p3/`).
 
 ## Shape
 
@@ -25,8 +26,9 @@ redirect listener are reachable from the LAN.
 | File | Purpose |
 | --- | --- |
 | `Caddyfile` | Reverse proxy config. Edit `192.168.3.49`, the ports and the two storage/log paths for another deployment. |
-| `caddy-windows.ps1` | Lifecycle: `Start`/`Stop`/`Status`/`Run` plus CA `Trust`/`Untrust`/`ExportRoot`. Registers the ONSTART scheduled task `UWorkers-CLAWSTA80-HTTPS` (runs as SYSTEM) and supervises `caddy run`. |
-| `Set-UWorkers-Login.ps1` + `.cmd` | Desk-host entry point for an operator/Tane to bind a password to an existing user with a hidden double prompt. Never stores or prints the password. |
+| `caddy-windows.ps1` | Lifecycle: `Start`/`Stop`/`Status`/`Run` plus CA `Trust`/`Untrust`/`ExportRoot`. Re-applies the ONSTART `UWorkers-CLAWSTA80-HTTPS` task definition on every `Start` (SYSTEM, no execution time limit, restart on failure, no battery stop), supervises `caddy run`, and stops orphans only by the exact managed executable path. |
+| `Set-UWorkers-Login.ps1` + `.cmd` | Desk-host entry pinned to the identity in `<deployment>\local-login-identity.json`: it verifies that id/email, refuses when a credential already exists, then lets the operator type a login name plus the hidden double password prompt. Never stores, prints or overwrites a password. |
+| `create-local-identity.ps1` | One-time host-local admin task: idempotently ensures one identity exists (single transaction, mirrors the CreateUser fields, reuses an existing row without overwriting it) and optionally writes the pinned identity file. The app itself gains no signup or back door. |
 | `create-login-shortcut.ps1` | Creates the public-desktop shortcut "设置 U Workers 登录". |
 | `import-client-root.ps1` | Imports the exported public root CA into the current Windows user's trust store on a client machine. The one-time Windows confirmation dialog is confirmed programmatically only after the SHA-256 fingerprint check passes. |
 
@@ -44,6 +46,27 @@ redirect listener are reachable from the LAN.
    run `import-client-root.ps1` there.
 5. Firewall: allow TCP `13443` inbound from the LAN subnet only; keep the
    existing `13001` redirect rule; the API/database ports must stay closed.
+6. Re-run `-Action Start` any time the script changes: it applies the task
+   definition in place (including while the proxy is healthy) without
+   restarting the supervisor.
+
+## Identity and first use
+
+1. Provision the one requested identity locally (admin, idempotent):
+
+   ```powershell
+   powershell -File create-local-identity.ps1 -Root <deployment> `
+     -Email <identity-email> -DisplayName "<name>" `
+     -IdentityFile <deployment>\local-login-identity.json
+   ```
+
+2. The person signs in through the normal HTTPS entry once an entry credential
+   exists and completes the normal first-use onboarding themselves (creates
+   their own workspace, picks "skip the runtime for now"). Do not edit
+   `onboarded_at` or create a workspace directly.
+3. Run `Set-UWorkers-Login.cmd` from the desktop shortcut: it checks the pinned
+   identity, asks for a login name and the hidden double password prompt, then
+   opens the login page. The permanent password is always typed by that person.
 
 ## Rollback
 
