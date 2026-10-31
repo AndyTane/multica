@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { useConfigStore } from "@multica/core/config";
 import { useAuthStore } from "@multica/core/auth";
-import { LoginPage, RegistrationPage, type RegistrationSuccess } from "@multica/views/auth";
+import {
+  clearPasswordChangedNotice,
+  LoginPage,
+  passwordChangedNoticeVisible,
+  RegistrationPage,
+  type RegistrationSuccess,
+} from "@multica/views/auth";
+import { useT } from "@multica/views/i18n";
 import { DragStrip } from "@multica/views/platform";
 import { ProductMark } from "@multica/ui/components/common/product-mark";
 
@@ -16,6 +23,7 @@ function requireRuntimeAppUrl(): string {
 }
 
 export function DesktopLoginPage() {
+  const { t } = useT("auth");
   const webUrl = requireRuntimeAppUrl();
   const googleClientId = useConfigStore((s) => s.googleClientId);
   const localPasswordLoginEnabled = useConfigStore(
@@ -27,6 +35,15 @@ export function DesktopLoginPage() {
   // shell mounts this page until a session exists, and a new route would need
   // tab/overlay plumbing that a one-shot pre-workspace flow should not own.
   const [step, setStep] = useState<"login" | "register">("login");
+
+  // A password change revokes the session and signs this window out, so the
+  // confirmation can only be read here. The marker is consumed on the first
+  // render (one-shot), not on every mount of the login step.
+  const [passwordChangedNotice] = useState(() => {
+    if (!passwordChangedNoticeVisible()) return undefined;
+    clearPasswordChangedNotice();
+    return t(($) => $.notice.password_changed);
+  });
 
   const handleGoogleLogin = () => {
     // Open web login page in the default browser with platform=desktop flag.
@@ -72,6 +89,7 @@ export function DesktopLoginPage() {
               : undefined
           }
           configReady={authConfigLoaded}
+          notice={passwordChangedNotice}
         />
       )}
     </div>

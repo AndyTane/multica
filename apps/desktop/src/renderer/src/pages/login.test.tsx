@@ -18,45 +18,65 @@ vi.mock("@multica/core/auth", () => ({
   }),
 }));
 vi.mock("@multica/views/platform", () => ({ DragStrip: () => null }));
-vi.mock("@multica/views/auth", () => ({
-  LoginPage: ({
-    onGoogleLogin,
-    onRegister,
-    configReady,
-  }: {
-    onGoogleLogin?: () => void;
-    onRegister?: () => void;
-    configReady?: boolean;
-  }) => (
-    <>
-      <span>Email login</span>
-      <span>{configReady ? "config ready" : "config pending"}</span>
-      {onGoogleLogin && <button onClick={onGoogleLogin}>Google</button>}
-      {onRegister && <button onClick={onRegister}>Register</button>}
-    </>
-  ),
-  RegistrationPage: ({
-    onSuccess,
-    onBack,
-  }: {
-    onSuccess: (result: { token: string; user: { id: string } }) => void;
-    onBack?: () => void;
-  }) => (
-    <>
-      <span>Registration step</span>
-      <button
-        onClick={() => onSuccess({ token: "session-token", user: { id: "user-1" } })}
-      >
-        Complete
-      </button>
-      <button onClick={onBack}>Back to login</button>
-    </>
-  ),
+// The page only reads the localized notice key; the real i18n provider is
+// exercised by the views package, so a fixed string keeps this wiring test
+// focused on the one-shot marker.
+vi.mock("@multica/views/i18n", () => ({
+  useT: () => ({ t: () => "Password changed. Sign in with your new password." }),
 }));
+vi.mock("@multica/views/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@multica/views/auth")>();
+  return {
+    ...actual,
+    LoginPage: ({
+      notice,
+      onGoogleLogin,
+      onRegister,
+      configReady,
+    }: {
+      notice?: string;
+      onGoogleLogin?: () => void;
+      onRegister?: () => void;
+      configReady?: boolean;
+    }) => (
+      <>
+        <span>Email login</span>
+        <span>{configReady ? "config ready" : "config pending"}</span>
+        {notice ? <span>{notice}</span> : null}
+        {onGoogleLogin && <button onClick={onGoogleLogin}>Google</button>}
+        {onRegister && <button onClick={onRegister}>Register</button>}
+      </>
+    ),
+    RegistrationPage: ({
+      onSuccess,
+      onBack,
+    }: {
+      onSuccess: (result: { token: string; user: { id: string } }) => void;
+      onBack?: () => void;
+    }) => (
+      <>
+        <span>Registration step</span>
+        <button
+          onClick={() =>
+            onSuccess({ token: "session-token", user: { id: "user-1" } })
+          }
+        >
+          Complete
+        </button>
+        <button onClick={onBack}>Back to login</button>
+      </>
+    ),
+  };
+});
 
+import {
+  clearPasswordChangedNotice,
+  markPasswordChanged,
+} from "@multica/views/auth";
 import { DesktopLoginPage } from "./login";
 
 beforeEach(() => {
+  clearPasswordChangedNotice();
   config.googleClientId = "";
   config.authConfigLoaded = true;
   config.localPasswordLoginEnabled = true;
@@ -107,6 +127,20 @@ describe("Desktop auth methods", () => {
     fireEvent.click(screen.getByRole("button", { name: "Complete" }));
     expect(auth.adoptSession).toHaveBeenCalledWith("session-token", { id: "user-1" });
     expect(screen.getByText("Email login")).toBeInTheDocument();
+  });
+
+  it("shows the password-changed notice once and not again", () => {
+    markPasswordChanged();
+    const first = render(<DesktopLoginPage />);
+    expect(
+      screen.getByText("Password changed. Sign in with your new password."),
+    ).toBeInTheDocument();
+    first.unmount();
+
+    render(<DesktopLoginPage />);
+    expect(
+      screen.queryByText("Password changed. Sign in with your new password."),
+    ).toBeNull();
   });
 
   it("returns to the login step from registration", () => {
