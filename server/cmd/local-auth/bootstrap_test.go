@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"flag"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +19,24 @@ import (
 // P5-R1: the one-time host bootstrap. It provisions exactly one pinned
 // identity, refuses to replace an existing password, opens the setup page
 // privately, and never prints the invitation secret.
+
+// TestCommandFlagsParseWithoutPanic drives the real CLI entry point for every
+// command. Registering a flag twice panics the FlagSet before any work runs, and
+// that is exactly how `bootstrap-host` — the only host entry that can give the
+// pinned operator a first password — failed on the deployed host. Parsing stops
+// at --help, so this needs no database and cannot touch one.
+func TestCommandFlagsParseWithoutPanic(t *testing.T) {
+	for _, command := range []string{"create", "reset", "delete", "list", "invite", "grant-admin", "bootstrap-host"} {
+		command := command
+		t.Run(command, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			err := run([]string{command, "--help"}, &stdout, &stderr)
+			if !errors.Is(err, flag.ErrHelp) {
+				t.Fatalf("%s --help: got %v, want flag.ErrHelp", command, err)
+			}
+		})
+	}
+}
 
 func bootstrapEmailDigest(email string) string {
 	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(email))))

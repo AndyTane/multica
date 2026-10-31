@@ -27,7 +27,7 @@ redirect listener are reachable from the LAN.
 | --- | --- |
 | `Caddyfile` | Reverse proxy config. Edit `192.168.3.49`, the ports and the two storage/log paths for another deployment. |
 | `caddy-windows.ps1` | Lifecycle: `Start`/`Stop`/`Status`/`Run` plus CA `Trust`/`Untrust`/`ExportRoot`. Re-applies the ONSTART `UWorkers-CLAWSTA80-HTTPS` task definition on every `Start` (SYSTEM, no execution time limit, restart on failure, no battery stop), supervises `caddy run`, and stops orphans only by the exact managed executable path. |
-| `Set-UWorkers-Login.ps1` + `.cmd` | Desk-host entry pinned to the identity in `<deployment>\local-login-identity.json`: it verifies that id/email, refuses when a credential already exists, then lets the operator type a login name plus the hidden double password prompt. Never stores, prints or overwrites a password. |
+| `Set-UWorkers-Login.ps1` + `.cmd` | Desk-host entry pinned to the identity in `<deployment>\local-login-identity.json`: it verifies the pinned user id, the address's SHA-256 fingerprint and the live database row, requires an HTTPS `PublicOrigin`, and then either opens `/login` (a credential already exists; never reset or overwritten) or runs `local-auth.exe bootstrap-host`, which mints a 15-minute single-use invitation and opens `/register#token=…` in a private window. Never asks for, stores, or prints a password or the invitation secret. `-Preflight` runs the checks with no side effect. |
 | `create-local-identity.ps1` | One-time host-local admin task: idempotently ensures one identity exists (single transaction, mirrors the CreateUser fields, reuses an existing row without overwriting it) and optionally writes the pinned identity file. The app itself gains no signup or back door. |
 | `create-login-shortcut.ps1` | Creates the public-desktop shortcut "设置 U Workers 登录". |
 | `import-client-root.ps1` | Imports the exported public root CA into the current Windows user's trust store on a client machine. The one-time Windows confirmation dialog is confirmed programmatically only after the SHA-256 fingerprint check passes. |
@@ -71,8 +71,23 @@ redirect listener are reachable from the LAN.
    their own workspace, picks "skip the runtime for now"). Do not edit
    `onboarded_at` or create a workspace directly.
 3. Run `Set-UWorkers-Login.cmd` from the desktop shortcut: it checks the pinned
-   identity, asks for a login name and the hidden double password prompt, then
-   opens the login page. The permanent password is always typed by that person.
+   identity and the current release, then opens the web registration page. When no
+   credential exists it mints a 15-minute single-use invitation over
+   `local-auth.exe bootstrap-host` and opens `/register#token=…` privately; the
+   person types their own login name and password in that page. When a credential
+   already exists it opens `/login` and never touches the password. Afterwards
+   everything — sign-in, invitations, user removal, password change and the
+   instance open-registration switch — happens in Settings → 用户与注册.
+4. Grant the instance administrator capability only to the explicitly pinned
+   identity, never to a workspace owner by inference:
+
+   ```powershell
+   <deployment>\releases\<release>\local-auth.exe grant-admin --user-id <uuid> ^
+     --deployment-config <deployment>\deployment.json
+   ```
+
+   It is idempotent and refuses nothing else: verify the UUID and the email
+   fingerprint before running it.
 
 ## Rollback
 

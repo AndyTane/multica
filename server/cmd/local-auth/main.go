@@ -162,7 +162,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		fs.BoolVar(&stdoutToken, "stdout-token", false, "print the raw secret on stdout (host helper only)")
 	}
 	if command == "bootstrap-host" {
-		fs.StringVar(&deploymentConfig, "deployment-config", "", "native deployment.json (database connection and HTTPS origin)")
+		// --deployment-config is already registered for every command above:
+		// registering it again here panicked flag.FlagSet and made the entry
+		// unusable on the host.
 		fs.StringVar(&userID, "user-id", "", "pinned operator account UUID (required)")
 		fs.IntVar(&inviteMinutes, "minutes", 15, "invitation lifetime in minutes (max 15)")
 	}
