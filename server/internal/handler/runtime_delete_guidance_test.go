@@ -43,6 +43,28 @@ func conflictMessage(t *testing.T, body map[string]any) string {
 	return msg
 }
 
+// Product-owned blockers are marked by class, not by name: the workspace's
+// built-in Mika and any other system-owned agent get the same label, and both
+// have to name the product the user is running. Pinning the class matrix here
+// keeps a name-only fix from leaving the other class on the old brand.
+func TestBlockingAgentLabelMarksEveryProductOwnedClass(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		class blockingAgentClass
+	}{
+		{"built-in Mika", blockingAgentMika},
+		{"other system agent", blockingAgentOtherSystem},
+	} {
+		got := blockingAgentLabel("Siman", "Runtime", "online", tc.class)
+		if !strings.Contains(got, "built into U Workers)") {
+			t.Errorf("%s label = %q, want it marked as built into U Workers", tc.name, got)
+		}
+		if strings.Contains(got, "Multica") {
+			t.Errorf("%s label = %q, still names the old brand", tc.name, got)
+		}
+	}
+}
+
 // An offline profile-backed instance is the GH #8456 shape: the row the user
 // wants gone, on a machine that is never coming back. The refusal has to tell
 // them it is reclaimed on its own, because that is the whole answer — every

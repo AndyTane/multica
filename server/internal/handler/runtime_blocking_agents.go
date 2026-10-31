@@ -95,7 +95,7 @@ func blockingAgentLabel(name, runtimeName, runtimeStatus string, class blockingA
 	case blockingAgentBuilderCarrier:
 		return fmt.Sprintf("an unfinished Agent Builder session on %q (%s)", runtimeName, runtimeStatus)
 	case blockingAgentMika, blockingAgentOtherSystem:
-		return fmt.Sprintf("%q on %q (%s, built into Multica)", name, runtimeName, runtimeStatus)
+		return fmt.Sprintf("%q on %q (%s, built into U Workers)", name, runtimeName, runtimeStatus)
 	default:
 		return fmt.Sprintf("%q on %q (%s)", name, runtimeName, runtimeStatus)
 	}
