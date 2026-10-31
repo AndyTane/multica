@@ -3,11 +3,44 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
+
+// p5R3AssertNoSession fails when a refused account creation established a
+// browser session. Every rejection in this file must leave the caller anonymous:
+// no auth cookie, no CSRF cookie, no session token in the body.
+func p5R3AssertNoSession(t *testing.T, resp *testutil.Response) {
+	t.Helper()
+	for _, cookie := range resp.Result().Cookies() {
+		switch cookie.Name {
+		case auth.AuthCookieName, auth.CSRFCookieName, auth.SessionCSRFCookieName:
+			t.Fatalf("a refused registration set the %s cookie", cookie.Name)
+		}
+	}
+	if strings.Contains(resp.Text(), "\"token\"") {
+		t.Fatalf("a refused registration returned a session token: %s", resp.Text())
+	}
+}
+
+// p5R3AssertNoAccount fails when a refused registration left a user row or a
+// password credential behind.
+func p5R3AssertNoAccount(t *testing.T, email, username string) {
+	t.Helper()
+	if got := dbfx.Count(t, `SELECT count(*) FROM "user" WHERE email = $1`, email); got != 0 {
+		t.Fatalf("a refused registration created %d user rows for %s", got, email)
+	}
+	if got := dbfx.Count(t, `SELECT count(*) FROM local_password_credential WHERE username_normalized = $1`, username); got != 0 {
+		t.Fatalf("a refused registration created %d credentials for %s", got, username)
+	}
+	if got := dbfx.Count(t, `SELECT count(*) FROM local_password_credential WHERE user_id IN (SELECT id FROM "user" WHERE email = $1)`, email); got != 0 {
+		t.Fatalf("a refused registration created %d credentials for the %s account", got, email)
+	}
+}
 
 // TestP5R3AllowlistCannotBypassClosedRegistration is the reviewer's case: with
 // an email or domain allowlist configured, a self-registered address that
@@ -53,12 +86,8 @@ func TestP5R3AllowlistCannotBypassClosedRegistration(t *testing.T) {
 		if got := resp.Map()["code"]; got != code {
 			t.Fatalf("expected error %q, got %v", code, got)
 		}
-		if _, err := testHandler.Queries.GetUserByEmail(ctx, emails[i]); err == nil {
-			t.Fatalf("closed registration created a user for %s", emails[i])
-		}
-		if _, err := testHandler.Queries.GetLocalPasswordCredentialByUsername(ctx, usernames[i]); err == nil {
-			t.Fatalf("closed registration created a credential for %s", usernames[i])
-		}
+		p5R3AssertNoAccount(t, emails[i], usernames[i])
+		p5R3AssertNoSession(t, resp)
 	}
 
 	// Switch off (default): the allowlist must not admit either address.
@@ -72,8 +101,16 @@ func TestP5R3AllowlistCannotBypassClosedRegistration(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("enable open registration: %v", err)
 	}
+	t.Cleanup(func() { setOpenRegistrationValue(context.Background(), true) })
 	for i := range emails {
-		testutil.Call(t, h.OpenRegistration, p5JSONRequest(t, http.MethodPost, "/api/register/open", body(i))).Want(http.StatusOK)
+		resp := testutil.Call(t, h.OpenRegistration, p5JSONRequest(t, http.MethodPost, "/api/register/open", body(i))).Want(http.StatusOK)
+		// A self-registered address is not a proven identity.
+		if got := dbfx.Count(t, `SELECT count(*) FROM "user" WHERE email = $1 AND email_verified = false`, emails[i]); got != 1 {
+			t.Fatalf("open registration must create %s unverified, got %d matching rows", emails[i], got)
+		}
+		if len(resp.Result().Cookies()) == 0 {
+			t.Fatal("successful registration must establish a session")
+		}
 	}
 
 	// Open, but the address does not match the allowlist: refused, no account.
@@ -87,30 +124,6 @@ func TestP5R3AllowlistCannotBypassClosedRegistration(t *testing.T) {
 	if got := resp.Map()["code"]; got != "email_not_allowed" {
 		t.Fatalf("expected email_not_allowed for a non-matching address, got %v", got)
 	}
-	if _, err := testHandler.Queries.GetUserByEmail(ctx, outsider["email"]); err == nil {
-		t.Fatal("non-matching address created a user under the allowlist")
-	}
-}
-
-// TestP5R3InvitationRedemptionStaysAvailable keeps the "existing admin
-// invitation/password setup keeps working" contract: the open-registration
-// switch stays off in TestP5InviteRedeemIsSingleUse, and redemption must not
-// depend on it. This asserts the policy entry point itself does not gate
-// redemption.
-func TestP5R3InvitationRedemptionStaysAvailable(t *testing.T) {
-	ctx := context.Background()
-	h := p5Handler(t, Config{AllowSignup: false, LocalPasswordLoginEnabled: true})
-	dbfx.Cleanup(t, `DELETE FROM instance_setting WHERE key = $1`, openRegistrationSettingKey)
-	dbfx.Exec(t, `DELETE FROM instance_setting WHERE key = $1`, openRegistrationSettingKey)
-	// The admin invitation flow creates the account explicitly and does not run
-	// the self-service signup policy; a deployment with signup hard-off must
-	// still let an existing account set its first password.
-	email := "p5-r3-invite-existing-account@example.test"
-	dbfx.Cleanup(t, `DELETE FROM "user" WHERE email = $1`, email)
-	if err := h.checkSignupAllowed(ctx, email, false); err != nil {
-		t.Fatalf("existing account sign-in must not be gated: %v", err)
-	}
-	if err := h.checkSignupAllowed(ctx, email, true); err == nil {
-		t.Fatal("new account creation must stay closed")
-	}
+	p5R3AssertNoAccount(t, outsider["email"], outsider["username"])
+	p5R3AssertNoSession(t, resp)
 }

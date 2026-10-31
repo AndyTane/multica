@@ -205,12 +205,29 @@ func TestFindOrCreateUserGating(t *testing.T) {
 		}
 	})
 
-	t.Run("whitelisted_new_user_passes_policy", func(t *testing.T) {
-		cfg := Config{AllowSignup: false, AllowedEmails: []string{"whitelisted@test.com"}}
-		h := newTestHandler(cfg)
-		h.Queries = db.New(&mockDB{})
+	t.Run("whitelisted_new_user_needs_both_switches", func(t *testing.T) {
+		// A matching allowlist entry only narrows an already-open instance. It
+		// never substitutes for the deployment switch or the persistent
+		// instance switch, so the address is admitted only when both are on.
+		bothOn := Config{AllowSignup: true, AllowedEmails: []string{"whitelisted@test.com"}}
+		h := newTestHandler(bothOn)
+		h.Queries = db.New(&mockDB{openRegistration: true})
 		if err := h.checkSignupAllowed(context.Background(), "whitelisted@test.com", true); err != nil {
-			t.Fatalf("allowlisted address rejected: %v", err)
+			t.Fatalf("allowlisted address rejected with both switches on: %v", err)
+		}
+		for _, tt := range []struct {
+			name string
+			cfg  Config
+			open bool
+		}{
+			{"deployment_switch_off", Config{AllowSignup: false, AllowedEmails: []string{"whitelisted@test.com"}}, true},
+			{"instance_switch_off", bothOn, false},
+		} {
+			h := newTestHandler(tt.cfg)
+			h.Queries = db.New(&mockDB{openRegistration: tt.open})
+			if err := h.checkSignupAllowed(context.Background(), "whitelisted@test.com", true); !errors.Is(err, ErrSignupProhibited) {
+				t.Fatalf("%s: allowlisted address got err=%v, want ErrSignupProhibited", tt.name, err)
+			}
 		}
 	})
 }
