@@ -1,16 +1,16 @@
 ---
 title: セルフホストクイックスタート
-description: Docker Compose で Multica を起動し、ログインして、最初の実行用コンピュータを接続します。
+description: Docker Compose で U Workers を起動し、ログインして、最初の実行用コンピュータを接続します。
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Multica のセルフホストは 2 つの部分に分かれます。
+U Workers のセルフホストは 2 つの部分に分かれます。
 
 | 構成要素 | 実行するもの | 置く場所 |
 |---|---|---|
-| **Multica サービス** | Web、API、PostgreSQL | Docker をインストールした 1 台のマシン |
-| **実行用コンピュータ** | Multica デーモンと AI コーディングツール | 開発者が実際に作業するコンピュータ |
+| **U Workers サービス** | Web、API、PostgreSQL | Docker をインストールした 1 台のマシン |
+| **実行用コンピュータ** | U Workers デーモンと AI コーディングツール | 開発者が実際に作業するコンピュータ |
 
 両者は同じマシンでも、別々のマシンでも構いません。セルフホストで置き換えるのは Multica Cloud の部分だけです。
 
@@ -18,7 +18,7 @@ Multica のセルフホストは 2 つの部分に分かれます。
 
 ## 始める前に
 
-Multica サービスを実行するマシンには次が必要です。
+U Workers サービスを実行するマシンには次が必要です。
 
 - Docker Engine または Docker Desktop（`docker compose` が実行できること）
 - Git、Make、curl、OpenSSL
@@ -31,11 +31,11 @@ docker info
 docker compose version
 ```
 
-Multica は Compose v2（`docker compose`）を使います。旧版の `docker-compose` v1 はサポートされません。
+U Workers は Compose v2（`docker compose`）を使います。旧版の `docker-compose` v1 はサポートされません。
 
-実行用コンピュータには、Claude Code、Codex、Cursor などの [AI コーディングツール](/providers)を最低 1 つインストールし、ログインしておく必要があります。Multica CLI はステップ 5 でインストールします。
+実行用コンピュータには、Claude Code、Codex、Cursor などの [AI コーディングツール](/providers)を最低 1 つインストールし、ログインしておく必要があります。U Workers CLI はステップ 5 でインストールします。
 
-## 1. Multica を起動する
+## 1. U Workers を起動する
 
 サービスを実行するマシンで次を実行します。
 
@@ -49,7 +49,7 @@ make selfhost
 
 1. `.env.example` から `.env` を作成する
 2. `JWT_SECRET`、PostgreSQL パスワード、`MULTICA_VCS_SECRET_KEY`（セルフホストの Git 連携用の暗号化キー）をランダム生成する
-3. PostgreSQL、Multica backend、Multica frontend のイメージを取得する
+3. PostgreSQL、U Workers backend、U Workers frontend のイメージを取得する
 4. 永続化ボリュームを作成し、3 つのコンテナを起動する
 5. backend がヘルスチェックに応答し始めるまで待機する
 
@@ -100,7 +100,7 @@ Docker Compose はデフォルトで `3000` と `8080` を `127.0.0.1` だけに
 
 以下では 2 つのドメインを例にします。
 
-- `app.example.com`: Multica Web
+- `app.example.com`: U Workers Web
 - `api.example.com`: API、ヘルスチェック、デーモン接続
 
 まず `.env` に公開 URL を設定します。
@@ -217,7 +217,7 @@ docker compose -f docker-compose.selfhost.yml logs backend \
 作業はデーモンを実行しているユーザーの全権限で動作し、そのユーザーが読み書きできるものはすべて読み書きできます。個人アカウントではなく、専用の Unix ユーザー、コンテナ、または VM でデーモンを実行してください。[セキュリティモデル](/security-model)を参照してください。
 </Callout>
 
-まず Multica CLI をインストールします。
+まず U Workers CLI をインストールします。
 
 **macOS / Linux**
 
@@ -231,13 +231,13 @@ curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/ins
 irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
 ```
 
-Multica サービスがこのコンピュータでも動いている場合は、次を実行します。
+U Workers サービスがこのコンピュータでも動いている場合は、次を実行します。
 
 ```bash
 multica setup self-host
 ```
 
-Multica サービスが別のマシンで動いている場合は、先ほど設定した 2 つの URL を渡します。
+U Workers サービスが別のマシンで動いている場合は、先ほど設定した 2 つの URL を渡します。
 
 ```bash
 multica setup self-host \
@@ -261,7 +261,7 @@ multica daemon status
 
 ## 6. 最初の実行を完了する
 
-Multica に戻ります。ランタイム一覧にオンラインのランタイムが表示されたら、エージェントを作成し、最初のタスクを割り当てます。
+U Workers に戻ります。ランタイム一覧にオンラインのランタイムが表示されたら、エージェントを作成し、最初のタスクを割り当てます。
 
 実行ログが完了になり、タイムラインにエージェントの返信が現れれば、セルフホストのサービス、実行用コンピュータ、AI コーディングツールがつながっています。詳しい手順は[クイックスタート](/cloud-quickstart)のステップ 3〜5 を参照してください。
 
@@ -309,7 +309,7 @@ docker compose -f docker-compose.selfhost.yml up -d
 
 ### `git pull` が実際に更新するもの
 
-`git pull` が更新するのは **`docker-compose.selfhost.yml` そのもの**です — 新しい環境変数、新しいサービス、変更された healthcheck。新しい Multica のバージョンを取得する仕組み**ではありません**。
+`git pull` が更新するのは **`docker-compose.selfhost.yml` そのもの**です — 新しい環境変数、新しいサービス、変更された healthcheck。新しい U Workers のバージョンを取得する仕組み**ではありません**。
 
 実際に動くバージョンを決めるのは `docker compose pull` で、そのタグが今どのイメージを指しているかを GHCR に問い合わせます。したがって数か月更新していない checkout でも今日の `latest` イメージを取得できますし、逆に `git pull` だけではイメージを取得してコンテナを作り直すまで何も変わりません。
 

@@ -1,11 +1,11 @@
 ---
 title: デスクトップアプリ
-description: Multica Desktop をインストールし、デスクトップタブと内蔵デーモンを使い、セルフホストインスタンスに接続します。
+description: U Workers Desktop をインストールし、デスクトップタブと内蔵デーモンを使い、セルフホストインスタンスに接続します。
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Multica Desktop は macOS、Windows、Linux で利用できます。Web 版と同じアカウントとワークスペースデータを使いますが、ローカルマシンのデーモンを自動で管理し、ワークスペースごとに独立したタブのセットを保持します。
+U Workers Desktop は macOS、Windows、Linux で利用できます。Web 版と同じアカウントとワークスペースデータを使いますが、ローカルマシンのデーモンを自動で管理し、ワークスペースごとに独立したタブのセットを保持します。
 
 ## Desktop と Web
 
@@ -18,11 +18,11 @@ Multica Desktop は macOS、Windows、Linux で利用できます。Web 版と�
 
 ちょっと確認するだけのときや共用のパソコンでは、Web のほうが手軽です。
 
-両方に同時にサインインできます。同じ Multica サービスに接続している限り、表示されるデータは共有されます。
+両方に同時にサインインできます。同じ U Workers サービスに接続している限り、表示されるデータは共有されます。
 
 ## インストール
 
-[Multica ダウンロードページ](https://multica.ai/download)から、OS と CPU アーキテクチャに合ったインストーラーを選びます:
+[U Workers ダウンロードページ](https://multica.ai/download)から、OS と CPU アーキテクチャに合ったインストーラーを選びます:
 
 | プラットフォーム | インストーラー |
 | --- | --- |
@@ -30,7 +30,7 @@ Multica Desktop は macOS、Windows、Linux で利用できます。Web 版と�
 | Windows | `.exe` |
 | Linux | `.AppImage`、`.deb` または `.rpm` |
 
-インストール後、Web 版と同じメールアドレスでサインインします。サインインすると、Desktop は内蔵の Multica CLI を起動し、マシンにすでにインストールされている AI コーディングツールを検出します。
+インストール後、Web 版と同じメールアドレスでサインインします。サインインすると、Desktop は内蔵の U Workers CLI を起動し、マシンにすでにインストールされている AI コーディングツールを検出します。
 
 <Callout type="info">
 Desktop に内蔵された CLI は、アプリが管理するランタイム専用です。ターミナルで `multica issue` などのコマンドも実行したい場合は、[クイックスタートのステップ 2](/cloud-quickstart#2-コンピュータを接続する)に従って CLI を別途インストールしてください。
@@ -46,13 +46,13 @@ Desktop はワークスペースごとにタブを保存します。たとえば
 
 ## 内蔵デーモン
 
-サインイン後、Desktop は現在の Multica サービス専用の CLI プロファイルを作成し、それを使ってデーモンを起動します。プロファイルの場所:
+サインイン後、Desktop は現在の U Workers サービス専用の CLI プロファイルを作成し、それを使ってデーモンを起動します。プロファイルの場所:
 
 ```text
 ~/.multica/profiles/desktop-<host>/
 ```
 
-このプロファイルが、ターミナルで使っているデフォルトのプロファイルを読み取ったり上書きしたりすることはありません。別のデーモンを手動で起動した場合、Multica はそれらを別々のランタイムとして表示します。
+このプロファイルが、ターミナルで使っているデフォルトのプロファイルを読み取ったり上書きしたりすることはありません。別のデーモンを手動で起動した場合、U Workers はそれらを別々のランタイムとして表示します。
 
 ランタイムの状態とログは Desktop の設定で確認できます。ツールが検出されないときは、まず通常のターミナルで動作しサインイン済みであることを確認してから、Desktop のデーモンを再起動してください。
 
@@ -143,7 +143,7 @@ $json = @'
 [System.IO.File]::WriteAllText("$dir\desktop.json", $json)
 ```
 
-## Windows Defender が Multica をウイルスとして検出する
+## Windows Defender が U Workers をウイルスとして検出する
 
 **症状**: Windows セキュリティが `Trojan:Script/Wacatac.B!ml` のような脅威を報告し、Desktop のインストール先にあるファイルを隔離します。対象になるのは通常、アプリ本体の実行ファイルではなく同梱の CLI です。
 
@@ -151,7 +151,7 @@ $json = @'
 C:\Users\<ユーザー名>\AppData\Local\Programs\@multicadesktop\resources\app.asar.unpacked\resources\bin\multica.exe
 ```
 
-**これは誤検知です。** `!ml` というサフィックスは、この判定がマルウェアのシグネチャ一致ではなく Defender の機械学習ヒューリスティックによるものであることを示します。Multica の Windows ビルドはまだ Authenticode コード署名を行っておらず、公開されたばかりで署名がなく、バックグラウンドプロセスを起動してネットワーク接続を張るバイナリは、この種のヒューリスティックが最も疑わしいと判定するプロファイルそのものです。Windows 向けの成果物はすべて、このリポジトリの公開ソースから GitHub Actions でビルドされています。
+**これは誤検知です。** `!ml` というサフィックスは、この判定がマルウェアのシグネチャ一致ではなく Defender の機械学習ヒューリスティックによるものであることを示します。U Workers の Windows ビルドはまだ Authenticode コード署名を行っておらず、公開されたばかりで署名がなく、バックグラウンドプロセスを起動してネットワーク接続を張るバイナリは、この種のヒューリスティックが最も疑わしいと判定するプロファイルそのものです。Windows 向けの成果物はすべて、このリポジトリの公開ソースから GitHub Actions でビルドされています。
 
 **自分で検証できます** — 各 GitHub リリースには、すべての CLI アーカイブを網羅した `checksums.txt` が公開されています。
 
@@ -163,7 +163,7 @@ Get-FileHash .\multica-cli-<version>-windows-amd64.zip -Algorithm SHA256
 
 **対処方法**:
 
-1. **隔離されたファイルを復元する** — Windows セキュリティ → *ウイルスと脅威の防止* → *保護の履歴* → Multica の項目を選択 → *操作* → *復元*。
+1. **隔離されたファイルを復元する** — Windows セキュリティ → *ウイルスと脅威の防止* → *保護の履歴* → U Workers の項目を選択 → *操作* → *復元*。
 2. **除外を追加する**（再び隔離されないように）— *ウイルスと脅威の防止* → *設定の管理* → *除外* → *除外の追加または削除* → *フォルダー* で、次の両方を追加します。
    - `%LOCALAPPDATA%\Programs\@multicadesktop`
    - `%APPDATA%\Multica`

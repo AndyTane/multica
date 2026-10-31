@@ -1,15 +1,15 @@
 ---
 title: Intégration GitHub
-description: Associez les pull requests aux tâches Multica et suivez l'avancement du développement depuis la tâche.
+description: Associez les pull requests aux tâches U Workers et suivez l'avancement du développement depuis la tâche.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Une fois GitHub connecté, Multica associe automatiquement les pull requests à partir des identifiants de tâche. Le détail de la tâche affiche directement l'état de la PR, l'ampleur des modifications, les résultats de la CI et les conflits de fusion.
+Une fois GitHub connecté, U Workers associe automatiquement les pull requests à partir des identifiants de tâche. Le détail de la tâche affiche directement l'état de la PR, l'ampleur des modifications, les résultats de la CI et les conflits de fusion.
 
 L'intégration GitHub se contente de lire les dépôts autorisés lors de l'installation ; elle ne pousse jamais de commits, de commentaires ni de status checks.
 
-Multica auto-hébergé peut aussi connecter en parallèle des instances Forgejo, Gitea ou GitLab auto-hébergées, avec la même association automatique des PR, le même passage à Terminé à la fusion et le même affichage de la CI. Le point d'entrée est **Paramètres → Code** ; voir [Fournisseurs Git auto-hébergés](/vcs-integration). Multica Cloud ne propose pas ce point d'entrée.
+U Workers auto-hébergé peut aussi connecter en parallèle des instances Forgejo, Gitea ou GitLab auto-hébergées, avec la même association automatique des PR, le même passage à Terminé à la fusion et le même affichage de la CI. Le point d'entrée est **Paramètres → Code** ; voir [Fournisseurs Git auto-hébergés](/vcs-integration). Multica Cloud ne propose pas ce point d'entrée.
 
 ## Connecter GitHub
 
@@ -18,12 +18,12 @@ Un propriétaire ou un administrateur de l'espace de travail peut effectuer la c
 1. Ouvrez **Paramètres → Code**.
 2. Sur la ligne **GitHub**, cliquez sur **Connecter GitHub**.
 3. Sur GitHub, choisissez le compte ou l'organisation, puis autorisez tous les dépôts ou une sélection d'entre eux.
-4. Revenez sur Multica une fois l'installation terminée.
+4. Revenez sur U Workers une fois l'installation terminée.
 
 L'état de la connexion s'affiche sur la même page. Les membres ordinaires peuvent consulter cet état, mais ne peuvent ni connecter, ni déconnecter, ni modifier les interrupteurs.
 
 <Callout type="info">
-La **connexion GitHub** détermine de quels dépôts Multica reçoit les événements de PR ; le réglage des **dépôts de code** (section **Dépôts** de la même page) détermine les dépôts que les agents peuvent choisir au démarrage des exécutions. Ils ont des rôles différents et se configurent séparément.
+La **connexion GitHub** détermine de quels dépôts U Workers reçoit les événements de PR ; le réglage des **dépôts de code** (section **Dépôts** de la même page) détermine les dépôts que les agents peuvent choisir au démarrage des exécutions. Ils ont des rôles différents et se configurent séparément.
 </Callout>
 
 ## Interrupteurs de fonctions
@@ -35,7 +35,7 @@ La section **Pull requests et tâches** de **Paramètres → Code** comporte ces
 | Barre latérale des pull requests | Affiche les pull requests associées dans le détail de la tâche. |
 | Mention Co-authored-by | Ajoute `Co-authored-by: multica-agent <github@multica.ai>` aux commits créés par les agents. |
 | Lier automatiquement tâches et PR | Détecte les identifiants de tâche dans le nom de branche ou le titre d'une PR, ainsi que dans sa description lorsqu'ils suivent un mot-clé de clôture. |
-| **Carte de PR → CI et possibilité de fusion** | Pour chaque PR associée, Multica récupère un instantané authentifié via l'API GitHub et reporte son **statut CI** et sa **possibilité de fusion** sur la carte (voir **Ce qu'affiche la carte de PR** ci-dessous). |
+| **Carte de PR → CI et possibilité de fusion** | Pour chaque PR associée, U Workers récupère un instantané authentifié via l'API GitHub et reporte son **statut CI** et sa **possibilité de fusion** sur la carte (voir **Ce qu'affiche la carte de PR** ci-dessous). |
 
 
 
@@ -51,7 +51,7 @@ mul-123-fix-login-redirect
 MUL-123 Fix the redirect after login
 ```
 
-Multica ignore la casse et ne reconnaît que le préfixe de tâche de l'espace de travail courant. Une même PR peut être associée à plusieurs tâches.
+U Workers ignore la casse et ne reconnaît que le préfixe de tâche de l'espace de travail courant. Une même PR peut être associée à plusieurs tâches.
 
 Si l'identifiant n'apparaît que dans la description de la PR, vous devez utiliser l'un des mots-clés de clôture de GitHub :
 
@@ -73,13 +73,13 @@ Une fois associées, les PR apparaissent dans le bloc **Pull requests** du déta
 - le statut CI : toutes les vérifications ont réussi (avec leur nombre), certaines sont en échec (avec le nom des vérifications concernées) ou certaines sont en cours ; les PR sans vérification configurée n'affichent pas cet élément — « aucune vérification » n'est jamais considéré comme une réussite ;
 - la possibilité de fusion : « Prête à fusionner » (uniquement lorsque GitHub signale un état de fusion propre), « Conflits de fusion », « Bloquée » ou « En retard sur la base ».
 
-Le statut CI et la possibilité de fusion proviennent d'instantanés que Multica récupère depuis l'API GitHub, et les deux sont indépendants ; les PR fusionnées ou fermées n'affichent plus ni l'un ni l'autre. Lorsque GitHub est momentanément indisponible, la carte conserve le dernier instantané et le signale comme périmé au lieu de se vider.
+Le statut CI et la possibilité de fusion proviennent d'instantanés que U Workers récupère depuis l'API GitHub, et les deux sont indépendants ; les PR fusionnées ou fermées n'affichent plus ni l'un ni l'autre. Lorsque GitHub est momentanément indisponible, la carte conserve le dernier instantané et le signale comme périmé au lieu de se vider.
 
 Cliquez sur une entrée pour ouvrir la PR sur GitHub. Désactiver la **Barre latérale des pull requests** masque seulement ce bloc ; cela ne déconnecte rien.
 
 ## Quand une PR fusionnée fait passer une tâche à Terminé
 
-Une PR fusionnée ne signifie pas forcément que la tâche est terminée. Multica ne fait passer une tâche à `Terminé` que lorsque toutes les conditions suivantes sont réunies :
+Une PR fusionnée ne signifie pas forcément que la tâche est terminée. U Workers ne fait passer une tâche à `Terminé` que lorsque toutes les conditions suivantes sont réunies :
 
 1. au moins une PR associée et fusionnée a utilisé un mot-clé de clôture immédiatement suivi de l'identifiant, comme `Closes MUL-123` (les formes avec des mots intercalés, comme `Closes login MUL-123`, ne comptent pas) ;
 2. la tâche n'a aucune autre PR associée encore `Ouverte` ou en `Brouillon` ;
@@ -91,15 +91,15 @@ Le changement de statut est inscrit dans l'activité de la tâche comme une acti
 
 ## Plusieurs espaces de travail
 
-Une même installation de la GitHub App peut être connectée à plusieurs espaces de travail Multica. Les événements GitHub parviennent à chaque espace de travail séparément et sont comparés au préfixe de tâche propre à chacun.
+Une même installation de la GitHub App peut être connectée à plusieurs espaces de travail U Workers. Les événements GitHub parviennent à chaque espace de travail séparément et sont comparés au préfixe de tâche propre à chacun.
 
 Par exemple, une PR qui référence à la fois `MUL-1` et `ENG-2` peut être associée dans deux espaces de travail aux préfixes différents. Les espaces de travail ne voient jamais les tâches les uns des autres.
 
 ## Déconnecter
 
-Choisir **Déconnecter** dans le menu **⋯** de la ligne GitHub, sur **Paramètres → Code**, supprime seulement la relation entre l'espace de travail Multica courant et l'installation ; cela ne désinstalle pas l'App de GitHub à votre place. Les enregistrements de PR existants sont conservés, et les nouveaux événements cessent d'arriver dans cet espace de travail.
+Choisir **Déconnecter** dans le menu **⋯** de la ligne GitHub, sur **Paramètres → Code**, supprime seulement la relation entre l'espace de travail U Workers courant et l'installation ; cela ne désinstalle pas l'App de GitHub à votre place. Les enregistrements de PR existants sont conservés, et les nouveaux événements cessent d'arriver dans cet espace de travail.
 
-Pour révoquer l'autorisation d'accès aux dépôts côté GitHub, désinstallez l'App ou ajustez son périmètre de dépôts depuis la page des installations de GitHub Apps de votre compte personnel ou de votre organisation. Après la désinstallation, tous les espaces de travail Multica liés à cette installation cessent de recevoir des événements.
+Pour révoquer l'autorisation d'accès aux dépôts côté GitHub, désinstallez l'App ou ajustez son périmètre de dépôts depuis la page des installations de GitHub Apps de votre compte personnel ou de votre organisation. Après la désinstallation, tous les espaces de travail U Workers liés à cette installation cessent de recevoir des événements.
 
 ## Configuration en auto-hébergement
 
@@ -111,7 +111,7 @@ Créez l'App dans **Developer settings → GitHub Apps** sur GitHub et renseigne
 
 | Champ | Valeur |
 |---|---|
-| Homepage URL | L'adresse de votre frontend Multica, par ex. `https://multica.example.com` |
+| Homepage URL | L'adresse de votre frontend U Workers, par ex. `https://multica.example.com` |
 | Callback URL | Laisser vide |
 | Setup URL | `https://<api-host>/api/github/setup`, avec **Redirect on update** activé |
 | Webhook URL | `https://<api-host>/api/webhooks/github` |
@@ -132,7 +132,7 @@ Abonnez-vous à ces événements :
 - **Pull request** ;
 - **Check suite**, **Check run** et **Status**, qui déclenchent l'actualisation de la CI et de la possibilité de fusion.
 
-Si vous n'avez pas besoin d'afficher la CI dans Multica, vous pouvez vous passer des permissions Checks et Commit statuses ainsi que de leurs événements. Contents reste obligatoire : sans elle, la requête d'instantané échoue complètement et la carte de PR perd aussi l'état de fusion.
+Si vous n'avez pas besoin d'afficher la CI dans U Workers, vous pouvez vous passer des permissions Checks et Commit statuses ainsi que de leurs événements. Contents reste obligatoire : sans elle, la requête d'instantané échoue complètement et la carte de PR perd aussi l'état de fusion.
 
 <Callout type="warning">
 Il s'agit du **Webhook secret**, et non du Client secret OAuth. Si les deux côtés n'ont pas le même secret de webhook, les livraisons GitHub renvoient `401 invalid signature`.
@@ -150,7 +150,7 @@ FRONTEND_ORIGIN=https://multica.example.com
 
 Si `GITHUB_APP_SLUG` ou `GITHUB_WEBHOOK_SECRET` manque, le bouton de connexion est désactivé et le point de terminaison du webhook refuse de traiter les événements.
 
-Les deux variables suivantes sont nécessaires pour que la carte de PR affiche le statut CI et la possibilité de fusion — Multica s'en sert pour s'authentifier en tant qu'App et récupérer les instantanés :
+Les deux variables suivantes sont nécessaires pour que la carte de PR affiche le statut CI et la possibilité de fusion — U Workers s'en sert pour s'authentifier en tant qu'App et récupérer les instantanés :
 
 ```dotenv
 GITHUB_APP_ID=<the GitHub App's numeric ID>

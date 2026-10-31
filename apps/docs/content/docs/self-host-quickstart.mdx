@@ -1,16 +1,16 @@
 ---
 title: Self-host quickstart
-description: Start Multica with Docker Compose, log in, and connect your first computer.
+description: Start U Workers with Docker Compose, log in, and connect your first computer.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Self-hosting Multica has two parts:
+Self-hosting U Workers has two parts:
 
 | Part | What it runs | Where it lives |
 |---|---|---|
-| **Multica service** | Web, API, and PostgreSQL | One machine with Docker installed |
-| **Computer** | The Multica daemon and AI coding tools | The computer developers actually work on |
+| **U Workers service** | Web, API, and PostgreSQL | One machine with Docker installed |
+| **Computer** | The U Workers daemon and AI coding tools | The computer developers actually work on |
 
 They can be the same machine or separate ones. Self-hosting replaces only the Multica Cloud part.
 
@@ -18,7 +18,7 @@ This guide uses Docker Compose. For Kubernetes deployments, see the [Self-hostin
 
 ## Before you start
 
-The machine running the Multica service needs:
+The machine running the U Workers service needs:
 
 - Docker Engine or Docker Desktop, with `docker compose` working
 - Git, Make, curl, and OpenSSL
@@ -31,11 +31,11 @@ docker info
 docker compose version
 ```
 
-Multica uses Compose v2, invoked as `docker compose`. The legacy `docker-compose` v1 is not supported.
+U Workers uses Compose v2, invoked as `docker compose`. The legacy `docker-compose` v1 is not supported.
 
-The computer also needs at least one [AI coding tool](/providers) installed and logged in, such as Claude Code, Codex, or Cursor. The Multica CLI is installed in step 5.
+The computer also needs at least one [AI coding tool](/providers) installed and logged in, such as Claude Code, Codex, or Cursor. The U Workers CLI is installed in step 5.
 
-## 1. Start Multica
+## 1. Start U Workers
 
 On the machine that will run the service:
 
@@ -49,7 +49,7 @@ On first run, `make selfhost` will:
 
 1. Create `.env` from `.env.example`
 2. Generate a random `JWT_SECRET`, PostgreSQL password, and `MULTICA_VCS_SECRET_KEY` (the encryption key for self-hosted Git integrations)
-3. Pull the PostgreSQL, Multica backend, and Multica frontend images
+3. Pull the PostgreSQL, U Workers backend, and U Workers frontend images
 4. Create persistent volumes and start the three containers
 5. Wait until the backend starts answering health checks
 
@@ -100,7 +100,7 @@ Docker Compose binds `3000` and `8080` to `127.0.0.1` only. Do not switch this t
 
 The example below uses two domains:
 
-- `app.example.com`: the Multica web app
+- `app.example.com`: the U Workers web app
 - `api.example.com`: the API, health checks, and daemon connections
 
 First set the public URLs in `.env`:
@@ -218,7 +218,7 @@ Run the commands below on **the computer that runs your AI coding tools**, which
 Runs execute with the full permissions of the user running the daemon — they can read and write everything that user can. Run the daemon as a dedicated Unix user, in a container, or in a VM rather than under your personal account. See the [security model](/security-model).
 </Callout>
 
-Install the Multica CLI first:
+Install the U Workers CLI first:
 
 **macOS / Linux**
 
@@ -232,13 +232,13 @@ curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/ins
 irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
 ```
 
-If the Multica service runs on this same computer:
+If the U Workers service runs on this same computer:
 
 ```bash
 multica setup self-host
 ```
 
-If the Multica service runs on another machine, pass the two URLs you configured earlier:
+If the U Workers service runs on another machine, pass the two URLs you configured earlier:
 
 ```bash
 multica setup self-host \
@@ -262,7 +262,7 @@ The output should show:
 
 ## 6. Complete the first run
 
-Back in Multica, once an online runtime appears in the runtime list, create an agent and assign it your first issue.
+Back in U Workers, once an online runtime appears in the runtime list, create an agent and assign it your first issue.
 
 When the run shows as completed and the agent's reply appears in the timeline, the self-hosted service, the computer, and the AI coding tool are all connected. For detailed steps, see steps 3-5 of the [quickstart](/cloud-quickstart).
 
@@ -310,7 +310,7 @@ docker compose -f docker-compose.selfhost.yml up -d
 
 ### What `git pull` actually does
 
-`git pull` updates **`docker-compose.selfhost.yml` itself** — new environment variables, new services, changed healthchecks. It is **not** how you get a new Multica version.
+`git pull` updates **`docker-compose.selfhost.yml` itself** — new environment variables, new services, changed healthchecks. It is **not** how you get a new U Workers version.
 
 The version you end up running is resolved by `docker compose pull`, which asks GHCR what the tag points at right now. A checkout that is months out of date will still pull today's `latest` images; conversely, `git pull` alone changes nothing until you pull images and recreate the containers.
 

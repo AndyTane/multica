@@ -1,28 +1,31 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { ArrowUpRight } from "lucide-react";
 
-// Docs-local stateless Multica mark — matches @multica/ui's MulticaIcon
-// visually (same 8-pointed-asterisk clip-path), but without useState/
-// useEffect so it's safe to render from Server Components such as
-// layout.config.tsx / layout.tsx. Keep in sync with
-// packages/ui/components/common/multica-icon.tsx if the mark changes.
-const MULTICA_CLIP = `polygon(
-  45% 62.1%, 45% 100%, 55% 100%, 55% 62.1%,
-  81.8% 88.9%, 88.9% 81.8%, 62.1% 55%, 100% 55%,
-  100% 45%, 62.1% 45%, 88.9% 18.2%, 81.8% 11.1%,
-  55% 37.9%, 55% 0%, 45% 0%, 45% 37.9%,
-  18.2% 11.1%, 11.1% 18.2%, 37.9% 45%, 0% 45%,
-  0% 55%, 37.9% 55%, 11.1% 81.8%, 18.2% 88.9%
-)`;
-
-function MulticaMark() {
+// Docs-local stateless product mark — a squircle tile with a knocked-out U,
+// matching packages/ui/components/common/product-mark.tsx. It has no hooks
+// so it is safe to render from Server Components such as layout.config.tsx /
+// layout.tsx. Keep in sync with that component if the mark changes.
+function ProductMark() {
   return (
-    <span className="inline-block size-[1em]" aria-hidden="true">
-      <span
-        className="block size-full bg-current"
-        style={{ clipPath: MULTICA_CLIP }}
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-[1em]">
+      <mask id="docs-product-mark-u">
+        <rect width="24" height="24" fill="white" />
+        <path
+          d="M8.25 6.75v5.5a3.75 3.75 0 0 0 7.5 0v-5.5"
+          fill="none"
+          stroke="black"
+          strokeWidth={3}
+          strokeLinecap="round"
+        />
+      </mask>
+      <rect
+        width="24"
+        height="24"
+        rx="7"
+        fill="currentColor"
+        mask="url(#docs-product-mark-u)"
       />
-    </span>
+    </svg>
   );
 }
 
@@ -43,7 +46,7 @@ function GitHubMark() {
 }
 
 // External links shown at the top of the sidebar (and in the top nav on
-// desktop). Leading icon = brand identity (GitHub mark / Multica asterisk);
+// desktop). Leading icon = brand identity (GitHub mark);
 // trailing ArrowUpRight = "opens externally" glyph, same pattern as
 // `packages/views/layout/help-launcher.tsx` from PR #1560.
 const externalLinkText = (label: string) => (
@@ -56,20 +59,14 @@ const externalLinkText = (label: string) => (
 export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
-      <span className="font-semibold text-base">Multica Docs</span>
+      <span className="font-semibold text-base">U Workers Docs</span>
     ),
   },
   links: [
     {
       icon: <GitHubMark />,
       text: externalLinkText("GitHub"),
-      url: "https://github.com/multica-ai/multica",
-      external: true,
-    },
-    {
-      icon: <MulticaMark />,
-      text: externalLinkText("Multica"),
-      url: "https://multica.ai",
+      url: "https://github.com/AndyTane/UWorkers-nice",
       external: true,
     },
   ],

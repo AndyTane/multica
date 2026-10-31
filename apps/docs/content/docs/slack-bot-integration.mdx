@@ -5,13 +5,13 @@ description: Create a Slack Bot for an agent and use it in DMs, channels, and th
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Multica uses your own Slack app. Once connected, team members can DM the Bot, @-mention it in a channel, use `/issue` to create issues, use `/new` to start a new Multica Chat, or use `/clear` to reset the current Chat's agent context.
+U Workers uses your own Slack app. Once connected, team members can DM the Bot, @-mention it in a channel, use `/issue` to create issues, use `/new` to start a new U Workers Chat, or use `/clear` to reset the current Chat's agent context.
 
-One Slack app maps to one Multica agent. To connect several agents, create a separate app for each.
+One Slack app maps to one U Workers agent. To connect several agents, create a separate app for each.
 
 ## Before you start
 
-The connection must be completed by a workspace owner or admin, and ends with two credentials pasted into Multica:
+The connection must be completed by a workspace owner or admin, and ends with two credentials pasted into U Workers:
 
 - a Bot User OAuth Token, starting with `xoxb-`;
 - an App-level Token, starting with `xapp-`.
@@ -100,24 +100,24 @@ The Bot connects out to Slack over Socket Mode, so no public Request URL or OAut
 
 ## 3. Connect it to an agent
 
-1. In Multica, open **Agents** and select the agent to connect to Slack.
+1. In U Workers, open **Agents** and select the agent to connect to Slack.
 2. Go to **Integrations** and click **Connect Slack**.
 3. Paste the Bot token and the App-level token.
 4. Click **Connect**.
 
-Multica verifies that the two tokens come from the same app. Once connected, the page shows **Connected to Slack**.
+U Workers verifies that the two tokens come from the same app. Once connected, the page shows **Connected to Slack**.
 
 <Callout type="warning">
-Both tokens are stored encrypted on the Multica server. Tokens are credentials — don't put them in issues, comments, or code repositories. An app already connected to another agent or workspace can't be reused directly; disconnect the original connection first.
+Both tokens are stored encrypted on the U Workers server. Tokens are credentials — don't put them in issues, comments, or code repositories. An app already connected to another agent or workspace can't be reused directly; disconnect the original connection first.
 </Callout>
 
 ## First use
 
-The first time a member DMs or @-mentions the Bot, they receive an account binding link. Sign in with the Multica account for that workspace, then return to Slack and send the message again.
+The first time a member DMs or @-mentions the Bot, they receive an account binding link. Sign in with the U Workers account for that workspace, then return to Slack and send the message again.
 
-The link is single-use and expires after 15 minutes. Once it expires, message the Bot again for a new one. Multiple Bots in the same Multica workspace can usually reuse an existing binding if they come from the same Slack workspace.
+The link is single-use and expires after 15 minutes. Once it expires, message the Bot again for a new one. Multiple Bots in the same U Workers workspace can usually reuse an existing binding if they come from the same Slack workspace.
 
-Only members of the current Multica workspace can use the Bot.
+Only members of the current U Workers workspace can use the Bot.
 
 ## Hand work to the agent in Slack
 
@@ -145,21 +145,21 @@ In a channel or DM, type:
 /issue Safari stays on the login page after a successful sign-in
 ```
 
-This command needs no @-mention. Multica hands the description to the agent behind the current Bot, which writes up the title and body and creates the issue. Slack first shows an acknowledgment visible only to you; when the issue is created, you get a notification in your Multica inbox.
+This command needs no @-mention. U Workers hands the description to the agent behind the current Bot, which writes up the title and body and creates the issue. Slack first shows an acknowledgment visible only to you; when the issue is created, you get a notification in your U Workers inbox.
 
 ### Start a new Chat with `/new`
 
 In a DM with the Bot, `/new` immediately creates a new, visible empty Chat. `/new <message>` creates the Chat and uses the message as its first turn. A bare `/new` displays as **New chat** until the first effective user message arrives; the title then follows the existing first-message title behavior.
 
-The previous Chat remains available and writable in Multica on the web, desktop, and mobile. Only subsequent messages from this Slack conversation are routed to the new Chat.
+The previous Chat remains available and writable in U Workers on the web, desktop, and mobile. Only subsequent messages from this Slack conversation are routed to the new Chat.
 
 In a channel or thread, Slack's native slash-command payload does not identify the target thread. Send `@Multica /new [message]` in the target thread instead.
 
 ### Clear the current Chat context with `/clear`
 
-In a DM with the Bot, `/clear` keeps the current Multica Chat and resets only the context visible to the agent. The complete Chat history remains stored and visible in Multica. `/clear <message>` uses the message as the first turn in the new context; a bare `/clear` applies the boundary to the next real message.
+In a DM with the Bot, `/clear` keeps the current U Workers Chat and resets only the context visible to the agent. The complete Chat history remains stored and visible in U Workers. `/clear <message>` uses the message as the first turn in the new context; a bare `/clear` applies the boundary to the next real message.
 
-In a channel or thread, send `@Multica /clear [message]` in the target thread so Multica can apply the boundary to the correct conversation.
+In a channel or thread, send `@Multica /clear [message]` in the target thread so U Workers can apply the boundary to the correct conversation.
 
 ## Manage connections
 
@@ -183,7 +183,7 @@ openssl rand -base64 32
 
 Restart the API server, then connect the Slack app. Keep this key long-term: if it is rotated or lost, existing tokens can no longer be decrypted and the Bot must be reconnected.
 
-Account binding links use `MULTICA_APP_URL`, falling back to `FRONTEND_ORIGIN` when unset; it must point to a Multica address members can reach.
+Account binding links use `MULTICA_APP_URL`, falling back to `FRONTEND_ORIGIN` when unset; it must point to a U Workers address members can reach.
 
 ## Troubleshooting
 

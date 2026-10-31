@@ -9,7 +9,7 @@ Discussion convient aux sujets qui n'ont pas encore pris la forme d'une tâche c
 
 **Une discussion est une conversation en tête-à-tête entre vous et un [agent](/agents)**, en dehors du tableau des [tâches](/issues). L'agent démarre **sans aucun contexte de tâche** — il ne regarde pas votre tableau et ne transformera pas la conversation en tâches de lui-même — et l'ensemble de la conversation est **entièrement privé** (personne d'autre dans l'[espace de travail](/workspaces), pas même les administrateurs, ne peut la voir). Elle convient pour discuter d'une approche avec un agent, faire un brainstorming ou poser une question qui ne relève d'aucune tâche.
 
-Une discussion n'est **liée à aucune tâche** : l'agent ne reçoit pas automatiquement la description et les commentaires d'une tâche, mais il peut toujours utiliser le CLI Multica pour consulter les espaces de travail, projets, tâches et skills dans la limite de ses autorisations.
+Une discussion n'est **liée à aucune tâche** : l'agent ne reçoit pas automatiquement la description et les commentaires d'une tâche, mais il peut toujours utiliser le CLI U Workers pour consulter les espaces de travail, projets, tâches et skills dans la limite de ses autorisations.
 
 Une discussion peut aussi porter un contexte. Cliquez sur **+** en bas à gauche de la zone de saisie et choisissez **Contexte de projet** pour rattacher un [projet](/projects) à la conversation ; lorsque l'agent s'exécute, il reçoit la description, les dépôts et les autres ressources de ce projet.
 
@@ -20,7 +20,7 @@ Une discussion peut aussi porter un contexte. Cliquez sur **+** en bas à gauche
 1. Ouvrez **Discussion** dans la barre latérale.
 2. Cliquez sur Nouvelle discussion et choisissez un agent que vous avez la permission d'exécuter.
 3. Saisissez un message ; vous pouvez aussi joindre des images ou des fichiers.
-4. Après l'envoi, Multica crée une exécution pour le message, et la réponse revient dans la conversation en cours.
+4. Après l'envoi, U Workers crée une exécution pour le message, et la réponse revient dans la conversation en cours.
 
 Si le runtime est hors ligne, le message attend son retour en ligne. Une fois l'agent archivé, ou si vous perdez la permission de l'exécuter, vous ne pouvez plus envoyer de nouveaux messages.
 
@@ -35,11 +35,11 @@ Avant le premier message, Discussion affiche jusqu'à trois amorces de conversat
 | Permettre à vos coéquipiers de voir le contexte et de poursuivre la discussion | **Tâche** |
 | Un coup d'œil rapide aux informations de l'espace de travail, sans besoin de garder une trace du travail | **Discussion** |
 
-Les discussions directes créées dans Multica ne sont visibles que par leur créateur ; les autres membres et les administrateurs de l'espace de travail ne peuvent pas les lire. Les conclusions que toute l'équipe doit voir doivent être consignées dans une tâche, une description de projet ou un skill.
+Les discussions directes créées dans U Workers ne sont visibles que par leur créateur ; les autres membres et les administrateurs de l'espace de travail ne peuvent pas les lire. Les conclusions que toute l'équipe doit voir doivent être consignées dans une tâche, une description de projet ou un skill.
 
 ## Contexte sur plusieurs tours
 
-Une conversation tente de poursuivre la session d'origine dans l'outil de codage IA, afin que les messages suivants n'aient pas à répéter le contenu précédent. Multica stocke l'identifiant de session et achemine les exécutions suivantes vers un runtime qui a accès à cette session.
+Une conversation tente de poursuivre la session d'origine dans l'outil de codage IA, afin que les messages suivants n'aient pas à répéter le contenu précédent. U Workers stocke l'identifiant de session et achemine les exécutions suivantes vers un runtime qui a accès à cette session.
 
 Si la session locale n'existe plus, si le contexte ne peut pas être poursuivi, ou si l'erreur précédente ne doit pas être réutilisée, le runtime démarre une nouvelle session. L'historique des messages de la conversation est conservé dans tous les cas.
 

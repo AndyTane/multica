@@ -1,22 +1,22 @@
 ---
 title: Daemon et runtimes
-description: Comment Multica connecte les ordinateurs, détecte les outils de codage IA et lance les exécutions.
+description: Comment U Workers connecte les ordinateurs, détecte les outils de codage IA et lance les exécutions.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Multica enregistre et coordonne le travail ; ce sont les ordinateurs connectés qui l'exécutent. Le **daemon** d'un ordinateur prend en charge les exécutions et invoque les outils de codage IA installés sur cette machine.
+U Workers enregistre et coordonne le travail ; ce sont les ordinateurs connectés qui l'exécutent. Le **daemon** d'un ordinateur prend en charge les exécutions et invoque les outils de codage IA installés sur cette machine.
 
 ## Daemon et runtime
 
-- Le **daemon** est le processus d'arrière-plan de Multica qui tourne sur un ordinateur. Il se connecte au serveur, détecte les outils locaux, prend en charge les exécutions et renvoie les résultats.
+- Le **daemon** est le processus d'arrière-plan de U Workers qui tourne sur un ordinateur. Il se connecte au serveur, détecte les outils locaux, prend en charge les exécutions et renvoie les résultats.
 - Un **runtime** représente un environnement d'exécution concret mis à la disposition d'un espace de travail. Il correspond à un ordinateur associé à un outil de codage IA — ou à un profil de runtime personnalisé — sur cet ordinateur.
 
 Par exemple, un ordinateur sur lequel sont installés Claude Code et Codex est connecté à deux espaces de travail. Le daemon enregistre un runtime Claude Code et un runtime Codex pour chaque espace de travail. Redémarrer le daemon met à jour les enregistrements existants ; il ne crée pas de nouveaux runtimes à chaque fois pour la même combinaison.
 
 ## Lieu d'exécution et périmètre des données
 
-Les outils de codage IA qu'invoque un runtime local, leurs propres identifiants de connexion et vos répertoires de code locaux restent tous sur l'ordinateur connecté. Le serveur Multica n'exécute pas de commandes à la place des outils locaux et ne téléverse pas automatiquement l'intégralité de votre répertoire de travail.
+Les outils de codage IA qu'invoque un runtime local, leurs propres identifiants de connexion et vos répertoires de code locaux restent tous sur l'ordinateur connecté. Le serveur U Workers n'exécute pas de commandes à la place des outils locaux et ne téléverse pas automatiquement l'intégralité de votre répertoire de travail.
 
 Pour permettre à l'équipe de collaborer, le serveur stocke les tâches, les commentaires, la configuration des agents, le contexte des exécutions, les enregistrements d'exécution et les résultats que les agents renvoient. Ce contenu peut inclure des extraits de code ou d'autres éléments de contexte du projet qu'un agent a choisi de lire et d'inclure dans ses réponses.
 
@@ -26,9 +26,9 @@ Les variables d'environnement personnalisées d'un agent sont stockées côté s
 
 ## Démarrer le daemon
 
-Avec Multica Desktop, l'application démarre le daemon automatiquement — aucune commande supplémentaire n'est nécessaire.
+Avec U Workers Desktop, l'application démarre le daemon automatiquement — aucune commande supplémentaire n'est nécessaire.
 
-Sur le web, sur un ordinateur distant ou dans un environnement sans interface graphique, [installez d'abord le CLI Multica](/cli), puis exécutez :
+Sur le web, sur un ordinateur distant ou dans un environnement sans interface graphique, [installez d'abord le CLI U Workers](/cli), puis exécutez :
 
 ```bash
 multica daemon start
@@ -83,7 +83,7 @@ Seul le propriétaire du runtime peut le rendre **public** — les administrateu
 
 Si votre équipe utilise un wrapper interne, un exécutable à version figée, ou a besoin d'arguments supplémentaires fixes pour un outil compatible, créez un **profil de runtime personnalisé**.
 
-Un profil personnalisé n'ajoute pas de nouveau protocole de communication. Vous choisissez toujours l'une des familles de protocoles que Multica prend déjà en charge (le type de protocole d'intégration de l'outil ; voir [Comparatif des outils de codage IA](/providers)), et la commande elle-même doit être compatible avec cette famille.
+Un profil personnalisé n'ajoute pas de nouveau protocole de communication. Vous choisissez toujours l'une des familles de protocoles que U Workers prend déjà en charge (le type de protocole d'intégration de l'outil ; voir [Comparatif des outils de codage IA](/providers)), et la commande elle-même doit être compatible avec cette famille.
 
 ### Environnement du runtime pendant une exécution
 
@@ -97,8 +97,8 @@ Le tableau liste les variables que les runtimes personnalisés peuvent utiliser 
 | `MULTICA_TASK_ID` | ID de l'exécution en cours | **Contrat d'intégration** |
 | `MULTICA_AGENT_ID` | ID de l'agent assigné | **Contrat d'intégration** |
 | `MULTICA_WORKSPACE_ID` | ID de l'espace de travail de l'exécution | **Contrat d'intégration** |
-| `MULTICA_SERVER_URL` | URL du serveur Multica sélectionnée par le daemon | **Contrat d'intégration** |
-| `MULTICA_TASK_CONFIG_ROOT` | Racine privée de configuration du CLI Multica, propre à l'exécution | Indicatif |
+| `MULTICA_SERVER_URL` | URL du serveur U Workers sélectionnée par le daemon | **Contrat d'intégration** |
+| `MULTICA_TASK_CONFIG_ROOT` | Racine privée de configuration du CLI U Workers, propre à l'exécution | Indicatif |
 | `MULTICA_TASK_WORKSPACES_ROOT` | Racine des répertoires de travail des exécutions gérés par le daemon | Indicatif |
 | `MULTICA_AGENT_NAME` | Nom affiché de l'agent assigné | Indicatif |
 | `MULTICA_DAEMON_PORT` | Port local de santé/API du daemon utilisé par les commandes réservées aux exécutions, comme `multica repo checkout` | Indicatif |
@@ -126,19 +126,19 @@ Le champ de commande accepte un exécutable et des arguments, pas un script shel
 
 ### Ordre de vos arguments
 
-Tout ce que vous saisissez dans le champ de commande reste directement après l'exécutable, avant les arguments ajoutés par Multica :
+Tout ce que vous saisissez dans le champ de commande reste directement après l'exécutable, avant les arguments ajoutés par U Workers :
 
 ```text
 <your command> <your fixed arguments> <Multica's protocol arguments> <the agent's custom arguments>
 ```
 
-C'est ce qui permet à un wrapper à sous-commandes de fonctionner. Si votre commande est `ccms start q36`, l'outil voit d'abord `start q36` et peut sélectionner sa sous-commande avant que n'arrivent le `-p` de Multica et le reste — c'est le seul ordre qu'accepte ce type de wrapper.
+C'est ce qui permet à un wrapper à sous-commandes de fonctionner. Si votre commande est `ccms start q36`, l'outil voit d'abord `start q36` et peut sélectionner sa sous-commande avant que n'arrivent le `-p` de U Workers et le reste — c'est le seul ordre qu'accepte ce type de wrapper.
 
 Auparavant, vos arguments étaient ajoutés en dernier. La plupart des commandes à options les analysent de la même façon dans les deux cas, mais pas toutes — une commande qui distingue les options globales des options de sous-commande peut être sensible à la position d'une option. Si vous avez déjà un profil avec des arguments fixes, lancez une exécution dessus après la mise à jour pour vérifier qu'il fonctionne toujours.
 
 Deux autres conséquences à connaître :
 
-- **Les valeurs de Multica l'emportent en cas de conflit.** Si vos arguments fixes définissent une option que Multica définit aussi, la valeur de Multica arrive plus tard et prend effet. Surtout, un modèle choisi sur l'agent remplace un `--model` figé dans le profil. Pour imposer un modèle à tout le monde, laissez vide le champ du modèle des agents.
+- **Les valeurs de U Workers l'emportent en cas de conflit.** Si vos arguments fixes définissent une option que U Workers définit aussi, la valeur de U Workers arrive plus tard et prend effet. Surtout, un modèle choisi sur l'agent remplace un `--model` figé dans le profil. Pour imposer un modèle à tout le monde, laissez vide le champ du modèle des agents.
 - **Les options critiques pour le protocole sont ignorées.** `-p`, `--output-format`, `--input-format`, `--permission-mode` et leurs équivalents pour les autres familles sont retirés de vos arguments fixes, car les remplacer romprait la connexion du daemon à l'outil. Les sous-commandes et les autres arguments positionnels sont toujours transmis.
 
 Si un daemon lancé par Desktop ne trouve pas une commande que votre terminal peut exécuter, définissez un chemin absolu pour l'ordinateur courant :
@@ -162,7 +162,7 @@ Vérifiez dans cet ordre :
 1. Exécutez `multica daemon status` pour confirmer que le daemon tourne.
 2. Exécutez `multica daemon logs -f` pour rechercher des erreurs d'authentification, de réseau ou de détection d'outils.
 3. Exécutez `command -v <tool-command>` dans le même environnement pour confirmer que le daemon peut trouver l'outil.
-4. Ouvrez la page **Runtimes** de Multica et vérifiez que l'ordinateur cible et l'outil de codage IA correspondant apparaissent en ligne.
+4. Ouvrez la page **Runtimes** de U Workers et vérifiez que l'ordinateur cible et l'outil de codage IA correspondant apparaissent en ligne.
 5. Après l'installation d'un outil, une modification du chemin ou la mise à jour d'un profil, exécutez `multica daemon restart`.
 
 Si le problème persiste, consultez [Dépannage](/troubleshooting).

@@ -5,7 +5,7 @@ description: A leader coordinates multiple agents or members and hands work to t
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-A squad consists of one leader agent and any number of members. Assigning an issue to a squad does not run every agent at once. Multica wakes the leader first; it reads the context and decides who takes the next step.
+A squad consists of one leader agent and any number of members. Assigning an issue to a squad does not run every agent at once. U Workers wakes the leader first; it reads the context and decides who takes the next step.
 
 Squads solve the question of who the work goes to. They don't merge multiple agents into a new agent, and they don't automatically raise concurrency.
 
@@ -28,10 +28,10 @@ Creating a squad requires a name and a leader. The squad leader automatically be
 
 ## Execution flow after assignment
 
-When a non-Backlog issue is assigned to a squad, Multica immediately enqueues a run for the **leader agent** (not for every member). The flow then looks like this:
+When a non-Backlog issue is assigned to a squad, U Workers immediately enqueues a run for the **leader agent** (not for every member). The flow then looks like this:
 
 1. **Leader claims the run.** The agent runtime picks up the run on its next poll, same as any other agent assignment.
-2. **Leader is briefed.** On claim, Multica appends three sections to the leader's system prompt — see [What the leader sees on every turn](#what-the-leader-sees-on-every-turn) below.
+2. **Leader is briefed.** On claim, U Workers appends three sections to the leader's system prompt — see [What the leader sees on every turn](#what-the-leader-sees-on-every-turn) below.
 3. **Leader posts one delegation comment.** The comment `@`-mentions the chosen member(s) using the exact mention markdown from the roster — that mention triggers a new run for each mentioned agent.
 4. **Leader records its evaluation** via `multica squad activity <issue-id> action --reason "..."`. This writes an entry to the issue's activity timeline so humans can see the leader actually evaluated the trigger.
 5. **The dispatch turn leaves the parent `in_progress`.** Same agent-managed status contract as a direct agent assignment — coordinating the squad is working the parent's ask, so the parent moves from `todo` to `in_progress`, and dispatching members is not delivery, so it stays there while the squad works.
@@ -74,7 +74,7 @@ Dedup applies on top of these rules: if the leader already has a `queued` or `di
 | **Assign an issue to a squad** | Yes | The squad becomes the assignee and the leader is triggered. |
 | **@-mention a squad in a comment** | No | The leader handles that comment only; the current assignee is unchanged. |
 
-@-mentioning a specific member directly hands the work to that member. Multica also dedupes repeated triggers and prevents the leader's comments from re-triggering itself, avoiding execution loops.
+@-mentioning a specific member directly hands the work to that member. U Workers also dedupes repeated triggers and prevents the leader's comments from re-triggering itself, avoiding execution loops.
 
 ## Squads and Access
 

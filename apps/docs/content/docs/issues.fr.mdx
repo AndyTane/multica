@@ -5,7 +5,7 @@ description: Une tâche regroupe le contexte, l'assigné, le statut et l'histori
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Une tâche est l'unité de base de Multica pour organiser le travail : une fonctionnalité, un bug, une investigation — tout ce qu'un membre ou un agent doit prendre en charge et faire avancer. La discussion qui l'entoure, ses changements de statut et chacune de ses exécutions restent au même endroit : inutile de reconstituer le contexte à partir d'historiques de discussion ou de sorties de terminal.
+Une tâche est l'unité de base de U Workers pour organiser le travail : une fonctionnalité, un bug, une investigation — tout ce qu'un membre ou un agent doit prendre en charge et faire avancer. La discussion qui l'entoure, ses changements de statut et chacune de ses exécutions restent au même endroit : inutile de reconstituer le contexte à partir d'historiques de discussion ou de sorties de terminal.
 
 ## Composantes d'une tâche
 
@@ -63,7 +63,7 @@ Les catégories simplifient le raisonnement sur le cycle de vie. Les tableaux, l
 
 Il n'existe pas de flux imposé entre les statuts — membres et agents peuvent les modifier directement.
 
-Les agents inscrivent le statut dans lequel se trouve la tâche à mesure que leur travail le fait évoluer : commencer ce que demande la tâche — quelle qu'en soit la forme : recherche, conception ou relecture demandée par la tâche elle-même — la fait passer immédiatement à `in_progress`, pour que le tableau montre le travail pendant son déroulement ; une livraison la fait passer à `in_review` ; un travail qui se poursuit au-delà du tour la maintient en `in_progress` ; un tour qui ne produit rien du livrable propre à la tâche — répondre à des questions, donner un avis sur un travail géré ailleurs — laisse le statut inchangé du début à la fin. Ces mises à jour sont écrites explicitement par l'agent via le CLI Multica pendant l'exécution — le serveur ne change pas le statut de la tâche au démarrage ou à la fin d'une exécution (hormis les deux exceptions système ci-dessous). `done` relève généralement d'une confirmation humaine, ou d'une intégration, par exemple la fusion d'une PR avec intention de clôture.
+Les agents inscrivent le statut dans lequel se trouve la tâche à mesure que leur travail le fait évoluer : commencer ce que demande la tâche — quelle qu'en soit la forme : recherche, conception ou relecture demandée par la tâche elle-même — la fait passer immédiatement à `in_progress`, pour que le tableau montre le travail pendant son déroulement ; une livraison la fait passer à `in_review` ; un travail qui se poursuit au-delà du tour la maintient en `in_progress` ; un tour qui ne produit rien du livrable propre à la tâche — répondre à des questions, donner un avis sur un travail géré ailleurs — laisse le statut inchangé du début à la fin. Ces mises à jour sont écrites explicitement par l'agent via le CLI U Workers pendant l'exécution — le serveur ne change pas le statut de la tâche au démarrage ou à la fin d'une exécution (hormis les deux exceptions système ci-dessous). `done` relève généralement d'une confirmation humaine, ou d'une intégration, par exemple la fusion d'une PR avec intention de clôture.
 
 <Callout type="info">
 Deux changements sont effectués par le système :

@@ -1,11 +1,11 @@
 ---
 title: Using the CLI
-description: Install and log in to the Multica CLI, and manage workspaces, issues, agents, and runtimes from the terminal.
+description: Install and log in to the U Workers CLI, and manage workspaces, issues, agents, and runtimes from the terminal.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-The Multica CLI both connects local runtimes and manages workspaces, issues, agents, and automations from the terminal. This page covers the common paths; the flags your installed version supports are always defined by each command's own `--help`.
+The U Workers CLI both connects local runtimes and manages workspaces, issues, agents, and automations from the terminal. This page covers the common paths; the flags your installed version supports are always defined by each command's own `--help`.
 
 ## Installation
 
@@ -231,14 +231,14 @@ multica config show --profile staging
 
 Do not set `MULTICA_DAEMON_PORT` in the host shell, Compose service, or container entrypoint that starts a daemon. The host daemon derives its health port from `--profile` and injects this variable into agent tasks itself. Remove the variable from older startup environments entirely: versions 0.4.22 and 0.4.23 otherwise mistake that shell for a managed task and reject login. Newer versions let guarded human login and `daemon status` recover when the port is the only task signal, but ordinary API and profile-resolving commands intentionally remain fail-closed until the variable is removed.
 
-When the CLI runs inside a daemon-managed agent task, it does not load or modify these human-owned profile files. Multica API commands authenticate with the task-scoped credential injected by the daemon. `config show` and `config set` use private task-local state; human/local commands such as `login`, `logout`, `setup`, `workspace switch`, local runtime profile path changes, `daemon start` / `stop` / `restart`, `daemon logs`, and `daemon probe-runtimes` are unavailable. `auth status` does not print token material in this context.
+When the CLI runs inside a daemon-managed agent task, it does not load or modify these human-owned profile files. U Workers API commands authenticate with the task-scoped credential injected by the daemon. `config show` and `config set` use private task-local state; human/local commands such as `login`, `logout`, `setup`, `workspace switch`, local runtime profile path changes, `daemon start` / `stop` / `restart`, `daemon logs`, and `daemon probe-runtimes` are unavailable. `auth status` does not print token material in this context.
 
 `daemon status` and `daemon disk-usage` stay available so an agent can inspect the runtime hosting it, scoped to that runtime: `status` probes the health port the daemon injected, and `disk-usage` scans the workspaces root the daemon injected. Neither accepts `--profile`, `disk-usage` also rejects `--all-profiles` and `--workspaces-root`, and its STATUS column is blank because resolving it would require the human's stored token. Use `du` and `df` for anything outside that scope.
 
-This protects implicit Multica CLI profile resolution while preserving the normal `HOME` and XDG variables used by other provider tools. It is not an OS filesystem boundary: processes running as the same system user may still open an explicitly known path. Use a dedicated user, container, VM, or equivalent isolation when that stronger guarantee is required.
+This protects implicit U Workers CLI profile resolution while preserving the normal `HOME` and XDG variables used by other provider tools. It is not an OS filesystem boundary: processes running as the same system user may still open an explicitly known path. Use a dedicated user, container, VM, or equivalent isolation when that stronger guarantee is required.
 
 <Callout type="warning">
-CLI configuration files contain tokens that can access Multica as you. Don't commit them to a repository, upload them to logs, or share them with others.
+CLI configuration files contain tokens that can access U Workers as you. Don't commit them to a repository, upload them to logs, or share them with others.
 </Callout>
 
 ## Command reference
@@ -324,11 +324,11 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | `update` | — | Update the CLI to the latest version | |
 | `version` | — | Print version information | `--output` (`text` or `json`) |
 
-## Driving Multica from another coding agent
+## Driving U Workers from another coding agent
 
 If most of your work already happens inside Codex, Claude Code, or Cursor, you can
-operate Multica from there instead of switching to a terminal. The
-[Multica CLI skill](https://github.com/multica-ai/multica-cli) teaches those agents
+operate U Workers from there instead of switching to a terminal. The
+[U Workers CLI skill](https://github.com/multica-ai/multica-cli) teaches those agents
 to drive the commands on this page safely: reading issues and comment threads
 without burning tokens, writing comments through a file, and handling the side
 effects that mentions, status changes, and assignments carry.
@@ -341,7 +341,7 @@ Markdown instructions.
 
 ## Next steps
 
-- [Multica CLI skill](https://github.com/multica-ai/multica-cli) — operate Multica from Codex, Claude Code, or Cursor.
+- [U Workers CLI skill](https://github.com/multica-ai/multica-cli) — operate U Workers from Codex, Claude Code, or Cursor.
 - [Authentication and tokens](/auth-tokens) — creating, renewing, and revoking PATs.
 - [Troubleshooting](/troubleshooting) — diagnosing command errors and runs that never start.
 - [Create and configure an agent](/agents-create) — the full semantics of every `agent create` field.
