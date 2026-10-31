@@ -29,6 +29,7 @@ import { useAccountErrorText, useLocale, useT } from "../../i18n";
 import { DeleteInstanceUserDialog } from "./delete-instance-user-dialog";
 import {
   SettingsCard,
+  SettingsRow,
   SettingsSection,
   SettingsTab,
 } from "./settings-layout";
@@ -193,7 +194,7 @@ export function InstanceUsersTab() {
     return (
       <SettingsTab title={t(($) => $.page.tabs.admin_users)} scope="account">
         <SettingsCard>
-          <p className="text-body text-muted-foreground">
+          <p className="px-4 py-4 text-body text-muted-foreground">
             {t(($) => $.instance_admin.admin_only)}
           </p>
         </SettingsCard>
@@ -210,26 +211,28 @@ export function InstanceUsersTab() {
       description={t(($) => $.instance_admin.description)}
       scope="account"
     >
-      <SettingsSection title={t(($) => $.instance_admin.open_registration)}>
+      <SettingsSection>
         <SettingsCard>
-          <div className="flex items-start justify-between gap-4">
-            <p className="text-body text-muted-foreground">
-              {t(($) => $.instance_admin.open_registration_hint)}
-            </p>
+          {/* SettingsCard is px-0; SettingsRow owns the row padding and puts
+              the switch in the shared control slot. */}
+          <SettingsRow
+            label={t(($) => $.instance_admin.open_registration)}
+            description={t(($) => $.instance_admin.open_registration_hint)}
+          >
             <Switch
               aria-label={t(($) => $.instance_admin.open_registration)}
               checked={settings?.open_registration_enabled === true}
               disabled={!settings || toggleRegistration.isPending}
               onCheckedChange={(enabled) => toggleRegistration.mutate(enabled)}
             />
-          </div>
+          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
 
       <SettingsSection title={t(($) => $.instance_admin.add_user_title)}>
         <SettingsCard>
           <form
-            className="space-y-3"
+            className="space-y-3 px-4 py-4"
             onSubmit={(event) => {
               event.preventDefault();
               if (addUser.isPending) return;
@@ -288,7 +291,7 @@ export function InstanceUsersTab() {
       {invite ? (
         <SettingsSection title={t(($) => $.instance_admin.invite_title)}>
           <SettingsCard>
-            <div className="space-y-3">
+            <div className="space-y-3 px-4 py-4">
               <p className="text-body font-medium">{invite.email}</p>
               <p className="text-caption text-muted-foreground">
                 {t(($) => $.instance_admin.invite_expires, {
@@ -345,14 +348,16 @@ export function InstanceUsersTab() {
       <SettingsSection>
         <SettingsCard>
           {usersQuery.isLoading ? (
-            <p className="text-body text-muted-foreground">
+            <p className="px-4 py-3 text-body text-muted-foreground">
               {t(($) => $.instance_admin.loading)}
             </p>
           ) : null}
           {usersQuery.isError ? (
-            <Alert>
-              <AlertDescription>{errorText(usersQuery.error)}</AlertDescription>
-            </Alert>
+            <div className="px-4 py-3">
+              <Alert>
+                <AlertDescription>{errorText(usersQuery.error)}</AlertDescription>
+              </Alert>
+            </div>
           ) : null}
           <ul className="divide-y">
             {users.map((entry) => {
@@ -361,7 +366,7 @@ export function InstanceUsersTab() {
               return (
                 <li
                   key={entry.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3"
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-body font-medium">{entry.name}</p>

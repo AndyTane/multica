@@ -1436,6 +1436,8 @@
     "copied": "복사됨",
     "copy_failed": "복사하지 못했습니다. 링크를 선택해 직접 복사하세요.",
     "done": "완료",
+    "cancel": "취소",
+    "blocker_unknown": "먼저 처리해야 할 다른 종속 항목이 {{count}}개 있습니다",
     "open_registration": "가입 개방",
     "open_registration_hint": "켜면 이 사이트에 접속할 수 있는 누구나 계정을 만들 수 있습니다.",
     "open_registration_failed": "설정을 변경하지 못했습니다.",
@@ -1488,6 +1490,8 @@
       "lark_installation": "메시지 연동 설치됨",
       "share_link_creator": "공유 링크 생성됨",
       "source_context_capture": "이슈 소스 컨텍스트 수집됨",
+      "chat_history": "채팅 기록이 있음",
+      "active_task": "진행 중인 작업이 있음",
       "last_admin": "마지막 관리자",
       "cannot_delete_self": "내 계정"
     }

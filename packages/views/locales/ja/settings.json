@@ -1436,6 +1436,8 @@
     "copied": "コピーしました",
     "copy_failed": "コピーできませんでした。リンクを選択して手動でコピーしてください。",
     "done": "完了",
+    "cancel": "キャンセル",
+    "blocker_unknown": "先に解決が必要な依存関係が他に {{count}} 件あります",
     "open_registration": "登録を開放",
     "open_registration_hint": "オンにすると、このサイトに到達できる誰でもアカウントを作成できます。",
     "open_registration_failed": "設定を変更できませんでした。",
@@ -1488,6 +1490,8 @@
       "lark_installation": "メッセージ連携を導入済み",
       "share_link_creator": "共有リンクを作成済み",
       "source_context_capture": "課題のソースコンテキストを取得済み",
+      "chat_history": "チャット履歴がある",
+      "active_task": "進行中のタスクがある",
       "last_admin": "最後の管理者",
       "cannot_delete_self": "自分のアカウント"
     }

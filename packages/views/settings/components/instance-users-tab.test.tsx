@@ -267,6 +267,127 @@ describe("InstanceUsersTab", () => {
     ).toBeDisabled();
   });
 
+  it("labels chat-history and active-task blockers and keeps confirmation disabled", async () => {
+    apiMocks.getInstanceUserDeletePreview.mockResolvedValue({
+      can_delete: false,
+      blockers: [
+        { code: "chat_history", count: 2 },
+        { code: "active_task", count: 1 },
+      ],
+      removes: ["account"],
+    });
+    renderTab();
+    await screen.findByText("Owner Person");
+    const menus = screen.getAllByRole("button", {
+      name: enSettings.instance_admin.action_menu,
+    });
+    await user.click(menus[1]!);
+    await user.click(
+      await screen.findByRole("menuitem", {
+        name: enSettings.instance_admin.action_delete,
+      }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByText(/Has chat history \(2\)/),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Has work in progress/),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", {
+        name: enSettings.instance_admin.delete_confirm,
+      }),
+    ).toBeDisabled();
+    // U2: the cancel control is a generic Cancel, never the invite panel's 完成.
+    const cancel = within(dialog).getByRole("button", {
+      name: enSettings.instance_admin.cancel,
+    });
+    expect(cancel).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", {
+        name: enSettings.instance_admin.done,
+      }),
+    ).toBeNull();
+  });
+
+  it("merges unknown blockers into one dependency count instead of dropping them", async () => {
+    apiMocks.getInstanceUserDeletePreview.mockResolvedValue({
+      can_delete: false,
+      blockers: [
+        { code: "future_dependency", count: 3 },
+        { code: "another_future_dependency", count: 2 },
+      ],
+      removes: ["account"],
+    });
+    renderTab();
+    await screen.findByText("Owner Person");
+    const menus = screen.getAllByRole("button", {
+      name: enSettings.instance_admin.action_menu,
+    });
+    await user.click(menus[1]!);
+    await user.click(
+      await screen.findByRole("menuitem", {
+        name: enSettings.instance_admin.action_delete,
+      }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("5 more dependencies must be resolved first"),
+      ).toBeInTheDocument(),
+    );
+    expect(within(dialog).queryByText(/future_dependency/)).toBeNull();
+    expect(
+      within(dialog).getByRole("button", {
+        name: enSettings.instance_admin.delete_confirm,
+      }),
+    ).toBeDisabled();
+  });
+
+  it("fails closed when the preview request fails", async () => {
+    apiMocks.getInstanceUserDeletePreview.mockRejectedValue(
+      new ApiError("failed to inspect", 500, "Internal Server Error"),
+    );
+    renderTab();
+    await screen.findByText("Owner Person");
+    const menus = screen.getAllByRole("button", {
+      name: enSettings.instance_admin.action_menu,
+    });
+    await user.click(menus[1]!);
+    await user.click(
+      await screen.findByRole("menuitem", {
+        name: enSettings.instance_admin.action_delete,
+      }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(enSettings.instance_admin.delete_preview_failed),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      within(dialog).getByRole("button", {
+        name: enSettings.instance_admin.delete_confirm,
+      }),
+    ).toBeDisabled();
+  });
+
+  it("renders the open-registration row with its consequence text and control", async () => {
+    renderTab();
+    expect(
+      await screen.findByText(enSettings.instance_admin.open_registration),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(enSettings.instance_admin.open_registration_hint),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", {
+        name: enSettings.instance_admin.open_registration,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("fails closed when the preview is malformed", async () => {
     apiMocks.getInstanceUserDeletePreview.mockResolvedValue({
       can_delete: false,

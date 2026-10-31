@@ -1446,6 +1446,8 @@
     "copied": "Copied",
     "copy_failed": "Copy failed. Select the link and copy it manually.",
     "done": "Done",
+    "cancel": "Cancel",
+    "blocker_unknown": "{{count}} more dependencies must be resolved first",
     "open_registration": "Open registration",
     "open_registration_hint": "When on, anyone who can reach this site can create an account.",
     "open_registration_failed": "Could not change the setting.",
@@ -1498,6 +1500,8 @@
       "lark_installation": "Installed a messaging integration",
       "share_link_creator": "Created workspace share links",
       "source_context_capture": "Captured issue source context",
+      "chat_history": "Has chat history",
+      "active_task": "Has work in progress",
       "last_admin": "Last administrator",
       "cannot_delete_self": "Your own account"
     }

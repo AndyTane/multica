@@ -19,9 +19,10 @@ import {
 } from "@multica/core/instance-admin/queries";
 import { useAccountErrorText, useT } from "../../i18n";
 
-// Codes this client knows how to label. A code from a newer server is simply
-// not rendered: the dialog still refuses to confirm because can_delete comes
-// from the server, so an unknown blocker is never silently ignored.
+// Codes this client knows how to label. Unknown blockers are summarized in one
+// line ("N more dependencies") instead of being dropped, and confirmation still
+// follows the server's can_delete, so a newer server can never be confirmed
+// into a delete this client does not understand.
 const REMOVE_CODES = [
   "registration_invite",
   "password",
@@ -53,6 +54,8 @@ const BLOCKER_CODES = [
   "lark_installation",
   "share_link_creator",
   "source_context_capture",
+  "chat_history",
+  "active_task",
   "last_admin",
   "cannot_delete_self",
 ] as const;
@@ -114,6 +117,17 @@ export function DeleteInstanceUserDialog({
     const key = BLOCKER_CODES.find((candidate) => candidate === code);
     return key ? t(($) => $.instance_admin.blocker[key as BlockerCode]) : null;
   };
+  // Unknown codes are never dropped: one merged line counts every dependency
+  // this client cannot name. It sums counts, falling back to the number of
+  // entries if a malformed server reports zero for each.
+  const unknownBlockers = blockers.filter(
+    (blocker) => labelForBlocker(blocker.code) === null,
+  );
+  const unknownBlockerCount =
+    unknownBlockers.reduce(
+      (sum, blocker) => sum + Math.max(blocker.count, 0),
+      0,
+    ) || unknownBlockers.length;
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -172,6 +186,13 @@ export function DeleteInstanceUserDialog({
                       </li>
                     );
                   })}
+                  {unknownBlockers.length > 0 ? (
+                    <li key="unknown-blockers">
+                      {t(($) => $.instance_admin.blocker_unknown, {
+                        count: unknownBlockerCount,
+                      })}
+                    </li>
+                  ) : null}
                 </ul>
                 <p className="text-caption text-muted-foreground">
                   {t(($) => $.instance_admin.blocked_hint)}
@@ -204,7 +225,7 @@ export function DeleteInstanceUserDialog({
 
         <AlertDialogFooter>
           <AlertDialogCancel type="button" disabled={removeMutation.isPending}>
-            {t(($) => $.instance_admin.done)}
+            {t(($) => $.instance_admin.cancel)}
           </AlertDialogCancel>
           <AlertDialogAction
             type="button"

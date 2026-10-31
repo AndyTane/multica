@@ -74,7 +74,7 @@ export function PasswordChangeCard() {
     >
       <SettingsCard>
         <form
-          className="space-y-3"
+          className="space-y-3 px-4 py-4"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();

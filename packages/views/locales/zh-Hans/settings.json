@@ -1436,6 +1436,8 @@
     "copied": "已复制",
     "copy_failed": "复制失败，请手动选择",
     "done": "完成",
+    "cancel": "取消",
+    "blocker_unknown": "另有 {{count}} 项依赖需先处理",
     "open_registration": "开放注册",
     "open_registration_hint": "开启后，任何能访问本站的人都可以注册。",
     "open_registration_failed": "无法更改该设置。",
@@ -1488,6 +1490,8 @@
       "lark_installation": "安装过消息集成",
       "share_link_creator": "创建过工作区分享链接",
       "source_context_capture": "采集过任务来源上下文",
+      "chat_history": "有聊天记录",
+      "active_task": "有进行中的任务",
       "last_admin": "最后一名管理员",
       "cannot_delete_self": "你自己的账号"
     }

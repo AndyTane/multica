@@ -1446,6 +1446,8 @@
     "copied": "Copié",
     "copy_failed": "La copie a échoué. Sélectionnez le lien et copiez-le manuellement.",
     "done": "Terminé",
+    "cancel": "Annuler",
+    "blocker_unknown": "{{count}} autres dépendances doivent être résolues d'abord",
     "open_registration": "Inscription ouverte",
     "open_registration_hint": "Activé, toute personne pouvant atteindre ce site peut créer un compte.",
     "open_registration_failed": "Impossible de modifier ce paramètre.",
@@ -1498,6 +1500,8 @@
       "lark_installation": "A installé une intégration de messagerie",
       "share_link_creator": "A créé des liens de partage",
       "source_context_capture": "A capturé le contexte source d'une tâche",
+      "chat_history": "A un historique de discussion",
+      "active_task": "A un travail en cours",
       "last_admin": "Dernier administrateur",
       "cannot_delete_self": "Votre propre compte"
     }
