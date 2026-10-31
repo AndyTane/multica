@@ -1,0 +1,16 @@
+{
+  "batch": "P6",
+  "pull_request": 7,
+  "url": "https://github.com/AndyTane/UWorkers-nice/pull/7",
+  "base_before": "8c61cdef31aa86cffa616f315540e58fbb82d625",
+  "head_merged": "d4da18350f1291800908739d0856e944699647b1",
+  "merge_commit": "8e6c08f6161789db13108f9ffa950f73731ec8b7",
+  "merged_at": "2026-10-31T12:29:19Z",
+  "merge_method": "merge commit (ready -> merged), no branch-protection bypass, no extra CI wait",
+  "deployed_source_sha": "a30713a0a45cb662bd0712b5ca0d3cdb5b56e967",
+  "deployed_release": "v0.2.0-20261031202450",
+  "deployed_source_is_ancestor_of_merge": true,
+  "deployed_source_is_ancestor_note": "the running binary was built from a30713a0a; the merge commit only adds the P6 evidence commit d4da18350 on top",
+  "redeploy_after_merge": "not required: the merge introduced no source change over the deployed commit",
+  "ci_note": "the repository's hosted workflows fail in ~2s before running (external billing/runner state), unchanged by this batch; the targeted checks were run locally against an isolated PostgreSQL and are recorded in preflight-tests.json"
+}
