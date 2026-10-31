@@ -980,6 +980,22 @@ export class ApiClient {
     });
   }
 
+  /**
+   * Local account sign-in. The server answers with the same LoginResponse as
+   * the code and Google flows and sets the same cookie, so callers run the one
+   * existing post-login pipeline. A rejected attempt is a normal non-2xx with
+   * the repo's `{ error }` body, which the fetch layer raises as ApiError.
+   */
+  async loginWithPassword(
+    username: string,
+    password: string,
+  ): Promise<LoginResponse> {
+    return this.fetch("/auth/password", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+  }
+
   async googleLogin(code: string, redirectUri: string): Promise<LoginResponse> {
     return this.fetch("/auth/google", {
       method: "POST",

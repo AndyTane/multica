@@ -74,6 +74,13 @@ export function AuthInitializer({
           workspaceCreationDisabled: cfg.workspace_creation_disabled === true,
           // Absent/false on the managed cloud and older servers → section hidden.
           vcsIntegrationAvailable: cfg.vcs_integration_available === true,
+          // Explicit true only: the feature ships off, and a server that does
+          // not send the flag has no password route to call.
+          localPasswordLoginEnabled: cfg.local_password_login_enabled === true,
+          // The schema above defaults an absent field to true, so this explicit
+          // check keeps email codes for every server that predates the flag
+          // while still honoring a deliberate false.
+          emailCodeLoginEnabled: cfg.email_code_login_enabled === true,
         });
         configStore.getState().setDaemonConfig({
           daemonServerUrl: cfg.daemon_server_url,

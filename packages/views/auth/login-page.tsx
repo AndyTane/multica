@@ -62,7 +62,17 @@ interface LoginPageProps {
    *  app?" prompt; desktop omits it (a download prompt inside the app
    *  would be absurd). */
   extra?: ReactNode;
+  /** Whether the server signs users in with a locally managed account and
+   *  password. Defaults to false so a caller that does not read the capability
+   *  keeps the email-code page it has always had. */
+  passwordLogin?: boolean;
+  /** Whether the server still issues email login codes. Defaults to true:
+   *  servers before this signal always did. */
+  emailCodeLogin?: boolean;
 }
+
+type LoginMethod = "password" | "email";
+type LoginStep = "form" | "code" | "cli_confirm";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,11 +116,15 @@ export function LoginPage({
   onTokenObtained,
   onGoogleLogin,
   extra,
+  passwordLogin = false,
+  emailCodeLogin = true,
 }: LoginPageProps) {
   const { t } = useT("auth");
   const qc = useQueryClient();
-  const [step, setStep] = useState<"email" | "code" | "cli_confirm">("email");
+  const [step, setStep] = useState<LoginStep>("form");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -123,6 +137,55 @@ export function LoginPage({
   // because the user asked to leave. Without saying so, landing here reads as
   // the app having lost their work for no reason.
   const sessionExpired = useAuthStore((state) => state.expired);
+
+  // Which sign-in method is on screen. The server owns the set; the page only
+  // picks between the methods it was told about.
+  //
+  // Email code stays the fallback whenever password login is not offered: a
+  // legacy caller that passes neither prop, and a server that sends both flags
+  // false, must still land on the page this component always rendered. A
+  // server that declares password-only is the one case that hides the email
+  // flow — and then nothing on this page can reach it.
+  const passwordAvailable = passwordLogin;
+  const emailCodeAvailable = emailCodeLogin || !passwordLogin;
+  // Requested, not selected: the capability flags can arrive after mount (the
+  // config request races this page), so the rendered method is derived from
+  // whatever the server has told us so far rather than frozen at mount.
+  const [requestedMethod, setRequestedMethod] = useState<LoginMethod>("email");
+  const method: LoginMethod =
+    requestedMethod === "password"
+      ? passwordAvailable
+        ? "password"
+        : "email"
+      : emailCodeAvailable
+        ? "email"
+        : "password";
+  const canSwitchMethod = passwordAvailable && emailCodeAvailable;
+
+  // One post-login finish per outcome, shared by every method: the CLI path
+  // hands the token to the callback listener, the normal path publishes the
+  // session and seeds the workspace list for onSuccess.
+  const finishCliLogin = useCallback(
+    (token: string) => {
+      localStorage.setItem("multica_token", token);
+      api.setToken(token);
+      onTokenObtained?.();
+      if (cliCallback) {
+        redirectToCliCallback(cliCallback.url, token, cliCallback.state);
+      }
+    },
+    [cliCallback, onTokenObtained],
+  );
+
+  const finishLogin = useCallback(async () => {
+    // Seed the workspace list into the Query cache so the caller's onSuccess
+    // can read it synchronously to compute a destination URL (first
+    // workspace's slug, or /workspaces/new for zero-workspace users).
+    const wsList = await api.listWorkspaces();
+    qc.setQueryData(workspaceKeys.list(), wsList);
+    onTokenObtained?.();
+    onSuccess();
+  }, [onSuccess, onTokenObtained, qc]);
 
   // Check for existing session when CLI callback is present.
   // Prioritises cookie auth (= current browser session) to avoid authorising
@@ -209,22 +272,12 @@ export function LoginPage({
         if (cliCallback) {
           // CLI path: get token directly for the redirect URL
           const { token } = await api.verifyCode(email, value);
-          localStorage.setItem("multica_token", token);
-          api.setToken(token);
-          onTokenObtained?.();
-          redirectToCliCallback(cliCallback.url, token, cliCallback.state);
+          finishCliLogin(token);
           return;
         }
 
-        // Normal path: seed the workspace list into the Query cache so the
-        // caller's onSuccess can read it synchronously to compute a destination
-        // URL (first workspace's slug, or /workspaces/new for zero-workspace
-        // users).
         await useAuthStore.getState().verifyCode(email, value);
-        const wsList = await api.listWorkspaces();
-        qc.setQueryData(workspaceKeys.list(), wsList);
-        onTokenObtained?.();
-        onSuccess();
+        await finishLogin();
       } catch (err) {
         setError(
           err instanceof Error
@@ -235,8 +288,60 @@ export function LoginPage({
         setLoading(false);
       }
     },
-    [email, onSuccess, cliCallback, onTokenObtained, qc, t],
+    [email, finishCliLogin, finishLogin, cliCallback, t],
   );
+
+  const handlePasswordLogin = useCallback(
+    async (e?: React.FormEvent) => {
+      e?.preventDefault();
+      // The button is disabled in flight, but Enter inside a field still fires
+      // the submit event — a second bcrypt check buys nothing.
+      if (loading) return;
+      if (!username.trim()) {
+        setError(t(($) => $.errors.account_required));
+        return;
+      }
+      if (!password) {
+        setError(t(($) => $.errors.password_required));
+        return;
+      }
+      setLoading(true);
+      setError("");
+      try {
+        if (cliCallback) {
+          const { token } = await api.loginWithPassword(username, password);
+          finishCliLogin(token);
+          return;
+        }
+
+        await useAuthStore.getState().loginWithPassword(username, password);
+        await finishLogin();
+      } catch (err) {
+        // The username survives a failed attempt so a mistyped password is one
+        // edit away. Nothing here reads the password back.
+        setError(
+          err instanceof Error && err.message
+            ? err.message
+            : t(($) => $.errors.invalid_credentials),
+        );
+        setLoading(false);
+      }
+    },
+    [
+      username,
+      password,
+      loading,
+      cliCallback,
+      finishCliLogin,
+      finishLogin,
+      t,
+    ],
+  );
+
+  const switchMethod = () => {
+    setRequestedMethod(method === "password" ? "email" : "password");
+    setError("");
+  };
 
   const handleResend = async () => {
     if (cooldown > 0) return;
@@ -269,12 +374,11 @@ export function LoginPage({
         token = res.token;
       }
 
-      onTokenObtained?.();
-      redirectToCliCallback(cliCallback.url, token, cliCallback.state);
+      finishCliLogin(token);
     } catch {
       setError(t(($) => $.errors.cli_auth_failed));
       setExistingUser(null);
-      setStep("email");
+      setStep("form");
       setLoading(false);
     }
   };
@@ -330,7 +434,7 @@ export function LoginPage({
               className="w-full"
               onClick={() => {
                 setExistingUser(null);
-                setStep("email");
+                setStep("form");
               }}
             >
               {t(($) => $.cli.different_account)}
@@ -345,7 +449,7 @@ export function LoginPage({
   // Code verification step
   // -------------------------------------------------------------------------
 
-  if (step === "code") {
+  if (step === "code" && emailCodeAvailable) {
     return (
       <div className="flex min-h-svh items-center justify-center px-6 py-12">
         <Card className="w-full max-w-sm">
@@ -400,7 +504,7 @@ export function LoginPage({
               variant="ghost"
               className="w-full"
               onClick={() => {
-                setStep("email");
+                setStep("form");
                 setCode("");
                 setError("");
               }}
@@ -414,8 +518,10 @@ export function LoginPage({
   }
 
   // -------------------------------------------------------------------------
-  // Email step
+  // Credentials step — password or email code, whichever the server offers
   // -------------------------------------------------------------------------
+
+  const showPasswordForm = method === "password";
 
   return (
     <div className="flex min-h-svh items-center justify-center px-6 py-12">
@@ -425,9 +531,13 @@ export function LoginPage({
           <CardTitle className="text-display-sm">
             {t(($) => $.signin.title)}
           </CardTitle>
-          <CardDescription>
-            {t(($) => $.signin.description)}
-          </CardDescription>
+          {/* The email description names the code that is about to be sent;
+              the password form's two labelled fields need no summary. */}
+          {!showPasswordForm && (
+            <CardDescription>
+              {t(($) => $.signin.description)}
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {sessionExpired && (
@@ -437,36 +547,93 @@ export function LoginPage({
               </AlertDescription>
             </Alert>
           )}
-          <form id="login-form" onSubmit={handleSendCode} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="login-email">{t(($) => $.common.email)}</Label>
-              <Input
-                id="login-email"
-                type="email"
-                placeholder={t(($) => $.common.email_placeholder)}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoFocus
-                required
-              />
-            </div>
-            {error && (
-              <p className="text-body text-destructive">{error}</p>
-            )}
-          </form>
+          {showPasswordForm ? (
+            <form
+              id="login-password-form"
+              onSubmit={handlePasswordLogin}
+              // The inline error below is the one validation surface: the
+              // browser's own bubble would replace the translated messages
+              // this form shows for a missing field.
+              noValidate
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="login-account">
+                  {t(($) => $.credentials.account)}
+                </Label>
+                <Input
+                  id="login-account"
+                  type="text"
+                  autoComplete="username"
+                  placeholder={t(($) => $.credentials.account_placeholder)}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoFocus
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="login-password">
+                  {t(($) => $.credentials.password)}
+                </Label>
+                <Input
+                  id="login-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </form>
+          ) : (
+            <form id="login-form" onSubmit={handleSendCode} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="login-email">{t(($) => $.common.email)}</Label>
+                <Input
+                  id="login-email"
+                  type="email"
+                  placeholder={t(($) => $.common.email_placeholder)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+            </form>
+          )}
+          {error && (
+            <p className="text-body text-destructive">{error}</p>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
-          <Button
-            type="submit"
-            form="login-form"
-            className="w-full"
-            size="lg"
-            disabled={!email || loading}
-          >
-            {loading
-              ? t(($) => $.signin.sending)
-              : t(($) => $.signin.continue)}
-          </Button>
+          {showPasswordForm ? (
+            <Button
+              type="submit"
+              form="login-password-form"
+              className="w-full"
+              size="lg"
+              disabled={loading}
+            >
+              {loading
+                ? t(($) => $.credentials.signing_in)
+                : t(($) => $.credentials.sign_in)}
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              form="login-form"
+              className="w-full"
+              size="lg"
+              disabled={!email || loading}
+            >
+              {loading
+                ? t(($) => $.signin.sending)
+                : t(($) => $.signin.continue)}
+            </Button>
+          )}
           {(google || onGoogleLogin) && (
             <Button
               type="button"
@@ -496,6 +663,18 @@ export function LoginPage({
               </svg>
               {t(($) => $.signin.google)}
             </Button>
+          )}
+          {canSwitchMethod && (
+            <button
+              type="button"
+              onClick={switchMethod}
+              disabled={loading}
+              className="text-body text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:cursor-not-allowed disabled:no-underline"
+            >
+              {showPasswordForm
+                ? t(($) => $.signin.use_email_code)
+                : t(($) => $.signin.use_password)}
+            </button>
           )}
           {extra && <div className="w-full pt-1 text-center">{extra}</div>}
         </CardFooter>

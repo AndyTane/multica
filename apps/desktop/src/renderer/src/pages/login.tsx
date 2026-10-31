@@ -16,6 +16,10 @@ function requireRuntimeAppUrl(): string {
 export function DesktopLoginPage() {
   const webUrl = requireRuntimeAppUrl();
   const googleClientId = useConfigStore((s) => s.googleClientId);
+  const localPasswordLoginEnabled = useConfigStore(
+    (s) => s.localPasswordLoginEnabled,
+  );
+  const emailCodeLoginEnabled = useConfigStore((s) => s.emailCodeLoginEnabled);
   const handleGoogleLogin = () => {
     // Open web login page in the default browser with platform=desktop flag.
     // The web callback will redirect back via multica:// deep link with the token.
@@ -34,6 +38,8 @@ export function DesktopLoginPage() {
           // Initial workspace navigation happens in routes.tsx via IndexRedirect.
         }}
         onGoogleLogin={googleClientId ? handleGoogleLogin : undefined}
+        passwordLogin={localPasswordLoginEnabled}
+        emailCodeLogin={emailCodeLoginEnabled}
       />
     </div>
   );

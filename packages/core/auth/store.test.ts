@@ -171,6 +171,52 @@ describe("authStore", () => {
     expect(onLogout).toHaveBeenCalledOnce();
   });
 
+  // Local password sign-in goes through the same session handoff as the code
+  // flow: persist the token, publish the user, clear the expiry notice.
+  it("signs in with a local password and persists the session", async () => {
+    const storage = makeStorage();
+    const api = {
+      setToken: vi.fn(),
+      loginWithPassword: vi
+        .fn()
+        .mockResolvedValue({ token: "password-token", user: fakeUser }),
+    } as unknown as ApiClient;
+    const onLogin = vi.fn();
+    const store = createAuthStore({ api, storage, onLogin });
+    store.setState({ status: "unauthenticated", isLoading: false, expired: true });
+
+    const user = await store.getState().loginWithPassword("ada", "correct-horse");
+
+    expect(api.loginWithPassword).toHaveBeenCalledWith("ada", "correct-horse");
+    expect(storage.snapshot().multica_token).toBe("password-token");
+    expect(api.setToken).toHaveBeenCalledWith("password-token");
+    expect(onLogin).toHaveBeenCalledOnce();
+    expect(user).toBe(fakeUser);
+    expect(store.getState().user).toBe(fakeUser);
+    expect(store.getState().status).toBe("authenticated");
+    expect(store.getState().isLoading).toBe(false);
+    expect(store.getState().expired).toBe(false);
+  });
+
+  it("leaves token storage alone for a cookie session that signed in with a password", async () => {
+    const storage = makeStorage();
+    const api = {
+      setToken: vi.fn(),
+      loginWithPassword: vi
+        .fn()
+        .mockResolvedValue({ token: "password-token", user: fakeUser }),
+    } as unknown as ApiClient;
+    const store = createAuthStore({ api, storage, cookieAuth: true });
+
+    await store.getState().loginWithPassword("ada", "correct-horse");
+
+    // The browser session is an HttpOnly cookie; a readable JWT would only add
+    // an XSS-visible copy of it.
+    expect(storage.snapshot().multica_token).toBeUndefined();
+    expect(api.setToken).not.toHaveBeenCalled();
+    expect(store.getState().status).toBe("authenticated");
+  });
+
   it("clears the expired notice once the user signs back in", async () => {
     const storage = makeStorage();
     const api = {

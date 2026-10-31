@@ -29,6 +29,8 @@ function renderWithI18n(ui: ReactElement) {
 
 const mockSendCode = vi.hoisted(() => vi.fn());
 const mockVerifyCode = vi.hoisted(() => vi.fn());
+const mockLoginWithPassword = vi.hoisted(() => vi.fn());
+const mockApiLoginWithPassword = vi.hoisted(() => vi.fn());
 const mockApiListWorkspaces = vi.hoisted(() => vi.fn());
 const mockApiVerifyCode = vi.hoisted(() => vi.fn());
 const mockApiSetToken = vi.hoisted(() => vi.fn());
@@ -52,6 +54,7 @@ vi.mock("@multica/core/auth", () => ({
       const state = {
         sendCode: mockSendCode,
         verifyCode: mockVerifyCode,
+        loginWithPassword: mockLoginWithPassword,
         expired: mockAuthState.expired,
       };
       return selector ? selector(state) : state;
@@ -60,6 +63,7 @@ vi.mock("@multica/core/auth", () => ({
       getState: () => ({
         sendCode: mockSendCode,
         verifyCode: mockVerifyCode,
+        loginWithPassword: mockLoginWithPassword,
       }),
     },
   ),
@@ -69,6 +73,7 @@ vi.mock("@multica/core/api", () => ({
   api: {
     listWorkspaces: mockApiListWorkspaces,
     verifyCode: mockApiVerifyCode,
+    loginWithPassword: mockApiLoginWithPassword,
     setToken: mockApiSetToken,
     getMe: mockApiGetMe,
     issueCliToken: mockApiIssueCliToken,
@@ -385,6 +390,186 @@ describe("LoginPage", () => {
 
     await user.click(resendBtn);
     expect(mockSendCode).toHaveBeenCalledTimes(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // Local password sign-in
+  // -------------------------------------------------------------------------
+
+  it("offers only the password form on a password-only server", () => {
+    render(
+      <LoginPage onSuccess={onSuccess} passwordLogin emailCodeLogin={false} />,
+    );
+
+    const account = screen.getByLabelText(/^account$/i);
+    expect(account).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByLabelText(/^password$/i)).toHaveAttribute(
+      "type",
+      "password",
+    );
+    expect(
+      screen.getByRole("button", { name: /^sign in$/i }),
+    ).toBeInTheDocument();
+
+    // The email flow is not merely hidden behind a switch — nothing on the page
+    // can reach the code step the server no longer implements.
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /continue/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /sign in with/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still says the session expired on a password-only server", () => {
+    mockAuthState.expired = true;
+    render(
+      <LoginPage onSuccess={onSuccess} passwordLogin emailCodeLogin={false} />,
+    );
+    expect(screen.getByText(/your session expired/i)).toBeInTheDocument();
+  });
+
+  it("requires an account and a password before calling the server", async () => {
+    render(
+      <LoginPage onSuccess={onSuccess} passwordLogin emailCodeLogin={false} />,
+    );
+
+    const user = userEvent.setup();
+    const submit = screen.getByRole("button", { name: /^sign in$/i });
+
+    await user.click(submit);
+    expect(screen.getByText(/account is required/i)).toBeInTheDocument();
+    expect(mockLoginWithPassword).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText(/^account$/i), "ada");
+    await user.click(submit);
+    expect(screen.getByText(/password is required/i)).toBeInTheDocument();
+    expect(mockLoginWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("signs in with account and password, seeds the workspace list, then onSuccess", async () => {
+    mockLoginWithPassword.mockResolvedValueOnce({ id: "u-1" });
+    mockApiListWorkspaces.mockResolvedValueOnce([{ id: "ws-1" }]);
+
+    render(
+      <LoginPage onSuccess={onSuccess} passwordLogin emailCodeLogin={false} />,
+    );
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/^account$/i), "ada");
+    await user.type(screen.getByLabelText(/^password$/i), "correct-horse-12");
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => {
+      expect(mockLoginWithPassword).toHaveBeenCalledWith("ada", "correct-horse-12");
+      expect(mockApiListWorkspaces).toHaveBeenCalled();
+      expect(mockSetQueryData).toHaveBeenCalledWith(
+        expect.arrayContaining(["workspaces", "list"]),
+        [{ id: "ws-1" }],
+      );
+      expect(onSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it("keeps the account after a failed sign-in and never echoes the password", async () => {
+    mockLoginWithPassword.mockRejectedValueOnce(
+      new Error("Incorrect account or password"),
+    );
+
+    render(
+      <LoginPage onSuccess={onSuccess} passwordLogin emailCodeLogin={false} />,
+    );
+
+    const user = userEvent.setup();
+    const account = screen.getByLabelText(/^account$/i);
+    const password = screen.getByLabelText(/^password$/i);
+    await user.type(account, "ada");
+    await user.type(password, "wrong-password");
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Incorrect account or password"),
+      ).toBeInTheDocument();
+    });
+    expect(account).toHaveValue("ada");
+    expect(password).toHaveValue("wrong-password");
+    // Masked input is the only place the secret exists on the page.
+    expect(password).toHaveAttribute("type", "password");
+    expect(screen.queryByText("wrong-password")).not.toBeInTheDocument();
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("redirects a CLI callback with the token from a password sign-in", async () => {
+    mockApiLoginWithPassword.mockResolvedValueOnce({
+      token: "password-jwt",
+      user: { id: "u-1" },
+    });
+    const onTokenObtained = vi.fn();
+
+    render(
+      <LoginPage
+        onSuccess={onSuccess}
+        onTokenObtained={onTokenObtained}
+        passwordLogin
+        emailCodeLogin={false}
+        cliCallback={{ url: "http://localhost:9876/callback", state: "pw" }}
+      />,
+    );
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/^account$/i), "ada");
+    await user.type(screen.getByLabelText(/^password$/i), "correct-horse-12");
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => {
+      expect(onTokenObtained).toHaveBeenCalled();
+      expect(window.location.href).toContain(
+        "http://localhost:9876/callback?token=password-jwt&state=pw",
+      );
+    });
+    // The CLI redirect owns the post-login step; the app-session pipeline is
+    // skipped exactly as it is for the code flow.
+    expect(mockLoginWithPassword).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("switches between email code and password when the server offers both", async () => {
+    render(<LoginPage onSuccess={onSuccess} passwordLogin emailCodeLogin />);
+
+    // Email code stays the default so existing users keep their flow.
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^sign in$/i }),
+    ).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: /sign in with account and password/i }),
+    );
+
+    expect(screen.getByLabelText(/^account$/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /sign in with email code/i }),
+    );
+
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^account$/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the email-only page for a caller that passes no method props", () => {
+    renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /continue/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^account$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^password$/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /sign in with/i }),
+    ).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
