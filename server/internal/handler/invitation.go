@@ -131,9 +131,15 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve invitee_user_id if the user already exists.
+	// Bind the invitation to an account ONLY when that account's ownership of
+	// the address was proven (email_verified). A row created by open
+	// registration merely typed the mailbox, so turning it into a UUID binding
+	// would hand the invitee identity to whoever typed the address first —
+	// exactly the ordering where an invitation is created after the squatter
+	// registered. Without the binding the invitation stays claimable by email,
+	// which invitationBelongsToUser only honors for a verified account.
 	var inviteeUserID pgtype.UUID
-	if existingUser.ID.Valid {
+	if existingUser.ID.Valid && existingUser.EmailVerified {
 		inviteeUserID = existingUser.ID
 	}
 	admission, ok := h.checkInvitationAdmission(

@@ -39,6 +39,13 @@ func (e SignupError) Error() string {
 var ErrSignupProhibited = SignupError{Message: "user registration is disabled on this self-hosted instance"}
 var ErrEmailNotAllowed = SignupError{Message: "email address or domain not allowed on this instance"}
 
+// ErrUnverifiedEmailAccount refuses to merge a verified credential (a delivered
+// email code or Google's verified claim) into an account whose address was
+// merely typed at open registration. Reusing that row would carry whatever
+// password the registrant set into the identity the mailbox owner is proving,
+// so the conflict is reported instead of resolved automatically.
+var ErrUnverifiedEmailAccount = SignupError{Message: "an unverified account already uses this email; sign in with its password or ask an administrator to resolve it"}
+
 const (
 	googleLoginCodeAccountDisabled     = "account_disabled"
 	googleLoginCodeSignupProhibited    = "signup_prohibited"
@@ -217,6 +224,13 @@ func (h *Handler) findOrCreateUser(ctx context.Context, email string) (user db.U
 	if !isNew && auth.IsTemporarilyDisabledUser(uuidToString(user.ID), user.Email) {
 		return db.User{}, false, auth.ErrTemporarilyDisabledUser
 	}
+	if !isNew && !user.EmailVerified {
+		// The mailbox claim was never proven for this row, so it is not the
+		// identity the credential just proved. Returning it would attach the
+		// verified session to an account someone else created by typing the
+		// address, including any password that account already holds.
+		return db.User{}, false, ErrUnverifiedEmailAccount
+	}
 
 	if err := h.checkSignupAllowed(ctx, email, isNew); err != nil {
 		return db.User{}, false, err
@@ -269,47 +283,68 @@ func signupSourceFromRequest(r *http.Request) string {
 	return decoded
 }
 
+// checkSignupAllowed is the per-entry-point signup gate. Only account creation
+// consults it — an existing account can always sign in, whatever the current
+// registration policy is.
 func (h *Handler) checkSignupAllowed(ctx context.Context, email string, isNewUser bool) error {
 	if !isNewUser {
 		return nil // existing users always allowed to log in
 	}
+	return h.instanceSignupPolicy(ctx, email)
+}
 
-	email = strings.ToLower(email)
+// instanceSignupPolicy is the single decision every enabled account-creation
+// entry point applies: the deployment-wide ALLOW_SIGNUP gate, the instance's
+// persistent open-registration switch (default off, operator-managed), and the
+// optional email/domain allowlists.
+//
+// A workspace invitation is NOT an instance registration grant. The reviewer's
+// case is exactly the confusion this removes: an operator invites a mailbox to
+// one workspace, and any visitor typing that mailbox must not thereby gain an
+// account on the instance. Only an explicit instance invitation (an
+// administrator creating the account and issuing a registration invite) or the
+// open-registration switch admits a new identity.
+func (h *Handler) instanceSignupPolicy(ctx context.Context, email string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
 	domain := ""
 	if at := strings.Index(email, "@"); at > 0 {
 		domain = email[at+1:]
 	}
 
-	// 1. explicit email allowlist always wins
+	// 1. explicit email allowlist always wins: it is an operator's direct
+	// statement about this address, independent of the instance switch.
 	if len(h.cfg.AllowedEmails) > 0 && contains(h.cfg.AllowedEmails, email) {
 		return nil
 	}
 
-	// 2. domain allowlist always wins
+	// 2. domain allowlist always wins for the same reason.
 	if len(h.cfg.AllowedEmailDomains) > 0 && contains(h.cfg.AllowedEmailDomains, domain) {
 		return nil
 	}
 
-	// 3. unrestricted signup needs no invitation lookup.
-	if h.cfg.AllowSignup && len(h.cfg.AllowedEmailDomains) == 0 && len(h.cfg.AllowedEmails) == 0 {
-		return nil
-	}
-
-	// 4. A live invitation is an implicit per-email signup allowance. This
-	// also permits invited emails outside configured allowlists, regardless
-	// of ALLOW_SIGNUP. Recheck at account creation in findOrCreateUser.
-	invited, err := h.Queries.HasPendingInvitationForEmail(ctx, email)
-	if err != nil {
-		return fmt.Errorf("check pending invitation for signup: %w", err)
-	}
-	if invited {
-		return nil
-	}
-
+	// 3. the environment-level switch is a hard off. It predates the instance
+	// toggle and is how a deployment operator disables signup entirely.
 	if !h.cfg.AllowSignup {
 		return ErrSignupProhibited
 	}
-	return ErrEmailNotAllowed
+
+	// 4. a configured allowlist is the deployment's own eligibility list: it
+	// both admits the addresses above and refuses the rest, independently of
+	// the instance-wide open-registration switch.
+	if len(h.cfg.AllowedEmailDomains) > 0 || len(h.cfg.AllowedEmails) > 0 {
+		return ErrEmailNotAllowed
+	}
+
+	// 5. unrestricted signup also needs the instance switch, which lives in the
+	// database and defaults off.
+	open, err := h.readOpenRegistration(ctx)
+	if err != nil {
+		return fmt.Errorf("read instance registration policy: %w", err)
+	}
+	if !open {
+		return ErrSignupProhibited
+	}
+	return nil
 }
 
 func contains(slice []string, s string) bool {

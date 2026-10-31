@@ -638,7 +638,6 @@ func TestP5R1PasswordLoginCannotOutliveAConcurrentChange(t *testing.T) {
 // registration cannot list or accept a workspace invitation addressed to the
 // mailbox it typed. The verified control case keeps working.
 func TestP5R1UnverifiedEmailCannotClaimInvitations(t *testing.T) {
-	ctx := context.Background()
 	victimEmail := "p5r1-victim@example.com"
 	targetEmail := "p5r1-victim-target@example.com"
 	dbfx.Cleanup(t, `DELETE FROM "user" WHERE email IN ($1, $2)`, victimEmail, targetEmail)
@@ -651,19 +650,9 @@ func TestP5R1UnverifiedEmailCannotClaimInvitations(t *testing.T) {
 		"invitee_email": victimEmail, "role": "member", "status": "pending",
 	})
 	// Open registration is the switch the attacker needs.
-	if _, err := testHandler.Queries.UpsertInstanceSetting(ctx, db.UpsertInstanceSettingParams{
-		Key: openRegistrationSettingKey, Value: []byte(`{"enabled":true}`),
-	}); err != nil {
-		t.Fatalf("enable open registration: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = testHandler.Queries.UpsertInstanceSetting(context.Background(), db.UpsertInstanceSettingParams{
-			Key: openRegistrationSettingKey, Value: []byte(`{"enabled":false}`),
-		})
-	})
+	setOpenRegistration(t, true)
 
-	h := p5Handler(t, Config{LocalPasswordLoginEnabled: true})
-	h.Bus = testHandler.Bus
+	h := p5Handler(t, Config{LocalPasswordLoginEnabled: true, AllowSignup: true})
 	resp := testutil.Call(t, h.OpenRegistration, p5JSONRequest(t, http.MethodPost, "/api/register/open", map[string]string{
 		"email": victimEmail, "name": "P5R1 Claim", "username": "p5r1.claim.attacker",
 		"password": "a sufficiently long password",

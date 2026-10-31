@@ -24,6 +24,11 @@ func p5Handler(t *testing.T, cfg Config) *Handler {
 	h.TxStarter = testHandler.TxStarter
 	h.DB = testHandler.DB
 	h.PATCache = testHandler.PATCache
+	// Wire the real hub and event bus: password-change and delete handlers
+	// publish/close sessions through them, and a nil bus would panic on the
+	// publish paths these tests exercise.
+	h.Hub = testHandler.Hub
+	h.Bus = testHandler.Bus
 	h.PasswordLimiter = middleware.NewPasswordAttemptLimiter(1_000, 1_000, time.Minute)
 	h.RegistrationLimiter = middleware.NewPasswordAttemptLimiter(1_000, 1_000, time.Minute)
 	h.RedemptionLimiter = middleware.NewPasswordAttemptLimiter(1_000, 1_000, time.Minute)
@@ -119,7 +124,7 @@ func TestP5OpenRegistrationSwitch(t *testing.T) {
 	username := "p5.open.registration"
 	dbfx.Cleanup(t, `DELETE FROM "user" WHERE email = $1`, email)
 	dbfx.Cleanup(t, `DELETE FROM local_password_credential WHERE username_normalized = $1`, username)
-	dbfx.Cleanup(t, `DELETE FROM instance_setting WHERE key = 'open_registration'`)
+	setOpenRegistration(t, false)
 
 	body := map[string]string{
 		"email":    email,
@@ -127,6 +132,7 @@ func TestP5OpenRegistrationSwitch(t *testing.T) {
 		"username": username,
 		"password": "correct horse battery staple",
 	}
+	h.cfg.AllowSignup = true
 	// Default: closed.
 	testutil.Call(t, h.OpenRegistration, p5JSONRequest(t, http.MethodPost, "/api/register/open", body)).Want(http.StatusForbidden)
 

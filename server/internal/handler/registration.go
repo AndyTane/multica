@@ -33,19 +33,33 @@ type instanceRegistrationSetting struct {
 	OpenRegistrationEnabled bool `json:"enabled"`
 }
 
-func (h *Handler) openRegistrationEnabled(ctx context.Context) bool {
+// readOpenRegistration reports the instance switch. A missing row is the
+// default (closed); a real read error is returned so account-creation callers
+// can fail with a server error instead of silently changing the policy.
+func (h *Handler) readOpenRegistration(ctx context.Context) (bool, error) {
 	raw, err := h.Queries.GetInstanceSetting(ctx, openRegistrationSettingKey)
 	if err != nil {
-		if !isNotFound(err) {
-			slog.Warn("read open registration setting failed", "error", err)
+		if isNotFound(err) {
+			return false, nil
 		}
-		return false
+		return false, err
 	}
 	var setting instanceRegistrationSetting
 	if err := json.Unmarshal(raw, &setting); err != nil {
+		return false, nil
+	}
+	return setting.OpenRegistrationEnabled, nil
+}
+
+// openRegistrationEnabled is the best-effort form for display and for gates
+// whose response is already a refusal: a read failure closes registration.
+func (h *Handler) openRegistrationEnabled(ctx context.Context) bool {
+	open, err := h.readOpenRegistration(ctx)
+	if err != nil {
+		slog.Warn("read open registration setting failed", "error", err)
 		return false
 	}
-	return setting.OpenRegistrationEnabled
+	return open
 }
 
 func (h *Handler) setNoStore(w http.ResponseWriter) {
@@ -281,18 +295,32 @@ func (h *Handler) OpenRegistration(w http.ResponseWriter, r *http.Request) {
 	if !h.requireRegistrationRequest(w, r) {
 		return
 	}
-	ctx := r.Context()
-	if !h.openRegistrationEnabled(ctx) {
-		writeErrorCode(w, http.StatusForbidden, "registration_disabled", "open registration is disabled")
-		return
-	}
 	var req OpenRegistrationRequest
 	if !decodeRegistrationBody(w, r, &req) {
 		return
 	}
+	ctx := r.Context()
 	email, err := auth.NormalizeRegistrationEmail(req.Email)
 	if err != nil {
 		writeErrorCode(w, http.StatusBadRequest, "invalid_email", "invalid email address")
+		return
+	}
+	// The same instance policy the other account-creation paths apply: the
+	// database switch, the deployment switch and the allowlists. Open
+	// registration is the one entry point that exists only while the switch is
+	// on, so the refusal is the ordinary "disabled" answer.
+	if policyErr := h.instanceSignupPolicy(ctx, email); policyErr != nil {
+		var signupErr SignupError
+		if errors.As(policyErr, &signupErr) {
+			code := "registration_disabled"
+			if errors.Is(policyErr, ErrEmailNotAllowed) {
+				code = "email_not_allowed"
+			}
+			writeErrorCode(w, http.StatusForbidden, code, signupErr.Error())
+			return
+		}
+		slog.Warn("open registration policy check failed", append(logger.RequestAttrs(r), "error", policyErr)...)
+		writeError(w, http.StatusInternalServerError, "failed to check registration policy")
 		return
 	}
 	name, err := auth.NormalizeRegistrationDisplayName(req.Name)

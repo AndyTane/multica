@@ -20,28 +20,35 @@ func newTestHandler(cfg Config) *Handler {
 	}
 }
 
+// TestSignupGating pins the policy every account-creation entry point shares:
+// the deployment switch, the instance's open-registration setting (default
+// off), and the email/domain allowlists.
 func TestSignupGating(t *testing.T) {
 	tests := []struct {
-		name  string
-		cfg   Config
+		name string
+		cfg  Config
+		open bool
+		// email is the address being evaluated; isNew distinguishes account
+		// creation from a sign-in by an existing account.
 		email string
 		isNew bool
 		want  error
 	}{
-		{"allow_signup_true_new", Config{AllowSignup: true}, "a@x.com", true, nil},
-		{"allow_signup_false_new", Config{AllowSignup: false}, "a@x.com", true, ErrSignupProhibited},
-		{"allow_signup_false_existing", Config{AllowSignup: false}, "a@x.com", false, nil},
-		{"domain_allowlist_match", Config{AllowSignup: false, AllowedEmailDomains: []string{"company.com"}}, "user@company.com", true, nil},
-		{"domain_allowlist_mismatch_signup_disabled", Config{AllowSignup: false, AllowedEmailDomains: []string{"company.com"}}, "user@other.com", true, ErrSignupProhibited},
-		{"domain_allowlist_mismatch_signup_enabled", Config{AllowSignup: true, AllowedEmailDomains: []string{"company.com"}}, "user@other.com", true, ErrEmailNotAllowed},
-		{"email_allowlist_match", Config{AllowSignup: false, AllowedEmails: []string{"boss@x.com"}}, "boss@x.com", true, nil},
-		{"email_allowlist_mismatch_signup_enabled", Config{AllowSignup: true, AllowedEmails: []string{"boss@x.com"}}, "user@other.com", true, ErrEmailNotAllowed},
+		{"open_registration_enabled_new", Config{AllowSignup: true}, true, "a@x.com", true, nil},
+		{"open_registration_disabled_new", Config{AllowSignup: true}, false, "a@x.com", true, ErrSignupProhibited},
+		{"allow_signup_false_new", Config{AllowSignup: false}, true, "a@x.com", true, ErrSignupProhibited},
+		{"allow_signup_false_existing", Config{AllowSignup: false}, true, "a@x.com", false, nil},
+		{"domain_allowlist_match", Config{AllowSignup: false, AllowedEmailDomains: []string{"company.com"}}, false, "user@company.com", true, nil},
+		{"domain_allowlist_mismatch_signup_disabled", Config{AllowSignup: false, AllowedEmailDomains: []string{"company.com"}}, true, "user@other.com", true, ErrSignupProhibited},
+		{"domain_allowlist_mismatch_signup_enabled", Config{AllowSignup: true, AllowedEmailDomains: []string{"company.com"}}, true, "user@other.com", true, ErrEmailNotAllowed},
+		{"email_allowlist_match", Config{AllowSignup: false, AllowedEmails: []string{"boss@x.com"}}, false, "boss@x.com", true, nil},
+		{"email_allowlist_mismatch_signup_enabled", Config{AllowSignup: true, AllowedEmails: []string{"boss@x.com"}}, true, "user@other.com", true, ErrEmailNotAllowed},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newTestHandler(tt.cfg)
-			h.Queries = db.New(&mockDB{})
+			h.Queries = db.New(&mockDB{openRegistration: tt.open})
 			err := h.checkSignupAllowed(context.Background(), tt.email, tt.isNew)
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("got err=%v want=%v", err, tt.want)
@@ -88,30 +95,43 @@ func TestEmailCodeAllowlistErrors(t *testing.T) {
 	}
 }
 
-func TestSignupGatingReturnsPendingInvitationLookupError(t *testing.T) {
-	h := newTestHandler(Config{AllowSignup: false})
-	h.Queries = db.New(&mockDB{pendingInvitationErr: context.Canceled})
+// TestSignupGatingReturnsPolicyReadError: a failing instance-setting read is a
+// server error, not a silent policy change.
+func TestSignupGatingReturnsPolicyReadError(t *testing.T) {
+	h := newTestHandler(Config{AllowSignup: true})
+	h.Queries = db.New(&mockDB{instanceSettingErr: context.Canceled})
 
-	err := h.checkSignupAllowed(context.Background(), "invited@x.com", true)
+	err := h.checkSignupAllowed(context.Background(), "user@x.com", true)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("got err=%v, want context canceled", err)
 	}
 }
 
+// mockDB answers the single-row reads the signup policy makes. Anything else
+// falls through to getUserErr, which is how the existing account-lookup tests
+// drive their branches.
 type mockDB struct {
 	db.DBTX
-	invitationLookups    int
-	invitationEmail      string
-	getUserErr           error
-	pendingInvitation    bool
-	pendingInvitationErr error
+	openRegistration   bool
+	instanceSettingErr error
+	getUserErr         error
+	invitationLookups  int
 }
 
 func (m *mockDB) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
-	if strings.HasPrefix(sql, "-- name: HasPendingInvitationForEmail :one\n") {
+	switch {
+	case strings.HasPrefix(sql, "-- name: GetInstanceSetting :one\n"):
+		if m.instanceSettingErr != nil {
+			return &mockRow{err: m.instanceSettingErr}
+		}
+		value := []byte(`{"enabled":false}`)
+		if m.openRegistration {
+			value = []byte(`{"enabled":true}`)
+		}
+		return &mockRow{bytesValue: value}
+	case strings.HasPrefix(sql, "-- name: HasPendingInvitationForEmail :one\n"):
 		m.invitationLookups++
-		m.invitationEmail = args[0].(string)
-		return &mockRow{err: m.pendingInvitationErr, boolValue: &m.pendingInvitation}
+		return &mockRow{boolValue: boolPointer(false)}
 	}
 	return &mockRow{err: m.getUserErr}
 }
@@ -120,10 +140,13 @@ func (m *mockDB) Exec(ctx context.Context, sql string, args ...interface{}) (pgc
 	return pgconn.NewCommandTag("INSERT 1"), nil
 }
 
+func boolPointer(value bool) *bool { return &value }
+
 type mockRow struct {
 	pgx.Row
-	err       error
-	boolValue *bool
+	err        error
+	boolValue  *bool
+	bytesValue []byte
 }
 
 func (m *mockRow) Scan(dest ...interface{}) error {
@@ -137,7 +160,14 @@ func (m *mockRow) Scan(dest ...interface{}) error {
 		}
 		*value = *m.boolValue
 	}
-	return m.err
+	if m.bytesValue != nil {
+		value, ok := dest[0].(*[]byte)
+		if !ok {
+			return fmt.Errorf("expected *[]byte destination, got %T", dest[0])
+		}
+		*value = m.bytesValue
+	}
+	return nil
 }
 
 func TestFindOrCreateUserGating(t *testing.T) {
@@ -158,93 +188,53 @@ func TestFindOrCreateUserGating(t *testing.T) {
 		}
 	})
 
-	t.Run("existing_user_allowed", func(t *testing.T) {
-		cfg := Config{AllowSignup: false}
-		h := newTestHandler(cfg)
-		// mockDB returns nil error for Scan, simulating user found
-		h.Queries = db.New(&mockDB{getUserErr: nil})
+	t.Run("unverified_existing_account_is_not_merged", func(t *testing.T) {
+		h := newTestHandler(Config{AllowSignup: true})
+		// A zero-value user row is an unverified account.
+		h.Queries = db.New(&mockDB{})
 
-		_, isNew, err := h.findOrCreateUser(context.Background(), "existing@test.com")
-		if err != nil {
-			t.Fatalf("expected no error for existing user, got %v", err)
+		_, isNew, err := h.findOrCreateUser(context.Background(), "squatted@example.com")
+		if !errors.Is(err, ErrUnverifiedEmailAccount) {
+			t.Fatalf("got err=%v, want ErrUnverifiedEmailAccount", err)
 		}
 		if isNew {
-			t.Fatal("existing user should not be flagged as new")
+			t.Fatal("an existing row must not be reported as new")
 		}
 	})
 
-	t.Run("whitelisted_user_allowed", func(t *testing.T) {
+	t.Run("whitelisted_new_user_passes_policy", func(t *testing.T) {
 		cfg := Config{AllowSignup: false, AllowedEmails: []string{"whitelisted@test.com"}}
 		h := newTestHandler(cfg)
-		h.Queries = db.New(&mockDB{getUserErr: pgx.ErrNoRows})
-
-		// This will pass checkSignupAllowed and move to CreateUser.
-		// Our mockDB Exec returns success, but Queries.CreateUser might expect QueryRow for RETURNING id.
-		// Let's see if it works.
-		_, _, err := h.findOrCreateUser(context.Background(), "whitelisted@test.com")
-		if err != nil && strings.Contains(err.Error(), "registration is disabled") {
-			t.Fatalf("expected whitelisted user to pass signup check, but got %v", err)
+		h.Queries = db.New(&mockDB{})
+		if err := h.checkSignupAllowed(context.Background(), "whitelisted@test.com", true); err != nil {
+			t.Fatalf("allowlisted address rejected: %v", err)
 		}
 	})
 }
 
-// Invitations are explicit per-email exceptions for both signup flag values.
-func TestSignupInvitationAllowlistInteraction(t *testing.T) {
-	for _, allowSignup := range []bool{false, true} {
-		for _, allowlist := range []string{"none", "email", "domain", "both"} {
-			for _, invited := range []bool{false, true} {
-				t.Run(fmt.Sprintf("signup=%t/allowlist=%s/invited=%t", allowSignup, allowlist, invited), func(t *testing.T) {
-					cfg := Config{AllowSignup: allowSignup}
-					if allowlist == "email" || allowlist == "both" {
-						cfg.AllowedEmails = []string{"boss@company.com"}
-					}
-					if allowlist == "domain" || allowlist == "both" {
-						cfg.AllowedEmailDomains = []string{"company.com"}
-					}
-					mock := &mockDB{pendingInvitation: invited}
-					h := newTestHandler(cfg)
-					h.Queries = db.New(mock)
-					err := h.checkSignupAllowed(context.Background(), "OUTSIDER@OTHER.COM", true)
-					var want error
-					openSignup := allowSignup && allowlist == "none"
-					if !invited && !openSignup {
-						want = ErrSignupProhibited
-						if allowSignup {
-							want = ErrEmailNotAllowed
-						}
-					}
-					if !errors.Is(err, want) {
-						t.Fatalf("got %v, want %v", err, want)
-					}
-					if !openSignup && (mock.invitationLookups != 1 || mock.invitationEmail != "outsider@other.com") {
-						t.Fatalf("expected one normalized email lookup, got %d for %q", mock.invitationLookups, mock.invitationEmail)
-					}
-				})
-			}
-		}
-	}
-}
-
-func TestSignupSkipsUnnecessaryInvitationLookup(t *testing.T) {
+// TestSignupPolicyDoesNotConsultWorkspaceInvitations: a workspace invitation is
+// not an instance registration grant. The policy must not even look for one, so
+// a pending row cannot open signup in either switch position.
+func TestSignupPolicyDoesNotConsultWorkspaceInvitations(t *testing.T) {
 	for _, tt := range []struct {
-		name  string
-		cfg   Config
-		isNew bool
+		name string
+		cfg  Config
+		open bool
+		want error
 	}{
-		{"existing", Config{}, false},
-		{"open", Config{AllowSignup: true}, true},
-		{"email_match", Config{AllowedEmails: []string{"USER@COMPANY.COM"}}, true},
-		{"domain_match", Config{AllowedEmailDomains: []string{"COMPANY.COM"}}, true},
+		{"instance_closed", Config{AllowSignup: true}, false, ErrSignupProhibited},
+		{"instance_open", Config{AllowSignup: true}, true, nil},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := &mockDB{pendingInvitationErr: context.Canceled}
+			mock := &mockDB{openRegistration: tt.open}
 			h := newTestHandler(tt.cfg)
 			h.Queries = db.New(mock)
-			if err := h.checkSignupAllowed(context.Background(), "user@company.com", tt.isNew); err != nil {
-				t.Fatal(err)
+			err := h.checkSignupAllowed(context.Background(), "invited@other.com", true)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("got err=%v want=%v", err, tt.want)
 			}
 			if mock.invitationLookups != 0 {
-				t.Fatalf("unexpected invitation lookups: %d", mock.invitationLookups)
+				t.Fatalf("signup policy consulted workspace invitations %d times", mock.invitationLookups)
 			}
 		})
 	}
