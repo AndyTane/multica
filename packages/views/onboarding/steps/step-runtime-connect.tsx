@@ -79,6 +79,7 @@ export function StepRuntimeConnect({
       currentUserId={currentUserId}
       onRefresh={onRefresh}
       runtimesPending={runtimesPending}
+      wsSlug={wsSlug}
     />
   );
 }
@@ -108,6 +109,7 @@ function FancyView({
   onRefresh,
   runtimesPending,
   currentUserId,
+  wsSlug,
 }: {
   wsId: string;
   runtimes: AgentRuntime[];
@@ -120,6 +122,9 @@ function FancyView({
   /** Runtime picker labels rows by owner; injected so this step does not read
    *  the auth store (six tests render it without one). */
   currentUserId?: string | null;
+  /** Passed through to model discovery, which needs the workspace named before
+   *  the app has entered that workspace's route. */
+  wsSlug?: string;
 }) {
   const { t } = useT("onboarding");
   const qc = useQueryClient();
@@ -246,6 +251,7 @@ function FancyView({
             model={model}
             onModelChange={setModel}
             currentUserId={currentUserId ?? null}
+            wsSlug={wsSlug}
           />
         )}
         {phase === "empty" && (
@@ -330,6 +336,7 @@ function FoundView({
   model,
   onModelChange,
   currentUserId,
+  wsSlug,
 }: {
   runtimes: AgentRuntime[];
   selectedId: string | null;
@@ -340,6 +347,7 @@ function FoundView({
   model: string;
   onModelChange: (value: string) => void;
   currentUserId: string | null;
+  wsSlug?: string;
 }) {
   const { t } = useT("onboarding");
   const total = runtimes.length;
@@ -384,6 +392,7 @@ function FoundView({
         <MikaRuntimeChoice
           runtimes={runtimes}
           currentUserId={currentUserId}
+          workspaceSlug={wsSlug}
           value={{ runtimeId: selectedId ?? "", model }}
           onChange={(next) => {
             if (next.runtimeId !== selectedId) onSelect(next.runtimeId);

@@ -115,7 +115,12 @@ describe("AgentDetailInspector runtime access", () => {
     renderInspector(privateRuntime.owner_id);
 
     await waitFor(() => {
-      expect(mockInitiateListModels).toHaveBeenCalledWith(privateRuntime.id);
+      // Discovery options travel as a second argument; this surface runs inside
+      // the workspace route, so it passes neither force nor an explicit slug.
+      expect(mockInitiateListModels).toHaveBeenCalledWith(
+        privateRuntime.id,
+        expect.any(Object),
+      );
     });
   });
 });
