@@ -62,6 +62,12 @@ function LoginPageContent() {
   const qc = useQueryClient();
   const { t } = useT("auth");
   const googleClientId = useConfigStore((state) => state.googleClientId);
+  const localPasswordLoginEnabled = useConfigStore(
+    (state) => state.localPasswordLoginEnabled,
+  );
+  const emailCodeLoginEnabled = useConfigStore(
+    (state) => state.emailCodeLoginEnabled,
+  );
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
   const searchParams = useSearchParams();
@@ -235,6 +241,8 @@ function LoginPageContent() {
           : undefined
       }
       onTokenObtained={setLoggedInCookie}
+      passwordLogin={localPasswordLoginEnabled}
+      emailCodeLogin={emailCodeLoginEnabled}
     />
   );
 }

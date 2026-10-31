@@ -1,0 +1,126 @@
+{
+  "generated_at": "2026-10-31T03:31:18.266Z",
+  "base": "https://192.168.3.49:13443",
+  "steps": [
+    {
+      "step": "tls_chain_validates_against_exported_root",
+      "ok": true,
+      "detail": "issuer=Caddy Local Authority - ECC Intermediate san=IP Address:192.168.3.49"
+    },
+    {
+      "step": "http_entry_redirects_to_https",
+      "ok": true,
+      "detail": "http://192.168.3.49:13001/login -> https://192.168.3.49:13443/login"
+    },
+    {
+      "step": "password_login_form_visible",
+      "ok": true,
+      "detail": "https://192.168.3.49:13443/login"
+    },
+    {
+      "step": "email_code_form_not_offered",
+      "ok": true,
+      "detail": "email inputs=0"
+    },
+    {
+      "step": "unauthenticated_me_is_401",
+      "ok": true,
+      "detail": "GET /api/me -> 401"
+    },
+    {
+      "step": "chinese_copy_present",
+      "ok": true,
+      "detail": "labels=账号/密码 button=登录"
+    },
+    {
+      "step": "autocomplete_and_masking",
+      "ok": true,
+      "detail": "account=username password=current-password type=password"
+    },
+    {
+      "step": "keyboard_tab_order",
+      "ok": true,
+      "detail": "tab1=login-password tab2=login-password-form"
+    },
+    {
+      "step": "submit_disabled_while_in_flight",
+      "ok": true,
+      "detail": "disabled=true"
+    },
+    {
+      "step": "failure_shows_error_and_keeps_username",
+      "ok": true,
+      "detail": "error=invalid username or password username_kept=true"
+    },
+    {
+      "step": "password_login_succeeds",
+      "ok": true,
+      "detail": "GET /api/me -> 200 path=/c1-cross-machine/issues"
+    },
+    {
+      "step": "session_cookie_is_http_only_and_secure",
+      "ok": true,
+      "detail": "{\"httpOnly\":true,\"secure\":true,\"sameSite\":\"Strict\"}"
+    },
+    {
+      "step": "protected_board_rendered",
+      "ok": true,
+      "detail": "path=/c1-cross-machine/issues text_chars=180"
+    },
+    {
+      "step": "realtime_websocket_via_https",
+      "ok": true,
+      "detail": "wss://192.168.3.49:13443/ws?workspace_slug=c1-cross-machine&client_platform=web&client_version=v0.2.0&client_os=windows"
+    },
+    {
+      "step": "session_survives_refresh",
+      "ok": true,
+      "detail": "GET /api/me -> 200 path=/c1-cross-machine/issues"
+    },
+    {
+      "step": "logout_ends_session",
+      "ok": true,
+      "detail": "method=endpoint (status 200) GET /api/me -> 401"
+    },
+    {
+      "step": "login_again_after_logout",
+      "ok": true,
+      "detail": "GET /api/me -> 200"
+    },
+    {
+      "step": "no_uncaught_page_errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "screenshots": [
+    "01-login-page-https.png",
+    "02-login-error-retry.png",
+    "03-protected-board.png",
+    "04-after-refresh.png",
+    "05-after-relogin.png"
+  ],
+  "cert": {
+    "ok": true,
+    "issuer": "Caddy Local Authority - ECC Intermediate",
+    "valid_to": "Oct 31 15:15:45 2026 GMT",
+    "fingerprint256": "ED:60:E6:6C:74:6B:1E:1E:DD:A6:A8:0A:CA:6B:1C:52:FB:96:2A:90:E7:09:0F:9B:18:02:6F:B3:C0:7D:D6:F0",
+    "san": "IP Address:192.168.3.49"
+  },
+  "redirect": [
+    "http://192.168.3.49:13001/login",
+    "https://192.168.3.49:13443/login"
+  ],
+  "cookie_flags": {
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "Strict"
+  },
+  "websocket": true,
+  "login_form_probe": {
+    "passwordFormAt": 303.40000009536743,
+    "emailFormAt": 101.69999980926514,
+    "atMount": 71.7999997138977
+  },
+  "passed": true
+}

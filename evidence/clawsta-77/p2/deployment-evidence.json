@@ -1,0 +1,88 @@
+﻿{
+    "generated_at":  "2026-10-31T03:31:52.7965629Z",
+    "deployment":  {
+                       "root":  "D:\\UWorkers\\clawsta80\\native",
+                       "release":  "D:\\UWorkers\\clawsta80\\native\\releases\\v0.2.0-20261031111027",
+                       "version":  "v0.2.0",
+                       "commit":  "065e20ad00af6bf43da0fb24e3cfd522bf95ff7d",
+                       "web_port":  13002,
+                       "web_host":  "127.0.0.1",
+                       "api_port":  18081,
+                       "public_origin":  "https://192.168.3.49:13443",
+                       "db_port":  16432,
+                       "database":  "multica_clawsta80",
+                       "web_listeners":  ":::13443,:::13001,127.0.0.1:18081,127.0.0.1:13002"
+                   },
+    "health":  {
+                   "status":  "ok",
+                   "pid":  20320,
+                   "commit":  "065e20ad00af6bf43da0fb24e3cfd522bf95ff7d",
+                   "started_at":  "2026-10-31T03:13:37Z"
+               },
+    "capabilities":  {
+                         "local_password_login_enabled":  true,
+                         "email_code_login_enabled":  false,
+                         "server_version":  "v0.2.0"
+                     },
+    "releases":  [
+                     "v0.2.0-20261031030941",
+                     "v0.2.0-20261031111027"
+                 ],
+    "ca":  {
+               "subject":  "CN=Caddy Local Authority - 2026 ECC Root",
+               "sha1":  "C1BB74EE54829B7FB54AEAE7D8F375497C648237",
+               "sha256":  "BC77D804B7EDA0FA405E3CBB833097A1348044654393704CC3FCDAAD86D6EC25",
+               "not_after":  "2036-09-08T03:13:48.0000000Z",
+               "public_cert_path":  "D:\\UWorkers\\clawsta80\\native\\https\\public\\root-ca.crt",
+               "trusted_in_machine_store":  1
+           },
+    "leaf":  {
+                 "subject":  "",
+                 "san":  "IP Address=192.168.3.49",
+                 "sha256":  "ED60E66C746B1E1EDDA6A80ACA6B1C52FB962A90E7090F9B18026FB3C07DD6F0",
+                 "not_after":  "2026-10-31T15:15:45.0000000Z"
+             },
+    "proxy_lifecycle":  {
+                            "task_name":  "UWorkers-CLAWSTA80-HTTPS",
+                            "task_installed":  true,
+                            "task_details":  "",
+                            "caddy_process":  [
+                                                  "pid=11120 user=SYSTEM"
+                                              ],
+                            "restart_test":  "killed pid=11120 recovered=True https_listening_after=True new_pid=12076"
+                        },
+    "firewall":  [
+                     {
+                         "name":  "UWorkers-CLAWSTA80-Web-13001",
+                         "enabled":  "True",
+                         "direction":  "Inbound",
+                         "action":  "Allow",
+                         "remote":  "192.168.3.0/255.255.255.0,100.102.214.78",
+                         "port":  "13001",
+                         "protocol":  "TCP"
+                     },
+                     {
+                         "name":  "UWorkers-CLAWSTA80-HTTPS-13443",
+                         "enabled":  "True",
+                         "direction":  "Inbound",
+                         "action":  "Allow",
+                         "remote":  "192.168.3.0/255.255.255.0",
+                         "port":  "13443",
+                         "protocol":  "TCP"
+                     }
+                 ],
+    "http_checks":  {
+                        "https_health":  "200",
+                        "https_me_unauthenticated":  "401",
+                        "https_tls_verify_result":  "0",
+                        "http_get_login_redirect":  "HTTP/1.1 308",
+                        "http_post_rejected":  "405",
+                        "direct_api_from_loopback":  "200"
+                    },
+    "backup":  {
+                   "native_backups":  [
+                                          "native-20261031-110818"
+                                      ],
+                   "previous_release":  "v0.2.0-20261031030941"
+               }
+}

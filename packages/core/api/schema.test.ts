@@ -918,6 +918,42 @@ describe("ApiClient schema fallback", () => {
       expect(config.daemon_app_url).toBeUndefined();
       expect(config.feature_flags?.composio_mcp_apps).toBe(true);
     });
+
+    // A server that predates local password login does not send either flag.
+    // The client has to read that as "password login off, email codes still
+    // on", or it either offers a form the API rejects or strands the user on a
+    // login page with no way in.
+    it("defaults the login method flags for a server that predates them", async () => {
+      stubFetchJson({ cdn_domain: "cdn.example.com", allow_signup: true });
+      const client = new ApiClient("https://api.example.test");
+      const config = await client.getConfig();
+      expect(config.local_password_login_enabled).toBe(false);
+      expect(config.email_code_login_enabled).toBe(true);
+    });
+
+    it("coerces malformed login method flags to their compatible defaults", async () => {
+      stubFetchJson({
+        local_password_login_enabled: "yes",
+        email_code_login_enabled: 0,
+      });
+      const client = new ApiClient("https://api.example.test");
+      const config = await client.getConfig();
+      // Never trust a truthy-looking declaration for a method the server may
+      // not implement; never turn off the method an older server assumed.
+      expect(config.local_password_login_enabled).toBe(false);
+      expect(config.email_code_login_enabled).toBe(true);
+    });
+
+    it("carries a password-only server's declaration through", async () => {
+      stubFetchJson({
+        local_password_login_enabled: true,
+        email_code_login_enabled: false,
+      });
+      const client = new ApiClient("https://api.example.test");
+      const config = await client.getConfig();
+      expect(config.local_password_login_enabled).toBe(true);
+      expect(config.email_code_login_enabled).toBe(false);
+    });
   });
 
   describe("listGroupedIssues", () => {

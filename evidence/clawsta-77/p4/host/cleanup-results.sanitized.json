@@ -1,0 +1,49 @@
+{
+    "generated_at":  "2026-10-31T05:10:30.1794773Z",
+    "batch":  "P4",
+    "deleted":  {
+                    "test_identities":  2,
+                    "test_workspaces":  2,
+                    "workspace_attachments":  3,
+                    "upload_objects":  6,
+                    "stale_verification_codes":  1,
+                    "client_usage_rows":  6,
+                    "issue_subscriber_rows":  5
+                },
+    "after":  {
+                  "users":  1,
+                  "workspaces":  1,
+                  "members":  1,
+                  "credentials":  0,
+                  "attachments":  0,
+                  "verification_codes":  0,
+                  "uploads_remaining_files":  0
+              },
+    "preserved":  {
+                      "requested_identity_exists":  true,
+                      "requested_identity_email_hash_matches":  true,
+                      "workspace":  "uworkers-tane",
+                      "memberships":  1,
+                      "starter_issues":  1,
+                      "activity_rows":  1,
+                      "credentials":  0,
+                      "entry_pinned_to_protected":  true,
+                      "desktop_shortcut_present":  true
+                  },
+    "residual_reference_check":  "pass",
+    "service":  {
+                    "https_health":  200,
+                    "login_page":  200,
+                    "anonymous_me":  401,
+                    "password_login_enabled":  true,
+                    "email_code_login_enabled":  false
+                },
+    "backups":  [
+                    "native-20261031-110818",
+                    "native-20261031-114617",
+                    "native-20261031-115926",
+                    "native-20261031-130821",
+                    "native-20261031-130845",
+                    "native-20261031-130918"
+                ]
+}

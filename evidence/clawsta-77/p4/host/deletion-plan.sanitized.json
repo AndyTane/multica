@@ -1,0 +1,46 @@
+{
+    "generated_at":  "2026-10-31T05:09:19.2297062Z",
+    "batch":  "P4",
+    "cleanup_scope":  "delete the acceptance test identity with workspace c1-cross-machine, and the mis-created test identity with workspace uworkers, including their uploads, stale verification code and attributable client-usage/subscription residue",
+    "delete_targets":  [
+                           "acceptance_test_identity + c1-cross-machine workspace + its 4 issues and 3 uploads",
+                           "miscreated_test_identity + uworkers workspace + its 1 starter issue",
+                           "1 stale verification-code row (pre-P3 attempt, not the requested identity)",
+                           "6 client-usage rows and 5 issue-subscriber rows attributable to the two test identities"
+                       ],
+    "preserve":  [
+                     "requested identity (5983f955...)",
+                     "uworkers-tane workspace + its starter content and activity",
+                     "local credential state (0; formal password not set by this batch)"
+                 ],
+    "pre_counts":  {
+                       "users":  3,
+                       "workspaces":  3,
+                       "credentials":  0,
+                       "attachments_in_target_workspaces":  3,
+                       "verification_codes":  1,
+                       "client_usage_rows":  6,
+                       "issue_subscriber_rows":  5,
+                       "upload_files_in_target_workspace_dir":  6
+                   },
+    "backups":  [
+                    "native-20261031-110818",
+                    "native-20261031-114617",
+                    "native-20261031-115926",
+                    "native-20261031-130821",
+                    "native-20261031-130845",
+                    "native-20261031-130918"
+                ],
+    "protected_identity_email_sha256":  "5983f9551dc3f2370d8f04a7291d1d03e1c7fb96eac1b5112791572728122788",
+    "safety_checks":  {
+                          "protected_disjoint_from_targets":  true,
+                          "target_users_are_owners":  true,
+                          "target_users_have_no_credentials":  true,
+                          "protected_snapshot":  {
+                                                     "memberships":  1,
+                                                     "issues":  1,
+                                                     "activity":  1,
+                                                     "credentials":  0
+                                                 }
+                      }
+}

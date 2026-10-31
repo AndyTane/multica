@@ -408,7 +408,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		AllowSignup:              os.Getenv("ALLOW_SIGNUP") != "false",
 		AllowedEmails:            splitAndTrim(os.Getenv("ALLOWED_EMAILS")),
 		AllowedEmailDomains:      splitAndTrim(os.Getenv("ALLOWED_EMAIL_DOMAINS")),
-		DisableWorkspaceCreation: os.Getenv("DISABLE_WORKSPACE_CREATION") == "true",
+		// Local password login is opt-in: the operator provisions credentials
+		// (cmd/local-auth) before switching it on. Email-code login stays the
+		// default and can be switched off on deployments without mail service.
+		LocalPasswordLoginEnabled: envBool("AUTH_LOCAL_PASSWORD_ENABLED", false),
+		EmailCodeLoginDisabled:    !envBool("AUTH_EMAIL_CODE_ENABLED", true),
+		DisableWorkspaceCreation:  os.Getenv("DISABLE_WORKSPACE_CREATION") == "true",
 		VCSIntegrationEnabled:    os.Getenv("MULTICA_VCS_INTEGRATION_ENABLED") == "true",
 		PublicURL:                strings.TrimRight(strings.TrimSpace(os.Getenv("MULTICA_PUBLIC_URL")), "/"),
 		AppURL:                   appURLFromEnv(),
@@ -425,6 +430,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
+	// One limiter instance serves both budgets of POST /auth/password: the
+	// per-IP budget as route middleware (it has the client IP), the per-account
+	// budget inside the handler (it needs the normalized username). In-memory on
+	// purpose — the single-node deployment this exists for has no Redis.
+	h.PasswordLimiter = middleware.NewPasswordAttemptLimiter(
+		middleware.DefaultPasswordAccountLimit,
+		middleware.DefaultPasswordSourceLimit,
+		middleware.DefaultPasswordLimitWindow,
+	)
 	invitationRateLimits := handler.DefaultInvitationRateLimits()
 	invitationRateLimits.Actor.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_ACTOR_10M", invitationRateLimits.Actor.Limit)
 	invitationRateLimits.Workspace.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_WORKSPACE_24H", invitationRateLimits.Workspace.Limit)
@@ -1450,10 +1464,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	trustedProxies := middleware.ParseTrustedProxies(os.Getenv("RATE_LIMIT_TRUSTED_PROXIES"))
 	authRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_AUTH", 5), time.Minute, trustedProxies)
 	authVerifyRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_AUTH_VERIFY", 20), time.Minute, trustedProxies)
+	pwdSourceRL := middleware.PasswordSourceLimit(h.PasswordLimiter, trustedProxies)
 	contactSalesRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_CONTACT_SALES", 5), time.Hour, trustedProxies)
 	r.With(authRL).Post("/auth/send-code", h.SendCode)
 	r.With(authVerifyRL).Post("/auth/verify-code", h.VerifyCode)
 	r.With(authRL).Post("/auth/google", h.GoogleLogin)
+	// Local account/password login. Its limiter is in-process on purpose: the
+	// route must stay bounded on deployments where REDIS_URL is unset.
+	r.With(pwdSourceRL).Post("/auth/password", h.PasswordLogin)
 	r.Post("/auth/logout", h.Logout)
 
 	// Public API

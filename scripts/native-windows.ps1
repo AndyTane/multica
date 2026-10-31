@@ -443,6 +443,9 @@ function Build-NativeDeployment {
         if ($Config.GoModCache) { $env:GOMODCACHE = [string]$Config.GoModCache; $env:GOPROXY = 'off'; $env:GOSUMDB = 'off' }
         Invoke-NativeCommand $goExe @('build', '-p', '2', '-ldflags', "-s -w -X main.version=$version -X main.commit=$commit", '-o', (Join-Path $release 'server.exe'), './cmd/server')
         Invoke-NativeCommand $goExe @('build', '-p', '2', '-ldflags', '-s -w', '-o', (Join-Path $release 'migrate.exe'), './cmd/migrate')
+        # Local password credentials are provisioned on the host, not through the
+        # web UI; ship the admin tool beside the server it belongs to.
+        Invoke-NativeCommand $goExe @('build', '-p', '2', '-ldflags', '-s -w', '-o', (Join-Path $release 'local-auth.exe'), './cmd/local-auth')
     } finally {
         $env:GOMAXPROCS = $savedGo; $env:CGO_ENABLED = $savedCgo
         $env:GOMODCACHE = $savedModCache; $env:GOPROXY = $savedGoProxy; $env:GOSUMDB = $savedSumDb

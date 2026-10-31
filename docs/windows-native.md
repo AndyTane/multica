@@ -244,6 +244,70 @@ host still serving after the starting SSH session closed. See
 issues found on that machine and `evidence/clawsta-80/cross-machine/` for the
 sanitized results.
 
+## HTTPS entry (P2/P3)
+
+The LAN deployment fronts the loopback API and web server with Caddy; plain HTTP
+on the old port only redirects. The exact files that are deployed live in
+[deploy/windows-https/](../deploy/windows-https/); verified results are in
+[evidence/clawsta-77/p2/](../evidence/clawsta-77/p2/README.md),
+[evidence/clawsta-77/p3/](../evidence/clawsta-77/p3/README.md) and the P3-R1
+identity correction in
+[evidence/clawsta-77/p3-r1/](../evidence/clawsta-77/p3-r1/README.md).
+
+- `https://192.168.3.49:13443` is the only browser origin. Caddy sends
+  `/api/*`, `/auth/*`, `/ws`, `/uploads/*`, `/v1/*` and the health routes to
+  `127.0.0.1:18081` and everything else to `127.0.0.1:13002`.
+- The Next.js server moves to loopback `127.0.0.1:13002` (`-Action Configure`
+  `-WebPort 13002 -WebHost 127.0.0.1`); the API and PostgreSQL stay loopback.
+- `http://192.168.3.49:13001` answers GET/HEAD with `308` to the HTTPS URL and
+  refuses other methods with `405`; the new firewall rule
+  `UWorkers-CLAWSTA80-HTTPS-13443` admits only `192.168.3.0/24`.
+- `PublicOrigin`, `FRONTEND_ORIGIN`, `MULTICA_APP_URL` and
+  `CORS_ALLOWED_ORIGINS` must use the HTTPS origin; session cookies then carry
+  `Secure` as well.
+- The proxy clears client-supplied forwarding headers and sets
+  `X-Forwarded-For` to the real peer; keep `RATE_LIMIT_TRUSTED_PROXIES` and
+  `MULTICA_TRUSTED_PROXIES` limited to `127.0.0.1/32,::1/128`, never the LAN
+  subnet.
+- TLS uses Caddy's local CA with an IP SAN. Only the public root certificate
+  (`https\public\root-ca.crt`) leaves the host; the CA private key stays in the
+  ACL-restricted `https\data`. The host and each client import the root once
+  (machine store on the host, user store on clients). Removing it is
+  `certutil -user -delstore Root <sha1-thumbprint>`.
+- `caddy-windows.ps1` owns start/stop/status/trust and registers the ONSTART
+  SYSTEM task `UWorkers-CLAWSTA80-HTTPS`, so the proxy survives the SSH session
+  or agent that started it; the Caddy admin API is disabled. The task runs with
+  no execution time limit (`PT0S`), restarts on failure (999 times, one-minute
+  interval), starts when available, ignores battery conditions and allows one
+  instance; every `Start` re-applies that definition in place even while the
+  proxy is healthy, and `Stop` removes only this deployment's own process by its
+  exact managed executable path. P3 verified a controlled stop/start with
+  normal certificate validation.
+- DB/API/web upgrades stay with `runtime\native-windows.ps1`. Roll back by
+  stopping the HTTPS entry and restoring the previous release, `WebPort 13001`,
+  `WebHost 0.0.0.0` and the HTTP `PublicOrigin` from the pre-change backup.
+
+## Identity, first use and the private login entry
+
+The local login entry lives at `native\Set-UWorkers-Login.cmd` with the desktop
+shortcut "设置 U Workers 登录". It is pinned to the identity in
+`native\local-login-identity.json`: it verifies the pinned user id **and** its
+email against the database, refuses a mismatched identity, refuses to overwrite
+an existing credential, then asks for a login name and the tool's hidden double
+password prompt. The permanent password is always typed by that person on the
+desktop; the entry never stores or prints a password.
+
+A new identity is provisioned once by the host-local admin task
+`deploy/windows-https/create-local-identity.ps1` (idempotent, transactional,
+reuses an existing row without overwriting it, optionally writes the pinned
+identity file); the person then completes the normal first-use onboarding in
+the browser to create their own workspace. The app has no public signup or back
+door. Pin only the identity the requester explicitly supplied — compare the
+normalized (trim + lowercase, UTF-8) SHA-256 of the email with the supplied
+fingerprint, and never infer it from an older row or the runtime owner's
+profile; P3-R1 records a correction for exactly that mistake, keeping the
+mis-sourced identity untouched and uncredentialed.
+
 ## Operations and recovery
 
 ### External reporting policy
@@ -281,6 +345,72 @@ For an upgrade, take this backup, stop the deployment, build a new release, and 
 
 Before the native deployment accepts writes, rollback can restart the preserved Docker deployment. After native writes begin, export the native database and uploads back to the recovery deployment first; starting the old database snapshot alone would lose those writes.
 
+### Local password login (no mail service)
+
+A native deployment with no outbound mail service can sign users in with
+account/password credentials that the host administrator provisions locally.
+The credential attaches to an existing user; it does not create users, grant
+workspace membership, or change any existing profile or membership row.
+
+To enable it, add the switches to `BackendEnvironment` in `deployment.json` (or
+set them in the environment), then restart the deployment:
+
+```json
+"AUTH_LOCAL_PASSWORD_ENABLED": "true",
+"AUTH_EMAIL_CODE_ENABLED":     "false"
+```
+
+`AUTH_LOCAL_PASSWORD_ENABLED` defaults to off. `AUTH_EMAIL_CODE_ENABLED`
+defaults to on; setting it to `false` disables `/auth/send-code` and
+`/auth/verify-code` server-side (403) rather than only hiding the form. On a
+fresh deployment, provision password credentials FIRST: the email-code flow is
+the only browser path that creates user rows, and a credential needs an existing
+user. `/api/config` advertises both switches, so the login page shows the account
+form and drops the unavailable email flow without a web rebuild.
+
+Provision credentials with the `local-auth.exe` that `Build` writes into the
+release directory. The wrapper finds the current release from `deployment.json`
+and passes the connection configuration; it never prints the connection string:
+
+```powershell
+# Create a credential for an existing user (prompts twice, no echo)
+D:\UWorkers\clawsta80\repo\scripts\local-auth.ps1 -Root D:\UWorkers\clawsta80\native `
+  create --user-email you@example.com --username you
+
+# Change the password; the previous one stops working immediately
+D:\UWorkers\clawsta80\repo\scripts\local-auth.ps1 -Root D:\UWorkers\clawsta80\native `
+  reset --username you
+
+# Remove the credential. The user and other login methods are untouched.
+D:\UWorkers\clawsta80\repo\scripts\local-auth.ps1 -Root D:\UWorkers\clawsta80\native `
+  delete --username you
+
+# Show which usernames exist and which user each one signs in as
+D:\UWorkers\clawsta80\repo\scripts\local-auth.ps1 -Root D:\UWorkers\clawsta80\native list
+```
+
+Run the tool on the host that owns the database. It refuses to read a password
+from a non-interactive stdin unless `--password-stdin` is passed explicitly, and
+never accepts a password as a command-line argument. Passwords are at least 12
+characters and at most 72 UTF-8 bytes, hashed with bcrypt (cost 12); the tool
+never writes, prints or logs the plaintext, and a reset never frees the old
+username.
+
+Password login is rate limited in-process, so it works without Redis: five
+attempts per account and twenty per source IP each minute, charged before the
+bcrypt comparison, answering 429 with `Retry-After`. Behind a reverse proxy set
+`RATE_LIMIT_TRUSTED_PROXIES` to the proxy CIDRs, otherwise every client shares
+the proxy address and `X-Forwarded-For` is ignored by design.
+
+The current LAN deployment serves the web UI over HTTP. That does not protect a
+password in transit: terminate TLS at a reverse proxy (and keep the API and
+database on loopback) before enabling password login beyond a trusted LAN. The
+web and desktop clients share the same login page; this feature does not relax
+certificate validation.
+
+Do not record account names or passwords in this document, a task report or a
+screenshot. The interactive prompt is the only expected place a password is
+typed, and the tool prints passwords never.
 ### Outbound network acceptance
 
 A native deployment can be observed for unsolicited outbound traffic without a

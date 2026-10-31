@@ -777,6 +777,15 @@ export interface AppConfigResponse {
    * DELETE /api/comments/{id}/keep-replies. Older servers deleted the replies
    * too, so absent must be treated as false (#8296). */
   comment_delete_keep_replies_supported?: boolean;
+  /** Whether this deployment signs users in with a locally managed account and
+   * password (POST /auth/password). Off by default on the server, and absent on
+   * every server that predates the feature, so absent must be treated as false:
+   * the login page then offers only the methods the server really has. */
+  local_password_login_enabled?: boolean;
+  /** Whether this deployment still issues email login codes. Servers before
+   * this signal always did, so absent must be treated as true — turning the
+   * email flow off is an explicit choice the server has to announce. */
+  email_code_login_enabled?: boolean;
   server_version?: string;
 }
 
@@ -1038,6 +1047,12 @@ export const AppConfigSchema = z.object({
   agent_conversation_starters_supported: BooleanWithDefaultSchema(false),
   issue_create_properties_supported: BooleanWithDefaultSchema(false),
   comment_delete_keep_replies_supported: BooleanWithDefaultSchema(false),
+  // Local password sign-in ships off; an older server neither accepts the
+  // route nor sends this flag.
+  local_password_login_enabled: BooleanWithDefaultSchema(false),
+  // Email codes were the only method before this flag existed, so an absent
+  // value has to mean enabled or every older server would lose its login page.
+  email_code_login_enabled: BooleanWithDefaultSchema(true),
   server_version: OptionalStringSchema,
 }).loose();
 
@@ -1059,6 +1074,12 @@ export const EMPTY_APP_CONFIG: AppConfigResponse = {
   issue_create_properties_supported: false,
   // Fail closed: old servers delete a comment's replies with it.
   comment_delete_keep_replies_supported: false,
+  // Fail closed: an unreadable config must not offer a password form the
+  // server may not implement.
+  local_password_login_enabled: false,
+  // Fail open: email codes are the only method an unreadable config can be
+  // assumed to support, and hiding them would strand the user on a dead page.
+  email_code_login_enabled: true,
   feature_flags: {},
 };
 

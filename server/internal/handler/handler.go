@@ -69,6 +69,16 @@ type Config struct {
 	AllowSignup         bool
 	AllowedEmails       []string
 	AllowedEmailDomains []string
+	// LocalPasswordLoginEnabled gates POST /auth/password. Off by default: a
+	// deployment only accepts local account/password credentials after the host
+	// administrator provisions them (cmd/local-auth) and turns this on. The
+	// public /api/config mirrors the flag so the login UI can show the form.
+	LocalPasswordLoginEnabled bool
+	// EmailCodeLoginDisabled switches the email verification-code login off
+	// server-side. Inverted so the zero Config keeps today's behavior; both
+	// email-code endpoints then answer 403 with a stable code instead of
+	// silently failing on a deployment with no outbound mail service.
+	EmailCodeLoginDisabled bool
 	// DisableWorkspaceCreation, when true, makes POST /api/workspaces return
 	// 403 for every caller. There is no role/owner exception because the repo
 	// has no platform-admin concept; operators bootstrap the workspace with
@@ -257,6 +267,11 @@ type Handler struct {
 	WebhookRateLimiter           WebhookRateLimiter
 	WebhookIPRateLimiter         WebhookRateLimiter
 	WebhookAbsoluteIPRateLimiter WebhookRateLimiter
+	// PasswordLimiter enforces the per-account attempt budget for
+	// POST /auth/password. The per-IP budget runs as route middleware over the
+	// same limiter instance (middleware.PasswordSourceLimit). Nil disables the
+	// account budget, which tests that are not about rate limiting rely on.
+	PasswordLimiter *middleware.PasswordAttemptLimiter
 	InvitationRateLimiters       InvitationRateLimiters
 	WebhookDeliveryWorker        *WebhookDeliveryWorker
 	CloudRuntime                 cloudRuntimeProxy

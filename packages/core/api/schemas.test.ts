@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AppConfigSchema,
+  EMPTY_APP_CONFIG,
   WecomInstallationSchema,
   ListWecomInstallationsResponseSchema,
   RedeemWecomBindingTokenResponseSchema,
@@ -1331,6 +1332,50 @@ describe("AppConfigSchema issue_create_properties_supported drift", () => {
       AppConfigSchema.parse({ issue_create_properties_supported: true })
         .issue_create_properties_supported,
     ).toBe(true);
+  });
+});
+
+// Local password login ships off, and a server that predates it neither accepts
+// POST /auth/password nor sends the flag — a form shown anyway would be a login
+// page whose only action fails.
+describe("AppConfigSchema local_password_login_enabled drift", () => {
+  it.each([
+    [undefined, false],
+    ["yes", false],
+    [true, true],
+    [false, false],
+  ])("%j parses as %s", (value, expected) => {
+    const parsed = AppConfigSchema.parse({
+      cdn_domain: "cdn.example.com",
+      local_password_login_enabled: value,
+    });
+    expect(parsed.local_password_login_enabled).toBe(expected);
+  });
+
+  it("fails closed in the fallback used when the whole config is unreadable", () => {
+    expect(EMPTY_APP_CONFIG.local_password_login_enabled).toBe(false);
+  });
+});
+
+// Email codes were the only method before this flag existed, so an absent field
+// has to mean enabled: reading it as "off" would strand every older server on a
+// login page that offers nothing.
+describe("AppConfigSchema email_code_login_enabled drift", () => {
+  it.each([
+    [undefined, true],
+    ["yes", true],
+    [true, true],
+    [false, false],
+  ])("%j parses as %s", (value, expected) => {
+    const parsed = AppConfigSchema.parse({
+      cdn_domain: "cdn.example.com",
+      email_code_login_enabled: value,
+    });
+    expect(parsed.email_code_login_enabled).toBe(expected);
+  });
+
+  it("keeps email codes in the fallback used when the whole config is unreadable", () => {
+    expect(EMPTY_APP_CONFIG.email_code_login_enabled).toBe(true);
   });
 });
 

@@ -24,6 +24,14 @@ type AppConfig struct {
 	// toggle signup or wire Google OAuth.
 	AllowSignup    bool   `json:"allow_signup"`
 	GoogleClientID string `json:"google_client_id,omitempty"`
+	// Local password login: account/password credentials provisioned by the
+	// host administrator. Advertised so the login page can offer the form; the
+	// switch itself is enforced in POST /auth/password.
+	LocalPasswordLoginEnabled bool `json:"local_password_login_enabled"`
+	// Email code login: the classic verification-code flow, enabled unless the
+	// operator turned it off. Advertised so a password-only deployment hides the
+	// email form instead of sending users into a disabled endpoint.
+	EmailCodeLoginEnabled bool `json:"email_code_login_enabled"`
 	// WorkspaceCreationDisabled mirrors the server-side
 	// DISABLE_WORKSPACE_CREATION env var so the UI can hide every
 	// "Create workspace" affordance on self-hosted instances. Omitted
@@ -112,6 +120,8 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		CommentDeleteKeepRepliesSupported:  true,
 		AllowSignup:                        os.Getenv("ALLOW_SIGNUP") != "false",
 		GoogleClientID:                     os.Getenv("GOOGLE_CLIENT_ID"),
+		LocalPasswordLoginEnabled:          h.cfg.LocalPasswordLoginEnabled,
+		EmailCodeLoginEnabled:              !h.cfg.EmailCodeLoginDisabled,
 		WorkspaceCreationDisabled:          os.Getenv("DISABLE_WORKSPACE_CREATION") == "true",
 	}
 	if h.Storage != nil {

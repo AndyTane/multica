@@ -1,0 +1,21 @@
+{
+  "base": "https://192.168.3.49:13443",
+  "generated_at": "2026-10-31T05:09:42.881Z",
+  "results": [
+    {
+      "label": "acceptance_test_workspace",
+      "login_status": 200,
+      "delete_status": 204,
+      "deleted": true,
+      "detail": "workspace deleted via app endpoint"
+    },
+    {
+      "label": "miscreated_test_workspace",
+      "login_status": 200,
+      "delete_status": 204,
+      "deleted": true,
+      "detail": "workspace deleted via app endpoint"
+    }
+  ],
+  "passed": true
+}
