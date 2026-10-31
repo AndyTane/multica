@@ -173,7 +173,7 @@ func (h *Handler) StartMikaOnboarding(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		slog.Warn("start Mika onboarding failed", append(logger.RequestAttrs(r), "error", err)...)
-		writeError(w, http.StatusInternalServerError, "failed to start Mika onboarding")
+		writeError(w, http.StatusInternalServerError, "failed to start Siman onboarding")
 		return
 	}
 

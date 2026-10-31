@@ -36,7 +36,7 @@
     "skip": {
       "loading": "正在为你准备工作区...",
       "title": "欢迎来到 U Workers！",
-      "subtitle": "我们建了一个任务帮你连接运行时。准备好后，在 \"运行时\" 页面就能开始使用 Mika。",
+      "subtitle": "我们建了一个任务帮你连接运行时。准备好后，在 \"运行时\" 页面就能开始使用 Siman。",
       "got_it": "知道了",
       "status_in_progress": "进行中",
       "error_title": "没能帮你准备好",
@@ -46,7 +46,7 @@
       "cards": {
         "install_runtime": {
           "title": "连接一个运行时",
-          "subtitle": "安装 Codex 或 Kimi，然后从 \"运行时\" 页面进入 Mika 的引导对话。"
+          "subtitle": "安装 Codex 或 Kimi，然后从 \"运行时\" 页面进入 Siman 的引导对话。"
         }
       }
     }
@@ -95,7 +95,7 @@
     "scanning_headline": "正在连接这台电脑...",
     "scanning_lede_prefix": "你的智能体借助本机已安装的 AI 编程工具运行，例如 ",
     "scanning_lede_suffix": " 等。我们正在检测这台电脑上装了哪些。",
-    "found_headline": "让 Mika 在哪台电脑上运行？",
+    "found_headline": "让 Siman 在哪台电脑上运行？",
     "runtime_count_other": "{{count}} 个智能体运行时",
     "status_all_online": "全部在线",
     "status_none_online": "全部离线",
@@ -112,19 +112,19 @@
     "refresh": "刷新",
     "refreshing": "正在刷新...",
     "hint_selected": "已选择：{{name}}",
-    "hint_pick": "在上方选择一个智能体运行时，就可以开始使用 Mika。",
+    "hint_pick": "在上方选择一个智能体运行时，就可以开始使用 Siman。",
     "hint_waiting": "等待第一个结果...",
     "continue": "继续创建任务"
   },
   "errors": {
     "skip_failed": "完成上手引导失败",
-    "mika_setup_failed": "无法启动 Mika 工作区"
+    "mika_setup_failed": "无法启动 Siman"
   },
   "mika_intro": {
-    "headline": "认识一下 Mika，你的第一个智能体队友。",
-    "name": "Mika",
+    "headline": "认识一下 Siman，你的第一个智能体队友。",
+    "name": "Siman",
     "role": "参谋长",
-    "blurb": "把你想做的事告诉 Mika，它会变成一个任务，并交给合适的智能体处理。"
+    "blurb": "把你想做的事告诉 Siman，它会变成一个任务，并交给合适的智能体处理。"
   },
   "service": {
     "title": "连接你的服务",
@@ -133,9 +133,9 @@
   },
   "task": {
     "title": "开始第一个任务",
-    "connected": "Mika 会使用所选运行时和模型，帮你把目标变成任务。",
+    "connected": "Siman 会使用所选运行时和模型，帮你把目标变成任务。",
     "no_runtime": "进入工作区创建任务，之后也可以连接运行时。",
-    "start": "与 Mika 开始",
+    "start": "与 Siman 开始",
     "starting": "正在打开…",
     "open_workspace": "进入工作区"
   }

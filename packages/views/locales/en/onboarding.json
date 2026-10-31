@@ -36,7 +36,7 @@
     "skip": {
       "loading": "Setting up your workspace…",
       "title": "Welcome to U Workers!",
-      "subtitle": "We've added one issue to help you connect a runtime. When it's ready, start with Mika from Runtimes.",
+      "subtitle": "We've added one issue to help you connect a runtime. When it's ready, start with Siman from Runtimes.",
       "got_it": "Got it",
       "status_in_progress": "In progress",
       "error_title": "We couldn't set that up",
@@ -46,7 +46,7 @@
       "cards": {
         "install_runtime": {
           "title": "Connect a runtime",
-          "subtitle": "Install Codex or Kimi, then start the guided Mika chat from Runtimes."
+          "subtitle": "Install Codex or Kimi, then start the guided Siman chat from Runtimes."
         }
       }
     }
@@ -95,7 +95,7 @@
     "scanning_headline": "Connecting this computer…",
     "scanning_lede_prefix": "Your agent works through an AI coding tool you already have — like ",
     "scanning_lede_suffix": ", and others. We're checking this computer for ones you've installed.",
-    "found_headline": "Where should Mika run?",
+    "found_headline": "Where should Siman run?",
     "runtime_count_one": "{{count}} agent runtime",
     "runtime_count_other": "{{count}} agent runtimes",
     "status_all_online": "all online",
@@ -113,19 +113,19 @@
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "hint_selected": "Selected: {{name}}",
-    "hint_pick": "Pick an agent runtime above to start with Mika.",
+    "hint_pick": "Pick an agent runtime above to start with Siman.",
     "hint_waiting": "Waiting for the first result…",
     "continue": "Continue to task"
   },
   "errors": {
     "skip_failed": "Failed to finish onboarding",
-    "mika_setup_failed": "Couldn't start your Mika workspace"
+    "mika_setup_failed": "Couldn't start Siman"
   },
   "mika_intro": {
-    "headline": "Meet Mika, your first agent teammate.",
-    "name": "Mika",
+    "headline": "Meet Siman, your first agent teammate.",
+    "name": "Siman",
     "role": "Chief of Staff",
-    "blurb": "Tell Mika what you want done. It becomes an issue, with the right agent on it."
+    "blurb": "Tell Siman what you want done. It becomes an issue, with the right agent on it."
   },
   "service": {
     "title": "Connect to your service",
@@ -134,9 +134,9 @@
   },
   "task": {
     "title": "Start your first task",
-    "connected": "Mika will help turn your goal into a task using the selected runtime and model.",
+    "connected": "Siman will help turn your goal into a task using the selected runtime and model.",
     "no_runtime": "Open your workspace and create a task. You can connect a runtime later.",
-    "start": "Start with Mika",
+    "start": "Start with Siman",
     "starting": "Opening…",
     "open_workspace": "Open workspace"
   }

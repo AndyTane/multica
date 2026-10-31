@@ -68,7 +68,7 @@ func TestCreateMikaAgent_ServerOwnsTheDefinition(t *testing.T) {
 	if resp.Instructions != "" {
 		t.Fatalf("instructions must start empty, got %q", resp.Instructions)
 	}
-	if !strings.Contains(resp.SystemInstructions, "You are Mika") {
+	if !strings.Contains(resp.SystemInstructions, "You are Siman") {
 		t.Fatalf("system_instructions should carry the product prompt, got %q", resp.SystemInstructions)
 	}
 
@@ -155,7 +155,7 @@ func TestComposeMikaInstructions(t *testing.T) {
 }
 
 // The runtime brief announces "**You are: <name>**" from the agent row, so a
-// hardcoded "You are Mika" would contradict it the moment an owner renames the
+// hardcoded "You are Siman" would contradict it the moment an owner renames the
 // agent.
 func TestMikaSystemInstructionsUsesTheCurrentDisplayName(t *testing.T) {
 	renamed := service.MikaSystemInstructions("Jarvis")
@@ -170,7 +170,7 @@ func TestMikaSystemInstructionsUsesTheCurrentDisplayName(t *testing.T) {
 		t.Fatal("prompt should still identify itself as Multica's built-in agent")
 	}
 
-	if blank := service.MikaSystemInstructions("   "); !strings.HasPrefix(blank, "You are Mika,") {
+	if blank := service.MikaSystemInstructions("   "); !strings.HasPrefix(blank, "You are Siman,") {
 		t.Fatalf("a blank name should fall back to the default:\n%s", blank[:120])
 	}
 }

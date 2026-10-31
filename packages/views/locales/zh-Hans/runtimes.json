@@ -28,11 +28,11 @@
     }
   },
   "mika_setup": {
-    "title": "运行时已准备好，和 Mika 开始。",
-    "description": "让 Mika 帮你安排任务和协调智能体。",
-    "action": "和 Mika 开始",
-    "failed": "无法启动 Mika",
-    "dialog_title": "让 Mika 在哪台电脑上运行？",
+    "title": "运行时已准备好，和 Siman 开始。",
+    "description": "让 Siman 帮你安排任务和协调智能体。",
+    "action": "和 Siman 开始",
+    "failed": "无法启动 Siman",
+    "dialog_title": "让 Siman 在哪台电脑上运行？",
     "cancel": "取消"
   },
   "machine": {

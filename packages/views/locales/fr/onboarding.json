@@ -36,7 +36,7 @@
     "skip": {
       "loading": "Configuration de votre espace de travail…",
       "title": "Bienvenue sur U Workers !",
-      "subtitle": "Nous avons ajouté une tâche pour vous aider à connecter un runtime. Une fois prêt, commencez avec Mika depuis Runtimes.",
+      "subtitle": "Nous avons ajouté une tâche pour vous aider à connecter un runtime. Une fois prêt, commencez avec Siman depuis Runtimes.",
       "got_it": "Compris",
       "status_in_progress": "En cours",
       "error_title": "Nous n'avons pas pu mettre cela en place",
@@ -46,7 +46,7 @@
       "cards": {
         "install_runtime": {
           "title": "Connecter un runtime",
-          "subtitle": "Installez Codex ou Kimi, puis démarrez la discussion guidée avec Mika depuis Runtimes."
+          "subtitle": "Installez Codex ou Kimi, puis démarrez la discussion guidée avec Siman depuis Runtimes."
         }
       }
     }
@@ -95,7 +95,7 @@
     "scanning_headline": "Connexion de cet ordinateur…",
     "scanning_lede_prefix": "Votre agent passe par un outil de codage IA que vous possédez déjà — comme ",
     "scanning_lede_suffix": ", et d'autres. Nous vérifions lesquels sont installés sur cet ordinateur.",
-    "found_headline": "Où Mika doit-il s'exécuter ?",
+    "found_headline": "Où Siman doit-il s'exécuter ?",
     "runtime_count_one": "{{count}} runtime d'agent",
     "runtime_count_other": "{{count}} runtimes d'agent",
     "status_all_online": "tous en ligne",
@@ -113,19 +113,19 @@
     "refresh": "Actualiser",
     "refreshing": "Actualisation…",
     "hint_selected": "Sélectionné : {{name}}",
-    "hint_pick": "Choisissez un runtime d'agent ci-dessus pour commencer avec Mika.",
+    "hint_pick": "Choisissez un runtime d'agent ci-dessus pour commencer avec Siman.",
     "hint_waiting": "En attente du premier résultat…",
     "continue": "Continuer vers la tâche"
   },
   "errors": {
     "skip_failed": "Échec de la finalisation de la prise en main",
-    "mika_setup_failed": "Impossible de démarrer votre espace de travail Mika"
+    "mika_setup_failed": "Impossible de démarrer Siman"
   },
   "mika_intro": {
-    "headline": "Rencontrez Mika, votre premier coéquipier agent.",
-    "name": "Mika",
+    "headline": "Rencontrez Siman, votre premier coéquipier agent.",
+    "name": "Siman",
     "role": "Chef de cabinet",
-    "blurb": "Dites à Mika ce que vous voulez faire. Cela devient une tâche, avec le bon agent dessus."
+    "blurb": "Dites à Siman ce que vous voulez faire. Cela devient une tâche, avec le bon agent dessus."
   },
   "service": {
     "title": "Connectez votre service",
@@ -134,9 +134,9 @@
   },
   "task": {
     "title": "Commencez votre première tâche",
-    "connected": "Mika vous aide à transformer votre objectif en tâche avec le runtime et le modèle choisis.",
+    "connected": "Siman vous aide à transformer votre objectif en tâche avec le runtime et le modèle choisis.",
     "no_runtime": "Ouvrez votre espace et créez une tâche. Vous pourrez connecter un runtime plus tard.",
-    "start": "Commencer avec Mika",
+    "start": "Commencer avec Siman",
     "starting": "Ouverture…",
     "open_workspace": "Ouvrir l’espace"
   }
