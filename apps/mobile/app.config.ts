@@ -17,10 +17,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...config,
     name: isProd
-      ? "Multica"
+      ? "U Workers"
       : isStaging
-        ? "Multica (Staging)"
-        : "Multica (Dev)",
+        ? "U Workers (Staging)"
+        : "U Workers (Dev)",
     slug: "multica-mobile",
     version: "0.1.0",
     orientation: "portrait",
