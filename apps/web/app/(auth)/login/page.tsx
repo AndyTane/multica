@@ -68,6 +68,7 @@ function LoginPageContent() {
   const emailCodeLoginEnabled = useConfigStore(
     (state) => state.emailCodeLoginEnabled,
   );
+  const authConfigLoaded = useConfigStore((state) => state.authConfigLoaded);
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
   const searchParams = useSearchParams();
@@ -243,6 +244,8 @@ function LoginPageContent() {
       onTokenObtained={setLoggedInCookie}
       passwordLogin={localPasswordLoginEnabled}
       emailCodeLogin={emailCodeLoginEnabled}
+      onRegister={() => router.push("/register")}
+      configReady={authConfigLoaded}
     />
   );
 }

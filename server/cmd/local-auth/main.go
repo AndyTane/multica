@@ -29,8 +29,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/util"
@@ -48,6 +50,13 @@ Commands:
   reset    Replace the password of an existing credential. The old password stops working.
   delete   Remove a credential. The user keeps their account and other login methods.
   list     Show usernames and the user each one signs in as.
+  invite    Mint a short-lived web registration invitation for an existing user
+            without a password (prints only the secret digest reference line to
+            stdout for a host-local helper to consume; the raw secret must never
+            be written to disk, logs or a terminal transcript).
+  grant-admin  Mark one existing user as an instance administrator. The host
+            bootstrap helper is responsible for verifying the pinned identity
+            before calling this.
 
 Flags (all commands):
   --database-url <url>          PostgreSQL connection string. Falls back to DATABASE_URL.
@@ -71,6 +80,7 @@ Password input:
 Policy: passwords are at least 12 characters and at most 72 UTF-8 bytes, hashed
 with bcrypt (cost 12). Usernames are case-insensitive and independent of email.
 `
+
 // stdin is the reader used for prompts; a variable so tests can drive it.
 var stdin io.Reader = os.Stdin
 
@@ -94,7 +104,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stdout, usageText)
 		return nil
 	}
-	if command != "create" && command != "reset" && command != "delete" && command != "list" {
+	if command != "create" && command != "reset" && command != "delete" && command != "list" && command != "invite" && command != "grant-admin" {
 		fmt.Fprint(stderr, usageText)
 		return fmt.Errorf("unknown command %q", command)
 	}
@@ -102,6 +112,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("local-auth "+command, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var databaseURL, deploymentConfig, userEmail, userID, username string
+	var inviteMinutes int
 	var passwordStdin bool
 	fs.StringVar(&databaseURL, "database-url", "", "PostgreSQL connection string (falls back to DATABASE_URL)")
 	fs.StringVar(&deploymentConfig, "deployment-config", "", "native deployment.json to read the connection from")
@@ -117,6 +128,15 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	if command == "delete" {
 		fs.StringVar(&username, "username", "", "account name of the credential")
+	}
+	if command == "invite" {
+		fs.StringVar(&userEmail, "user-email", "", "existing user email the invitation binds to")
+		fs.StringVar(&userID, "user-id", "", "existing user id the invitation binds to")
+		fs.IntVar(&inviteMinutes, "minutes", 15, "invitation lifetime in minutes (max 24h)")
+	}
+	if command == "grant-admin" {
+		fs.StringVar(&userEmail, "user-email", "", "existing user email to grant")
+		fs.StringVar(&userID, "user-id", "", "existing user id to grant")
 	}
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
@@ -150,6 +170,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return runReset(ctx, queries, username, passwordStdin, stdout, stderr)
 	case "delete":
 		return runDelete(ctx, queries, username, stdout)
+	case "invite":
+		return runInvite(ctx, queries, userEmail, userID, inviteMinutes, stdout)
+	case "grant-admin":
+		return runGrantAdmin(ctx, queries, userEmail, userID, stdout)
 	default:
 		return runList(ctx, queries, stdout)
 	}
@@ -429,4 +453,66 @@ func isUniqueViolation(err error) bool {
 		return false
 	}
 	return pgErr.SQLState() == "23505"
+}
+
+// runInvite mints a registration invitation for an existing user that has no
+// password yet. It prints a single machine-readable line to stdout so a
+// host-local helper can capture the secret in memory; it never writes the
+// secret to disk or stderr. Existing credentials are refused: this command is
+// for first-time activation only, never a password reset.
+func runInvite(ctx context.Context, q *db.Queries, userEmail, userID string, minutes int, stdout io.Writer) error {
+	if minutes <= 0 {
+		minutes = 15
+	}
+	if minutes > 24*60 {
+		minutes = 24 * 60
+	}
+	target, err := resolveUser(ctx, q, userEmail, userID)
+	if err != nil {
+		return err
+	}
+	if _, err := q.GetLocalPasswordCredentialByUserID(ctx, target.ID); err == nil {
+		return fmt.Errorf("user %s already has a password; invite is only for first-time activation", target.Email)
+	} else if !isNoRows(err) {
+		return fmt.Errorf("check existing credential: %w", err)
+	}
+	raw, err := auth.NewRegistrationInviteToken()
+	if err != nil {
+		return err
+	}
+	expiresAt := time.Now().Add(time.Duration(minutes) * time.Minute)
+	if _, err := q.RevokeRegistrationInvitesForUser(ctx, target.ID); err != nil {
+		return fmt.Errorf("revoke previous invitations: %w", err)
+	}
+	invite, err := q.CreateRegistrationInvite(ctx, db.CreateRegistrationInviteParams{
+		UserID:    target.ID,
+		TokenHash: auth.RegistrationTokenHash(raw),
+		ExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("create invitation: %w", err)
+	}
+	// The raw secret is the only value a caller must not persist; it is emitted
+	// exactly once and only on stdout.
+	fmt.Fprintf(stdout, "invite=%s expires_at=%s id=%s\n", raw, invite.ExpiresAt.Time.UTC().Format(time.RFC3339), util.UUIDToString(invite.ID))
+	return nil
+}
+
+// runGrantAdmin sets the instance administrator flag on exactly the user
+// resolved from --user-email/--user-id. The host helper validates the pinned
+// identity (UUID + normalized email hash) before invoking this.
+func runGrantAdmin(ctx context.Context, q *db.Queries, userEmail, userID string, stdout io.Writer) error {
+	target, err := resolveUser(ctx, q, userEmail, userID)
+	if err != nil {
+		return err
+	}
+	if target.IsInstanceAdmin {
+		fmt.Fprintf(stdout, "Instance administrator already granted for %s.\n", target.Email)
+		return nil
+	}
+	if err := q.SetUserInstanceAdmin(ctx, db.SetUserInstanceAdminParams{ID: target.ID, IsInstanceAdmin: true}); err != nil {
+		return fmt.Errorf("grant instance administrator: %w", err)
+	}
+	fmt.Fprintf(stdout, "Instance administrator granted for %s.\n", target.Email)
+	return nil
 }

@@ -165,3 +165,29 @@ func (q *Queries) UpdateLocalPasswordCredentialHash(ctx context.Context, arg Upd
 	)
 	return i, err
 }
+
+const updateLocalPasswordCredentialHashByUserID = `-- name: UpdateLocalPasswordCredentialHashByUserID :one
+UPDATE local_password_credential
+SET password_hash = $2, updated_at = now()
+WHERE user_id = $1
+RETURNING id, user_id, username_normalized, password_hash, created_at, updated_at
+`
+
+type UpdateLocalPasswordCredentialHashByUserIDParams struct {
+	UserID       pgtype.UUID `json:"user_id"`
+	PasswordHash string      `json:"password_hash"`
+}
+
+func (q *Queries) UpdateLocalPasswordCredentialHashByUserID(ctx context.Context, arg UpdateLocalPasswordCredentialHashByUserIDParams) (LocalPasswordCredential, error) {
+	row := q.db.QueryRow(ctx, updateLocalPasswordCredentialHashByUserID, arg.UserID, arg.PasswordHash)
+	var i LocalPasswordCredential
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.UsernameNormalized,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

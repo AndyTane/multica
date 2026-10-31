@@ -786,6 +786,9 @@ export interface AppConfigResponse {
    * this signal always did, so absent must be treated as true — turning the
    * email flow off is an explicit choice the server has to announce. */
   email_code_login_enabled?: boolean;
+  /** Whether the instance administrator enabled open registration. Absent on
+   * older servers and on every deployment that never turned it on. */
+  open_registration_enabled?: boolean;
   server_version?: string;
 }
 
@@ -2594,6 +2597,7 @@ export const UserSchema = z.object({
   language: z.string().nullable().default(null),
   profile_description: z.string().default(""),
   timezone: z.string().nullable().default(null),
+  is_instance_admin: z.boolean().optional().default(false),
   created_at: z.string().default(""),
   updated_at: z.string().default(""),
 }).loose();
@@ -2609,6 +2613,7 @@ export const EMPTY_USER: User = {
   language: null,
   profile_description: "",
   timezone: null,
+  is_instance_admin: false,
   created_at: "",
   updated_at: "",
 };
@@ -3735,3 +3740,32 @@ export const RuntimeProfileSchema = z
     runtime_type: profile.runtime_type || profile.protocol_family,
   }));
 export const RuntimeProfileListSchema = z.array(RuntimeProfileSchema);
+
+// ---------------------------------------------------------------------------
+// P5: web registration and instance user administration.
+// ---------------------------------------------------------------------------
+
+export interface InstanceAdminUser {
+  id: string;
+  name: string;
+  email: string;
+  is_instance_admin: boolean;
+  onboarded: boolean;
+  has_password: boolean;
+  invite_expires_at: string | null;
+  created_at: string;
+}
+
+export interface InstanceUsersResponse {
+  users: InstanceAdminUser[];
+}
+
+export interface InstanceInviteResponse {
+  user: InstanceAdminUser;
+  invite_token: string;
+  invite_expires_at: string;
+}
+
+export interface RegistrationSettings {
+  open_registration_enabled: boolean;
+}

@@ -32,6 +32,10 @@ type AppConfig struct {
 	// operator turned it off. Advertised so a password-only deployment hides the
 	// email form instead of sending users into a disabled endpoint.
 	EmailCodeLoginEnabled bool `json:"email_code_login_enabled"`
+	// OpenRegistrationEnabled exposes the persistent instance open-registration
+	// switch (default false) so the public UI only offers signup when an instance
+	// administrator turned it on.
+	OpenRegistrationEnabled bool `json:"open_registration_enabled"`
 	// WorkspaceCreationDisabled mirrors the server-side
 	// DISABLE_WORKSPACE_CREATION env var so the UI can hide every
 	// "Create workspace" affordance on self-hosted instances. Omitted
@@ -122,6 +126,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		GoogleClientID:                     os.Getenv("GOOGLE_CLIENT_ID"),
 		LocalPasswordLoginEnabled:          h.cfg.LocalPasswordLoginEnabled,
 		EmailCodeLoginEnabled:              !h.cfg.EmailCodeLoginDisabled,
+		OpenRegistrationEnabled:            h.openRegistrationEnabled(r.Context()),
 		WorkspaceCreationDisabled:          os.Getenv("DISABLE_WORKSPACE_CREATION") == "true",
 	}
 	if h.Storage != nil {

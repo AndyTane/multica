@@ -81,6 +81,7 @@ export function AuthInitializer({
           // check keeps email codes for every server that predates the flag
           // while still honoring a deliberate false.
           emailCodeLoginEnabled: cfg.email_code_login_enabled === true,
+          openRegistrationEnabled: cfg.open_registration_enabled === true,
         });
         configStore.getState().setDaemonConfig({
           daemonServerUrl: cfg.daemon_server_url,

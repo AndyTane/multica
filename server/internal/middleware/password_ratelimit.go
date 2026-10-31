@@ -170,3 +170,36 @@ func PasswordSourceLimit(limiter *PasswordAttemptLimiter, trustedProxies []*net.
 		})
 	}
 }
+
+// AttemptSourceLimit charges one attempt to the client source IP using the
+// supplied in-process limiter and answers 429 with Retry-After when the budget
+// is spent. It is the route-level half of the registration budgets: the source
+// budget runs before any handler work, and trustedProxies is empty unless the
+// operator explicitly listed the reverse proxy, so a forged X-Forwarded-For
+// cannot buy a fresh budget.
+func AttemptSourceLimit(limiter *PasswordAttemptLimiter, trustedProxies []*net.IPNet, errorMessage string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if limiter == nil {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			retryAfter, ok := limiter.AllowSource(r, trustedProxies)
+			if !ok {
+				writeAttemptRateLimited(w, retryAfter, errorMessage)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func writeAttemptRateLimited(w http.ResponseWriter, retryAfter time.Duration, message string) {
+	seconds := int((retryAfter + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		seconds = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(seconds))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusTooManyRequests)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}

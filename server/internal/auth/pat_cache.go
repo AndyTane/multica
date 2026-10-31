@@ -106,3 +106,33 @@ func (c *PATCache) Invalidate(ctx context.Context, hash string) {
 		slog.Warn("pat_cache: invalidate failed; entry will expire on TTL", "error", err)
 	}
 }
+
+// InvalidateAllForUser drops every cached PAT entry that resolves to userID.
+// Account deletion revokes all of that user's tokens in the database; without
+// this sweep a Redis-backed deployment could keep honouring a deleted user's
+// PAT until the cache TTL expired. The scan runs only on an explicit admin
+// action, so its cost is bounded by how often an operator deletes an account.
+func (c *PATCache) InvalidateAllForUser(userID string) {
+	if c == nil || userID == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	iter := c.rdb.Scan(ctx, 0, patCachePrefix+"*", 200).Iterator()
+	for iter.Next(ctx) {
+		key := iter.Val()
+		value, err := c.rdb.Get(ctx, key).Result()
+		if err != nil {
+			continue
+		}
+		if value == userID {
+			if err := c.rdb.Del(ctx, key).Err(); err != nil {
+				slog.Warn("pat_cache: delete during user sweep failed", "error", err)
+				return
+			}
+		}
+	}
+	if err := iter.Err(); err != nil {
+		slog.Warn("pat_cache: scan during user sweep failed", "error", err)
+	}
+}

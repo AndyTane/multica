@@ -276,6 +276,31 @@ func Auth(queries *db.Queries, patCache *auth.PATCache, cloudPAT *auth.CloudPATV
 				return
 			}
 			email, _ := claims["email"].(string)
+			// Server-side session authority: a signed token authenticates only
+			// while its user row exists and its auth_version matches. Password
+			// changes bump the version and account deletion removes the row, so
+			// either action revokes older tokens without rotating the shared
+			// secret. Tokens minted before auth_version existed carry no claim and
+			// compare as version 0, matching the migration default.
+			if queries != nil {
+				var userUUID pgtype.UUID
+				if err := userUUID.Scan(strings.TrimSpace(sub)); err != nil {
+					http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+					return
+				}
+				user, err := queries.GetUser(r.Context(), userUUID)
+				if err != nil {
+					slog.Warn("auth: session user missing", "path", r.URL.Path, "error", err)
+					http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+					return
+				}
+				if user.AuthVersion != auth.SessionVersion(claims) {
+					slog.Debug("auth: stale session version", "path", r.URL.Path, "user_id", sub)
+					http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+					return
+				}
+				email = user.Email
+			}
 			if rejectTemporarilyDisabledUser(w, r, sub, email, "jwt") {
 				return
 			}

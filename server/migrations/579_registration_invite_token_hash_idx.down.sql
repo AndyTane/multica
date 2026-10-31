@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS registration_invite_token_hash_idx;

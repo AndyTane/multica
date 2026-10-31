@@ -246,6 +246,12 @@ func RenewSessionToken(claims jwt.MapClaims) (string, time.Time, error) {
 	if name, ok := claims["name"].(string); ok && name != "" {
 		next["name"] = name
 	}
+	// Preserve the account version so renewal cannot resurrect a session whose
+	// password changed or whose account was deleted: the middleware compares
+	// the presented claim with the live user row on every request.
+	if version, ok := claims[SessionVersionClaim]; ok && version != nil {
+		next[SessionVersionClaim] = version
+	}
 
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, next).SignedString(JWTSecret())
 	if err != nil {

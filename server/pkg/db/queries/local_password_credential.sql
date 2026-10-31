@@ -35,3 +35,9 @@ SELECT
 FROM local_password_credential c
 JOIN "user" u ON u.id = c.user_id
 ORDER BY c.username_normalized;
+
+-- name: UpdateLocalPasswordCredentialHashByUserID :one
+UPDATE local_password_credential
+SET password_hash = $2, updated_at = now()
+WHERE user_id = $1
+RETURNING *;

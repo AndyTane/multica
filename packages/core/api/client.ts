@@ -2,6 +2,7 @@ import type { ZodType } from "zod";
 import type { IssueWakeup, IssueWakeupInput, IssueWakeupSummaryRow, PausedWakeup, SystemWakeup, WakeupRun, WorkspaceSystemWakeup } from "../types/issue-wakeup";
 import type { WorkspaceWakeupPage, WorkspaceWakeupFilters } from "../types/issue-wakeup";
 import { WorkspaceWakeupPageSchema, IssueWakeupSchema, IssueWakeupSummaryRowSchema, PausedWakeupSchema, SystemWakeupSchema, WakeupRunSchema, WorkspaceSystemWakeupSchema } from "./schemas";
+import type { InstanceUsersResponse, InstanceInviteResponse, RegistrationSettings } from "./schemas";
 import type { InboxFilters } from "../inbox/filter-store";
 import type { ArchivedInboxPage, ArchivedInboxFacets } from "../types/inbox";
 import { configStore } from "../config";
@@ -993,6 +994,87 @@ export class ApiClient {
     return this.fetch("/auth/password", {
       method: "POST",
       body: JSON.stringify({ username, password }),
+    });
+  }
+
+  // ---- P5 web registration & instance administration ----
+
+  async redeemRegistrationInvite(input: {
+    token: string;
+    name: string;
+    username: string;
+    password: string;
+  }): Promise<LoginResponse> {
+    return this.fetch("/api/register/invite", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async openRegistration(input: {
+    email: string;
+    name: string;
+    username: string;
+    password: string;
+  }): Promise<LoginResponse> {
+    return this.fetch("/api/register/open", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async changeCurrentPassword(input: {
+    current_password: string;
+    new_password: string;
+  }): Promise<{ reauth_required: boolean }> {
+    return this.fetch("/api/me/password", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async listInstanceUsers(): Promise<InstanceUsersResponse> {
+    return this.fetch("/api/admin/users");
+  }
+
+  async addInstanceUser(input: {
+    name: string;
+    email: string;
+  }): Promise<InstanceInviteResponse> {
+    return this.fetch("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async regenerateInstanceInvite(userId: string): Promise<InstanceInviteResponse> {
+    return this.fetch("/api/admin/users/" + encodeURIComponent(userId) + "/invite", {
+      method: "POST",
+    });
+  }
+
+  async revokeInstanceInvite(userId: string): Promise<void> {
+    await this.fetch("/api/admin/users/" + encodeURIComponent(userId) + "/invite", {
+      method: "DELETE",
+    });
+  }
+
+  async deleteInstanceUser(userId: string): Promise<void> {
+    await this.fetch("/api/admin/users/" + encodeURIComponent(userId), {
+      method: "DELETE",
+    });
+  }
+
+  async getRegistrationSettings(): Promise<RegistrationSettings> {
+    return this.fetch("/api/admin/registration");
+  }
+
+  async updateRegistrationSettings(input: {
+    open_registration_enabled: boolean;
+  }): Promise<RegistrationSettings> {
+    return this.fetch("/api/admin/registration", {
+      method: "PUT",
+      body: JSON.stringify(input),
     });
   }
 
