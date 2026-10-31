@@ -59,7 +59,10 @@ const externalLinkText = (label: string) => (
 export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
-      <span className="font-semibold text-base">U Workers Docs</span>
+      <span className="inline-flex items-center gap-2 font-semibold text-base">
+        <ProductMark />
+        U Workers Docs
+      </span>
     ),
   },
   links: [

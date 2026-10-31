@@ -118,7 +118,7 @@
   },
   "errors": {
     "skip_failed": "オンボーディングを完了できませんでした",
-    "mika_setup_failed": "Siman ワークスペースを開始できませんでした"
+    "mika_setup_failed": "Siman を開始できませんでした"
   },
   "mika_intro": {
     "headline": "最初のエージェント仲間、Siman を紹介します。",

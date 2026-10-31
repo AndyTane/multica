@@ -118,7 +118,7 @@
   },
   "errors": {
     "skip_failed": "온보딩을 마치지 못했습니다",
-    "mika_setup_failed": "Siman 워크스페이스를 시작하지 못했습니다"
+    "mika_setup_failed": "Siman을 시작하지 못했습니다"
   },
   "mika_intro": {
     "headline": "첫 번째 에이전트 팀원 Siman을 소개합니다.",
