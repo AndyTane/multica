@@ -224,6 +224,8 @@ SET accountable_user_id = CASE WHEN accountable_user_id = $1 THEN NULL ELSE acco
 WHERE accountable_user_id = $1 OR initiator_user_id = $1 OR originator_user_id = $1
 `
 
+// Active work (queued/dispatched/running) is a blocker above; only concluded
+// tasks reach this detach. The task row and its audit trail stay.
 func (q *Queries) DetachUserAgentTaskQueue(ctx context.Context, accountableUserID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, detachUserAgentTaskQueue, accountableUserID)
 	return err
@@ -319,6 +321,21 @@ SELECT code, kind, count FROM (
     SELECT 'share_link_creator', 'blocker', count(*) FROM workspace_share_link wsl WHERE wsl.created_by = $1
     UNION ALL
     SELECT 'source_context_capture', 'blocker', count(*) FROM issue_source_context isc WHERE isc.captured_by_user_id = $1
+    UNION ALL
+    -- chat_session.creator_id cascades from "user", and chat_message cascades
+    -- from the session, so the FK would silently delete the person's chat
+    -- history. That history is content, not an account-scoped credential:
+    -- deletion is refused instead of performed (no implicit chat cleanup).
+    SELECT 'chat_history', 'blocker', count(*) FROM chat_session cs WHERE cs.creator_id = $1
+    UNION ALL
+    -- A run that is queued, dispatched or still executing is live work. The
+    -- three attribution columns have no foreign key and the detach below
+    -- cannot wait for the run to finish, so an account with live work is
+    -- refused. One row counts once even when it matches several columns.
+    SELECT 'active_task', 'blocker', count(*)
+    FROM agent_task_queue atq
+    WHERE atq.status IN ('queued', 'dispatched', 'running')
+      AND (atq.accountable_user_id = $1 OR atq.initiator_user_id = $1 OR atq.originator_user_id = $1)
     UNION ALL
     SELECT 'registration_invite', 'remove', count(*) FROM registration_invite ri WHERE ri.user_id = $1 OR ri.created_by = $1
     UNION ALL

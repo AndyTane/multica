@@ -44,6 +44,21 @@ SELECT code, kind, count FROM (
     UNION ALL
     SELECT 'source_context_capture', 'blocker', count(*) FROM issue_source_context isc WHERE isc.captured_by_user_id = $1
     UNION ALL
+    -- chat_session.creator_id cascades from "user", and chat_message cascades
+    -- from the session, so the FK would silently delete the person's chat
+    -- history. That history is content, not an account-scoped credential:
+    -- deletion is refused instead of performed (no implicit chat cleanup).
+    SELECT 'chat_history', 'blocker', count(*) FROM chat_session cs WHERE cs.creator_id = $1
+    UNION ALL
+    -- A run that is queued, dispatched or still executing is live work. The
+    -- three attribution columns have no foreign key and the detach below
+    -- cannot wait for the run to finish, so an account with live work is
+    -- refused. One row counts once even when it matches several columns.
+    SELECT 'active_task', 'blocker', count(*)
+    FROM agent_task_queue atq
+    WHERE atq.status IN ('queued', 'dispatched', 'running')
+      AND (atq.accountable_user_id = $1 OR atq.initiator_user_id = $1 OR atq.originator_user_id = $1)
+    UNION ALL
     SELECT 'registration_invite', 'remove', count(*) FROM registration_invite ri WHERE ri.user_id = $1 OR ri.created_by = $1
     UNION ALL
     SELECT 'password', 'remove', count(*) FROM local_password_credential lpc WHERE lpc.user_id = $1
@@ -160,6 +175,8 @@ UPDATE agent_invocation_target SET created_by = NULL WHERE created_by = $1;
 -- cleared before the row is removed. The agent itself is shared history.
 UPDATE agent SET archived_by = NULL WHERE archived_by = $1;
 
+-- Active work (queued/dispatched/running) is a blocker above; only concluded
+-- tasks reach this detach. The task row and its audit trail stay.
 -- name: DetachUserAgentTaskQueue :exec
 UPDATE agent_task_queue
 SET accountable_user_id = CASE WHEN accountable_user_id = $1 THEN NULL ELSE accountable_user_id END,

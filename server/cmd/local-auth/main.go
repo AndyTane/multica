@@ -197,9 +197,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	switch command {
 	case "create":
-		return runCreate(ctx, queries, userEmail, userID, username, passwordStdin, stdout, stderr)
+		return runCreate(ctx, pool, userEmail, userID, username, passwordStdin, stdout, stderr)
 	case "reset":
-		return runReset(ctx, queries, username, passwordStdin, stdout, stderr)
+		return runReset(ctx, pool, username, passwordStdin, stdout, stderr)
 	case "delete":
 		return runDelete(ctx, queries, username, stdout)
 	case "invite":
@@ -217,7 +217,29 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 }
 
-func runCreate(ctx context.Context, q *db.Queries, userEmail, userID, username string, passwordStdin bool, stdout, stderr io.Writer) error {
+// lockLiveAccount takes the account's advisory key inside the caller's
+// transaction and re-reads the row under it. Account deletion takes the same
+// key before its dependency scan, so every credential or invitation write in
+// this tool either commits before that scan (and is deleted with the account)
+// or observes the account is gone and writes nothing. local_password_credential
+// and registration_invite have no foreign key, so this is the only protection
+// against an orphan row.
+func lockLiveAccount(ctx context.Context, q *db.Queries, userID pgtype.UUID) (db.User, error) {
+	if err := q.LockAccountKey(ctx, "user:"+util.UUIDToString(userID)); err != nil {
+		return db.User{}, errors.New("cannot serialize the account write")
+	}
+	user, err := q.GetUser(ctx, userID)
+	if err != nil {
+		if isNoRows(err) {
+			return db.User{}, errors.New("the account no longer exists; nothing was written")
+		}
+		return db.User{}, errors.New("cannot read the account")
+	}
+	return user, nil
+}
+
+func runCreate(ctx context.Context, pool *pgxpool.Pool, userEmail, userID, username string, passwordStdin bool, stdout, stderr io.Writer) error {
+	q := db.New(pool)
 	target, err := resolveUser(ctx, q, userEmail, userID)
 	if err != nil {
 		return err
@@ -253,8 +275,23 @@ func runCreate(ctx context.Context, q *db.Queries, userEmail, userID, username s
 		return err
 	}
 
-	credential, err := q.CreateLocalPasswordCredential(ctx, db.CreateLocalPasswordCredentialParams{
-		UserID:             target.ID,
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return errors.New("cannot start the credential transaction")
+	}
+	defer tx.Rollback(ctx)
+	qtx := db.New(tx)
+	live, err := lockLiveAccount(ctx, qtx, target.ID)
+	if err != nil {
+		return err
+	}
+	if _, err := qtx.GetLocalPasswordCredentialByUserID(ctx, live.ID); err == nil {
+		return fmt.Errorf("user %s already has a local password credential; use 'local-auth reset --username <name>' to change its password", live.Email)
+	} else if !isNoRows(err) {
+		return fmt.Errorf("check existing credential: %w", err)
+	}
+	credential, err := qtx.CreateLocalPasswordCredential(ctx, db.CreateLocalPasswordCredentialParams{
+		UserID:             live.ID,
 		UsernameNormalized: normalized,
 		PasswordHash:       hash,
 	})
@@ -264,11 +301,15 @@ func runCreate(ctx context.Context, q *db.Queries, userEmail, userID, username s
 		}
 		return fmt.Errorf("create credential: %w", err)
 	}
-	fmt.Fprintf(stdout, "Created credential %q for %s (user %s).\n", credential.UsernameNormalized, target.Email, util.UUIDToString(target.ID))
+	if err := tx.Commit(ctx); err != nil {
+		return errors.New("cannot commit the credential")
+	}
+	fmt.Fprintf(stdout, "Created credential %q for %s (user %s).\n", credential.UsernameNormalized, live.Email, util.UUIDToString(live.ID))
 	return nil
 }
 
-func runReset(ctx context.Context, q *db.Queries, username string, passwordStdin bool, stdout, stderr io.Writer) error {
+func runReset(ctx context.Context, pool *pgxpool.Pool, username string, passwordStdin bool, stdout, stderr io.Writer) error {
+	q := db.New(pool)
 	if username == "" {
 		name, err := promptLine(stderr, "Username: ")
 		if err != nil {
@@ -287,8 +328,7 @@ func runReset(ctx context.Context, q *db.Queries, username string, passwordStdin
 		}
 		return fmt.Errorf("look up credential: %w", err)
 	}
-	user, err := q.GetUser(ctx, credential.UserID)
-	if err != nil {
+	if _, err := q.GetUser(ctx, credential.UserID); err != nil {
 		if isNoRows(err) {
 			return errors.New("the credential's user no longer exists; delete the credential and provision the intended user")
 		}
@@ -302,13 +342,26 @@ func runReset(ctx context.Context, q *db.Queries, username string, passwordStdin
 	if err != nil {
 		return err
 	}
-	if _, err := q.UpdateLocalPasswordCredentialHash(ctx, db.UpdateLocalPasswordCredentialHashParams{
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return errors.New("cannot start the credential transaction")
+	}
+	defer tx.Rollback(ctx)
+	qtx := db.New(tx)
+	live, err := lockLiveAccount(ctx, qtx, credential.UserID)
+	if err != nil {
+		return err
+	}
+	if _, err := qtx.UpdateLocalPasswordCredentialHash(ctx, db.UpdateLocalPasswordCredentialHashParams{
 		UsernameNormalized: normalized,
 		PasswordHash:       hash,
 	}); err != nil {
 		return fmt.Errorf("update credential: %w", err)
 	}
-	fmt.Fprintf(stdout, "Password reset for %q (%s). The previous password no longer works.\n", normalized, user.Email)
+	if err := tx.Commit(ctx); err != nil {
+		return errors.New("cannot commit the credential")
+	}
+	fmt.Fprintf(stdout, "Password reset for %q (%s). The previous password no longer works.\n", normalized, live.Email)
 	return nil
 }
 
@@ -527,6 +580,15 @@ func runInvite(ctx context.Context, pool *pgxpool.Pool, userEmail, userID string
 	if err := qtx.LockAccountKey(ctx, "user:"+util.UUIDToString(target.ID)); err != nil {
 		return errors.New("cannot serialize the invitation")
 	}
+	// Re-read under the lock: a concurrent account deletion takes the same key,
+	// and registration_invite has no foreign key. Without this check the mint
+	// could commit after the delete's inventory scan and leave an orphan row.
+	if _, err := qtx.GetUser(ctx, target.ID); err != nil {
+		if isNoRows(err) {
+			return errors.New("the account no longer exists; no invitation was created")
+		}
+		return errors.New("cannot read the account")
+	}
 	if _, err := qtx.GetLocalPasswordCredentialByUserID(ctx, target.ID); err == nil {
 		return fmt.Errorf("user %s already has a password; invite is only for first-time activation", target.Email)
 	} else if !isNoRows(err) {
@@ -637,7 +699,14 @@ func runBootstrapHost(ctx context.Context, pool *pgxpool.Pool, userID, appOrigin
 		return errors.New("cannot serialize the invitation")
 	}
 	// Re-check under the lock: a credential created between the read above and
-	// this point must not be replaced by a first-time invitation.
+	// this point must not be replaced by a first-time invitation, and an account
+	// deleted in the same window must not receive an orphan invitation.
+	if _, err := qtx.GetUser(ctx, target.ID); err != nil {
+		if isNoRows(err) {
+			return errors.New("the account no longer exists; no invitation was created")
+		}
+		return errors.New("cannot read the account")
+	}
 	if _, err := qtx.GetLocalPasswordCredentialByUserID(ctx, target.ID); err == nil {
 		return existing()
 	} else if !isNoRows(err) {
