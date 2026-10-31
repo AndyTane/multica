@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-10-31T03:29:27.798Z",
+  "base": "https://192.168.3.49:13443",
+  "steps": [
+    {
+      "step": "account_budget_five_then_429",
+      "ok": true,
+      "detail": "401,401,401,401,401,429"
+    },
+    {
+      "step": "source_budget_then_429_and_spoofed_xff_ignored",
+      "ok": true,
+      "detail": "limited_at=12 retry_after=48 after_spoof=429"
+    }
+  ],
+  "account_limit": {
+    "username": "p2.ratelimit.mvvue9di",
+    "statuses": [
+      401,
+      401,
+      401,
+      401,
+      401,
+      429
+    ],
+    "limited_on_attempt": 6
+  },
+  "source_limit": {
+    "attempts_until_limited": 12,
+    "retry_after": "48",
+    "statuses": [
+      401,
+      401,
+      401,
+      401,
+      401,
+      401,
+      401,
+      401,
+      401,
+      401,
+      401,
+      429
+    ],
+    "spoofed_after_limit": 429
+  },
+  "passed": true
+}

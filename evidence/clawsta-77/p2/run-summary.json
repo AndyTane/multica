@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-10-31T03:29:14.900Z",
+  "steps": {
+    "provision": {
+      "status": 0,
+      "stdout": "Created credential \"p2.temp.mvvudzf7\" for clawsta80-acceptance@uworkers.test (user e98c25c3-4cbc-4aee-8440-0f0e05b07d1e).\nTEMP_CREDENTIAL_CREATED username=p2.temp.mvvudzf7",
+      "stderr": "",
+      "password_leaked": false
+    },
+    "browser": {
+      "status": 1,
+      "stdout": "[PASS] tls_chain_validates_against_exported_root :: issuer=Caddy Local Authority - ECC Intermediate san=IP Address:192.168.3.49\n[PASS] http_entry_redirects_to_https :: http://192.168.3.49:13001/login -> https://192.168.3.49:13443/login\n[PASS] password_login_form_visible :: https://192.168.3.49:13443/login\n[PASS] email_code_form_not_offered :: email inputs=0\n[PASS] unauthenticated_me_is_401 :: GET /api/me -> 401\n[PASS] chinese_copy_present :: labels=账号/密码 button=登录\n[PASS] autocomplete_and_masking :: account=username password=current-password type=password\n[PASS] keyboard_tab_order :: tab1=login-password tab2=login-password-form\n[PASS] submit_disabled_while_in_flight :: disabled=true\n[PASS] failure_shows_error_and_keeps_username :: error=invalid username or password username_kept=true\n[PASS] password_login_succeeds :: GET /api/me -> 200 path=/c1-cross-machine/issues\n[PASS] session_cookie_is_http_only_and_secure :: {\"httpOnly\":true,\"secure\":true,\"sameSite\":\"Strict\"}\n[PASS] protected_board_rendered :: path=/c1-cross-machine/issues text_chars=180\n[PASS] realtime_websocket_via_https :: wss://192.168.3.49:13443/ws?workspace_slug=c1-cross-machine&client_platform=web&client_version=v0.2.0&client_os=windows\n[PASS] session_survives_refresh :: GET /api/me -> 200 path=/c1-cross-machine/issues\n[PASS] logout_ends_session :: method=endpoint (status 200) GET /api/me -> 401\n[PASS] login_again_after_logout :: GET /api/me -> 200\n[FAIL] no_uncaught_page_errors :: TypeError: Failed to execute 'observe' on 'MutationObserver': parameter 1 is not of type 'Node'. | TypeError: Failed to execute 'observe' on 'MutationObserver': parameter 1 is not of type 'Node'. | TypeError: Failed to execute 'observe' on 'MutationObserver': parameter 1 is not of type 'Node'.\nBROWSER_RESULTS total=18 failures=1",
+      "stderr": "(node:68540) [DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address is not permitted by RFC 6066. This will be ignored in a future version.\n(Use `node --trace-deprecation ...` to show where the warning was created)"
+    },
+    "rate_limit": {
+      "status": 0,
+      "stdout": "RATE_LIMIT_RESULTS total=2 failures=0\n{\"attempts_until_limited\":12,\"retry_after\":\"48\",\"statuses\":[401,401,401,401,401,401,401,401,401,401,401,429],\"spoofed_after_limit\":429}",
+      "stderr": ""
+    },
+    "removal": {
+      "status": 0,
+      "stdout": "Deleted credential \"p2.temp.mvvudzf7\".\nTEMP_CREDENTIAL_DELETED username=p2.temp.mvvudzf7\r\n--- remaining credentials ---\r\nNo local password credentials.",
+      "stderr": ""
+    }
+  }
+}

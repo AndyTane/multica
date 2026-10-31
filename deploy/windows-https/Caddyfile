@@ -1,0 +1,63 @@
+# U Workers HTTPS entry for the CLAWSTA-80 native deployment.
+#
+# Two listeners only:
+#   * https://192.168.3.49:13443 - API/auth/websocket/uploads go straight to the
+#     loopback API, everything else goes to the loopback Next.js server.
+#   * http://192.168.3.49:13001  - GET/HEAD redirect to HTTPS only. Non-read
+#     methods are refused so a password can never be posted over plain HTTP.
+#
+# Certificates come from Caddy's local CA (internal issuer) for the LAN IP; the
+# public root certificate is exported for client trust and the CA private key
+# stays inside the ACL-protected deployment directory.
+{
+	# No admin API listener at all: trust is installed with certutil and the
+	# proxy is fully managed through its config and lifecycle script.
+	admin off
+	storage file_system "D:/UWorkers/clawsta80/native/https/data"
+	log default {
+		output file "D:/UWorkers/clawsta80/native/https/logs/access.log" {
+			roll_size 10MiB
+			roll_keep 5
+			roll_keep_for 720h
+		}
+		format console
+		level INFO
+	}
+}
+
+# Plain HTTP entry: redirect reads to HTTPS, reject everything that could carry
+# a credential.
+http://192.168.3.49:13001 {
+	@read method GET HEAD
+	handle @read {
+		redir https://192.168.3.49:13443{uri} 308
+	}
+	handle {
+		respond "HTTPS is required for this deployment." 405
+	}
+}
+
+https://192.168.3.49:13443 {
+	tls internal
+
+	@api path /api/* /auth/* /ws /uploads/* /v1/* /health /healthz /readyz
+	handle @api {
+		reverse_proxy 127.0.0.1:18081 {
+			# Replace any client-supplied forwarding header with the real peer
+			# address; the API only trusts the loopback proxy (/32).
+			header_up X-Forwarded-For {http.request.remote.host}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Host {host}
+			header_up -Forwarded
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:13002 {
+			header_up X-Forwarded-For {http.request.remote.host}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Host {host}
+			header_up -Forwarded
+		}
+	}
+}

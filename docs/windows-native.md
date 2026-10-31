@@ -244,6 +244,47 @@ host still serving after the starting SSH session closed. See
 issues found on that machine and `evidence/clawsta-80/cross-machine/` for the
 sanitized results.
 
+## HTTPS entry (P2)
+
+The LAN deployment fronts the loopback API and web server with Caddy; plain HTTP
+on the old port only redirects. The exact files that are deployed live in
+[deploy/windows-https/](../deploy/windows-https/); the verified results are in
+[evidence/clawsta-77/p2/](../evidence/clawsta-77/p2/README.md).
+
+- `https://192.168.3.49:13443` is the only browser origin. Caddy sends
+  `/api/*`, `/auth/*`, `/ws`, `/uploads/*`, `/v1/*` and the health routes to
+  `127.0.0.1:18081` and everything else to `127.0.0.1:13002`.
+- The Next.js server moves to loopback `127.0.0.1:13002` (`-Action Configure`
+  `-WebPort 13002 -WebHost 127.0.0.1`); the API and PostgreSQL stay loopback.
+- `http://192.168.3.49:13001` answers GET/HEAD with `308` to the HTTPS URL and
+  refuses other methods with `405`; the new firewall rule
+  `UWorkers-CLAWSTA80-HTTPS-13443` admits only `192.168.3.0/24`.
+- `PublicOrigin`, `FRONTEND_ORIGIN`, `MULTICA_APP_URL` and
+  `CORS_ALLOWED_ORIGINS` must use the HTTPS origin; session cookies then carry
+  `Secure` as well.
+- The proxy clears client-supplied forwarding headers and sets
+  `X-Forwarded-For` to the real peer; keep `RATE_LIMIT_TRUSTED_PROXIES` and
+  `MULTICA_TRUSTED_PROXIES` limited to `127.0.0.1/32,::1/128`, never the LAN
+  subnet.
+- TLS uses Caddy's local CA with an IP SAN. Only the public root certificate
+  (`https\public\root-ca.crt`) leaves the host; the CA private key stays in the
+  ACL-restricted `https\data`. The host and each client import the root once
+  (machine store on the host, user store on clients). Removing it is
+  `certutil -user -delstore Root <sha1-thumbprint>`.
+- `caddy-windows.ps1` owns start/stop/status/trust and registers the ONSTART
+  SYSTEM task `UWorkers-CLAWSTA80-HTTPS`, so the proxy survives the SSH session
+  or agent that started it; the Caddy admin API is disabled. The supervisor
+  restarts Caddy if it dies (verified by killing the process).
+- DB/API/web upgrades stay with `runtime\native-windows.ps1`. Roll back by
+  stopping the HTTPS entry and restoring the previous release, `WebPort 13001`,
+  `WebHost 0.0.0.0` and the HTTP `PublicOrigin` from the pre-change backup.
+
+The local login entry for the operator/Tane is installed at
+`D:\UWorkers\clawsta80\Set-UWorkers-Login.cmd` with the shortcut
+"设置 U Workers 登录". It finds the current release and database configuration
+itself, asks for the account name plus a hidden password twice, and refuses to
+overwrite an existing credential. It cannot create users.
+
 ## Operations and recovery
 
 ### External reporting policy
