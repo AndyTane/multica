@@ -157,3 +157,12 @@ P5准备/代码批次先不部署。代码与界面验收后明确接续：DSH�
 - 不部署、不合并；native 备份/Build/迁移/HTTPS 切换与正式引导仍留部署批次。
 - 完整 Go handler 与完整 views 套件在本 Windows 环境因既有原因非全绿，合并前应在 CI/Linux 复跑。
 - ja/ko/fr 仍建议母语校对；本次未新增翻译流程门槛。
+
+## P5-R3 结果（allowlist 不得绕过关闭注册）
+
+- 缺陷：`instanceSignupPolicy` 先匹配邮箱/域名白名单并直接放行，随后才看 `ALLOW_SIGNUP` 与实例 `open_registration`，导致配置白名单时关闭注册仍可自填匹配邮箱建号。
+- 修复：统一策略顺序改为部署硬开关 → 实例持久开关（默认关）→ 白名单仅收窄范围；白名单不再能打开关闭的实例。公开注册、邮箱码、Google 等自助建号入口共用；既有登录与管理员邀请设密不经过该策略，保持可用。
+- 测试：更新 `TestSignupGating` 语义；新增真实 handler 回归 `TestP5R3AllowlistCannotBypassClosedRegistration`（关闭+匹配→403 `registration_disabled` 且不建 user/凭据；开启+匹配→注册成功；开启+不匹配→403 `email_not_allowed`）与 `TestP5R3InvitationRedemptionStaysAvailable`。隔离 PG（multica_p5candidate，迁移到 582）26 项 handler 测试全通过，auth/middleware/realtime 通过，build/vet 通过。
+- 生产只读核对：live `multica_clawsta80` release `v0.2.0-20261031111027` 未变；live schema 尚无 `instance_setting`（P5 未部署），本次无生产写入。
+- 未做：合并/部署/HTTPS 切换属授权部署批次；完整 Go/views 套件仍需 CI/Linux 复跑；前端非阻塞建议留后续。
+- 证据：`evidence/clawsta-77/p5-r3/`（README、candidate-evidence.json、handler-tests.log）。

@@ -38,10 +38,13 @@ func TestSignupGating(t *testing.T) {
 		{"open_registration_disabled_new", Config{AllowSignup: true}, false, "a@x.com", true, ErrSignupProhibited},
 		{"allow_signup_false_new", Config{AllowSignup: false}, true, "a@x.com", true, ErrSignupProhibited},
 		{"allow_signup_false_existing", Config{AllowSignup: false}, true, "a@x.com", false, nil},
-		{"domain_allowlist_match", Config{AllowSignup: false, AllowedEmailDomains: []string{"company.com"}}, false, "user@company.com", true, nil},
-		{"domain_allowlist_mismatch_signup_disabled", Config{AllowSignup: false, AllowedEmailDomains: []string{"company.com"}}, true, "user@other.com", true, ErrSignupProhibited},
+		{"domain_allowlist_cannot_bypass_open_switch", Config{AllowSignup: true, AllowedEmailDomains: []string{"company.com"}}, false, "user@company.com", true, ErrSignupProhibited},
+		{"email_allowlist_cannot_bypass_open_switch", Config{AllowSignup: true, AllowedEmails: []string{"boss@x.com"}}, false, "boss@x.com", true, ErrSignupProhibited},
+		{"domain_allowlist_cannot_bypass_deployment_switch", Config{AllowSignup: false, AllowedEmailDomains: []string{"company.com"}}, true, "user@company.com", true, ErrSignupProhibited},
+		{"email_allowlist_cannot_bypass_deployment_switch", Config{AllowSignup: false, AllowedEmails: []string{"boss@x.com"}}, true, "boss@x.com", true, ErrSignupProhibited},
+		{"domain_allowlist_match_open", Config{AllowSignup: true, AllowedEmailDomains: []string{"company.com"}}, true, "user@company.com", true, nil},
+		{"email_allowlist_match_open", Config{AllowSignup: true, AllowedEmails: []string{"boss@x.com"}}, true, "boss@x.com", true, nil},
 		{"domain_allowlist_mismatch_signup_enabled", Config{AllowSignup: true, AllowedEmailDomains: []string{"company.com"}}, true, "user@other.com", true, ErrEmailNotAllowed},
-		{"email_allowlist_match", Config{AllowSignup: false, AllowedEmails: []string{"boss@x.com"}}, false, "boss@x.com", true, nil},
 		{"email_allowlist_mismatch_signup_enabled", Config{AllowSignup: true, AllowedEmails: []string{"boss@x.com"}}, true, "user@other.com", true, ErrEmailNotAllowed},
 	}
 

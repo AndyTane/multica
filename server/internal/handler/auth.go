@@ -298,12 +298,15 @@ func (h *Handler) checkSignupAllowed(ctx context.Context, email string, isNewUse
 // persistent open-registration switch (default off, operator-managed), and the
 // optional email/domain allowlists.
 //
-// A workspace invitation is NOT an instance registration grant. The reviewer's
-// case is exactly the confusion this removes: an operator invites a mailbox to
-// one workspace, and any visitor typing that mailbox must not thereby gain an
-// account on the instance. Only an explicit instance invitation (an
-// administrator creating the account and issuing a registration invite) or the
-// open-registration switch admits a new identity.
+// The allowlists only NARROW an already-open registration: matching an address
+// or a domain never substitutes for the open-registration switch, and never
+// proves ownership of that mailbox. A deployment that configures a list and
+// then turns registration off stays closed for every self-service signup.
+//
+// A workspace invitation is NOT an instance registration grant. Only an
+// explicit instance invitation (an administrator creating the account and
+// issuing a registration invite) or the open-registration switch admits a new
+// identity.
 func (h *Handler) instanceSignupPolicy(ctx context.Context, email string) error {
 	email = strings.ToLower(strings.TrimSpace(email))
 	domain := ""
@@ -311,32 +314,14 @@ func (h *Handler) instanceSignupPolicy(ctx context.Context, email string) error 
 		domain = email[at+1:]
 	}
 
-	// 1. explicit email allowlist always wins: it is an operator's direct
-	// statement about this address, independent of the instance switch.
-	if len(h.cfg.AllowedEmails) > 0 && contains(h.cfg.AllowedEmails, email) {
-		return nil
-	}
-
-	// 2. domain allowlist always wins for the same reason.
-	if len(h.cfg.AllowedEmailDomains) > 0 && contains(h.cfg.AllowedEmailDomains, domain) {
-		return nil
-	}
-
-	// 3. the environment-level switch is a hard off. It predates the instance
+	// 1. the environment-level switch is a hard off. It predates the instance
 	// toggle and is how a deployment operator disables signup entirely.
 	if !h.cfg.AllowSignup {
 		return ErrSignupProhibited
 	}
 
-	// 4. a configured allowlist is the deployment's own eligibility list: it
-	// both admits the addresses above and refuses the rest, independently of
-	// the instance-wide open-registration switch.
-	if len(h.cfg.AllowedEmailDomains) > 0 || len(h.cfg.AllowedEmails) > 0 {
-		return ErrEmailNotAllowed
-	}
-
-	// 5. unrestricted signup also needs the instance switch, which lives in the
-	// database and defaults off.
+	// 2. self-service account creation also needs the instance switch, which
+	// lives in the database and defaults off.
 	open, err := h.readOpenRegistration(ctx)
 	if err != nil {
 		return fmt.Errorf("read instance registration policy: %w", err)
@@ -344,6 +329,20 @@ func (h *Handler) instanceSignupPolicy(ctx context.Context, email string) error 
 	if !open {
 		return ErrSignupProhibited
 	}
+
+	// 3. a configured allowlist is the deployment's own eligibility list. It
+	// can only narrow the addresses admitted above; it can never open a closed
+	// instance or replace the persistent switch.
+	if len(h.cfg.AllowedEmailDomains) > 0 || len(h.cfg.AllowedEmails) > 0 {
+		if len(h.cfg.AllowedEmails) > 0 && contains(h.cfg.AllowedEmails, email) {
+			return nil
+		}
+		if len(h.cfg.AllowedEmailDomains) > 0 && contains(h.cfg.AllowedEmailDomains, domain) {
+			return nil
+		}
+		return ErrEmailNotAllowed
+	}
+
 	return nil
 }
 

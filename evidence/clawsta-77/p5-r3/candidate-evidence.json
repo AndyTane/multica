@@ -1,0 +1,26 @@
+{
+  "batch": "P5-R3",
+  "issue": "CLAWSTA-77",
+  "branch": "agent/dsh/p5-registration",
+  "pr": 7,
+  "pr_base_commit": "8c61cdef31aa86cffa616f315540e58fbb82d625",
+  "previous_candidate_head": "8b15524e8",
+  "commits": {
+    "fix": "new fix commit",
+    "evidence": "this commit"
+  },
+  "finding": "email/domain allowlist bypassed closed registration because the allowlist branch returned nil before the deployment and instance switches were evaluated",
+  "fix": "instanceSignupPolicy now checks ALLOW_SIGNUP and the persistent instance open-registration switch first; allowlists can only narrow the admitted set and never open a closed instance; self-service entry points (open registration, email code, Google) share it, while existing sign-in and explicit admin invitation redemption do not pass through it",
+  "verification": {
+    "unit_policy_matrix": "pass (TestSignupGating updated: allowlist cannot bypass either switch)",
+    "real_handler_isolated_pg": "26 tests passed / 0 failed: TestP5R3AllowlistCannotBypassClosedRegistration, TestP5R3InvitationRedemptionStaysAvailable plus P5/P5-R1/P5-R2 regressions and TestWorkspaceDeletionManifest against isolated multica_p5candidate (migrations through 582)",
+    "packages": "internal/auth, internal/middleware, internal/realtime pass",
+    "go_build_vet": "pass",
+    "live_deployment_readonly_check": "live database multica_clawsta80, release v0.2.0-20261031111027 unchanged; live schema predates P5 so public.instance_setting is absent (P5 feature not deployed there); read-only statements only, no live writes"
+  },
+  "open": [
+    "no deployment/merge",
+    "full handler/views suites still need CI/Linux re-run (pre-existing environment failures)",
+    "ja/ko/fr native review non-blocking"
+  ]
+}
