@@ -2,7 +2,21 @@ import type { ZodType } from "zod";
 import type { IssueWakeup, IssueWakeupInput, IssueWakeupSummaryRow, PausedWakeup, SystemWakeup, WakeupRun, WorkspaceSystemWakeup } from "../types/issue-wakeup";
 import type { WorkspaceWakeupPage, WorkspaceWakeupFilters } from "../types/issue-wakeup";
 import { WorkspaceWakeupPageSchema, IssueWakeupSchema, IssueWakeupSummaryRowSchema, PausedWakeupSchema, SystemWakeupSchema, WakeupRunSchema, WorkspaceSystemWakeupSchema } from "./schemas";
-import type { InstanceUsersResponse, InstanceInviteResponse, RegistrationSettings } from "./schemas";
+import {
+  ChangePasswordResponseSchema,
+  InstanceInviteResponseSchema,
+  InstanceUserDeletePreviewSchema,
+  InstanceUsersResponseSchema,
+  LoginResponseSchema,
+  RegistrationSettingsSchema,
+} from "./schemas";
+import type {
+  InstanceAdminUser,
+  InstanceInviteResponse,
+  InstanceUserDeletePreview,
+  InstanceUsersResponse,
+  RegistrationSettings,
+} from "./schemas";
 import type { InboxFilters } from "../inbox/filter-store";
 import type { ArchivedInboxPage, ArchivedInboxFacets } from "../types/inbox";
 import { configStore } from "../config";
@@ -519,6 +533,33 @@ export interface ClientUsageRequest {
   runtime?: ClientRuntimeSnapshot;
 }
 
+const EMPTY_INSTANCE_ADMIN_USER: InstanceAdminUser = {
+  id: "",
+  name: "",
+  email: "",
+  is_instance_admin: false,
+  onboarded: false,
+  has_password: false,
+  invite_expires_at: null,
+  created_at: "",
+};
+
+const EMPTY_LOGIN_RESPONSE: LoginResponse = { token: "", user: EMPTY_USER };
+const EMPTY_INSTANCE_USERS: InstanceUsersResponse = { users: [] };
+const EMPTY_INSTANCE_INVITE: InstanceInviteResponse = {
+  user: EMPTY_INSTANCE_ADMIN_USER,
+  invite_token: "",
+  invite_expires_at: "",
+};
+const EMPTY_REGISTRATION_SETTINGS: RegistrationSettings = {
+  open_registration_enabled: false,
+};
+const EMPTY_INSTANCE_DELETE_PREVIEW: InstanceUserDeletePreview = {
+  can_delete: false,
+  blockers: [],
+  removes: [],
+};
+
 export interface LoginResponse {
   token: string;
   user: User;
@@ -998,6 +1039,12 @@ export class ApiClient {
   }
 
   // ---- P5 web registration & instance administration ----
+  //
+  // These responses are consumed by an installed desktop client talking to a
+  // newer server, so each one goes through its zod schema. A malformed body
+  // degrades instead of throwing mid-flow: registration falls back to an empty
+  // session (the caller refuses to continue without a token), admin lists fall
+  // back to empty, and the delete preview falls back to `can_delete: false`.
 
   async redeemRegistrationInvite(input: {
     token: string;
@@ -1005,9 +1052,12 @@ export class ApiClient {
     username: string;
     password: string;
   }): Promise<LoginResponse> {
-    return this.fetch("/api/register/invite", {
+    const raw = await this.fetch("/api/register/invite", {
       method: "POST",
       body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, LoginResponseSchema, EMPTY_LOGIN_RESPONSE, {
+      endpoint: "POST /api/register/invite",
     });
   }
 
@@ -1017,9 +1067,12 @@ export class ApiClient {
     username: string;
     password: string;
   }): Promise<LoginResponse> {
-    return this.fetch("/api/register/open", {
+    const raw = await this.fetch("/api/register/open", {
       method: "POST",
       body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, LoginResponseSchema, EMPTY_LOGIN_RESPONSE, {
+      endpoint: "POST /api/register/open",
     });
   }
 
@@ -1027,29 +1080,41 @@ export class ApiClient {
     current_password: string;
     new_password: string;
   }): Promise<{ reauth_required: boolean }> {
-    return this.fetch("/api/me/password", {
+    const raw = await this.fetch("/api/me/password", {
       method: "POST",
       body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, ChangePasswordResponseSchema, { reauth_required: true }, {
+      endpoint: "POST /api/me/password",
     });
   }
 
   async listInstanceUsers(): Promise<InstanceUsersResponse> {
-    return this.fetch("/api/admin/users");
+    const raw = await this.fetch("/api/admin/users");
+    return parseWithFallback(raw, InstanceUsersResponseSchema, EMPTY_INSTANCE_USERS, {
+      endpoint: "GET /api/admin/users",
+    });
   }
 
   async addInstanceUser(input: {
     name: string;
     email: string;
   }): Promise<InstanceInviteResponse> {
-    return this.fetch("/api/admin/users", {
+    const raw = await this.fetch("/api/admin/users", {
       method: "POST",
       body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, InstanceInviteResponseSchema, EMPTY_INSTANCE_INVITE, {
+      endpoint: "POST /api/admin/users",
     });
   }
 
   async regenerateInstanceInvite(userId: string): Promise<InstanceInviteResponse> {
-    return this.fetch("/api/admin/users/" + encodeURIComponent(userId) + "/invite", {
+    const raw = await this.fetch("/api/admin/users/" + encodeURIComponent(userId) + "/invite", {
       method: "POST",
+    });
+    return parseWithFallback(raw, InstanceInviteResponseSchema, EMPTY_INSTANCE_INVITE, {
+      endpoint: "POST /api/admin/users/{id}/invite",
     });
   }
 
@@ -1065,16 +1130,29 @@ export class ApiClient {
     });
   }
 
+  async getInstanceUserDeletePreview(userId: string): Promise<InstanceUserDeletePreview> {
+    const raw = await this.fetch("/api/admin/users/" + encodeURIComponent(userId) + "/delete-preview");
+    return parseWithFallback(raw, InstanceUserDeletePreviewSchema, EMPTY_INSTANCE_DELETE_PREVIEW, {
+      endpoint: "GET /api/admin/users/{id}/delete-preview",
+    });
+  }
+
   async getRegistrationSettings(): Promise<RegistrationSettings> {
-    return this.fetch("/api/admin/registration");
+    const raw = await this.fetch("/api/admin/registration");
+    return parseWithFallback(raw, RegistrationSettingsSchema, EMPTY_REGISTRATION_SETTINGS, {
+      endpoint: "GET /api/admin/registration",
+    });
   }
 
   async updateRegistrationSettings(input: {
     open_registration_enabled: boolean;
   }): Promise<RegistrationSettings> {
-    return this.fetch("/api/admin/registration", {
+    const raw = await this.fetch("/api/admin/registration", {
       method: "PUT",
       body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, RegistrationSettingsSchema, EMPTY_REGISTRATION_SETTINGS, {
+      endpoint: "PUT /api/admin/registration",
     });
   }
 

@@ -45,7 +45,6 @@
     "./layout": "./layout/index.ts",
     "./layout/route-icon-components": "./layout/route-icon-components.tsx",
     "./auth": "./auth/index.ts",
-    "./admin": "./admin/index.ts",
     "./search": "./search/index.ts",
     "./chat": "./chat/index.ts",
     "./chat/floating-chat": "./chat/floating-chat.tsx",

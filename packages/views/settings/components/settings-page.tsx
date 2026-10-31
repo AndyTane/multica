@@ -17,6 +17,7 @@ import {
   Search,
   Server,
   Settings,
+  ShieldCheck,
   SlidersHorizontal,
   Tags,
   User,
@@ -52,6 +53,7 @@ import { PropertiesTab } from "./properties-tab";
 import { QuickActionsTab } from "./quick-actions-tab";
 import { KeyboardShortcutsTab } from "./keyboard-shortcuts-tab";
 import { PluginsTab } from "./plugins-tab";
+import { InstanceUsersTab } from "./instance-users-tab";
 import { McpTab } from "./mcp-tab";
 import { SETTINGS_ANCHOR_ATTR } from "./settings-layout";
 import { searchSettings } from "./settings-search";
@@ -157,6 +159,21 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
               ? [entry("apps", t(($) => $.page.tabs.apps), Plug, <ConnectedAppsTab />)]
               : []),
             entry("tokens", t(($) => $.page.tabs.tokens), KeyRound, <TokensTab />),
+            // Instance administration is account-level, not workspace-level:
+            // it is the only entry here that is gated on the instance flag
+            // rather than a workspace role, and it disappears entirely for an
+            // ordinary account.
+            ...(user?.is_instance_admin
+              ? [
+                  entry(
+                    "admin-users",
+                    t(($) => $.page.tabs.admin_users),
+                    ShieldCheck,
+                    <InstanceUsersTab />,
+                    { wide: true },
+                  ),
+                ]
+              : []),
           ],
         },
       ],

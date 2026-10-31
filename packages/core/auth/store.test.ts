@@ -45,6 +45,33 @@ describe("authStore", () => {
     expect(store.getState().retryGeneration).toBe(1);
   });
 
+  it("adopts a session a non-login flow created (cookie mode writes no token)", () => {
+    const storage = makeStorage();
+    const api = makeApi();
+    const onLogin = vi.fn();
+    const store = createAuthStore({ api, storage, onLogin, cookieAuth: true });
+
+    store.getState().adoptSession("jwt-from-registration", fakeUser);
+
+    expect(store.getState().user).toEqual(fakeUser);
+    expect(store.getState().status).toBe("authenticated");
+    expect(onLogin).toHaveBeenCalledOnce();
+    // Cookie auth keeps the JWT in the HttpOnly cookie, never in localStorage.
+    expect(storage.snapshot().multica_token).toBeUndefined();
+  });
+
+  it("adopts a session in token mode by persisting the bearer token", () => {
+    const storage = makeStorage();
+    const api = makeApi();
+    const store = createAuthStore({ api, storage });
+
+    store.getState().adoptSession("jwt-from-registration", fakeUser);
+
+    expect(storage.snapshot().multica_token).toBe("jwt-from-registration");
+    expect(api.setToken).toHaveBeenCalledWith("jwt-from-registration");
+    expect(store.getState().status).toBe("authenticated");
+  });
+
   it("explicit logout still clears credentials and publishes unauthenticated state", () => {
     const storage = makeStorage({ multica_token: "t" });
     const api = makeApi();

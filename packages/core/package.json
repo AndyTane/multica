@@ -25,6 +25,7 @@
     "./config/brand": "./config/brand.ts",
     "./auth": "./auth/index.ts",
     "./workspace": "./workspace/index.ts",
+    "./instance-admin/queries": "./instance-admin/queries.ts",
     "./workspace/queries": "./workspace/queries.ts",
     "./workspace/mutations": "./workspace/mutations.ts",
     "./workspace/pending-delete": "./workspace/pending-delete.ts",

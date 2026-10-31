@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@multica/ui/components/ui/input";
-import { Button } from "@multica/ui/components/ui/button";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { toast } from "sonner";
 import { useAuthStore } from "@multica/core/auth";
@@ -189,15 +188,6 @@ export function AccountTab() {
         </SettingsCard>
       </SettingsSection>
       <PasswordChangeCard />
-      {user?.is_instance_admin ? (
-        <SettingsSection title="Instance administration" description="Manage accounts and registration on this instance.">
-          <SettingsCard>
-            <Button variant="outline" onClick={() => window.location.assign("/admin")}>
-              Open instance user management
-            </Button>
-          </SettingsCard>
-        </SettingsSection>
-      ) : null}
     </SettingsTab>
 
   );

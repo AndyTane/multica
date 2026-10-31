@@ -3769,3 +3769,63 @@ export interface InstanceInviteResponse {
 export interface RegistrationSettings {
   open_registration_enabled: boolean;
 }
+
+export interface InstanceUserDeletePreview {
+  can_delete: boolean;
+  blockers: { code: string; count: number }[];
+  removes: string[];
+}
+
+// Runtime contracts for the P5-R1 account-administration surface. Optional
+// fields default instead of throwing, and every list has an empty fallback, so a
+// newer server can add fields without breaking an installed client. The delete
+// preview is deliberately fail-closed: a malformed preview parses as
+// `can_delete: false`, which disables the confirmation instead of allowing it.
+export const InstanceAdminUserSchema = z
+  .object({
+    id: z.string().default(""),
+    name: z.string().default(""),
+    email: z.string().default(""),
+    is_instance_admin: z.boolean().default(false),
+    onboarded: z.boolean().default(false),
+    has_password: z.boolean().default(false),
+    invite_expires_at: z.string().nullish().default(null),
+    created_at: z.string().default(""),
+  })
+  .passthrough();
+
+export const InstanceUsersResponseSchema = z.object({
+  users: z.array(InstanceAdminUserSchema).default([]),
+});
+
+export const InstanceInviteResponseSchema = z.object({
+  user: InstanceAdminUserSchema,
+  invite_token: z.string().default(""),
+  invite_expires_at: z.string().default(""),
+});
+
+export const RegistrationSettingsSchema = z.object({
+  open_registration_enabled: z.boolean().default(false),
+});
+
+export const ChangePasswordResponseSchema = z.object({
+  reauth_required: z.boolean().default(true),
+});
+
+export const InstanceUserDeletePreviewSchema = z.object({
+  can_delete: z.boolean().default(false),
+  blockers: z
+    .array(
+      z.object({
+        code: z.string().default(""),
+        count: z.number().default(0),
+      }),
+    )
+    .default([]),
+  removes: z.array(z.string()).default([]),
+});
+
+export const LoginResponseSchema = z.object({
+  token: z.string().default(""),
+  user: UserSchema,
+});

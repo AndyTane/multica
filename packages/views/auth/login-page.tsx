@@ -75,6 +75,9 @@ interface LoginPageProps {
   /** False until the runtime auth capability config has resolved. The page
    *  renders a neutral card instead of guessing a login method. */
   configReady?: boolean;
+  /** One-shot message shown above the form (e.g. "password changed, sign in
+   *  again"). The host owns the trigger and the dismissal. */
+  notice?: string;
 }
 
 type LoginMethod = "password" | "email";
@@ -126,6 +129,7 @@ export function LoginPage({
   emailCodeLogin = true,
   onRegister,
   configReady = true,
+  notice,
 }: LoginPageProps) {
   const { t } = useT("auth");
   const qc = useQueryClient();
@@ -565,6 +569,11 @@ export function LoginPage({
               </AlertDescription>
             </Alert>
           )}
+          {notice ? (
+            <Alert>
+              <AlertDescription>{notice}</AlertDescription>
+            </Alert>
+          ) : null}
           {showPasswordForm ? (
             <form
               id="login-password-form"
@@ -660,7 +669,7 @@ export function LoginPage({
               onClick={onRegister}
               disabled={loading}
             >
-              Register / set password
+              {t(($) => $.signin.register_entry)}
             </Button>
           ) : null}
           {(google || onGoogleLogin) && (
