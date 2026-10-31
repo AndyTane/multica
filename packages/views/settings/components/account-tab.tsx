@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useAuthStore } from "@multica/core/auth";
 import { api } from "@multica/core/api";
 import { AvatarUploadControl } from "../../common/avatar-upload-control";
+import { PasswordChangeCard } from "./password-change-card";
 import { useT } from "../../i18n";
 import {
   SettingsCard,
@@ -186,6 +187,8 @@ export function AccountTab() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
+      <PasswordChangeCard />
     </SettingsTab>
+
   );
 }

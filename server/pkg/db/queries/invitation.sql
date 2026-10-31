@@ -17,6 +17,10 @@ WHERE wi.workspace_id = $1 AND wi.status = 'pending' AND wi.expires_at > now()
 ORDER BY wi.created_at DESC;
 
 -- name: ListPendingInvitationsForUser :many
+-- `email_verified` gates the email half of the identity match: an address
+-- typed at open registration is a claim, not proof of mailbox control, so it
+-- must not surface (or later accept) an invitation minted for that mailbox.
+-- The UUID half is an explicit binding and stays authoritative.
 SELECT wi.*,
        w.name AS workspace_name,
        u.name AS inviter_name,
@@ -25,7 +29,10 @@ FROM workspace_invitation wi
 JOIN workspace w ON w.id = wi.workspace_id
 JOIN "user" u ON u.id = wi.inviter_id
 WHERE wi.status = 'pending'
-  AND (wi.invitee_user_id = $1 OR wi.invitee_email = $2)
+  AND (
+    wi.invitee_user_id = sqlc.arg(invitee_user_id)
+    OR (sqlc.arg(email_verified)::boolean AND wi.invitee_email = sqlc.arg(invitee_email))
+  )
   AND wi.expires_at > now()
 ORDER BY wi.created_at DESC;
 

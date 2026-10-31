@@ -131,9 +131,15 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve invitee_user_id if the user already exists.
+	// Bind the invitation to an account ONLY when that account's ownership of
+	// the address was proven (email_verified). A row created by open
+	// registration merely typed the mailbox, so turning it into a UUID binding
+	// would hand the invitee identity to whoever typed the address first —
+	// exactly the ordering where an invitation is created after the squatter
+	// registered. Without the binding the invitation stays claimable by email,
+	// which invitationBelongsToUser only honors for a verified account.
 	var inviteeUserID pgtype.UUID
-	if existingUser.ID.Valid {
+	if existingUser.ID.Valid && existingUser.EmailVerified {
 		inviteeUserID = existingUser.ID
 	}
 	admission, ok := h.checkInvitationAdmission(
@@ -380,7 +386,7 @@ func (h *Handler) GetMyInvitation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load user")
 		return
 	}
-	if strings.ToLower(user.Email) != inv.InviteeEmail && uuidToString(inv.InviteeUserID) != userID {
+	if !invitationBelongsToUser(inv, user) {
 		writeError(w, http.StatusForbidden, "invitation does not belong to you")
 		return
 	}
@@ -397,6 +403,18 @@ func (h *Handler) GetMyInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// invitationBelongsToUser decides whether an invitation is addressed to this
+// account. A user_id binding is explicit and authoritative. The email match is
+// an identity CLAIM: it counts only when the account has verified that address.
+// An account created by open self-registration has not, so typing someone
+// else's invited mailbox must not surface or accept their invitation.
+func invitationBelongsToUser(inv db.WorkspaceInvitation, user db.User) bool {
+	if inv.InviteeUserID.Valid && uuidToString(inv.InviteeUserID) == uuidToString(user.ID) {
+		return true
+	}
+	return user.EmailVerified && strings.ToLower(user.Email) == strings.ToLower(inv.InviteeEmail)
 }
 
 // ---------------------------------------------------------------------------
@@ -418,7 +436,8 @@ func (h *Handler) ListMyInvitations(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.Queries.ListPendingInvitationsForUser(r.Context(), db.ListPendingInvitationsForUserParams{
 		InviteeUserID: user.ID,
-		InviteeEmail:  user.Email,
+		InviteeEmail:  strings.ToLower(user.Email),
+		EmailVerified: user.EmailVerified,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list invitations")
@@ -475,7 +494,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load user")
 		return
 	}
-	if strings.ToLower(user.Email) != inv.InviteeEmail && uuidToString(inv.InviteeUserID) != userID {
+	if !invitationBelongsToUser(inv, user) {
 		writeError(w, http.StatusForbidden, "invitation does not belong to you")
 		return
 	}
@@ -660,7 +679,7 @@ func (h *Handler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load user")
 		return
 	}
-	if strings.ToLower(user.Email) != inv.InviteeEmail && uuidToString(inv.InviteeUserID) != userID {
+	if !invitationBelongsToUser(inv, user) {
 		writeError(w, http.StatusForbidden, "invitation does not belong to you")
 		return
 	}

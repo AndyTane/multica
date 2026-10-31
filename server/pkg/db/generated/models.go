@@ -804,6 +804,12 @@ type InboxItem struct {
 	Details       []byte             `json:"details"`
 }
 
+type InstanceSetting struct {
+	Key       string             `json:"key"`
+	Value     []byte             `json:"value"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type InstanceTelemetryState struct {
 	Singleton         bool               `json:"singleton"`
 	InstanceID        pgtype.UUID        `json:"instance_id"`
@@ -1374,6 +1380,17 @@ type QuickAction struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type RegistrationInvite struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	TokenHash  string             `json:"token_hash"`
+	CreatedBy  pgtype.UUID        `json:"created_by"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+	ConsumedAt pgtype.Timestamptz `json:"consumed_at"`
+}
+
 type RuntimeProfile struct {
 	ID             pgtype.UUID        `json:"id"`
 	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
@@ -1622,7 +1639,10 @@ type User struct {
 	Language                pgtype.Text        `json:"language"`
 	ProfileDescription      string             `json:"profile_description"`
 	// User-preferred IANA timezone for report rendering (Viewing tz). NULL means "use the browser-detected tz at render time". Affects dashboards, charts, and any "today" label shown to this user. Does not affect data materialisation — all rollups remain in UTC.
-	Timezone pgtype.Text `json:"timezone"`
+	Timezone        pgtype.Text `json:"timezone"`
+	IsInstanceAdmin bool        `json:"is_instance_admin"`
+	AuthVersion     int64       `json:"auth_version"`
+	EmailVerified   bool        `json:"email_verified"`
 }
 
 type UserComposioConnection struct {

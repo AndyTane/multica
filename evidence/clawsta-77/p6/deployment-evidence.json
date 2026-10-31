@@ -1,0 +1,114 @@
+{
+  "batch": "P6",
+  "target": "ssh desktop -> D:/UWorkers/clawsta80/native",
+  "before": {
+    "release": "v0.2.0-20261031111027",
+    "app_commit": "065e20ad00af6bf43da0fb24e3cfd522bf95ff7d",
+    "schema": "575_local_password_credential_user_idx",
+    "users": 1,
+    "workspaces": 1,
+    "members": 1,
+    "credentials": 0,
+    "instance_admin_rows": "column did not exist",
+    "listeners": {
+      "13001": ":: caddy",
+      "13002": "127.0.0.1 node",
+      "13443": ":: caddy",
+      "16432": "127.0.0.1 postgres",
+      "18081": "127.0.0.1 server.exe"
+    }
+  },
+  "backup": {
+    "path": "D:/UWorkers/clawsta80/native/backups/native-20261031-193723",
+    "files": {
+      "database.dump": "FB8A77C076815536F8D87FCBA1FCB90C1F5A715B652F8816C75BDEAE81779C7C",
+      "deployment.json": "F755D4EF2ABA64B871FEF576033D2360F43B115E3BA4FAECF62A33EAE36E9613",
+      "uploads.tar.gz": "00A42EE06C0519AFFADC09765DCF23854E36A13EC12DD5DF14C8AF9398916490"
+    },
+    "lifecycle": "runtime/native-windows.ps1 -Action Backup (existing lifecycle, restricted host directory)"
+  },
+  "build": {
+    "source_tree": "D:/UWorkers/clawsta80/src-888a2e76f (a real git checkout of agent/dsh/p5-registration)",
+    "source_shas": [
+      "888a2e76f955083ecdc4eafc0083ff717c114da6 (first release v0.2.0-20261031194128)",
+      "a30713a0a45cb662bd0712b5ca0d3cdb5b56e967 (final release v0.2.0-20261031202450, local-auth bootstrap-host fix)"
+    ],
+    "lifecycle": "scripts/native-windows.ps1 -Action Build (go build server/migrate/local-auth + Next.js standalone)",
+    "final_release": "v0.2.0-20261031202450",
+    "deployment_json_commit": "a30713a0a45cb662bd0712b5ca0d3cdb5b56e967",
+    "note": "Build writes Release but not Commit; deployment.json was updated to the built source SHA with the same atomic JSON write so health, deployment.json and the release agree"
+  },
+  "migration": {
+    "from": "575_local_password_credential_user_idx",
+    "to": "582_user_email_verified",
+    "runner": "release migrate.exe up, started by the supervisor before the API"
+  },
+  "configuration": {
+    "public_origin": "https://192.168.3.49:13443",
+    "api_port": "127.0.0.1:18081",
+    "web_port": "127.0.0.1:13002",
+    "database_port": "127.0.0.1:16432",
+    "http_redirect": "13001 GET/HEAD 308, other methods 405",
+    "auth_local_password_enabled": true,
+    "auth_email_code_enabled": "false (BackendEnvironment AUTH_EMAIL_CODE_ENABLED=false; /auth/send-code and /auth/verify-code refuse)",
+    "app_env": "production",
+    "instance_open_registration": "closed (no instance_setting row after migration)",
+    "caddy_ca_tasks": "unchanged",
+    "smtp_google_fixed_codes": "not configured; no mail service, no Google client id, no fixed code"
+  },
+  "after": {
+    "release": "v0.2.0-20261031202450",
+    "health": {
+      "status": "ok",
+      "commit": "a30713a0a"
+    },
+    "schema": "582_user_email_verified",
+    "users": 1,
+    "workspaces": 1,
+    "members": 1,
+    "credentials": 0,
+    "registration_invites": 0,
+    "instance_admins": 1,
+    "instance_settings": 0,
+    "identity": {
+      "pinned_uuid": "934e10e0-f7f6-4160-8055-379705825b4a",
+      "normalized_email_sha256": "5983f9551dc3f2370d8f04a7291d1d03e1c7fb96eac1b5112791572728122788",
+      "matches_database_row": true,
+      "email_verified": true,
+      "onboarded_at": "2026-10-31 11:59:53.806247+08 (unchanged)",
+      "created_at": "2026-10-31 11:59:26.693416+08 (unchanged)"
+    },
+    "workspace": {
+      "id": "de27c87a-781a-47df-9f5e-5e026ff568b3",
+      "slug": "uworkers-tane",
+      "name": "UWorkers",
+      "created_at": "2026-10-31 11:59:53.568399+08 (unchanged)",
+      "members": 1,
+      "role": "owner"
+    },
+    "listeners": {
+      "13001": ":: caddy",
+      "13002": "127.0.0.1 node",
+      "13443": ":: caddy",
+      "16432": "127.0.0.1 postgres",
+      "18081": "127.0.0.1 server.exe"
+    },
+    "releases_kept": [
+      "v0.2.0-20261031030941",
+      "v0.2.0-20261031111027",
+      "v0.2.0-20261031194128",
+      "v0.2.0-20261031202450"
+    ],
+    "backups_kept": 7
+  },
+  "defects_found_and_fixed": [
+    {
+      "id": "local-auth bootstrap-host flag panic",
+      "found_by": "running the deployed local-auth.exe bootstrap-host with a bogus UUID",
+      "symptom": "panic: local-auth bootstrap-host flag redefined: deployment-config",
+      "impact": "the desktop entry could not open the web setup page; with no password on the pinned identity there was no other way in",
+      "fix": "a30713a0a - the bootstrap-host block no longer re-registers --deployment-config; TestCommandFlagsParseWithoutPanic covers every command",
+      "reverified": "bootstrap-host now answers 'no user with id ...' for a wrong UUID (no panic, no invitation), and the desktop entry's -Preflight passes"
+    }
+  ]
+}

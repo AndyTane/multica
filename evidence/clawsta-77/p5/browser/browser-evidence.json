@@ -1,0 +1,120 @@
+{
+  "generated_at": "2026-10-31T05:52:18.183Z",
+  "batch": "P5",
+  "base": "https://localhost:13444",
+  "steps": [
+    {
+      "step": "admin_session_has_instance_admin_capability",
+      "ok": true,
+      "detail": "{\"status\":200,\"admin\":true}"
+    },
+    {
+      "step": "admin_page_opens_for_instance_admin",
+      "ok": true,
+      "detail": "path=/admin"
+    },
+    {
+      "step": "open_registration_defaults_off",
+      "ok": true,
+      "detail": "state=Disabled"
+    },
+    {
+      "step": "admin_can_add_pending_user_and_receive_invite",
+      "ok": true,
+      "detail": "token_len=43"
+    },
+    {
+      "step": "pending_user_listed_without_invite_secret",
+      "ok": true,
+      "detail": "pending_rows=1"
+    },
+    {
+      "step": "invite_fragment_removed_from_address_bar",
+      "ok": true,
+      "detail": "hash_empty=true"
+    },
+    {
+      "step": "invited_identity_completes_web_password_setup",
+      "ok": true,
+      "detail": "reached=/onboarding"
+    },
+    {
+      "step": "invited_user_has_ordinary_account",
+      "ok": true,
+      "detail": "{\"status\":200,\"admin\":false}"
+    },
+    {
+      "step": "ordinary_user_cannot_use_instance_admin",
+      "ok": true,
+      "detail": "ui=true api=403"
+    },
+    {
+      "step": "password_change_succeeds_in_web_ui",
+      "ok": true,
+      "detail": "message_visible=false old_session_status=401"
+    },
+    {
+      "step": "password_change_revokes_old_session",
+      "ok": true,
+      "detail": "me=401"
+    },
+    {
+      "step": "old_password_rejected",
+      "ok": true,
+      "detail": "still_on_login=true"
+    },
+    {
+      "step": "new_password_login_works",
+      "ok": true,
+      "detail": "{\"status\":200,\"admin\":false}"
+    },
+    {
+      "step": "admin_can_enable_open_registration",
+      "ok": true,
+      "detail": "state=Enabled"
+    },
+    {
+      "step": "open_registration_page_offers_signup_when_enabled",
+      "ok": true,
+      "detail": "form=true"
+    },
+    {
+      "step": "open_registration_creates_account",
+      "ok": true,
+      "detail": "reached=/onboarding"
+    },
+    {
+      "step": "open_registration_restored_off",
+      "ok": true,
+      "detail": "state=Disabled"
+    },
+    {
+      "step": "open_registration_api_rejected_when_off",
+      "ok": true,
+      "detail": "status=403"
+    },
+    {
+      "step": "open_registered_user_listed_before_delete",
+      "ok": true,
+      "detail": "row_present=true"
+    },
+    {
+      "step": "admin_can_delete_user_without_workspace_dependencies",
+      "ok": true,
+      "detail": "email_absent=true"
+    },
+    {
+      "step": "deleted_user_session_rejected",
+      "ok": true,
+      "detail": "me=401"
+    }
+  ],
+  "screenshots": [
+    "01-invitee-own-workspace.png",
+    "02-ordinary-user-admin-denied.png",
+    "03-open-registration.png"
+  ],
+  "passed": true,
+  "pass_count": 21,
+  "fail_count": 0
+}

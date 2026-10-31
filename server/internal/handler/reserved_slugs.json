@@ -18,6 +18,7 @@
         "verify",
         "reset",
         "password",
+        "register",
         "onboarding"
       ]
     },

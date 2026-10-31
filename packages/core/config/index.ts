@@ -51,6 +51,12 @@ interface ConfigState {
   // Whether the server still issues email login codes. Defaults to true so a
   // caller that knows nothing about this flag keeps the page it always had.
   emailCodeLoginEnabled: boolean;
+  /** Persistent instance open-registration switch (P5), default off. */
+  openRegistrationEnabled: boolean;
+  /** True once /api/config auth capabilities were applied; the login page
+   *  renders its method only after this, so a password-only server never
+   *  flashes the email-code form first. */
+  authConfigLoaded: boolean;
   setCdnConfig: (config: { cdnDomain: string; cdnSigned?: boolean }) => void;
   setAuthConfig: (config: {
     allowSignup: boolean;
@@ -59,6 +65,7 @@ interface ConfigState {
     vcsIntegrationAvailable?: boolean;
     localPasswordLoginEnabled?: boolean;
     emailCodeLoginEnabled?: boolean;
+    openRegistrationEnabled?: boolean;
   }) => void;
   setDaemonConfig: (config: {
     daemonServerUrl?: string;
@@ -89,6 +96,8 @@ export const configStore = createStore<ConfigState>((set) => ({
   commentDeleteKeepRepliesSupported: false,
   localPasswordLoginEnabled: false,
   emailCodeLoginEnabled: true,
+  openRegistrationEnabled: false,
+  authConfigLoaded: false,
   setCdnConfig: ({ cdnDomain, cdnSigned = false }) => set({ cdnDomain, cdnSigned }),
   setAuthConfig: ({
     allowSignup,
@@ -97,6 +106,7 @@ export const configStore = createStore<ConfigState>((set) => ({
     vcsIntegrationAvailable = false,
     localPasswordLoginEnabled = false,
     emailCodeLoginEnabled = true,
+    openRegistrationEnabled = false,
   }) =>
     set({
       allowSignup,
@@ -105,6 +115,8 @@ export const configStore = createStore<ConfigState>((set) => ({
       vcsIntegrationAvailable,
       localPasswordLoginEnabled,
       emailCodeLoginEnabled,
+      openRegistrationEnabled,
+      authConfigLoaded: true,
     }),
   setDaemonConfig: ({ daemonServerUrl = "", daemonAppUrl = "" }) =>
     set({ daemonServerUrl, daemonAppUrl }),

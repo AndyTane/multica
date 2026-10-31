@@ -69,6 +69,15 @@ interface LoginPageProps {
   /** Whether the server still issues email login codes. Defaults to true:
    *  servers before this signal always did. */
   emailCodeLogin?: boolean;
+  /** Opens the web registration / first-password page when the deployment
+   *  offers invitation or open registration. Omit to hide the entry. */
+  onRegister?: () => void;
+  /** False until the runtime auth capability config has resolved. The page
+   *  renders a neutral card instead of guessing a login method. */
+  configReady?: boolean;
+  /** One-shot message shown above the form (e.g. "password changed, sign in
+   *  again"). The host owns the trigger and the dismissal. */
+  notice?: string;
 }
 
 type LoginMethod = "password" | "email";
@@ -118,6 +127,9 @@ export function LoginPage({
   extra,
   passwordLogin = false,
   emailCodeLogin = true,
+  onRegister,
+  configReady = true,
+  notice,
 }: LoginPageProps) {
   const { t } = useT("auth");
   const qc = useQueryClient();
@@ -523,6 +535,16 @@ export function LoginPage({
 
   const showPasswordForm = method === "password";
 
+  if (!configReady) {
+    return (
+      <div className="flex min-h-svh items-center justify-center">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">{logo}<CardTitle className="text-display-sm">{t(($) => $.signin.title)}</CardTitle></CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-svh items-center justify-center px-6 py-12">
       <Card className="w-full max-w-sm">
@@ -547,6 +569,11 @@ export function LoginPage({
               </AlertDescription>
             </Alert>
           )}
+          {notice ? (
+            <Alert>
+              <AlertDescription>{notice}</AlertDescription>
+            </Alert>
+          ) : null}
           {showPasswordForm ? (
             <form
               id="login-password-form"
@@ -634,6 +661,17 @@ export function LoginPage({
                 : t(($) => $.signin.continue)}
             </Button>
           )}
+          {showPasswordForm && onRegister ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={onRegister}
+              disabled={loading}
+            >
+              {t(($) => $.signin.register_entry)}
+            </Button>
+          ) : null}
           {(google || onGoogleLogin) && (
             <Button
               type="button"

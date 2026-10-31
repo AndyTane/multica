@@ -290,12 +290,26 @@ identity correction in
 ## Identity, first use and the private login entry
 
 The local login entry lives at `native\Set-UWorkers-Login.cmd` with the desktop
-shortcut "设置 U Workers 登录". It is pinned to the identity in
-`native\local-login-identity.json`: it verifies the pinned user id **and** its
-email against the database, refuses a mismatched identity, refuses to overwrite
-an existing credential, then asks for a login name and the tool's hidden double
-password prompt. The permanent password is always typed by that person on the
-desktop; the entry never stores or prints a password.
+shortcut "设置 U Workers 登录". It is a one-time host entry that opens the web
+registration page; it never asks for, reads, prints or stores a password.
+
+It reads `native\local-login-identity.json` and `deployment.json`, then
+verifies that the pinned identity's normalized (trim + lowercase, UTF-8)
+SHA-256 matches the pinned fingerprint **and** that the database row for that
+exact user id still carries exactly that address; requires the deployment's
+`PublicOrigin` to be HTTPS; and checks whether a credential exists. With no
+credential it runs `local-auth.exe bootstrap-host`, which mints a 15-minute
+single-use registration invitation and opens the private
+`https://<host>/register#token=…` page in a private browser window — the secret
+lives only in the tool's memory and in that address bar, never in a terminal, a
+log, a file or a screenshot. With an existing credential it only opens
+`/login`: the entry never resets or overwrites a password. `-Preflight` runs the
+same checks and stops before any invitation is minted or any browser opens.
+
+Once the person sets their password on that page, every later action happens in
+the web UI: sign in, invite or remove users, change the password, and flip the
+persistent instance open-registration switch under Settings → 用户与注册
+(instance administrators only). The desktop entry is not needed again.
 
 A new identity is provisioned once by the host-local admin task
 `deploy/windows-https/create-local-identity.ps1` (idempotent, transactional,

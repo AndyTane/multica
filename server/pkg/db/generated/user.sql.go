@@ -11,10 +11,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bumpUserAuthVersion = `-- name: BumpUserAuthVersion :one
+UPDATE "user" SET auth_version = auth_version + 1, updated_at = now()
+WHERE id = $1
+RETURNING auth_version
+`
+
+func (q *Queries) BumpUserAuthVersion(ctx context.Context, id pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, bumpUserAuthVersion, id)
+	var auth_version int64
+	err := row.Scan(&auth_version)
+	return auth_version, err
+}
+
+const countInstanceAdmins = `-- name: CountInstanceAdmins :one
+SELECT count(*) FROM "user" WHERE is_instance_admin = true
+`
+
+func (q *Queries) CountInstanceAdmins(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countInstanceAdmins)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO "user" (name, email, avatar_url)
 VALUES ($1, $2, $3)
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type CreateUserParams struct {
@@ -41,12 +65,24 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Language,
 		&i.ProfileDescription,
 		&i.Timezone,
+		&i.IsInstanceAdmin,
+		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
 
+const deleteUserRow = `-- name: DeleteUserRow :exec
+DELETE FROM "user" WHERE id = $1
+`
+
+func (q *Queries) DeleteUserRow(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserRow, id)
+	return err
+}
+
 const getUser = `-- name: GetUser :one
-SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone FROM "user"
+SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified FROM "user"
 WHERE id = $1
 `
 
@@ -68,12 +104,15 @@ func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
 		&i.Language,
 		&i.ProfileDescription,
 		&i.Timezone,
+		&i.IsInstanceAdmin,
+		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone FROM "user"
+SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified FROM "user"
 WHERE email = $1
 `
 
@@ -95,6 +134,9 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Language,
 		&i.ProfileDescription,
 		&i.Timezone,
+		&i.IsInstanceAdmin,
+		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -145,7 +187,7 @@ UPDATE "user" SET
     cloud_waitlist_reason = $3,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type JoinCloudWaitlistParams struct {
@@ -175,8 +217,57 @@ func (q *Queries) JoinCloudWaitlist(ctx context.Context, arg JoinCloudWaitlistPa
 		&i.Language,
 		&i.ProfileDescription,
 		&i.Timezone,
+		&i.IsInstanceAdmin,
+		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
+}
+
+const listInstanceUsers = `-- name: ListInstanceUsers :many
+SELECT id, name, email, avatar_url, is_instance_admin, auth_version, onboarded_at, created_at
+FROM "user"
+ORDER BY created_at, id
+`
+
+type ListInstanceUsersRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	Name            string             `json:"name"`
+	Email           string             `json:"email"`
+	AvatarUrl       pgtype.Text        `json:"avatar_url"`
+	IsInstanceAdmin bool               `json:"is_instance_admin"`
+	AuthVersion     int64              `json:"auth_version"`
+	OnboardedAt     pgtype.Timestamptz `json:"onboarded_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) ListInstanceUsers(ctx context.Context) ([]ListInstanceUsersRow, error) {
+	rows, err := q.db.Query(ctx, listInstanceUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInstanceUsersRow{}
+	for rows.Next() {
+		var i ListInstanceUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.AvatarUrl,
+			&i.IsInstanceAdmin,
+			&i.AuthVersion,
+			&i.OnboardedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markUserOnboarded = `-- name: MarkUserOnboarded :one
@@ -184,7 +275,7 @@ UPDATE "user" SET
     onboarded_at = COALESCE(onboarded_at, now()),
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 func (q *Queries) MarkUserOnboarded(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -205,6 +296,9 @@ func (q *Queries) MarkUserOnboarded(ctx context.Context, id pgtype.UUID) (User, 
 		&i.Language,
 		&i.ProfileDescription,
 		&i.Timezone,
+		&i.IsInstanceAdmin,
+		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -214,7 +308,7 @@ UPDATE "user" SET
     onboarding_questionnaire = COALESCE($1, onboarding_questionnaire),
     updated_at = now()
 WHERE id = $2
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type PatchUserOnboardingParams struct {
@@ -244,6 +338,9 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 		&i.Language,
 		&i.ProfileDescription,
 		&i.Timezone,
+		&i.IsInstanceAdmin,
+		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -253,7 +350,7 @@ UPDATE "user" SET
     starter_content_state = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type SetStarterContentStateParams struct {
@@ -284,8 +381,39 @@ func (q *Queries) SetStarterContentState(ctx context.Context, arg SetStarterCont
 		&i.Language,
 		&i.ProfileDescription,
 		&i.Timezone,
+		&i.IsInstanceAdmin,
+		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
+}
+
+const setUserInstanceAdmin = `-- name: SetUserInstanceAdmin :exec
+UPDATE "user" SET is_instance_admin = $2, updated_at = now() WHERE id = $1
+`
+
+type SetUserInstanceAdminParams struct {
+	ID              pgtype.UUID `json:"id"`
+	IsInstanceAdmin bool        `json:"is_instance_admin"`
+}
+
+func (q *Queries) SetUserInstanceAdmin(ctx context.Context, arg SetUserInstanceAdminParams) error {
+	_, err := q.db.Exec(ctx, setUserInstanceAdmin, arg.ID, arg.IsInstanceAdmin)
+	return err
+}
+
+const setUserNameForRegistration = `-- name: SetUserNameForRegistration :exec
+UPDATE "user" SET name = $2, updated_at = now() WHERE id = $1
+`
+
+type SetUserNameForRegistrationParams struct {
+	ID   pgtype.UUID `json:"id"`
+	Name string      `json:"name"`
+}
+
+func (q *Queries) SetUserNameForRegistration(ctx context.Context, arg SetUserNameForRegistrationParams) error {
+	_, err := q.db.Exec(ctx, setUserNameForRegistration, arg.ID, arg.Name)
+	return err
 }
 
 const updateUser = `-- name: UpdateUser :one
@@ -301,7 +429,7 @@ UPDATE "user" SET
     END,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone, is_instance_admin, auth_version, email_verified
 `
 
 type UpdateUserParams struct {
@@ -350,6 +478,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Language,
 		&i.ProfileDescription,
 		&i.Timezone,
+		&i.IsInstanceAdmin,
+		&i.AuthVersion,
+		&i.EmailVerified,
 	)
 	return i, err
 }

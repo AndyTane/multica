@@ -161,12 +161,16 @@ func TestGoogleLoginActionableErrorCodes(t *testing.T) {
 	t.Setenv("GOOGLE_CLIENT_SECRET", "test-secret")
 
 	tests := []struct {
-		name       string
-		cfg        Config
-		userBody   string
-		wantStatus int
-		wantCode   string
-		wantError  string
+		name string
+		cfg  Config
+		// instanceOpen is the persistent open-registration switch the policy
+		// reads. P5 makes it a second required switch, so the allowlist case
+		// only reaches the allowlist decision with the instance already open.
+		instanceOpen bool
+		userBody     string
+		wantStatus   int
+		wantCode     string
+		wantError    string
 	}{
 		{
 			name:       "signup prohibited",
@@ -177,19 +181,20 @@ func TestGoogleLoginActionableErrorCodes(t *testing.T) {
 			wantError:  "user registration is disabled on this self-hosted instance",
 		},
 		{
-			name:       "email not allowed",
-			cfg:        Config{AllowSignup: true, AllowedEmailDomains: []string{"company.com"}},
-			userBody:   `{"email":"new@example.com"}`,
-			wantStatus: http.StatusForbidden,
-			wantCode:   "email_not_allowed",
-			wantError:  "email address or domain not allowed on this instance",
+			name:         "email not allowed",
+			cfg:          Config{AllowSignup: true, AllowedEmailDomains: []string{"company.com"}},
+			instanceOpen: true,
+			userBody:     `{"email":"new@example.com"}`,
+			wantStatus:   http.StatusForbidden,
+			wantCode:     "email_not_allowed",
+			wantError:    "email address or domain not allowed on this instance",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newTestHandler(tt.cfg)
-			h.Queries = db.New(&mockDB{getUserErr: pgx.ErrNoRows})
+			h.Queries = db.New(&mockDB{getUserErr: pgx.ErrNoRows, openRegistration: tt.instanceOpen})
 
 			h.googleOAuthHTTPClient = &http.Client{Transport: googleRoundTripper(func(req *http.Request) (*http.Response, error) {
 				switch req.URL.Host {

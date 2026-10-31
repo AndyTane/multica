@@ -22,6 +22,16 @@ const AuthCacheTTL = 10 * time.Minute
 // (ws:*) and local-skill (mul:local_skill:*) keys.
 const patCachePrefix = "mul:auth:pat:"
 
+// patDeletedPrefix marks an account as deleted so a PAT entry that resolved to
+// it before the delete cannot keep authenticating afterwards. The marker
+// outlives every possible PAT entry: entries live at most AuthCacheTTL, and the
+// marker is written for twice that, so no entry can survive the marker.
+const patDeletedPrefix = "mul:auth:deleted:"
+
+const patDeletedMarkerTTL = 2 * AuthCacheTTL
+
+func patDeletedKey(userID string) string { return patDeletedPrefix + userID }
+
 // PATCache caches resolved PAT lookups in Redis. A nil *PATCache is safe
 // to use — every method becomes a no-op or reports a cache miss, and the
 // auth middleware degrades to direct DB lookups.
@@ -53,7 +63,50 @@ func (c *PATCache) Get(ctx context.Context, hash string) (userID string, ok bool
 		}
 		return "", false
 	}
+	// A cached token is only as good as the account it resolved to. Account
+	// deletion marks the user id before it commits; a hit for a marked id is a
+	// stale entry that must never authenticate. The failed marker read fails
+	// closed (miss) rather than trusting the entry: the DB lookup that follows
+	// sees the deleted token row and rejects the request.
+	deleted, err := c.rdb.Exists(ctx, patDeletedKey(v)).Result()
+	if err != nil {
+		slog.Warn("pat_cache: deleted-marker check failed; treating entry as revoked", "error", err)
+		return "", false
+	}
+	if deleted > 0 {
+		if err := c.rdb.Del(ctx, patCacheKey(hash)).Err(); err != nil {
+			slog.Warn("pat_cache: drop stale entry after account deletion failed", "error", err)
+		}
+		return "", false
+	}
 	return v, true
+}
+
+// MarkUserDeleted records that the account no longer exists. Account deletion
+// calls this BEFORE it commits: from then on every cache hit that resolves to
+// the account is rejected, even if the best-effort key sweep below cannot run.
+// An error means the marker could not be written, which must abort the delete
+// rather than leave a path that keeps honouring a deleted user's tokens.
+func (c *PATCache) MarkUserDeleted(ctx context.Context, userID string) error {
+	if c == nil || userID == "" {
+		return nil
+	}
+	if err := c.rdb.Set(ctx, patDeletedKey(userID), "1", patDeletedMarkerTTL).Err(); err != nil {
+		slog.Warn("pat_cache: account deletion marker write failed", "error", err)
+		return err
+	}
+	return nil
+}
+
+// ClearUserDeleted removes the marker after a failed delete rolled back, so a
+// transient database error does not lock a live account out of its tokens.
+func (c *PATCache) ClearUserDeleted(ctx context.Context, userID string) {
+	if c == nil || userID == "" {
+		return
+	}
+	if err := c.rdb.Del(ctx, patDeletedKey(userID)).Err(); err != nil {
+		slog.Warn("pat_cache: account deletion marker cleanup failed; tokens stay revoked until it expires", "error", err)
+	}
 }
 
 // Set populates the cache with the given TTL. Callers MUST pass a TTL no
@@ -104,5 +157,35 @@ func (c *PATCache) Invalidate(ctx context.Context, hash string) {
 	}
 	if err := c.rdb.Del(ctx, patCacheKey(hash)).Err(); err != nil {
 		slog.Warn("pat_cache: invalidate failed; entry will expire on TTL", "error", err)
+	}
+}
+
+// InvalidateAllForUser drops every cached PAT entry that resolves to userID.
+// Account deletion revokes all of that user's tokens in the database; without
+// this sweep a Redis-backed deployment could keep honouring a deleted user's
+// PAT until the cache TTL expired. The scan runs only on an explicit admin
+// action, so its cost is bounded by how often an operator deletes an account.
+func (c *PATCache) InvalidateAllForUser(userID string) {
+	if c == nil || userID == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	iter := c.rdb.Scan(ctx, 0, patCachePrefix+"*", 200).Iterator()
+	for iter.Next(ctx) {
+		key := iter.Val()
+		value, err := c.rdb.Get(ctx, key).Result()
+		if err != nil {
+			continue
+		}
+		if value == userID {
+			if err := c.rdb.Del(ctx, key).Err(); err != nil {
+				slog.Warn("pat_cache: delete during user sweep failed", "error", err)
+				return
+			}
+		}
+	}
+	if err := iter.Err(); err != nil {
+		slog.Warn("pat_cache: scan during user sweep failed", "error", err)
 	}
 }

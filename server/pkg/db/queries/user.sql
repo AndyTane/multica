@@ -85,3 +85,25 @@ UPDATE "user" SET
     updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: SetUserInstanceAdmin :exec
+UPDATE "user" SET is_instance_admin = $2, updated_at = now() WHERE id = $1;
+
+-- name: CountInstanceAdmins :one
+SELECT count(*) FROM "user" WHERE is_instance_admin = true;
+
+-- name: ListInstanceUsers :many
+SELECT id, name, email, avatar_url, is_instance_admin, auth_version, onboarded_at, created_at
+FROM "user"
+ORDER BY created_at, id;
+
+-- name: BumpUserAuthVersion :one
+UPDATE "user" SET auth_version = auth_version + 1, updated_at = now()
+WHERE id = $1
+RETURNING auth_version;
+
+-- name: DeleteUserRow :exec
+DELETE FROM "user" WHERE id = $1;
+
+-- name: SetUserNameForRegistration :exec
+UPDATE "user" SET name = $2, updated_at = now() WHERE id = $1;

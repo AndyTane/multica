@@ -33,6 +33,30 @@ type PATResolver interface {
 	ResolveToken(ctx context.Context, token string) (userID string, ok bool)
 }
 
+// SessionValidator answers one question about a credential the moment it is
+// used (and periodically afterwards): is the account behind it still live, and
+// does the credential's session version still match the account's?
+//
+// The HTTP middleware already enforces this per request; the WebSocket path
+// needs the same authority because a connection outlives any single request.
+// A nil validator preserves the pre-P5 behavior for tests that only exercise
+// transport mechanics.
+type SessionValidator interface {
+	// ValidateSession reports whether userID is an existing, enabled account
+	// whose auth_version equals authVersion. A negative authVersion means the
+	// credential carries no version (a PAT identifies its owner, not a browser
+	// session) and only account liveness is checked.
+	ValidateSession(ctx context.Context, userID string, authVersion int64) bool
+}
+
+// wsSessionRevalidateInterval bounds how long a connection can keep receiving
+// protected data after its session was revoked somewhere this process did not
+// observe (another replica, a direct credential rotation). Handlers also close
+// the connections immediately on the node they run on; this is the backstop.
+// A variable so the regression test can exercise the loop without waiting a
+// minute.
+var wsSessionRevalidateInterval = 60 * time.Second
+
 // ScopeAuthorizer decides whether a connection (identified by userID +
 // workspaceID) is allowed to subscribe to a given scope. Implementations
 // typically perform a DB lookup on the underlying resource (task / chat
@@ -226,6 +250,24 @@ type Client struct {
 	send        chan []byte
 	userID      string
 	workspaceID string
+	// authVersion is the session version presented at authentication. The
+	// periodic revalidation compares it with the live account row, so a
+	// password change or account deletion ends this connection even when the
+	// handler that performed it ran on another replica.
+	authVersion int64
+
+	// revocationMark is the hub revocation counter read BEFORE this handshake
+	// validated its credential. Registration compares it with the account's
+	// last revocation under the hub lock: a revocation that landed while the
+	// credential was being validated (or after it) is therefore visible here,
+	// and the connection is refused instead of joining the rooms.
+	revocationMark uint64
+
+	// closed is closed exactly once when the connection is going away; it lets
+	// the session watcher exit instead of ticking forever against a dead
+	// socket.
+	closed    chan struct{}
+	closeOnce sync.Once
 
 	// subscriptions is guarded by hub.mu. Tracks the scopes this client is
 	// currently in. Used to clean up rooms on disconnect.
@@ -287,16 +329,27 @@ type Hub struct {
 	// Subscription lifecycle hooks. Both can be nil.
 	onFirstSubscriber SubscriptionCallback
 	onLastSubscriber  SubscriptionCallback
+
+	// revocationSeq and userRevokedAt make registration and revocation share one
+	// state boundary (both are guarded by mu). DisconnectUser advances the
+	// counter and stamps the account before it enumerates anything;
+	// registration refuses a client whose pre-handshake mark is older than its
+	// account's stamp. A handle that authenticated just before the revocation
+	// therefore cannot be added to the rooms after it, no matter where the
+	// validator call landed.
+	revocationSeq uint64
+	userRevokedAt map[string]uint64
 }
 
 // NewHub creates a new Hub instance.
 func NewHub() *Hub {
 	return &Hub{
-		rooms:      make(map[scopeKey]map[*Client]bool),
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		rooms:         make(map[scopeKey]map[*Client]bool),
+		clients:       make(map[*Client]bool),
+		broadcast:     make(chan []byte),
+		register:      make(chan *Client),
+		unregister:    make(chan *Client),
+		userRevokedAt: make(map[string]uint64),
 	}
 }
 
@@ -322,10 +375,16 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
-			h.mu.Lock()
-			h.clients[client] = true
-			total := len(h.clients)
-			h.mu.Unlock()
+			total, admitted := h.registerClient(client)
+			if !admitted {
+				// The credential was revoked between validation and this
+				// registration (the exact window the review reproduced). The
+				// socket never joins a room and is closed instead.
+				slog.Info("ws: refused registration of a revoked session",
+					"user_id", client.userID, "workspace_id", client.workspaceID)
+				client.closeWithReason(websocket.ClosePolicyViolation, "session revoked")
+				continue
+			}
 			M.ConnectsTotal.Add(1)
 			M.ActiveConnections.Add(1)
 			// Auto-subscribe to the workspace and user scopes.
@@ -342,6 +401,70 @@ func (h *Hub) Run() {
 			h.fanoutAll(message, "")
 		}
 	}
+}
+
+// revocationMark reads the hub revocation counter. A handshake takes this
+// value BEFORE it validates its credential and carries it into registration,
+// where the check below runs under the same lock that advances it.
+func (h *Hub) revocationMark() uint64 {
+	if h == nil {
+		return 0
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.revocationSeq
+}
+
+// registerClient adds a client to the connected set unless the account was
+// revoked after this handshake started. It returns the resulting connection
+// count and whether the client was admitted. The revocation check and the
+// insertion are one critical section with DisconnectUser's stamp, so the two
+// operations have a single total order.
+func (h *Hub) registerClient(client *Client) (int, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if client.userID != "" && h.userRevokedAt[client.userID] > client.revocationMark {
+		return len(h.clients), false
+	}
+	h.clients[client] = true
+	return len(h.clients), true
+}
+
+// DisconnectUser closes every live connection authenticated as userID, sending
+// a policy-violation close frame first. The match is the exact account id, so
+// other users' connections and the same user's workspace memberships are
+// untouched. Returns the number of connections closed.
+//
+// The account is stamped with a new revocation sequence number under the hub
+// lock BEFORE the enumeration, and registration checks that stamp under the
+// same lock. A handshake whose validation finished just before this call
+// cannot slip in afterwards: whichever operation takes the lock second either
+// sees the stamp and refuses, or registered first and is enumerated here.
+func (h *Hub) DisconnectUser(userID, reason string) int {
+	if h == nil || userID == "" {
+		return 0
+	}
+	h.mu.Lock()
+	h.revocationSeq++
+	seq := h.revocationSeq
+	if h.userRevokedAt == nil {
+		h.userRevokedAt = make(map[string]uint64)
+	}
+	h.userRevokedAt[userID] = seq
+	targets := make([]*Client, 0, 4)
+	for client := range h.clients {
+		if client.userID == userID {
+			targets = append(targets, client)
+		}
+	}
+	h.mu.Unlock()
+	for _, client := range targets {
+		client.closeWithReason(websocket.ClosePolicyViolation, reason)
+	}
+	if len(targets) > 0 {
+		slog.Info("ws: disconnected account sessions", "user_id", userID, "connections", len(targets), "reason", reason)
+	}
+	return len(targets)
 }
 
 // removeClient drops a client from all rooms and the global set.
@@ -675,20 +798,31 @@ func (h *Hub) Snapshot() map[string]any {
 	}
 }
 
-// authenticateToken validates a JWT or PAT string and returns the user ID.
-func authenticateToken(tokenStr string, pr PATResolver, ctx context.Context) (string, string) {
+// authenticateToken validates a JWT or PAT string and returns the user ID and
+// the session version it carries (-1 for a PAT, which identifies its owner
+// rather than a browser session).
+//
+// The signature/expiry check is not the whole authorization: sessions are
+// revoked server-side by bumping the account's auth_version or deleting the
+// row, and a WebSocket handshake must respect that exactly like an HTTP request
+// does. The validator is consulted for every credential source — cookie,
+// Authorization header and first-frame auth all funnel through here.
+func authenticateToken(tokenStr string, pr PATResolver, sessions SessionValidator, ctx context.Context) (string, int64, string) {
 	if strings.HasPrefix(tokenStr, "mul_") {
 		if pr == nil {
-			return "", `{"error":"invalid token"}`
+			return "", 0, `{"error":"invalid token"}`
 		}
 		uid, ok := pr.ResolveToken(ctx, tokenStr)
 		if !ok {
-			return "", `{"error":"invalid token"}`
+			return "", 0, `{"error":"invalid token"}`
 		}
 		if auth.IsTemporarilyDisabledUserID(uid) {
-			return "", `{"error":"account disabled"}`
+			return "", 0, `{"error":"account disabled"}`
 		}
-		return uid, ""
+		if sessions != nil && !sessions.ValidateSession(ctx, uid, -1) {
+			return "", 0, `{"error":"invalid token"}`
+		}
+		return uid, -1, ""
 	}
 
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
@@ -698,23 +832,30 @@ func authenticateToken(tokenStr string, pr PATResolver, ctx context.Context) (st
 		return auth.JWTSecret(), nil
 	})
 	if err != nil || !token.Valid {
-		return "", `{"error":"invalid token"}`
+		return "", 0, `{"error":"invalid token"}`
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return "", `{"error":"invalid claims"}`
+		return "", 0, `{"error":"invalid claims"}`
 	}
 
 	uid, ok := claims["sub"].(string)
 	if !ok || strings.TrimSpace(uid) == "" {
-		return "", `{"error":"invalid claims"}`
+		return "", 0, `{"error":"invalid claims"}`
 	}
 	email, _ := claims["email"].(string)
 	if auth.IsTemporarilyDisabledUser(uid, email) {
-		return "", `{"error":"account disabled"}`
+		return "", 0, `{"error":"account disabled"}`
 	}
-	return uid, ""
+	version := auth.SessionVersion(claims)
+	if sessions != nil && !sessions.ValidateSession(ctx, uid, version) {
+		// Covers both revocation cases without leaking which one applied: a
+		// missing account row and a superseded auth_version answer the same
+		// way, exactly like the HTTP middleware.
+		return "", 0, `{"error":"session revoked"}`
+	}
+	return uid, version, ""
 }
 
 // firstMessageAuth reads the first WebSocket message expecting an auth payload.
@@ -772,7 +913,7 @@ func writeWSAuthErrorAndClose(conn *websocket.Conn, payload []byte, attrs ...any
 
 // HandleWebSocket upgrades an HTTP connection to WebSocket with cookie or
 // first-message auth.
-func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, resolveSlug SlugResolver, w http.ResponseWriter, r *http.Request) {
+func HandleWebSocket(hub *Hub, mc MembershipChecker, sessions SessionValidator, pr PATResolver, resolveSlug SlugResolver, w http.ResponseWriter, r *http.Request) {
 	workspaceID := r.URL.Query().Get("workspace_id")
 	if workspaceID == "" {
 		if slug := r.URL.Query().Get("workspace_slug"); slug != "" && resolveSlug != nil {
@@ -789,22 +930,44 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, resolveSlug
 		return
 	}
 
+	// Capture where this handshake sits relative to account revocations BEFORE
+	// any credential is validated. Registration compares this mark with the
+	// account's last revocation; capturing it after validation would miss a
+	// revocation that landed during the validator call.
+	revocationMark := hub.revocationMark()
+
+	// A connection can authenticate three ways: Authorization header, cookie, or
+	// a first frame after the upgrade. All three are the same credential check —
+	// signature plus live account and session version — so a revoked session
+	// cannot slip in through whichever source the client picked.
 	var userID string
-	if cookie, err := r.Cookie(auth.AuthCookieName); err == nil && cookie.Value != "" {
-		uid, errMsg := authenticateToken(cookie.Value, pr, r.Context())
+	var sessionVersion int64
+	authorize := func(token string) bool {
+		uid, version, errMsg := authenticateToken(token, pr, sessions, r.Context())
 		if errMsg != "" {
 			status := http.StatusUnauthorized
 			if errMsg == `{"error":"account disabled"}` {
 				status = http.StatusForbidden
 			}
 			http.Error(w, errMsg, status)
-			return
+			return false
 		}
 		if !mc.IsMember(r.Context(), uid, workspaceID) {
 			http.Error(w, `{"error":"not a member of this workspace"}`, http.StatusForbidden)
-			return
+			return false
 		}
 		userID = uid
+		sessionVersion = version
+		return true
+	}
+	if header := r.Header.Get("Authorization"); strings.HasPrefix(header, "Bearer ") {
+		if !authorize(strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))) {
+			return
+		}
+	} else if cookie, err := r.Cookie(auth.AuthCookieName); err == nil && cookie.Value != "" {
+		if !authorize(cookie.Value) {
+			return
+		}
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -827,7 +990,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, resolveSlug
 			writeWSAuthErrorAndClose(conn, []byte(errMsg), "workspace_id", workspaceID)
 			return
 		}
-		uid, errMsg := authenticateToken(tokenStr, pr, r.Context())
+		uid, version, errMsg := authenticateToken(tokenStr, pr, sessions, r.Context())
 		if errMsg != "" {
 			writeWSAuthErrorAndClose(conn, []byte(errMsg), "workspace_id", workspaceID)
 			return
@@ -842,6 +1005,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, resolveSlug
 			return
 		}
 		userID = uid
+		sessionVersion = version
 
 		if !writeWSAuthFrame(
 			conn,
@@ -871,16 +1035,60 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, resolveSlug
 	)
 
 	client := &Client{
-		hub:         hub,
-		conn:        conn,
-		send:        make(chan []byte, 256),
-		userID:      userID,
-		workspaceID: workspaceID,
+		hub:            hub,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		userID:         userID,
+		workspaceID:    workspaceID,
+		authVersion:    sessionVersion,
+		revocationMark: revocationMark,
+		closed:         make(chan struct{}),
 	}
 	hub.register <- client
 
 	go client.writePump()
 	go client.readPump()
+	if sessions != nil {
+		go client.watchSession(sessions)
+	}
+}
+
+// watchSession periodically re-validates this connection's credential against
+// the live account row and closes the socket when it stops being valid. The
+// handler that revokes a session also calls Hub.DisconnectUser on the replica it
+// runs on; this loop is the backstop for revocations it cannot see, so a
+// revoked WebSocket can never keep receiving protected data indefinitely.
+func (c *Client) watchSession(sessions SessionValidator) {
+	ticker := time.NewTicker(wsSessionRevalidateInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.closed:
+			return
+		case <-ticker.C:
+			if !sessions.ValidateSession(context.Background(), c.userID, c.authVersion) {
+				slog.Info("ws: closing connection whose session was revoked", "user_id", c.userID, "workspace_id", c.workspaceID)
+				c.closeWithReason(websocket.ClosePolicyViolation, "session revoked")
+				return
+			}
+		}
+	}
+}
+
+// closeWithReason sends a close frame (best effort) and closes the socket. Both
+// calls are safe to make concurrently with the read/write pumps.
+func (c *Client) closeWithReason(code int, reason string) {
+	c.closeOnce.Do(func() {
+		if c.closed != nil {
+			close(c.closed)
+		}
+		_ = c.conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(code, reason),
+			time.Now().Add(time.Second),
+		)
+		_ = c.conn.Close()
+	})
 }
 
 // inboundFrame describes the subset of inbound JSON messages the server
@@ -897,6 +1105,9 @@ type subPayload struct {
 
 func (c *Client) readPump() {
 	defer func() {
+		if c.closed != nil {
+			c.closeOnce.Do(func() { close(c.closed) })
+		}
 		c.hub.unregister <- c
 		c.conn.Close()
 	}()

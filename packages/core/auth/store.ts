@@ -44,6 +44,13 @@ export interface AuthState {
   loginWithPassword: (username: string, password: string) => Promise<User>;
   loginWithGoogle: (code: string, redirectUri: string) => Promise<User>;
   loginWithToken: (token: string) => Promise<User>;
+  /**
+   * Publish a session the server just created for a flow that did not go through
+   * the login endpoints (web registration completes with its own response that
+   * carries the JWT and the user). Runs the same post-login effects as
+   * loginWithPassword so every entry point lands in one session state.
+   */
+  adoptSession: (token: string, user: User) => void;
   logout: () => void;
   sessionExpired: () => void;
   setUser: (user: User) => void;
@@ -121,6 +128,18 @@ export function createAuthStore(options: AuthStoreOptions) {
       identifyAnalytics(user.id, { email: user.email, name: user.name });
       set({ user, isLoading: false, status: "authenticated", expired: false });
       return user;
+    },
+
+    adoptSession: (token: string, user: User) => {
+      if (!cookieAuth) {
+        // Token mode: persist for Electron / legacy. Cookie-authenticated web
+        // keeps the JWT in the HttpOnly cookie and never in localStorage.
+        storage.setItem("multica_token", token);
+        api.setToken(token);
+      }
+      onLogin?.();
+      identifyAnalytics(user.id, { email: user.email, name: user.name });
+      set({ user, isLoading: false, status: "authenticated", expired: false });
     },
 
     logout: () => {

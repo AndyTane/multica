@@ -26,7 +26,13 @@ import {
 import { Button } from "@multica/ui/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { setLoggedInCookie } from "@/features/auth/auth-cookie";
-import { LoginPage, validateCliCallback } from "@multica/views/auth";
+import {
+  clearPasswordChangedNotice,
+  LoginPage,
+  markPasswordChanged,
+  passwordChangedNoticeVisible,
+  validateCliCallback,
+} from "@multica/views/auth";
 import { ProductMark } from "@multica/ui/components/common/product-mark";
 import { PRODUCT_NAME } from "@multica/core/config/brand";
 import { useT } from "@multica/views/i18n";
@@ -68,10 +74,22 @@ function LoginPageContent() {
   const emailCodeLoginEnabled = useConfigStore(
     (state) => state.emailCodeLoginEnabled,
   );
+  const authConfigLoaded = useConfigStore((state) => state.authConfigLoaded);
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
   const searchParams = useSearchParams();
 
+  // A completed password change signs this session out and lands here with
+  // `?reason=password_changed`. The flag is latched (the URL is cleaned up below)
+  // so the notice survives the cleanup and disappears on the next visit.
+  const [passwordChangedNotice] = useState(() => {
+    if (searchParams.get("reason") === "password_changed") {
+      // A direct link with the marker also arms the session flag, so a shell
+      // redirect that rewrites the URL cannot hide the notice.
+      markPasswordChanged();
+    }
+    return passwordChangedNoticeVisible();
+  });
   const cliCallbackRaw = searchParams.get("cli_callback");
   const cliState = searchParams.get("cli_state") || "";
   const platform = searchParams.get("platform");
@@ -86,6 +104,18 @@ function LoginPageContent() {
   const [desktopToken, setDesktopToken] = useState<string | null>(null);
   const [desktopError, setDesktopError] = useState("");
   const hasOnboarded = useHasOnboarded();
+
+  useEffect(() => {
+    if (!passwordChangedNotice) return;
+    // Clean the one-shot reason out of the address bar WITHOUT a router
+    // navigation: a Next replace re-renders this route and would drop the
+    // latched notice state before the user reads it. replaceState keeps the
+    // same component instance and still makes a reload show no notice.
+    const params = new URLSearchParams(window.location.search);
+    params.delete("reason");
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `/login?${query}` : "/login");
+  }, [passwordChangedNotice]);
 
   // Latched once auth has been observed settled as logged-out on this page.
   // Any `user` that appears afterwards came from the login form in this
@@ -144,6 +174,7 @@ function LoginPageContent() {
   }, [isLoading, user, router, nextUrl, cliCallbackRaw, isDesktopHandoff, hasOnboarded, qc]);
 
   const handleSuccess = async () => {
+    clearPasswordChangedNotice();
     // Read the latest user snapshot directly — the closure's `hasOnboarded`
     // was captured before login completed and would be stale here.
     const currentUser = useAuthStore.getState().user;
@@ -243,6 +274,13 @@ function LoginPageContent() {
       onTokenObtained={setLoggedInCookie}
       passwordLogin={localPasswordLoginEnabled}
       emailCodeLogin={emailCodeLoginEnabled}
+      onRegister={() => router.push("/register")}
+      configReady={authConfigLoaded}
+      notice={
+        passwordChangedNotice
+          ? t(($) => $.notice.password_changed)
+          : undefined
+      }
     />
   );
 }

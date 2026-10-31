@@ -103,22 +103,45 @@ func (h *Handler) UpsertClientUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	workspaceUUID := pgtype.UUID{}
-	queries := h.Queries
-	var tx pgx.Tx
 	if workspaceID := h.resolveWorkspaceID(r); workspaceID != "" {
 		workspaceUUID, ok = parseUUIDOrBadRequest(w, workspaceID, "workspace id")
 		if !ok {
 			return
 		}
-		var err error
-		tx, err = h.TxStarter.Begin(r.Context())
-		if err != nil {
-			slog.Error("failed to begin client usage transaction", "error", err)
-			writeError(w, http.StatusInternalServerError, "failed to record client usage")
+	}
+
+	// client_usage_daily.user_id has no foreign key (migration 207), so the
+	// delete transaction cannot discover a row that is inserted after its
+	// inventory scan. The account key is the shared state boundary: deletion
+	// takes the same key before its scan, and this write re-reads the account
+	// after taking it, so either this report commits before the delete sees it
+	// (and is removed with the account) or the delete commits first and this
+	// report is refused. The workspace lock is taken second: the delete path
+	// never takes it, and workspace deletion never takes an account key, so the
+	// order cannot deadlock.
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		slog.Error("failed to begin client usage transaction", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to record client usage")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	queries := h.Queries.WithTx(tx)
+	if err := lockAccountKey(r.Context(), queries, accountUserKey(userUUID)); err != nil {
+		slog.Error("failed to lock client usage account", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to record client usage")
+		return
+	}
+	if _, err := queries.GetUser(r.Context(), userUUID); err != nil {
+		if isNotFound(err) {
+			writeError(w, http.StatusUnauthorized, "user not found")
 			return
 		}
-		defer tx.Rollback(r.Context())
-		queries = h.Queries.WithTx(tx)
+		slog.Error("failed to re-check client usage account", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to record client usage")
+		return
+	}
+	if workspaceUUID.Valid {
 		// Share the explicit workspace delete/create lock protocol: if deletion
 		// wins, the row is gone and this report fails; if reporting wins, deletion
 		// waits and clears the context after the upsert commits.
@@ -162,12 +185,10 @@ func (h *Handler) UpsertClientUsage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to record client usage")
 		return
 	}
-	if tx != nil {
-		if err := tx.Commit(r.Context()); err != nil {
-			slog.Error("failed to commit client usage", "error", err, "client_type", clientType)
-			writeError(w, http.StatusInternalServerError, "failed to record client usage")
-			return
-		}
+	if err := tx.Commit(r.Context()); err != nil {
+		slog.Error("failed to commit client usage", "error", err, "client_type", clientType)
+		writeError(w, http.StatusInternalServerError, "failed to record client usage")
+		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)

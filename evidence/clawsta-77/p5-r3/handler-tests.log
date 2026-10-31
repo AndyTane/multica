@@ -1,0 +1,109 @@
+EmailService: DEV mode — codes printed to stdout (set MULTICA_DEV_VERIFICATION_CODE in .env for a fixed local code)
+2026/10/31 19:20:30 INFO llm retry policy max_retries=2 source=default request_timeout=1m0s enabled=false disable_thinking=false
+=== RUN   TestSignupGating
+=== RUN   TestSignupGating/open_registration_enabled_new
+=== RUN   TestSignupGating/open_registration_disabled_new
+=== RUN   TestSignupGating/allow_signup_false_new
+=== RUN   TestSignupGating/allow_signup_false_existing
+=== RUN   TestSignupGating/domain_allowlist_cannot_bypass_open_switch
+=== RUN   TestSignupGating/email_allowlist_cannot_bypass_open_switch
+=== RUN   TestSignupGating/domain_allowlist_cannot_bypass_deployment_switch
+=== RUN   TestSignupGating/email_allowlist_cannot_bypass_deployment_switch
+=== RUN   TestSignupGating/domain_allowlist_match_open
+=== RUN   TestSignupGating/email_allowlist_match_open
+=== RUN   TestSignupGating/domain_allowlist_mismatch_signup_enabled
+=== RUN   TestSignupGating/email_allowlist_mismatch_signup_enabled
+--- PASS: TestSignupGating (0.00s)
+    --- PASS: TestSignupGating/open_registration_enabled_new (0.00s)
+    --- PASS: TestSignupGating/open_registration_disabled_new (0.00s)
+    --- PASS: TestSignupGating/allow_signup_false_new (0.00s)
+    --- PASS: TestSignupGating/allow_signup_false_existing (0.00s)
+    --- PASS: TestSignupGating/domain_allowlist_cannot_bypass_open_switch (0.00s)
+    --- PASS: TestSignupGating/email_allowlist_cannot_bypass_open_switch (0.00s)
+    --- PASS: TestSignupGating/domain_allowlist_cannot_bypass_deployment_switch (0.00s)
+    --- PASS: TestSignupGating/email_allowlist_cannot_bypass_deployment_switch (0.00s)
+    --- PASS: TestSignupGating/domain_allowlist_match_open (0.00s)
+    --- PASS: TestSignupGating/email_allowlist_match_open (0.00s)
+    --- PASS: TestSignupGating/domain_allowlist_mismatch_signup_enabled (0.00s)
+    --- PASS: TestSignupGating/email_allowlist_mismatch_signup_enabled (0.00s)
+=== RUN   TestSignupGatingReturnsPolicyReadError
+--- PASS: TestSignupGatingReturnsPolicyReadError (0.00s)
+=== RUN   TestP5R1DeletePreviewContract
+--- PASS: TestP5R1DeletePreviewContract (0.15s)
+=== RUN   TestP5R1DeleteRejectsNonUUIDAndRevalidates
+--- PASS: TestP5R1DeleteRejectsNonUUIDAndRevalidates (0.14s)
+=== RUN   TestP5R1DeleteHandlesIdentityBindingsAndKeepsSharedHistory
+--- PASS: TestP5R1DeleteHandlesIdentityBindingsAndKeepsSharedHistory (0.74s)
+=== RUN   TestP5R1MutualAdminDeleteLeavesAnAdministrator
+--- PASS: TestP5R1MutualAdminDeleteLeavesAnAdministrator (0.26s)
+=== RUN   TestP5R1InviteRegenerationIsSerialized
+--- PASS: TestP5R1InviteRegenerationIsSerialized (0.42s)
+=== RUN   TestP5R1RedemptionIsSingleUseUnderConcurrency
+--- PASS: TestP5R1RedemptionIsSingleUseUnderConcurrency (0.77s)
+=== RUN   TestP5R1PasswordChangeAcceptsOldCredentialOnce
+--- PASS: TestP5R1PasswordChangeAcceptsOldCredentialOnce (3.07s)
+=== RUN   TestP5R1PasswordLoginCannotOutliveAConcurrentChange
+2026/10/31 19:20:36 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+2026/10/31 19:20:36 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+2026/10/31 19:20:36 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+2026/10/31 19:20:36 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+2026/10/31 19:20:36 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+2026/10/31 19:20:36 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+2026/10/31 19:20:36 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+2026/10/31 19:20:37 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+2026/10/31 19:20:38 INFO user logged in via local password user_id=fb19ff9e-9882-4350-b83b-9142cb225e57
+--- PASS: TestP5R1PasswordLoginCannotOutliveAConcurrentChange (2.02s)
+=== RUN   TestP5R1UnverifiedEmailCannotClaimInvitations
+2026/10/31 19:20:38 INFO invitation accepted invitation_id=2143d9e0-0c3c-41e4-a8df-5ba2edbeed14 user_id=49525915-15e2-4f0a-b662-58099729c76f workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb
+--- PASS: TestP5R1UnverifiedEmailCannotClaimInvitations (0.72s)
+=== RUN   TestP5R2InvitationCannotBeClaimedByAnEarlierUnverifiedRegistration
+2026/10/31 19:20:39 INFO invitation created user_id=97ff0e94-ecfa-4c86-aa77-5449dc55f584 invitation_id=424ff4cb-9a6c-49f2-a302-730c4b6b60c0 workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb email=p5r2-order-victim@example.com role=member
+2026/10/31 19:20:39 INFO invitation accepted invitation_id=4c8ec78c-7cc6-43b0-82b2-0ffb42c9af10 user_id=e462b190-054c-4799-9a8e-443391d7dee7 workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb
+--- PASS: TestP5R2InvitationCannotBeClaimedByAnEarlierUnverifiedRegistration (0.98s)
+=== RUN   TestP5R2FindOrCreateUserRefusesUnverifiedSameEmailAccount
+--- PASS: TestP5R2FindOrCreateUserRefusesUnverifiedSameEmailAccount (0.54s)
+=== RUN   TestP5R2DeleteBlockedByChatHistory
+--- PASS: TestP5R2DeleteBlockedByChatHistory (0.19s)
+=== RUN   TestP5R2DeleteBlockedByActiveTask
+--- PASS: TestP5R2DeleteBlockedByActiveTask (0.34s)
+=== RUN   TestP5R2ClientUsageWriteAndDeleteHaveNoOrphan
+=== RUN   TestP5R2ClientUsageWriteAndDeleteHaveNoOrphan/write_commits_before_delete
+=== RUN   TestP5R2ClientUsageWriteAndDeleteHaveNoOrphan/delete_commits_before_write
+=== RUN   TestP5R2ClientUsageWriteAndDeleteHaveNoOrphan/in_flight_write_blocks_delete_until_commit
+--- PASS: TestP5R2ClientUsageWriteAndDeleteHaveNoOrphan (1.02s)
+    --- PASS: TestP5R2ClientUsageWriteAndDeleteHaveNoOrphan/write_commits_before_delete (0.27s)
+    --- PASS: TestP5R2ClientUsageWriteAndDeleteHaveNoOrphan/delete_commits_before_write (0.19s)
+    --- PASS: TestP5R2ClientUsageWriteAndDeleteHaveNoOrphan/in_flight_write_blocks_delete_until_commit (0.55s)
+=== RUN   TestP5R2PasswordChangeAndDeleteCloseLiveWebSockets
+2026/10/31 19:20:42 INFO websocket connected user_id=4941f20c-b966-4724-86d9-dadc5d94a222 workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb client_platform="" client_version="" client_os=""
+2026/10/31 19:20:42 INFO ws client connected workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb user_id=4941f20c-b966-4724-86d9-dadc5d94a222 total_clients=1
+2026/10/31 19:20:42 INFO websocket connected user_id=265bf95d-0410-44c8-8189-0d49c844648b workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb client_platform="" client_version="" client_os=""
+2026/10/31 19:20:42 INFO ws client connected workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb user_id=265bf95d-0410-44c8-8189-0d49c844648b total_clients=2
+2026/10/31 19:20:43 INFO ws: disconnected account sessions user_id=4941f20c-b966-4724-86d9-dadc5d94a222 connections=1 reason=session_revoked
+2026/10/31 19:20:43 INFO ws client disconnected workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb user_id=4941f20c-b966-4724-86d9-dadc5d94a222 total_clients=1
+2026/10/31 19:20:43 INFO websocket connected user_id=6a64e518-6391-4b26-b17e-85f12dcb0cea workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb client_platform="" client_version="" client_os=""
+2026/10/31 19:20:43 INFO ws client connected workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb user_id=6a64e518-6391-4b26-b17e-85f12dcb0cea total_clients=2
+2026/10/31 19:20:43 INFO ws: disconnected account sessions user_id=6a64e518-6391-4b26-b17e-85f12dcb0cea connections=1 reason=account_deleted
+2026/10/31 19:20:43 INFO ws client disconnected workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb user_id=6a64e518-6391-4b26-b17e-85f12dcb0cea total_clients=1
+2026/10/31 19:20:43 INFO ws client disconnected workspace_id=9913ce94-ff94-429f-b6cc-3f62e161d7cb user_id=265bf95d-0410-44c8-8189-0d49c844648b total_clients=0
+--- PASS: TestP5R2PasswordChangeAndDeleteCloseLiveWebSockets (1.76s)
+=== RUN   TestP5R3AllowlistCannotBypassClosedRegistration
+--- PASS: TestP5R3AllowlistCannotBypassClosedRegistration (1.06s)
+=== RUN   TestP5R3InvitationRedemptionStaysAvailable
+--- PASS: TestP5R3InvitationRedemptionStaysAvailable (0.01s)
+=== RUN   TestP5InviteRedeemIsSingleUse
+--- PASS: TestP5InviteRedeemIsSingleUse (1.04s)
+=== RUN   TestP5InviteRedemptionTransportGuards
+--- PASS: TestP5InviteRedemptionTransportGuards (0.00s)
+=== RUN   TestP5OpenRegistrationSwitch
+--- PASS: TestP5OpenRegistrationSwitch (1.08s)
+=== RUN   TestP5ChangePasswordRevokesOldSessions
+--- PASS: TestP5ChangePasswordRevokesOldSessions (2.88s)
+=== RUN   TestP5InstanceAdminGuards
+--- PASS: TestP5InstanceAdminGuards (0.11s)
+=== RUN   TestP5AdminInviteRefusesExistingPassword
+--- PASS: TestP5AdminInviteRefusesExistingPassword (0.55s)
+=== RUN   TestWorkspaceDeletionManifestCoversPublicSchema
+--- PASS: TestWorkspaceDeletionManifestCoversPublicSchema (0.12s)
+PASS
+ok  	github.com/multica-ai/multica/server/internal/handler	20.886s

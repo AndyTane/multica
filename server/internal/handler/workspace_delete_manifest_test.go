@@ -100,6 +100,12 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	// Account-scoped credential (user_id, no workspace_id): workspace teardown
 	// never removes a user's way to sign in to other workspaces.
 	"local_password_credential":      workspaceDeleteKeep,
+	// Instance-level account state (P5): an invitation is minted by an
+	// administrator for one account, and the registration switch belongs to the
+	// whole deployment. Neither is workspace-owned, so tearing down a workspace
+	// keeps both.
+	"registration_invite":            workspaceDeleteKeep,
+	"instance_setting":               workspaceDeleteKeep,
 	"maintenance_job":                workspaceDeleteKeep, // Global maintenance audit history, not workspace-owned.
 	"member":                         workspaceDelete,
 	"agent_mcp_server":               workspaceDelete,

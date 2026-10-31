@@ -65,6 +65,17 @@ func TestMain(m *testing.M) {
 	bus := events.New()
 	emailSvc := service.NewEmailService()
 	testHandler = New(queries, pool, hub, bus, emailSvc, nil, nil, analytics.NoopClient{}, Config{AllowSignup: true})
+	// The instance open-registration switch defaults off in production. The
+	// pre-P5 suite assumes ALLOW_SIGNUP=true means new accounts can be created,
+	// so the shared test instance starts with the switch on; tests that assert
+	// the invite-only behavior close it explicitly (setOpenRegistration).
+	if _, err := queries.UpsertInstanceSetting(ctx, db.UpsertInstanceSettingParams{
+		Key: "open_registration", Value: []byte(`{"enabled":true}`),
+	}); err != nil {
+		fmt.Printf("Failed to initialize the instance registration setting: %v\n", err)
+		pool.Close()
+		os.Exit(1)
+	}
 	// httptest.NewRequest defaults RemoteAddr to 192.0.2.1, so every webhook
 	// test in the suite shares one IP bucket. With the production default
 	// (30/min) the budget runs out partway through the suite and unrelated

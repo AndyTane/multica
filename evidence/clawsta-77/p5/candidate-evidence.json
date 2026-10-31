@@ -1,0 +1,147 @@
+{
+  "batch": "P5",
+  "base_commit": "8c61cdef31aa86cffa616f315540e58fbb82d625",
+  "candidate_head": "e94e6f3a3da2a1f5093d28c3b794a5903db67603",
+  "candidate_build": {
+    "server": "cmd/server",
+    "migrate": "cmd/migrate",
+    "local_auth": "cmd/local-auth",
+    "version": "v0.2.0-p5cand",
+    "web": "next standalone build, routes /register and /admin present",
+    "go_build_and_vet": "pass",
+    "go_handler_tests": "ok  github.com/multica-ai/multica/server/internal/handler  4.603s",
+    "web_typecheck": "pass (packages/views, packages/core, apps/web)"
+  },
+  "staging": {
+    "described_as": "isolated candidate instance on the same Postgres cluster as a separate database, candidate binaries on the workstation, HTTPS via a temporary local Caddy trust domain",
+    "normal_certificate_validation": true,
+    "database_name": "multica_p5candidate",
+    "migrations_applied_through": "581_instance_setting",
+    "live_deployment_touched": false
+  },
+  "browser_acceptance": {
+    "generated_at": "2026-10-31T05:52:18.183Z",
+    "batch": "P5",
+    "base": "https://localhost:13444",
+    "steps": [
+      {
+        "step": "admin_session_has_instance_admin_capability",
+        "ok": true,
+        "detail": "{\"status\":200,\"admin\":true}"
+      },
+      {
+        "step": "admin_page_opens_for_instance_admin",
+        "ok": true,
+        "detail": "path=/admin"
+      },
+      {
+        "step": "open_registration_defaults_off",
+        "ok": true,
+        "detail": "state=Disabled"
+      },
+      {
+        "step": "admin_can_add_pending_user_and_receive_invite",
+        "ok": true,
+        "detail": "token_len=43"
+      },
+      {
+        "step": "pending_user_listed_without_invite_secret",
+        "ok": true,
+        "detail": "pending_rows=1"
+      },
+      {
+        "step": "invite_fragment_removed_from_address_bar",
+        "ok": true,
+        "detail": "hash_empty=true"
+      },
+      {
+        "step": "invited_identity_completes_web_password_setup",
+        "ok": true,
+        "detail": "reached=/onboarding"
+      },
+      {
+        "step": "invited_user_has_ordinary_account",
+        "ok": true,
+        "detail": "{\"status\":200,\"admin\":false}"
+      },
+      {
+        "step": "ordinary_user_cannot_use_instance_admin",
+        "ok": true,
+        "detail": "ui=true api=403"
+      },
+      {
+        "step": "password_change_succeeds_in_web_ui",
+        "ok": true,
+        "detail": "message_visible=false old_session_status=401"
+      },
+      {
+        "step": "password_change_revokes_old_session",
+        "ok": true,
+        "detail": "me=401"
+      },
+      {
+        "step": "old_password_rejected",
+        "ok": true,
+        "detail": "still_on_login=true"
+      },
+      {
+        "step": "new_password_login_works",
+        "ok": true,
+        "detail": "{\"status\":200,\"admin\":false}"
+      },
+      {
+        "step": "admin_can_enable_open_registration",
+        "ok": true,
+        "detail": "state=Enabled"
+      },
+      {
+        "step": "open_registration_page_offers_signup_when_enabled",
+        "ok": true,
+        "detail": "form=true"
+      },
+      {
+        "step": "open_registration_creates_account",
+        "ok": true,
+        "detail": "reached=/onboarding"
+      },
+      {
+        "step": "open_registration_restored_off",
+        "ok": true,
+        "detail": "state=Disabled"
+      },
+      {
+        "step": "open_registration_api_rejected_when_off",
+        "ok": true,
+        "detail": "status=403"
+      },
+      {
+        "step": "open_registered_user_listed_before_delete",
+        "ok": true,
+        "detail": "row_present=true"
+      },
+      {
+        "step": "admin_can_delete_user_without_workspace_dependencies",
+        "ok": true,
+        "detail": "email_absent=true"
+      },
+      {
+        "step": "deleted_user_session_rejected",
+        "ok": true,
+        "detail": "me=401"
+      }
+    ],
+    "screenshots": [
+      "01-invitee-own-workspace.png",
+      "02-ordinary-user-admin-denied.png",
+      "03-open-registration.png"
+    ],
+    "passed": true,
+    "pass_count": 21,
+    "fail_count": 0
+  },
+  "known_gaps": [
+    "The new registration/admin/password-change pages currently ship English copy only; the five-language translation pass is not complete in this candidate.",
+    "The desktop one-time bootstrap helper has not been switched to mint the web invitation yet; that belongs to the deployment batch after review.",
+    "This candidate is not deployed; the live deployment still runs the accepted 065e20ad0 release."
+  ]
+}

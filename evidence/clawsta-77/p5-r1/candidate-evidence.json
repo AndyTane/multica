@@ -1,0 +1,92 @@
+{
+  "batch": "P5-R1",
+  "issue": "CLAWSTA-77",
+  "branch": "agent/dsh/p5-registration",
+  "pr": 7,
+  "pr_base_commit": "8c61cdef31aa86cffa616f315540e58fbb82d625",
+  "previous_candidate_head": "46814feecfe05b8d880752e4cac65331c9c7c664",
+  "commits": {
+    "backend": "f7ddb6e09",
+    "frontend": "16db41e34",
+    "evidence": "branch tip after this file"
+  },
+  "staging": {
+    "isolated_database": "multica_p5candidate",
+    "migrations_applied_through": "582_user_email_verified",
+    "live_deployment_touched": false,
+    "https": "Caddy tls internal at https://localhost:13444, CA trusted in the current-user root store",
+    "normal_certificate_validation": true,
+    "test_identity_domain": "staging.invalid",
+    "secrets_policy": "generated per run; never printed, logged or committed; scratch env file deleted at teardown"
+  },
+  "verification": {
+    "go_build": "pass",
+    "go_vet": "pass",
+    "go_tests": {
+      "internal/handler -run TestP5": "pass (39.3s)",
+      "internal/handler -run TestWorkspaceDeletionManifest": "pass",
+      "internal/realtime": "pass (1.1s)",
+      "internal/auth": "pass (3.3s)",
+      "cmd/local-auth": "pass (11.9s)",
+      "internal/handler (full)": "not green: 9 pre-existing environmental failures (Windows path separators, offline runtime dispatch) and the package hits the 10m timeout; all P5/P5-R1 tests pass"
+    },
+    "frontend": {
+      "core typecheck": "pass",
+      "views typecheck": "pass",
+      "web typecheck": "pass",
+      "desktop typecheck": "pass",
+      "core tests": "173 files / 2224 tests pass",
+      "web tests": "25 files / 245 tests pass",
+      "desktop tests": "62 files / 652 tests pass; 1 pre-existing scripts/package.test.mjs failure (unmodified)",
+      "targeted views tests": "4 files / 233 tests pass (registration, admin tab, password change, i18n parity)",
+      "views lint": "0 errors (20 pre-existing warnings)",
+      "core/web/desktop lint": "0 errors",
+      "full views suite": "22 failures in 11 unrelated files under full parallelism; each passes in isolation; not claimed green"
+    },
+    "browser_acceptance": {
+      "passed": 28,
+      "failed": 0,
+      "evidence": "browser/browser-evidence.json",
+      "screenshots": [
+        "browser/01-register-invite-light.png",
+        "browser/02-register-invite-375-light.png",
+        "browser/03-register-open-light.png",
+        "browser/04-register-open-dark.png",
+        "browser/05-admin-tab-light.png",
+        "browser/06-admin-tab-dark.png",
+        "browser/07-delete-dialog-dark.png",
+        "browser/08-delete-dialog-light.png"
+      ]
+    }
+  },
+  "closed": {
+    "backend": [
+      "websocket handshake and existing-connection session revocation",
+      "pat cache deleted-user marker",
+      "verified email gates email-addressed invitations",
+      "advisory-lock account consistency for delete/invite/password",
+      "non-uuid admin target returns 400",
+      "delete inventory and delete-preview endpoint sharing one dependency function",
+      "registration_invite and instance_setting keep-classified in workspace deletion",
+      "local-auth invite secret withheld; bootstrap-host helper implemented (candidate)"
+    ],
+    "frontend": [
+      "F1-F8",
+      "A1-A6",
+      "settings admin tab with account-level query keys",
+      "registration mode/paste/keyboard/failure semantics",
+      "delete preview dialog",
+      "switch rollback",
+      "centralized error-code i18n",
+      "five-language copy with parity",
+      "zod schemas and malformed-response tests",
+      "desktop registration step and shared navigation adapter"
+    ]
+  },
+  "open": [
+    "no deployment: native build/backup/migrate/HTTPS switch and the real host onboarding belong to the deployment batch",
+    "PR #7 not merged",
+    "full Go handler suite and full views suite not green in this Windows environment for pre-existing reasons; re-run on CI before merge",
+    "native language review of ja/ko/fr copy is advisable"
+  ]
+}

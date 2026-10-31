@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"net"
 	"net/http"
 	"net/netip"
 	"strconv"
@@ -272,9 +273,15 @@ type Handler struct {
 	// same limiter instance (middleware.PasswordSourceLimit). Nil disables the
 	// account budget, which tests that are not about rate limiting rely on.
 	PasswordLimiter *middleware.PasswordAttemptLimiter
-	InvitationRateLimiters       InvitationRateLimiters
-	WebhookDeliveryWorker        *WebhookDeliveryWorker
-	CloudRuntime                 cloudRuntimeProxy
+	// P5: per-source budgets for invitation redemption and open registration.
+	// In-process like PasswordLimiter because the self-hosted deployment has no
+	// Redis; TrustedProxies stays empty unless a reverse proxy is configured.
+	RegistrationLimiter    *middleware.PasswordAttemptLimiter
+	RedemptionLimiter      *middleware.PasswordAttemptLimiter
+	TrustedProxies         []*net.IPNet
+	InvitationRateLimiters InvitationRateLimiters
+	WebhookDeliveryWorker  *WebhookDeliveryWorker
+	CloudRuntime           cloudRuntimeProxy
 	// Test-only HTTP override; nil uses the default client in production.
 	googleOAuthHTTPClient *http.Client
 	// Lark integration. All three are nil when the Lark master key

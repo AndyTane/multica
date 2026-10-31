@@ -405,29 +405,29 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	origins := allowedOrigins()
 
 	signupConfig := handler.Config{
-		AllowSignup:              os.Getenv("ALLOW_SIGNUP") != "false",
-		AllowedEmails:            splitAndTrim(os.Getenv("ALLOWED_EMAILS")),
-		AllowedEmailDomains:      splitAndTrim(os.Getenv("ALLOWED_EMAIL_DOMAINS")),
+		AllowSignup:         os.Getenv("ALLOW_SIGNUP") != "false",
+		AllowedEmails:       splitAndTrim(os.Getenv("ALLOWED_EMAILS")),
+		AllowedEmailDomains: splitAndTrim(os.Getenv("ALLOWED_EMAIL_DOMAINS")),
 		// Local password login is opt-in: the operator provisions credentials
 		// (cmd/local-auth) before switching it on. Email-code login stays the
 		// default and can be switched off on deployments without mail service.
 		LocalPasswordLoginEnabled: envBool("AUTH_LOCAL_PASSWORD_ENABLED", false),
 		EmailCodeLoginDisabled:    !envBool("AUTH_EMAIL_CODE_ENABLED", true),
 		DisableWorkspaceCreation:  os.Getenv("DISABLE_WORKSPACE_CREATION") == "true",
-		VCSIntegrationEnabled:    os.Getenv("MULTICA_VCS_INTEGRATION_ENABLED") == "true",
-		PublicURL:                strings.TrimRight(strings.TrimSpace(os.Getenv("MULTICA_PUBLIC_URL")), "/"),
-		AppURL:                   appURLFromEnv(),
-		TrustedProxies:           parseTrustedProxies(os.Getenv("MULTICA_TRUSTED_PROXIES")),
-		AttachmentDownloadMode:   os.Getenv("ATTACHMENT_DOWNLOAD_MODE"),
-		AttachmentDownloadURLTTL: envDuration("ATTACHMENT_DOWNLOAD_URL_TTL", 30*time.Minute),
-		AttachmentFrameAncestors: origins,
-		PluginSurfaceOrigin:      strings.TrimRight(strings.TrimSpace(os.Getenv("MULTICA_PLUGIN_SURFACE_ORIGIN")), "/"),
-		LLMAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_LLM_API_KEY")),
-		LLMBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_LLM_BASE_URL")),
-		LLMDefaultModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_DEFAULT_MODEL")),
-		LLMMaxRetries:            opts.LLMMaxRetries,
-		LLMDisableThinking:       opts.LLMDisableThinking,
-		ServerVersion:            normalizeServerVersion(version),
+		VCSIntegrationEnabled:     os.Getenv("MULTICA_VCS_INTEGRATION_ENABLED") == "true",
+		PublicURL:                 strings.TrimRight(strings.TrimSpace(os.Getenv("MULTICA_PUBLIC_URL")), "/"),
+		AppURL:                    appURLFromEnv(),
+		TrustedProxies:            parseTrustedProxies(os.Getenv("MULTICA_TRUSTED_PROXIES")),
+		AttachmentDownloadMode:    os.Getenv("ATTACHMENT_DOWNLOAD_MODE"),
+		AttachmentDownloadURLTTL:  envDuration("ATTACHMENT_DOWNLOAD_URL_TTL", 30*time.Minute),
+		AttachmentFrameAncestors:  origins,
+		PluginSurfaceOrigin:       strings.TrimRight(strings.TrimSpace(os.Getenv("MULTICA_PLUGIN_SURFACE_ORIGIN")), "/"),
+		LLMAPIKey:                 strings.TrimSpace(os.Getenv("MULTICA_LLM_API_KEY")),
+		LLMBaseURL:                strings.TrimSpace(os.Getenv("MULTICA_LLM_BASE_URL")),
+		LLMDefaultModel:           strings.TrimSpace(os.Getenv("MULTICA_LLM_DEFAULT_MODEL")),
+		LLMMaxRetries:             opts.LLMMaxRetries,
+		LLMDisableThinking:        opts.LLMDisableThinking,
+		ServerVersion:             normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
 	// One limiter instance serves both budgets of POST /auth/password: the
@@ -439,6 +439,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		middleware.DefaultPasswordSourceLimit,
 		middleware.DefaultPasswordLimitWindow,
 	)
+	// P5 registration budgets: 5 open-registrations per source per minute and
+	// 20 invitation redemptions per source per minute. In-process for the same
+	// reason as PasswordLimiter; the source limit runs as route middleware
+	// before any handler work.
+	h.RegistrationLimiter = middleware.NewPasswordAttemptLimiter(1, 5, time.Minute)
+	h.RedemptionLimiter = middleware.NewPasswordAttemptLimiter(1, 20, time.Minute)
 	invitationRateLimits := handler.DefaultInvitationRateLimits()
 	invitationRateLimits.Actor.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_ACTOR_10M", invitationRateLimits.Actor.Limit)
 	invitationRateLimits.Workspace.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_WORKSPACE_24H", invitationRateLimits.Workspace.Limit)
@@ -1409,6 +1415,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 	// WebSocket
 	mc := &membershipChecker{queries: queries}
+	sessions := &sessionValidator{queries: queries}
 	pr := &patResolver{queries: queries, cache: patCache}
 	slugResolver := realtime.SlugResolver(func(ctx context.Context, slug string) (string, error) {
 		ws, err := queries.GetWorkspaceBySlug(ctx, slug)
@@ -1418,7 +1425,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		return util.UUIDToString(ws.ID), nil
 	})
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
-		realtime.HandleWebSocket(hub, mc, pr, slugResolver, w, r)
+		realtime.HandleWebSocket(hub, mc, sessions, pr, slugResolver, w, r)
 	})
 
 	// Local file serving (when using local storage). Served through the
@@ -1465,6 +1472,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	authRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_AUTH", 5), time.Minute, trustedProxies)
 	authVerifyRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_AUTH_VERIFY", 20), time.Minute, trustedProxies)
 	pwdSourceRL := middleware.PasswordSourceLimit(h.PasswordLimiter, trustedProxies)
+	// Web registration (P5). Public by necessity: the registrant has no session
+	// yet. Both handlers enforce JSON-only requests, an exact trusted Origin when
+	// one is present, bcrypt-before-limit budgets and a bounded body.
+	h.TrustedProxies = trustedProxies
+	registrationSourceRL := middleware.AttemptSourceLimit(h.RegistrationLimiter, trustedProxies, "too many registration attempts")
+	redemptionSourceRL := middleware.AttemptSourceLimit(h.RedemptionLimiter, trustedProxies, "too many registration attempts")
+	r.With(redemptionSourceRL).Post("/api/register/invite", h.RedeemRegistrationInvite)
+	r.With(registrationSourceRL).Post("/api/register/open", h.OpenRegistration)
 	contactSalesRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_CONTACT_SALES", 5), time.Hour, trustedProxies)
 	r.With(authRL).Post("/auth/send-code", h.SendCode)
 	r.With(authVerifyRL).Post("/auth/verify-code", h.VerifyCode)
@@ -1610,6 +1625,19 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		// --- User-scoped routes (no workspace context required) ---
 		r.Get("/api/me", h.GetMe)
 		r.Patch("/api/me", h.UpdateMe)
+		r.Post("/api/me/password", h.ChangeCurrentPassword)
+		// Instance administration (P5). The guard is inside every handler and
+		// loads the live user row, so a workspace owner without the instance flag
+		// is rejected, and machine credentials (task tokens / cloud PATs) are
+		// refused by the handlers themselves.
+		r.Get("/api/admin/registration", h.GetRegistrationSettings)
+		r.Put("/api/admin/registration", h.UpdateRegistrationSettings)
+		r.Get("/api/admin/users", h.ListInstanceUsers)
+		r.Post("/api/admin/users", h.AddInstanceUser)
+		r.Get("/api/admin/users/{id}/delete-preview", h.GetInstanceUserDeletePreview)
+		r.Post("/api/admin/users/{id}/invite", h.RegenerateInstanceInvite)
+		r.Delete("/api/admin/users/{id}/invite", h.RevokeInstanceInvite)
+		r.Delete("/api/admin/users/{id}", h.DeleteInstanceUser)
 		r.Patch("/api/me/onboarding", h.PatchOnboarding)
 		r.Post("/api/me/onboarding/complete", h.CompleteOnboarding)
 		// DEPRECATED — shim routes for desktop < v3 during the rollout
@@ -2432,6 +2460,33 @@ func (mc *membershipChecker) IsMember(ctx context.Context, userID, workspaceID s
 		WorkspaceID: parseUUID(workspaceID),
 	})
 	return err == nil
+}
+
+// sessionValidator implements realtime.SessionValidator against the live
+// account row. It is the same authority the HTTP auth middleware applies to
+// every request: the row must exist, the account must not be temporarily
+// disabled, and a session-bearing credential must carry the current
+// auth_version. PATs pass a negative version and are checked for liveness only.
+type sessionValidator struct {
+	queries *db.Queries
+}
+
+func (sv *sessionValidator) ValidateSession(ctx context.Context, userID string, authVersion int64) bool {
+	id, err := util.ParseUUID(userID)
+	if err != nil {
+		return false
+	}
+	user, err := sv.queries.GetUser(ctx, id)
+	if err != nil {
+		return false
+	}
+	if auth.IsTemporarilyDisabledUser(util.UUIDToString(user.ID), user.Email) {
+		return false
+	}
+	if authVersion >= 0 && user.AuthVersion != authVersion {
+		return false
+	}
+	return true
 }
 
 // patResolver implements realtime.PATResolver using database queries.

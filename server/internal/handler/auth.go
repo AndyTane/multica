@@ -39,6 +39,13 @@ func (e SignupError) Error() string {
 var ErrSignupProhibited = SignupError{Message: "user registration is disabled on this self-hosted instance"}
 var ErrEmailNotAllowed = SignupError{Message: "email address or domain not allowed on this instance"}
 
+// ErrUnverifiedEmailAccount refuses to merge a verified credential (a delivered
+// email code or Google's verified claim) into an account whose address was
+// merely typed at open registration. Reusing that row would carry whatever
+// password the registrant set into the identity the mailbox owner is proving,
+// so the conflict is reported instead of resolved automatically.
+var ErrUnverifiedEmailAccount = SignupError{Message: "an unverified account already uses this email; sign in with its password or ask an administrator to resolve it"}
+
 const (
 	googleLoginCodeAccountDisabled     = "account_disabled"
 	googleLoginCodeSignupProhibited    = "signup_prohibited"
@@ -73,6 +80,7 @@ type UserResponse struct {
 	OnboardingQuestionnaire json.RawMessage `json:"onboarding_questionnaire"`
 	StarterContentState     *string         `json:"starter_content_state"`
 	ProfileDescription      string          `json:"profile_description"`
+	IsInstanceAdmin         bool            `json:"is_instance_admin"`
 	CreatedAt               string          `json:"created_at"`
 	UpdatedAt               string          `json:"updated_at"`
 }
@@ -102,6 +110,7 @@ func (h *Handler) userToResponse(u db.User) UserResponse {
 		OnboardingQuestionnaire: json.RawMessage(q),
 		StarterContentState:     textToPtr(u.StarterContentState),
 		ProfileDescription:      u.ProfileDescription,
+		IsInstanceAdmin:         u.IsInstanceAdmin,
 		CreatedAt:               timestampToString(u.CreatedAt),
 		UpdatedAt:               timestampToString(u.UpdatedAt),
 	}
@@ -160,6 +169,15 @@ func isSixDigitCode(code string) bool {
 }
 
 func (h *Handler) issueJWT(user db.User) (string, error) {
+	return h.issueJWTWithVersion(user, user.AuthVersion)
+}
+
+// issueJWTWithVersion signs a session for an auth_version the caller read in
+// the SAME snapshot as the credential it verified. Password login uses the
+// explicit form: a password change that commits between verification and
+// signing must invalidate the token being minted, and that only happens when
+// the token carries the version that was current for the verified hash.
+func (h *Handler) issueJWTWithVersion(user db.User, authVersion int64) (string, error) {
 	if auth.IsTemporarilyDisabledUser(uuidToString(user.ID), user.Email) {
 		return "", auth.ErrTemporarilyDisabledUser
 	}
@@ -177,6 +195,7 @@ func (h *Handler) issueJWT(user db.User) (string, error) {
 		"email": user.Email,
 		"name":  user.Name,
 		"sid":   sid,
+		"ver":   authVersion,
 		"exp":   time.Now().Add(auth.AuthTokenTTL()).Unix(),
 		"iat":   time.Now().Unix(),
 	})
@@ -187,6 +206,11 @@ func (h *Handler) issueJWT(user db.User) (string, error) {
 // none exists. isNew reports whether this call created the user — the signup
 // event fires on that edge, covering both the verification-code and Google
 // OAuth entry points.
+//
+// Accounts created here are VERIFIED by construction: every caller proves
+// control of the mailbox first (a delivered verification code, or Google's
+// verified email claim). Open self-registration is the only path that stores an
+// unverified address, and it uses CreateUnverifiedUser explicitly.
 func (h *Handler) findOrCreateUser(ctx context.Context, email string) (user db.User, isNew bool, err error) {
 	if auth.IsTemporarilyDisabledUserEmail(email) {
 		return db.User{}, false, auth.ErrTemporarilyDisabledUser
@@ -199,6 +223,13 @@ func (h *Handler) findOrCreateUser(ctx context.Context, email string) (user db.U
 	}
 	if !isNew && auth.IsTemporarilyDisabledUser(uuidToString(user.ID), user.Email) {
 		return db.User{}, false, auth.ErrTemporarilyDisabledUser
+	}
+	if !isNew && !user.EmailVerified {
+		// The mailbox claim was never proven for this row, so it is not the
+		// identity the credential just proved. Returning it would attach the
+		// verified session to an account someone else created by typing the
+		// address, including any password that account already holds.
+		return db.User{}, false, ErrUnverifiedEmailAccount
 	}
 
 	if err := h.checkSignupAllowed(ctx, email, isNew); err != nil {
@@ -252,47 +283,67 @@ func signupSourceFromRequest(r *http.Request) string {
 	return decoded
 }
 
+// checkSignupAllowed is the per-entry-point signup gate. Only account creation
+// consults it — an existing account can always sign in, whatever the current
+// registration policy is.
 func (h *Handler) checkSignupAllowed(ctx context.Context, email string, isNewUser bool) error {
 	if !isNewUser {
 		return nil // existing users always allowed to log in
 	}
+	return h.instanceSignupPolicy(ctx, email)
+}
 
-	email = strings.ToLower(email)
+// instanceSignupPolicy is the single decision every enabled account-creation
+// entry point applies: the deployment-wide ALLOW_SIGNUP gate, the instance's
+// persistent open-registration switch (default off, operator-managed), and the
+// optional email/domain allowlists.
+//
+// The allowlists only NARROW an already-open registration: matching an address
+// or a domain never substitutes for the open-registration switch, and never
+// proves ownership of that mailbox. A deployment that configures a list and
+// then turns registration off stays closed for every self-service signup.
+//
+// A workspace invitation is NOT an instance registration grant. Only an
+// explicit instance invitation (an administrator creating the account and
+// issuing a registration invite) or the open-registration switch admits a new
+// identity.
+func (h *Handler) instanceSignupPolicy(ctx context.Context, email string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
 	domain := ""
 	if at := strings.Index(email, "@"); at > 0 {
 		domain = email[at+1:]
 	}
 
-	// 1. explicit email allowlist always wins
-	if len(h.cfg.AllowedEmails) > 0 && contains(h.cfg.AllowedEmails, email) {
-		return nil
-	}
-
-	// 2. domain allowlist always wins
-	if len(h.cfg.AllowedEmailDomains) > 0 && contains(h.cfg.AllowedEmailDomains, domain) {
-		return nil
-	}
-
-	// 3. unrestricted signup needs no invitation lookup.
-	if h.cfg.AllowSignup && len(h.cfg.AllowedEmailDomains) == 0 && len(h.cfg.AllowedEmails) == 0 {
-		return nil
-	}
-
-	// 4. A live invitation is an implicit per-email signup allowance. This
-	// also permits invited emails outside configured allowlists, regardless
-	// of ALLOW_SIGNUP. Recheck at account creation in findOrCreateUser.
-	invited, err := h.Queries.HasPendingInvitationForEmail(ctx, email)
-	if err != nil {
-		return fmt.Errorf("check pending invitation for signup: %w", err)
-	}
-	if invited {
-		return nil
-	}
-
+	// 1. the environment-level switch is a hard off. It predates the instance
+	// toggle and is how a deployment operator disables signup entirely.
 	if !h.cfg.AllowSignup {
 		return ErrSignupProhibited
 	}
-	return ErrEmailNotAllowed
+
+	// 2. self-service account creation also needs the instance switch, which
+	// lives in the database and defaults off.
+	open, err := h.readOpenRegistration(ctx)
+	if err != nil {
+		return fmt.Errorf("read instance registration policy: %w", err)
+	}
+	if !open {
+		return ErrSignupProhibited
+	}
+
+	// 3. a configured allowlist is the deployment's own eligibility list. It
+	// can only narrow the addresses admitted above; it can never open a closed
+	// instance or replace the persistent switch.
+	if len(h.cfg.AllowedEmailDomains) > 0 || len(h.cfg.AllowedEmails) > 0 {
+		if len(h.cfg.AllowedEmails) > 0 && contains(h.cfg.AllowedEmails, email) {
+			return nil
+		}
+		if len(h.cfg.AllowedEmailDomains) > 0 && contains(h.cfg.AllowedEmailDomains, domain) {
+			return nil
+		}
+		return ErrEmailNotAllowed
+	}
+
+	return nil
 }
 
 func contains(slice []string, s string) bool {

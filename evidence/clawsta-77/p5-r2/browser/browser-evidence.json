@@ -1,0 +1,143 @@
+{
+  "batch": "P5-R2",
+  "origin": "https://localhost:13444",
+  "browser": "chromium (playwright)",
+  "certificate_validation": "launch arg --ignore-certificate-errors-spki-list pins exactly the staging leaf key; ignoreHTTPSErrors stayed false because this non-interactive session cannot install the staging CA into the Windows root store",
+  "passed": 26,
+  "failed": 0,
+  "steps": [
+    {
+      "step": "admin signs in",
+      "ok": true,
+      "detail": "https://localhost:13444/p5r2-staging/issues"
+    },
+    {
+      "step": "admin tab renders",
+      "ok": true
+    },
+    {
+      "step": "open registration uses the padded settings row",
+      "ok": true,
+      "detail": "{\"left\":16,\"top\":14}"
+    },
+    {
+      "step": "add-user form has its own padding",
+      "ok": true,
+      "detail": "{\"left\":16,\"top\":16}"
+    },
+    {
+      "step": "registration switch lives in the row control slot",
+      "ok": true,
+      "detail": "aria-checked=false"
+    },
+    {
+      "step": "admin tab light screenshot",
+      "ok": true,
+      "detail": "browser/01-admin-tab-light.png"
+    },
+    {
+      "step": "dark theme applied",
+      "ok": true
+    },
+    {
+      "step": "admin tab dark screenshot",
+      "ok": true,
+      "detail": "browser/02-admin-tab-dark.png"
+    },
+    {
+      "step": "language switched to zh-Hans",
+      "ok": true,
+      "detail": "https://localhost:13444/p5r2-staging/settings?tab=preferences"
+    },
+    {
+      "step": "admin tab renders in zh-Hans",
+      "ok": true
+    },
+    {
+      "step": "zh-Hans row labels present",
+      "ok": true,
+      "detail": "open=1 add=1"
+    },
+    {
+      "step": "admin tab zh-Hans screenshot",
+      "ok": true,
+      "detail": "browser/03-admin-tab-zh.png"
+    },
+    {
+      "step": "password-change card has its own padding",
+      "ok": true,
+      "detail": "{\"left\":16,\"top\":16}"
+    },
+    {
+      "step": "password-change card screenshot",
+      "ok": true,
+      "detail": "browser/04-password-card-zh.png"
+    },
+    {
+      "step": "chat history blocks deletion",
+      "ok": true,
+      "detail": "删除 Chat Target？该账号及其登录凭据会被删除，共享内容保留。暂时无法删除有聊天记录请先处理阻止项。将被删除账号取消删除用户"
+    },
+    {
+      "step": "chat-history preview keeps confirmation disabled",
+      "ok": true
+    },
+    {
+      "step": "chat history blocker screenshot",
+      "ok": true,
+      "detail": "browser/05-delete-preview-chat-history.png"
+    },
+    {
+      "step": "active task blocks deletion",
+      "ok": true,
+      "detail": "删除 Task Target？该账号及其登录凭据会被删除，共享内容保留。暂时无法删除有进行中的任务请先处理阻止项。将被删除账号取消删除用户"
+    },
+    {
+      "step": "active-task preview keeps confirmation disabled",
+      "ok": true
+    },
+    {
+      "step": "active task blocker screenshot",
+      "ok": true,
+      "detail": "browser/06-delete-preview-active-task.png"
+    },
+    {
+      "step": "ordinary account has no admin tab",
+      "ok": true,
+      "detail": "entries=0"
+    },
+    {
+      "step": "ordinary account is refused by the admin API",
+      "ok": true,
+      "detail": "status=403"
+    },
+    {
+      "step": "password change lands on the login notice",
+      "ok": true,
+      "detail": "https://localhost:13444/login"
+    },
+    {
+      "step": "password-changed notice screenshot",
+      "ok": true,
+      "detail": "browser/07-password-changed-notice.png"
+    },
+    {
+      "step": "old password is rejected after the change",
+      "ok": true
+    },
+    {
+      "step": "new password signs in",
+      "ok": true,
+      "detail": "https://localhost:13444/p5r2-staging/issues"
+    }
+  ],
+  "screenshots": [
+    "01-admin-tab-light.png",
+    "02-admin-tab-dark.png",
+    "03-admin-tab-zh.png",
+    "04-password-card-zh.png",
+    "05-delete-preview-chat-history.png",
+    "06-delete-preview-active-task.png",
+    "07-password-changed-notice.png"
+  ]
+}

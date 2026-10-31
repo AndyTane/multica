@@ -1,0 +1,5 @@
+CREATE TABLE instance_setting (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

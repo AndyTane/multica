@@ -43,7 +43,7 @@ func TestDatabaseURLFromDeploymentConfig(t *testing.T) {
 		"DatabasePassword": "p@ss:word/?#%and spaces",
 		"DatabasePort":     16442,
 		// Fields the tool must ignore rather than print:
-		"Root":     "D:\\UWorkers\\verify",
+		"Root":       "D:\\UWorkers\\verify",
 		"JWT_SECRET": "should-not-appear",
 	})
 
@@ -223,7 +223,7 @@ func TestLocalAuthCredentialLifecycle(t *testing.T) {
 
 	// Create.
 	withPipedStdin(t, "first password value")
-	if err := runCreate(ctx, queries, email, "", username, true, &stdout, &stderr); err != nil {
+	if err := runCreate(ctx, pool, email, "", username, true, &stdout, &stderr); err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
 	credential, err := queries.GetLocalPasswordCredentialByUsername(ctx, username)
@@ -246,19 +246,19 @@ func TestLocalAuthCredentialLifecycle(t *testing.T) {
 	// Duplicate username is refused.
 	otherID := insertTestUser(t, pool, "local-auth-lifecycle-other@example.com")
 	withPipedStdin(t, "another password value")
-	if err := runCreate(ctx, queries, "", util.UUIDToString(mustUUID(t, otherID)), username, true, &stdout, &stderr); err == nil {
+	if err := runCreate(ctx, pool, "", util.UUIDToString(mustUUID(t, otherID)), username, true, &stdout, &stderr); err == nil {
 		t.Fatal("creating a second credential with the same username succeeded")
 	}
 
 	// A second credential for the same user is refused (one credential per user).
 	withPipedStdin(t, "another password value")
-	if err := runCreate(ctx, queries, email, "", "lifecycle.second", true, &stdout, &stderr); err == nil {
+	if err := runCreate(ctx, pool, email, "", "lifecycle.second", true, &stdout, &stderr); err == nil {
 		t.Fatal("creating a second credential for the same user succeeded")
 	}
 
 	// Reset: new password works, old one does not.
 	withPipedStdin(t, "second password value")
-	if err := runReset(ctx, queries, username, true, &stdout, &stderr); err != nil {
+	if err := runReset(ctx, pool, username, true, &stdout, &stderr); err != nil {
 		t.Fatalf("reset credential: %v", err)
 	}
 	credential, err = queries.GetLocalPasswordCredentialByUsername(ctx, username)
@@ -311,13 +311,13 @@ func TestLocalAuthCreateRejectsUnknownUserAndUsernameCase(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
 	withPipedStdin(t, "first password value")
-	if err := runCreate(ctx, queries, "missing-user@example.com", "", "case.user", true, &stdout, &stderr); err == nil {
+	if err := runCreate(ctx, pool, "missing-user@example.com", "", "case.user", true, &stdout, &stderr); err == nil {
 		t.Fatal("creating a credential for an unknown user succeeded")
 	}
 
 	// Upper-case input is normalized, not created as a second username.
 	withPipedStdin(t, "first password value")
-	if err := runCreate(ctx, queries, email, "", "Case.User", true, &stdout, &stderr); err != nil {
+	if err := runCreate(ctx, pool, email, "", "Case.User", true, &stdout, &stderr); err != nil {
 		t.Fatalf("create credential: %v", err)
 	}
 	if _, err := queries.GetLocalPasswordCredentialByUsername(ctx, "case.user"); err != nil {
