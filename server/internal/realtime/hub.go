@@ -256,6 +256,13 @@ type Client struct {
 	// handler that performed it ran on another replica.
 	authVersion int64
 
+	// revocationMark is the hub revocation counter read BEFORE this handshake
+	// validated its credential. Registration compares it with the account's
+	// last revocation under the hub lock: a revocation that landed while the
+	// credential was being validated (or after it) is therefore visible here,
+	// and the connection is refused instead of joining the rooms.
+	revocationMark uint64
+
 	// closed is closed exactly once when the connection is going away; it lets
 	// the session watcher exit instead of ticking forever against a dead
 	// socket.
@@ -322,16 +329,27 @@ type Hub struct {
 	// Subscription lifecycle hooks. Both can be nil.
 	onFirstSubscriber SubscriptionCallback
 	onLastSubscriber  SubscriptionCallback
+
+	// revocationSeq and userRevokedAt make registration and revocation share one
+	// state boundary (both are guarded by mu). DisconnectUser advances the
+	// counter and stamps the account before it enumerates anything;
+	// registration refuses a client whose pre-handshake mark is older than its
+	// account's stamp. A handle that authenticated just before the revocation
+	// therefore cannot be added to the rooms after it, no matter where the
+	// validator call landed.
+	revocationSeq uint64
+	userRevokedAt map[string]uint64
 }
 
 // NewHub creates a new Hub instance.
 func NewHub() *Hub {
 	return &Hub{
-		rooms:      make(map[scopeKey]map[*Client]bool),
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		rooms:         make(map[scopeKey]map[*Client]bool),
+		clients:       make(map[*Client]bool),
+		broadcast:     make(chan []byte),
+		register:      make(chan *Client),
+		unregister:    make(chan *Client),
+		userRevokedAt: make(map[string]uint64),
 	}
 }
 
@@ -357,10 +375,16 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
-			h.mu.Lock()
-			h.clients[client] = true
-			total := len(h.clients)
-			h.mu.Unlock()
+			total, admitted := h.registerClient(client)
+			if !admitted {
+				// The credential was revoked between validation and this
+				// registration (the exact window the review reproduced). The
+				// socket never joins a room and is closed instead.
+				slog.Info("ws: refused registration of a revoked session",
+					"user_id", client.userID, "workspace_id", client.workspaceID)
+				client.closeWithReason(websocket.ClosePolicyViolation, "session revoked")
+				continue
+			}
 			M.ConnectsTotal.Add(1)
 			M.ActiveConnections.Add(1)
 			// Auto-subscribe to the workspace and user scopes.
@@ -379,22 +403,61 @@ func (h *Hub) Run() {
 	}
 }
 
+// revocationMark reads the hub revocation counter. A handshake takes this
+// value BEFORE it validates its credential and carries it into registration,
+// where the check below runs under the same lock that advances it.
+func (h *Hub) revocationMark() uint64 {
+	if h == nil {
+		return 0
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.revocationSeq
+}
+
+// registerClient adds a client to the connected set unless the account was
+// revoked after this handshake started. It returns the resulting connection
+// count and whether the client was admitted. The revocation check and the
+// insertion are one critical section with DisconnectUser's stamp, so the two
+// operations have a single total order.
+func (h *Hub) registerClient(client *Client) (int, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if client.userID != "" && h.userRevokedAt[client.userID] > client.revocationMark {
+		return len(h.clients), false
+	}
+	h.clients[client] = true
+	return len(h.clients), true
+}
+
 // DisconnectUser closes every live connection authenticated as userID, sending
 // a policy-violation close frame first. The match is the exact account id, so
 // other users' connections and the same user's workspace memberships are
 // untouched. Returns the number of connections closed.
+//
+// The account is stamped with a new revocation sequence number under the hub
+// lock BEFORE the enumeration, and registration checks that stamp under the
+// same lock. A handshake whose validation finished just before this call
+// cannot slip in afterwards: whichever operation takes the lock second either
+// sees the stamp and refuses, or registered first and is enumerated here.
 func (h *Hub) DisconnectUser(userID, reason string) int {
 	if h == nil || userID == "" {
 		return 0
 	}
-	h.mu.RLock()
+	h.mu.Lock()
+	h.revocationSeq++
+	seq := h.revocationSeq
+	if h.userRevokedAt == nil {
+		h.userRevokedAt = make(map[string]uint64)
+	}
+	h.userRevokedAt[userID] = seq
 	targets := make([]*Client, 0, 4)
 	for client := range h.clients {
 		if client.userID == userID {
 			targets = append(targets, client)
 		}
 	}
-	h.mu.RUnlock()
+	h.mu.Unlock()
 	for _, client := range targets {
 		client.closeWithReason(websocket.ClosePolicyViolation, reason)
 	}
@@ -867,6 +930,12 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, sessions SessionValidator, 
 		return
 	}
 
+	// Capture where this handshake sits relative to account revocations BEFORE
+	// any credential is validated. Registration compares this mark with the
+	// account's last revocation; capturing it after validation would miss a
+	// revocation that landed during the validator call.
+	revocationMark := hub.revocationMark()
+
 	// A connection can authenticate three ways: Authorization header, cookie, or
 	// a first frame after the upgrade. All three are the same credential check —
 	// signature plus live account and session version — so a revoked session
@@ -966,13 +1035,14 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, sessions SessionValidator, 
 	)
 
 	client := &Client{
-		hub:         hub,
-		conn:        conn,
-		send:        make(chan []byte, 256),
-		userID:      userID,
-		workspaceID: workspaceID,
-		authVersion: sessionVersion,
-		closed:      make(chan struct{}),
+		hub:            hub,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		userID:         userID,
+		workspaceID:    workspaceID,
+		authVersion:    sessionVersion,
+		revocationMark: revocationMark,
+		closed:         make(chan struct{}),
 	}
 	hub.register <- client
 
