@@ -1,0 +1,26 @@
+{
+    "generated_at":  "2026-10-31T05:11:26.3379488Z",
+    "batch":  "P4",
+    "service":  {
+                    "https_health":  200,
+                    "https_login_page":  200,
+                    "anonymous_me":  401,
+                    "password_login_enabled":  true,
+                    "email_code_login_enabled":  false,
+                    "app_env":  "production",
+                    "dev_verification_code_configured":  false,
+                    "trusted_proxies_loopback_only":  true,
+                    "deployed_app_commit":  "065e20ad00af6bf43da0fb24e3cfd522bf95ff7d",
+                    "deployed_release":  "D:\\UWorkers\\clawsta80\\native\\releases\\v0.2.0-20261031111027",
+                    "deployed_proxy_script_sha256":  "F531993716C76CF19A667163633263F19B19BB14AA039475E10E64BFF42B2E44",
+                    "https_task_state":  "Running",
+                    "https_task_execution_limit":  "PT0S"
+                },
+    "protected_entry":  {
+                            "identity_file_pinned_to_requested_identity":  true,
+                            "entry_script_present":  true,
+                            "entry_cmd_present":  true,
+                            "desktop_shortcut_present":  true,
+                            "local_credential_state":  "0 (formal password not set by this batch)"
+                        }
+}
