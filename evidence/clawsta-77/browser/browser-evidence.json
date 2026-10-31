@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-10-31T02:39:52.975Z",
+  "web": "http://127.0.0.1:13011",
+  "api_port": 18091,
+  "steps": [
+    {
+      "step": "credential_reset",
+      "ok": true,
+      "detail": "local-auth reset exit 0"
+    },
+    {
+      "step": "isolated_api_reachable",
+      "ok": true,
+      "detail": "api port 18091 web port 13011"
+    },
+    {
+      "step": "unauthenticated_me_is_401",
+      "ok": true,
+      "detail": "GET /api/me -> 401"
+    },
+    {
+      "step": "password_login_me_is_200",
+      "ok": true,
+      "detail": "GET /api/me -> 200"
+    },
+    {
+      "step": "landed_on_protected_page",
+      "ok": true,
+      "detail": "path /login -> /p1-verify/issues"
+    },
+    {
+      "step": "protected_page_rendered",
+      "ok": true,
+      "detail": "body text chars=175"
+    },
+    {
+      "step": "session_survives_reload",
+      "ok": true,
+      "detail": "GET /api/me -> 200, path /p1-verify/issues"
+    },
+    {
+      "step": "logout_returns_200",
+      "ok": true,
+      "detail": "POST /auth/logout -> 200"
+    },
+    {
+      "step": "me_after_logout_is_401",
+      "ok": true,
+      "detail": "GET /api/me -> 401"
+    },
+    {
+      "step": "login_again_after_logout",
+      "ok": true,
+      "detail": "GET /api/me -> 200"
+    },
+    {
+      "step": "landed_again_on_protected_page",
+      "ok": true,
+      "detail": "path /p1-verify/issues"
+    },
+    {
+      "step": "no_uncaught_page_errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "screenshots": [
+    "01-login-page.png",
+    "02-after-login.png",
+    "03-relogin.png"
+  ],
+  "password_recorded": false,
+  "passed": true
+}

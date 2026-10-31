@@ -1,0 +1,200 @@
+﻿{
+    "generated_at":  "2026-10-31T02:38:47.1135825Z",
+    "isolated_deployment":  {
+                                "root":  "D:\\UWorkers\\p1-verify\\native",
+                                "release":  "D:\\UWorkers\\p1-verify\\native\\releases\\v0.2.0-20261031095940",
+                                "api":  "http://127.0.0.1:18091",
+                                "web":  "http://127.0.0.1:13011",
+                                "database":  "multica_p1verify",
+                                "database_port":  16443
+                            },
+    "fixture":  {
+                    "user_email":  "p1.verify@example.invalid",
+                    "workspace_slug":  "p1-verify"
+                },
+    "steps":  [
+                  {
+                      "step":  "config_disabled_advertises_off",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  "value=False"
+                  },
+                  {
+                      "step":  "password_route_disabled",
+                      "http_status":  403,
+                      "expected":  403,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "config_password_advertised_on",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  "value=True"
+                  },
+                  {
+                      "step":  "config_email_code_advertised_off",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  "value=False"
+                  },
+                  {
+                      "step":  "me_before_login",
+                      "http_status":  401,
+                      "expected":  401,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "email_code_send_disabled",
+                      "http_status":  403,
+                      "expected":  403,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "email_code_verify_disabled",
+                      "http_status":  403,
+                      "expected":  403,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "wrong_password",
+                      "http_status":  401,
+                      "expected":  401,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "unknown_username",
+                      "http_status":  401,
+                      "expected":  401,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "failure_bodies_identical",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "correct_password_case_insensitive",
+                      "http_status":  200,
+                      "expected":  200,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "login_returns_token",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "login_returns_user_email",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "auth_cookie_set",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "auth_cookie_httponly",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "me_after_login",
+                      "http_status":  200,
+                      "expected":  200,
+                      "ok":  true,
+                      "detail":  true
+                  },
+                  {
+                      "step":  "workspaces_after_login",
+                      "http_status":  200,
+                      "expected":  200,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "oversize_password_rejected",
+                      "http_status":  400,
+                      "expected":  400,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "logout",
+                      "http_status":  200,
+                      "expected":  200,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "me_after_logout",
+                      "http_status":  401,
+                      "expected":  401,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "login_again_after_logout",
+                      "http_status":  200,
+                      "expected":  200,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "old_password_after_reset",
+                      "http_status":  401,
+                      "expected":  401,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "new_password_after_reset",
+                      "http_status":  200,
+                      "expected":  200,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "sixth_attempt_limited",
+                      "http_status":  429,
+                      "expected":  429,
+                      "ok":  true,
+                      "detail":  ""
+                  },
+                  {
+                      "step":  "account_rate_limited",
+                      "http_status":  429,
+                      "expected":  429,
+                      "ok":  true,
+                      "detail":  "Retry-After=59"
+                  },
+                  {
+                      "step":  "retry_after_present",
+                      "http_status":  1,
+                      "expected":  1,
+                      "ok":  true,
+                      "detail":  ""
+                  }
+              ],
+    "passwords_recorded":  false
+}
