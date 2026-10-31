@@ -23,5 +23,12 @@ if (-not (Test-Path -LiteralPath $tool)) {
     throw "local-auth.exe is missing from $($config.Release). Rebuild the deployment with -Action Build."
 }
 
-& $tool --deployment-config $configPath @Arguments
+if (-not $Arguments -or $Arguments.Count -eq 0) {
+    & $tool --deployment-config $configPath
+    exit $LASTEXITCODE
+}
+# The subcommand comes first (local-auth <command> [flags]); the deployment
+# config is an ordinary flag of that command, so it is appended after the
+# caller's arguments.
+& $tool @Arguments --deployment-config $configPath
 exit $LASTEXITCODE

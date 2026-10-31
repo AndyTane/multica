@@ -90,6 +90,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return errors.New("a command is required")
 	}
 	command := args[0]
+	if command == "help" || command == "-h" || command == "--help" {
+		fmt.Fprint(stdout, usageText)
+		return nil
+	}
 	if command != "create" && command != "reset" && command != "delete" && command != "list" {
 		fmt.Fprint(stderr, usageText)
 		return fmt.Errorf("unknown command %q", command)
