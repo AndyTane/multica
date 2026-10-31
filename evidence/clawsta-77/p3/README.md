@@ -5,13 +5,20 @@ from the real cross-machine browser run on the client laptop. No login name,
 password, password hash, token, cookie value, session id, connection string or
 personal email is present in this directory.
 
+> **Correction (P3-R1).** This batch bound the desktop entry to an identity
+> source that did not match the explicitly requested On Behalf Of identity; the
+> binding was corrected in
+> [evidence/clawsta-77/p3-r1/](../p3-r1/README.md), which also records the
+> separate database assertion and keeps this batch's original evidence. The
+> identity row and the browser row below are annotated accordingly.
+
 ## What changed in this batch
 
 | Item | Result |
 | --- | --- |
 | App release | Unchanged: `v0.2.0-20261031111027`, app source commit `065e20ad00af6bf43da0fb24e3cfd522bf95ff7d` |
 | Deployment scripts | Updated (HTTPS lifecycle + pinned login entry); the deployment script SHA-256 differs from the app commit by design — see `host/deployment-evidence.json` |
-| Identity | One new independent identity exists on the deployment, display name Tane, onboarding completed through the normal browser flow, owner of its own workspace `UWorkers` (`/uworkers`), **not** a member of the existing `C1 Cross Machine` workspace |
+| Identity | One new independent identity of display name Tane was created and onboarded (own workspace `UWorkers` at `/uworkers`), but its address did **not** match the explicitly requested identity — the mismatch was the P3-R1 blocker; that identity is preserved untouched for ownership confirmation and the corrected identity now owns `/uworkers-tane` (see P3-R1 evidence) |
 | Existing acceptance account | Preserved unchanged as owner of `c1-cross-machine` |
 | Local credentials | 0 — the formal password is still for Tane to type on the desktop; the temporary verification credential was deleted |
 | HTTPS task | Execution time limit `PT0S` (unlimited), restart on failure 999×/1 minute, battery start/stop conditions disabled, `IgnoreNew` multiple instances, SYSTEM boot trigger; every `Start` re-applies it in place |
@@ -26,7 +33,7 @@ personal email is present in this directory.
 | `host/entry-tests-preflight.json` | Pinned entry behaviour: healthy preflight then cancel (exit 0, no change), empty login name refused (5), invalid login name refused (5), identity mismatch refused before any prompt (3) |
 | `host/entry-tests-overwrite.json` | Existing credential is never overwritten (exit 4) |
 | `host/temporary-credential-lifecycle.json` | Temporary verification credential created via encrypted SSH stdin, used for the browser run, deleted; store empty afterwards |
-| `browser/onboarding-evidence.json` | 16 browser steps from the laptop with normal certificate validation: first-use onboarding (welcome → own workspace → skip runtime → finish), own workspace board, C1 workspace denied (API 404 / UI "工作区不可用"), refresh, logout 401, re-login to own workspace |
+| `browser/onboarding-evidence.json` | Original run, kept unchanged as history: `passed=false`, **15 steps passed / 1 failed** (`identity_is_owner_of_its_own_workspace`). The failure was an assertion bug — the workspace list response carries only `slug`/`name`, no role field — not a permission defect; the corrected-identity run asserts owner through the members API and keeps the database assertion separate (P3-R1) |
 | `browser/*.png` | Onboarding welcome, workspace form, runtime step, own workspace board, C1 denied, refresh, re-login |
 
 ## HTTPS lifecycle verification (P3)

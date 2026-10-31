@@ -248,8 +248,11 @@ sanitized results.
 
 The LAN deployment fronts the loopback API and web server with Caddy; plain HTTP
 on the old port only redirects. The exact files that are deployed live in
-[deploy/windows-https/](../deploy/windows-https/); the verified results are in
-[evidence/clawsta-77/p2/](../evidence/clawsta-77/p2/README.md).
+[deploy/windows-https/](../deploy/windows-https/); verified results are in
+[evidence/clawsta-77/p2/](../evidence/clawsta-77/p2/README.md),
+[evidence/clawsta-77/p3/](../evidence/clawsta-77/p3/README.md) and the P3-R1
+identity correction in
+[evidence/clawsta-77/p3-r1/](../evidence/clawsta-77/p3-r1/README.md).
 
 - `https://192.168.3.49:13443` is the only browser origin. Caddy sends
   `/api/*`, `/auth/*`, `/ws`, `/uploads/*`, `/v1/*` and the health routes to
@@ -273,17 +276,37 @@ on the old port only redirects. The exact files that are deployed live in
   `certutil -user -delstore Root <sha1-thumbprint>`.
 - `caddy-windows.ps1` owns start/stop/status/trust and registers the ONSTART
   SYSTEM task `UWorkers-CLAWSTA80-HTTPS`, so the proxy survives the SSH session
-  or agent that started it; the Caddy admin API is disabled. The supervisor
-  restarts Caddy if it dies (verified by killing the process).
+  or agent that started it; the Caddy admin API is disabled. The task runs with
+  no execution time limit (`PT0S`), restarts on failure (999 times, one-minute
+  interval), starts when available, ignores battery conditions and allows one
+  instance; every `Start` re-applies that definition in place even while the
+  proxy is healthy, and `Stop` removes only this deployment's own process by its
+  exact managed executable path. P3 verified a controlled stop/start with
+  normal certificate validation.
 - DB/API/web upgrades stay with `runtime\native-windows.ps1`. Roll back by
   stopping the HTTPS entry and restoring the previous release, `WebPort 13001`,
   `WebHost 0.0.0.0` and the HTTP `PublicOrigin` from the pre-change backup.
 
-The local login entry for the operator/Tane is installed at
-`D:\UWorkers\clawsta80\Set-UWorkers-Login.cmd` with the shortcut
-"设置 U Workers 登录". It finds the current release and database configuration
-itself, asks for the account name plus a hidden password twice, and refuses to
-overwrite an existing credential. It cannot create users.
+## Identity, first use and the private login entry
+
+The local login entry lives at `native\Set-UWorkers-Login.cmd` with the desktop
+shortcut "设置 U Workers 登录". It is pinned to the identity in
+`native\local-login-identity.json`: it verifies the pinned user id **and** its
+email against the database, refuses a mismatched identity, refuses to overwrite
+an existing credential, then asks for a login name and the tool's hidden double
+password prompt. The permanent password is always typed by that person on the
+desktop; the entry never stores or prints a password.
+
+A new identity is provisioned once by the host-local admin task
+`deploy/windows-https/create-local-identity.ps1` (idempotent, transactional,
+reuses an existing row without overwriting it, optionally writes the pinned
+identity file); the person then completes the normal first-use onboarding in
+the browser to create their own workspace. The app has no public signup or back
+door. Pin only the identity the requester explicitly supplied — compare the
+normalized (trim + lowercase, UTF-8) SHA-256 of the email with the supplied
+fingerprint, and never infer it from an older row or the runtime owner's
+profile; P3-R1 records a correction for exactly that mistake, keeping the
+mis-sourced identity untouched and uncredentialed.
 
 ## Operations and recovery
 

@@ -60,6 +60,12 @@ redirect listener are reachable from the LAN.
      -IdentityFile <deployment>\local-login-identity.json
    ```
 
+   Pin only the identity the requester explicitly supplied: compare the
+   normalized (trim + lowercase, UTF-8) SHA-256 of the email with the supplied
+   fingerprint. Never infer the identity from an older verification row, an old
+   account with the same display name, or the runtime owner's profile (P3-R1
+   corrected exactly that mistake).
+
 2. The person signs in through the normal HTTPS entry once an entry credential
    exists and completes the normal first-use onboarding themselves (creates
    their own workspace, picks "skip the runtime for now"). Do not edit

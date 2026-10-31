@@ -1,0 +1,52 @@
+{
+    "generated_at":  "2026-10-31T04:00:20.5911795Z",
+    "batch":  "P3-R1",
+    "identity_source":  {
+                            "expected_identity_email_sha256":  "5983f9551dc3f2370d8f04a7291d1d03e1c7fb96eac1b5112791572728122788",
+                            "pinned_identity_email_sha256":  "5983f9551dc3f2370d8f04a7291d1d03e1c7fb96eac1b5112791572728122788",
+                            "pinned_email_matches_requested_identity":  true,
+                            "pinned_user_exists":  true,
+                            "pinned_email_matches_database":  true,
+                            "pinned_user_onboarded":  true,
+                            "pinned_memberships":  "uworkers-tane:owner",
+                            "pinned_credential_count":  0
+                        },
+    "old_p3_identity":  {
+                            "preserved":  true,
+                            "onboarded":  true,
+                            "memberships":  "uworkers:owner",
+                            "credential_count":  0,
+                            "removed_or_overwritten":  false
+                        },
+    "existing_acceptance_account":  {
+                                        "present":  true,
+                                        "c1_workspace_members":  1,
+                                        "c1_workspace_owners":  1
+                                    },
+    "totals":  {
+                   "users":  3,
+                   "workspaces":  3,
+                   "local_credentials":  0
+               },
+    "local_login_entry":  {
+                              "identity_file_acl_protected":  true,
+                              "identity_file_acl_rules":  [
+                                                              "NT AUTHORITY\\SYSTEM",
+                                                              "CHUN-I5-12400F-\\Administrator"
+                                                          ],
+                              "entry_script_present":  true,
+                              "entry_cmd_present":  true,
+                              "desktop_shortcut_present":  true,
+                              "desktop_shortcut_targets_native_entry":  true
+                          },
+    "https_entry":  {
+                        "untouched_in_this_batch":  true,
+                        "task_state":  "Running",
+                        "execution_time_limit":  "PT0S",
+                        "restart_count":  999,
+                        "restart_interval":  "PT1M",
+                        "disallow_start_if_on_batteries":  false,
+                        "stop_if_going_on_batteries":  false,
+                        "multiple_instances":  "IgnoreNew"
+                    }
+}

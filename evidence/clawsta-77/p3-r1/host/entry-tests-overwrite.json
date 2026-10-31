@@ -1,0 +1,14 @@
+[
+    {
+        "name":  "entry_cmd_present",
+        "exit":  0,
+        "output":  "cmd=D:\\UWorkers\\clawsta80\\native\\Set-UWorkers-Login.cmd",
+        "error":  ""
+    },
+    {
+        "name":  "existing credential not overwritten",
+        "exit":  4,
+        "output":  "==========================================\r\n  设置 U Workers 登录（本人账号）\r\n==========================================\r\n\r\n\r\n无法设置：该账号已经设置过登录密码。本入口不会覆盖既有密码；如需重置，请联系管理员处理。\r\n未做任何修改。",
+        "error":  ""
+    }
+]

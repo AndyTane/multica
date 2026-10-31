@@ -1,0 +1,149 @@
+{
+  "generated_at": "2026-10-31T03:59:51.620Z",
+  "batch": "P3-R1",
+  "base": "https://192.168.3.49:13443",
+  "steps": [
+    {
+      "step": "tls_chain_validates_against_exported_root",
+      "ok": true,
+      "detail": "Caddy Local Authority - ECC Intermediate"
+    },
+    {
+      "step": "login_reaches_first_use_onboarding",
+      "ok": true,
+      "detail": "/onboarding"
+    },
+    {
+      "step": "welcome_advances_to_workspace_step",
+      "ok": true,
+      "detail": "/onboarding"
+    },
+    {
+      "step": "workspace_created_and_runtime_step_shown",
+      "ok": true,
+      "detail": "slug=uworkers-tane"
+    },
+    {
+      "step": "runtime_skipped_without_connecting_an_agent",
+      "ok": true,
+      "detail": "skip=true"
+    },
+    {
+      "step": "onboarding_completes_into_own_workspace",
+      "ok": true,
+      "detail": "path=/uworkers-tane/issues me=200 workspaces=[{\"slug\":\"uworkers-tane\",\"name\":\"UWorkers\"}]"
+    },
+    {
+      "step": "identity_is_owner_of_its_own_workspace_browser",
+      "ok": true,
+      "detail": "role=owner"
+    },
+    {
+      "step": "identity_not_member_of_c1",
+      "ok": true,
+      "detail": "[\"uworkers-tane\"]"
+    },
+    {
+      "step": "own_workspace_board_rendered",
+      "ok": true,
+      "detail": "chars=420 path=/uworkers-tane/issues"
+    },
+    {
+      "step": "existing_workspace_api_denied",
+      "ok": true,
+      "detail": "X-Workspace-ID c1 -> 404"
+    },
+    {
+      "step": "existing_workspace_ui_denied",
+      "ok": true,
+      "detail": "final=https://192.168.3.49:13443/c1-cross-machine/issues status=200 content=工作区不可用 该工作区不存在，或你没有访问权限。 前往我的工作区 使用其他账号登录"
+    },
+    {
+      "step": "session_survives_refresh",
+      "ok": true,
+      "detail": "me=200 path=/uworkers-tane/issues"
+    },
+    {
+      "step": "logout_returns_me_401",
+      "ok": true,
+      "detail": "me=401"
+    },
+    {
+      "step": "relogin_returns_to_own_workspace",
+      "ok": true,
+      "detail": "me=200 path=/uworkers-tane/issues"
+    },
+    {
+      "step": "email_login_still_disabled",
+      "ok": true,
+      "detail": "{\"email\":false,\"password\":true}"
+    },
+    {
+      "step": "no_uncaught_page_errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "screenshots": [
+    "01-onboarding-welcome.png",
+    "02-workspace-form.png",
+    "03-runtime-step.png",
+    "04-own-workspace-board.png",
+    "05-c1-workspace-denied.png",
+    "06-after-refresh.png",
+    "07-after-relogin.png"
+  ],
+  "cert": {
+    "ok": true,
+    "issuer": "Caddy Local Authority - ECC Intermediate",
+    "san": "IP Address:192.168.3.49"
+  },
+  "capabilities": {
+    "cdn_domain": "",
+    "allow_signup": true,
+    "local_password_login_enabled": true,
+    "email_code_login_enabled": false,
+    "daemon_server_url": "http://localhost:18081",
+    "daemon_app_url": "https://192.168.3.49:13443",
+    "posthog_key": "",
+    "posthog_host": "",
+    "analytics_environment": "",
+    "feature_flags": {
+      "agents_agent_builder": true,
+      "agents_skill_toggles": true,
+      "billing_workspace_subscriptions": false,
+      "composio_mcp_apps": false,
+      "plugins_v1": false,
+      "settings_resource_labels": true
+    },
+    "local_worktree_supported": true,
+    "agent_conversation_starters_supported": true,
+    "issue_create_properties_supported": true,
+    "comment_delete_keep_replies_supported": true,
+    "server_version": "v0.2.0"
+  },
+  "workspace": {
+    "name": "UWorkers",
+    "slug": "uworkers-tane"
+  },
+  "own_workspace_summary": [
+    {
+      "slug": "uworkers-tane",
+      "name": "UWorkers"
+    }
+  ],
+  "owner_role_browser_assertion": {
+    "endpoint": "GET /api/workspaces/{id}/members",
+    "role": "owner"
+  },
+  "c1_access": {
+    "api_status": 404,
+    "ui_final_url": "https://192.168.3.49:13443/c1-cross-machine/issues",
+    "ui_status": 200,
+    "ui_content": "工作区不可用 该工作区不存在，或你没有访问权限。 前往我的工作区 使用其他账号登录"
+  },
+  "correction_note": "P3 evidence reported 16/16; that was wrong: the file recorded 15 pass / 1 fail because the workspace list response has slug+name only (no role field). The owner role is asserted here through GET /api/workspaces/{id}/members, and the independent database assertion lives in host/identity-assertions.json.",
+  "passed": true,
+  "pass_count": 16,
+  "fail_count": 0
+}
