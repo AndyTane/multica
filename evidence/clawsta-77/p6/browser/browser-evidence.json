@@ -1,0 +1,105 @@
+{
+  "batch": "P6",
+  "origin": "https://192.168.3.49:13443",
+  "browser": "chromium (playwright), default certificate validation",
+  "ignoreHTTPSErrors": false,
+  "passed": 19,
+  "failed": 0,
+  "steps": [
+    {
+      "step": "unauthenticated /api/me is 401",
+      "ok": true,
+      "detail": "401"
+    },
+    {
+      "step": "old HTTP entry redirects to HTTPS (GET/HEAD 308, other methods 405)",
+      "ok": true,
+      "detail": "GET 308 -> https://192.168.3.49:13443/; HEAD 308; POST 405"
+    },
+    {
+      "step": "password-only login page with registration entry",
+      "ok": true,
+      "detail": "account form + registration entry, no email-code form"
+    },
+    {
+      "step": "self-service registration is closed on the server",
+      "ok": true,
+      "detail": "403 registration_disabled"
+    },
+    {
+      "step": "registration page defaults to invitation mode",
+      "ok": true,
+      "detail": "invite field only"
+    },
+    {
+      "step": "pinned identity signs in and lands in its own workspace",
+      "ok": true,
+      "detail": "https://192.168.3.49:13443/uworkers-tane/issues"
+    },
+    {
+      "step": "instance admin sees 用户与注册 with the switch closed",
+      "ok": true,
+      "detail": "switch aria-checked=false"
+    },
+    {
+      "step": "admin adds a temporary user and copies the full HTTPS invite link",
+      "ok": true,
+      "detail": "invite issued, copied and cleared from the panel"
+    },
+    {
+      "step": "invitation page sets the first password",
+      "ok": true,
+      "detail": "https://192.168.3.49:13443/onboarding"
+    },
+    {
+      "step": "temporary account creates its own workspace",
+      "ok": true,
+      "detail": "创建 P6 Temp 07bac74d -> https://192.168.3.49:13443/onboarding"
+    },
+    {
+      "step": "temporary account reaches a protected workspace board",
+      "ok": true,
+      "detail": "https://192.168.3.49:13443/p6-temp-07bac74d/issues"
+    },
+    {
+      "step": "protected workspace survives a refresh",
+      "ok": true,
+      "detail": "https://192.168.3.49:13443/p6-temp-07bac74d/issues"
+    },
+    {
+      "step": "ordinary account cannot reach the admin tab or the admin API",
+      "ok": true,
+      "detail": "entries=0 adminAPI=403"
+    },
+    {
+      "step": "logout ends the session (401)",
+      "ok": true,
+      "detail": "logout ok, /api/me 401"
+    },
+    {
+      "step": "temporary account signs in again with its password",
+      "ok": true,
+      "detail": "https://192.168.3.49:13443/p6-temp-07bac74d/issues"
+    },
+    {
+      "step": "web password change invalidates the old session and shows the login notice",
+      "ok": true,
+      "detail": "https://192.168.3.49:13443/login"
+    },
+    {
+      "step": "the pre-change session token is rejected",
+      "ok": true,
+      "detail": "401"
+    },
+    {
+      "step": "old password is refused, the new one signs in",
+      "ok": true,
+      "detail": "https://192.168.3.49:13443/p6-temp-07bac74d/issues"
+    },
+    {
+      "step": "temporary account cleanup: delete its workspace and account",
+      "ok": true,
+      "detail": "workspaceDelete=204 removed=[\"p6-temp-07bac74d@p6.invalid:204\"]"
+    }
+  ]
+}

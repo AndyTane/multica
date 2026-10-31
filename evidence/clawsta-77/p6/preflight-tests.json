@@ -1,0 +1,40 @@
+{
+  "batch": "P6 preflight (isolated PostgreSQL)",
+  "database": "multica_p5candidate on the desktop host, reached through a temporary SSH tunnel (16432)",
+  "live_database_untouched": "multica_clawsta80 was only read; every handler test ran against the isolated database",
+  "migrations": "applied through 582_user_email_verified",
+  "build_vet": {
+    "go build ./...": "pass",
+    "go vet ./...": "pass"
+  },
+  "packages": {
+    "./internal/handler (targeted matrix + P5 regressions)": "42 passed / 0 failed",
+    "./internal/auth": "pass",
+    "./internal/middleware": "pass",
+    "./internal/realtime": "pass",
+    "./cmd/local-auth": "pass"
+  },
+  "changed_tests": [
+    "TestFindOrCreateUserGating/whitelisted_new_user_needs_both_switches (was whitelisted_new_user_passes_policy: allowed with the deployment switch off)",
+    "TestGoogleLoginActionableErrorCodes/email_not_allowed (mock instance switch now open for the allowlist case)"
+  ],
+  "new_tests": [
+    "TestP5R3OpenRegistrationHandlerMatrix (11 rows: deployment off x instance on/off with a matching email/domain allowlist; deployment on x instance off with match/domain/no list; both on with match/no list/non-match)",
+    "TestP5R3ExistingPasswordLoginWhileRegistrationClosed (real POST /auth/password while both switches are off)",
+    "TestP5R3InviteRedemptionWorksWhileRegistrationClosed (real POST /api/register/invite: first password once, replay refused, no credential on replay, then password login)",
+    "TestP5R3EmailCodeCannotBypassClosedRegistration (email-code entry enabled behind the existing service stub: SendCode and VerifyCode both refused with a matching allowlist, positive control when opened)",
+    "TestP5R3GoogleCannotBypassClosedRegistration (stubbed Google provider: 403 signup_prohibited for a matching allowlist)",
+    "TestCommandFlagsParseWithoutPanic (every local-auth command reaches flag parsing)"
+  ],
+  "rejection_assertions": [
+    "no user row for the address",
+    "no password credential for the username or the account",
+    "no multica_auth / multica_csrf / multica_csrf_session cookie",
+    "no session token in the body",
+    "a self-registered account keeps email_verified = false"
+  ],
+  "known_failures_not_claimed_green": [
+    "the full internal/handler package still has pre-existing environment failures on this Windows host (see evidence/clawsta-77/p5-r2/full-handler-failures.txt)",
+    "the full views suite is unchanged by this batch"
+  ]
+}

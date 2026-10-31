@@ -166,3 +166,37 @@ P5准备/代码批次先不部署。代码与界面验收后明确接续：DSH�
 - 生产只读核对：live `multica_clawsta80` release `v0.2.0-20261031111027` 未变；live schema 尚无 `instance_setting`（P5 未部署），本次无生产写入。
 - 未做：合并/部署/HTTPS 切换属授权部署批次；完整 Go/views 套件仍需 CI/Linux 复跑；前端非阻塞建议留后续。
 - 证据：`evidence/clawsta-77/p5-r3/`（README、candidate-evidence.json、handler-tests.log）。
+
+
+## P6 上线、真实浏览器验收与合并
+
+任务书 `2026-10-31-local-password-login.md` 的部署批次。基线 `e275b61a4`，PR #7，base `8c61cdef`。本批已授权上线与合并；逐项证据 `evidence/clawsta-77/p6/`。
+
+### 上线前隔离检查
+
+- 隔离 PG `multica_p5candidate`（台式机，经临时 SSH 隧道，迁移到 582），生产库只读。`go build ./...`、`go vet ./...` 通过；定向 handler 矩阵与全部 P5/P5-R1/P5-R2 回归 **42 项通过 / 0 失败**；`internal/auth`、`internal/middleware`、`internal/realtime`、`cmd/local-auth` 通过。
+- 修正残留旧预期：`whitelisted_new_user_passes_policy`（部署开关关闭仍断言放行）改为双开才允许；Google 的 `email_not_allowed` 用例先打开 mock 实例开关。新增真实 handler 覆盖：11 行开放注册矩阵、关闭状态下的真实密码登录与真实邀请兑换（单次有效、重放失败、失败不建凭据）、邮箱码与 Google 入口的关闭拒绝。所有拒绝断言无用户/凭据/cookie/会话 token，自填邮箱保持未验证。删除只调 policy helper 的 `TestP5R3InvitationRedemptionStaysAvailable`。
+
+### 部署
+
+- 目标 `ssh desktop` → `D:/UWorkers/clawsta80/native`；沿用既有 Backup→Build→Stop/Start，未改 Caddy/CA/计划任务/端口/LAN 限制。
+- 变更前：release `v0.2.0-20261031111027`、app `065e20ad0`、schema 575、用户/工作区/成员/凭据 = 1/1/1/0。备份 `backups/native-20261031-193723`（DB+uploads+deployment.json+sha256）。旧 release 与备份全部保留。
+- 源码为宿主机真实 git checkout（`src-888a2e76f`）；Build 产出 `v0.2.0-20261031202450`，迁移到 582，`deployment.json` 的 Release/Commit 与 `/health` 一致为 `a30713a0a`。
+- 实例管理员仅授予 `934e10e0-…5b4a`（邮箱 SHA-256 `5983f955…12788`），幂等重复执行不重复授权；工作区 owner 不附带该能力。`open_registration` 初始关闭；`AUTH_LOCAL_PASSWORD_ENABLED=true`、邮箱码/Google/固定码/SMTP 关闭、`APP_ENV=production`。
+
+### 部署中发现并修复的真实缺陷
+
+部署后实测 `local-auth bootstrap-host` 直接 panic（`flag redefined: deployment-config`）：命令块重复注册了全局已注册的 flag。桌面入口因此完全不可用，而固定身份尚无密码，没有第二条路。已修（`a30713a0a`，命令块只注册自己的 flag），补 `TestCommandFlagsParseWithoutPanic` 覆盖每个命令，重新 Build/切换后复测：错误 UUID 返回 `no user with id ...`，不 panic、不产生邀请。
+
+### 真实浏览器验收
+
+Chromium（Playwright）访问 `https://192.168.3.49:13443`，正常证书校验（无 `ignoreHTTPSErrors`、无 SPKI 例外、无 `-k`），**19/19 步通过**：未登录 401；旧入口 GET/HEAD 308、其他方法 405；仅密码登录页含注册入口、无邮箱码表单；自助注册 403 `registration_disabled`；`/register` 默认邀请模式；固定身份登录后进入 `/uworkers-tane/issues`；管理员「用户与注册」tab 且开关关闭；添加临时用户、复制完整 HTTPS 邀请链接（剪贴板一致）；邀请页首次设密并清除 fragment；临时账号建自己的工作区→受保护看板→刷新保持；普通账号无管理入口且管理员 API 403；退出后 401；重新登录；网页改密后落到登录页并显示提示；改密前会话 token 被拒；旧密码被拒、新密码可登录；临时工作区与账号经产品流程删除。截图见 `evidence/clawsta-77/p6/browser/`，邮箱已模糊，无邀请/密码/cookie/token。
+
+### 桌面设置密码入口
+
+`deploy/windows-https/Set-UWorkers-Login.ps1` 改为网页初设：核对固定 UUID、邮箱 SHA-256 与数据库行，要求 HTTPS `PublicOrigin`，有密码只开登录页、无密码调用 `bootstrap-host` 生成 15 分钟单次邀请并私下打开 `/register#token=…`；秘密只在内存与地址栏，不打印/不落盘，报错不回显 URL；`-Preflight` 无副作用。宿主机实测预检显示「尚未设置密码」与当前 release/commit。本次仅有 SSH 会话，未声称已在用户可见桌面打开窗口，正式密码仍由 Tane 本人双击桌面「设置 U Workers 登录」在网页输入。
+
+### 结束状态与合并
+
+- 仅剩原身份、原工作区与正式数据：`users=1 workspaces=1 members=1 credentials=0 registration_invites=0 instance_admins=1 instance_settings=0`，schema 582；`uworkers-tane` 的名称/创建时间/owner 成员与身份 `onboarded_at` 均未变，无临时凭据、邀请、会话、工作区或上传残留。
+- PR #7 按既有授权 ready→合并 main，记录 merge SHA 与部署源 SHA 分别对应关系。
