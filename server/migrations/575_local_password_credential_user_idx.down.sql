@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS local_password_credential_user_idx;
