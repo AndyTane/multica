@@ -87,3 +87,33 @@ P5准备/代码批次先不部署。代码与界面验收后明确接续：DSH�
 实际验证用专用临时用户，完成后删除新增测试账号/工作区/凭据，保留Tane正式数据。不得覆盖Tane已设密码；若生产管理员验证需要临时凭据，必须确认尚无正式凭据且用完清除。正式密码本人网页输入，不能把临时验证称为正式交接。
 
 清理/合并已验收，新网页功能仍须实现、上线验证后统一交付。当前用户选择已确定，不再以等待注册范围为阻塞。P5交付后有效@后端架构师接回；父issue保持in_progress。
+
+## P5-R1 集中修复执行结果（候选）
+
+接续候选 `46814feec`，本轮集中在 PR #7 完成专业复审要求的修复（范围 `46814feec..16db41e34`，PR 总 base `8c61cdef`）。仍然只是候选：未部署、未合并、未重启 HTTPS，未操作承载智能体的 Multica/DSH 实例。逐项证据见 `evidence/clawsta-77/p5-r1/README.md`。
+
+### 服务端
+
+- **会话权限统一**：WebSocket 握手对 header、cookie、首帧三种来源都做活用户 + `auth_version` 校验；改密/删号会关闭该账号的已连接 socket，另有 60s 复检兜底；其他用户不受影响。PAT 缓存命中时检查"账号已删除"标记，删号在该标记写入成功前不会提交，缓存不能复活已删账号。
+- **邮箱验证作为身份边界**：`user.email_verified` 迁移默认 true 保留旧已验证身份；开放注册建号即未验证。邮箱匹配的工作区邀请（列表、接受、拒绝、分享链接结算）只对已验证账号生效；UUID 绑定的邀请不受影响。邮箱验证码/Google 建号仍按定义已验证。
+- **一致性与锁序**：管理员删除、邀请重发/撤销/兑换、改密共用同一事务咨询锁（先 `instance_admins` 后 `user:<uuid>`）。事务内重读调用者、目标、管理员数量与依赖；删除清理后再跑一次依赖清单，发现并发新增即回滚，不留孤儿。重发在锁内先撤销后签发，只有最新邀请有效；兑换条件消费一次；改密用条件更新，旧密码只能成功一次，旧密码登录与改密竞争不会拿到新版本 JWT。
+- **管理员 API**：目标 id 非 UUID 稳定返回 400。删除依赖按真实 schema 枚举：工作区/运行时/智能体归属、渠道/Lark 安装、分享链接、来源上下文为阻断项；身份绑定与账号级行删除；共享历史保留，可空归属置空（含 `agent.archived_by`）。新增 `GET /api/admin/users/{id}/delete-preview`，返回 `{can_delete, blockers:[{code,count}], removes:[code]}`，与 DELETE 使用同一判定函数，仅活实例管理员可读，拒绝任务令牌/PAT。
+- **账户级新表**：`registration_invite`、`instance_setting` 归入 workspace 删除清单的 KEEP，真实 DB 清单测试通过。
+- **本地引导**：`local-auth invite` 默认不再打印邀请明文，只有显式 `--stdout-token` 才输出；新增候选 `bootstrap-host`：明确 UUID + 邮箱指纹、15 分钟、已有密码只打开登录页、私下打开 HTTPS 设置页，明文只存在于内存与浏览器地址栏。实际安装留部署批次。
+
+### 前端
+
+实例用户管理迁入设置页的管理员专属「用户与注册」tab（网页/桌面共用），`/admin` 直接移除（该路由从未发布，设置页本身是工作区域内路由）；account-tab 的硬跳按钮删除。注册页等 config 加载后再判模式，邀请模式始终可粘贴完整链接或裸邀请码，fragment 在挂载后读取并立即清除；表单 Enter 提交、密码规则常驻、错误 aria 与焦点、失败只清两个密码框；成功由宿主注入的 `onSuccess` 复用登录收尾。开放注册用 Switch，失败回服务器状态并提示。邀请面板显示只读完整 HTTPS 链接，复制失败提示并自动选中。删除用预览驱动的 AlertDialog，预览失败/畸形/有阻断项时禁止确认。改密失败清三个字段并聚焦，成功后退出并在登录页显示一次性本地化提示。新 API 全部 zod schema + `parseWithFallback`（删除预览失败即关闭），错误码集中映射到 i18n，五语言补齐并有 parity 测试，`register` 加入保留 slug。
+
+### 验证
+
+- Go：`go build ./...`、`go vet ./...` 通过；`TestP5`、清单测试、`internal/realtime`、`internal/auth`、`cmd/local-auth` 全通过（真实 PostgreSQL，隔离库 `multica_p5candidate`）。完整 `internal/handler` 包在本 Windows 环境有 9 个与本批无关的既有失败（Windows 路径分隔符、运行时离线的调度断言）并触发 10 分钟超时，已如实记录，未称为通过。
+- 前端：core/views/web/desktop typecheck 通过；core 173 文件 2224 测试、web 25 文件 245 测试、desktop 62 文件 652 测试通过（`scripts/package.test.mjs` 为既有失败）；新增/受影响 views 测试与五语言 parity 233 项通过；lint 0 error。完整 views 套件在本机并行下有 22 个无关既有失败，单跑均通过，未称为通过。
+- 真实浏览器：隔离 staging（Caddy `tls internal`、CA 装入当前用户根存储、正常证书校验）28/28 步通过，含从登录页点击注册→粘贴管理员复制的完整链接→纯键盘完成、fragment 直开、开放注册模式、config 不闪、开关失败回滚、删除预览有/无依赖与自删保护、普通用户无管理数据且 API 403、改密失败清字段、成功提示、旧密码拒绝、新密码登录、既有账号回到自己工作区。截图（浅/深色 + 375px，均无秘密）在 `evidence/clawsta-77/p5-r1/browser/`。
+
+### 未完成
+
+- 不部署、不合并；native 备份/Build/迁移/HTTPS 切换、`bootstrap-host` 实际安装与真实宿主引导留到复审通过后的部署批次。
+- 完整 Go handler 套件与完整 views 套件在本 Windows 环境因上述既有原因非全绿，合并前应在 CI/Linux 复跑。
+- ja/ko/fr 文案为本批编写并通过 parity，仍建议母语校对。
+

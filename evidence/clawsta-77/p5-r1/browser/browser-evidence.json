@@ -1,0 +1,150 @@
+{
+  "batch": "P5-R1",
+  "generated_at": "2026-10-31T08:34:00.372Z",
+  "base": "https://localhost:13444",
+  "normal_certificate_validation": true,
+  "steps": [
+    {
+      "step": "config_load_no_mode_flash",
+      "ok": true,
+      "detail": "form_before_config=0"
+    },
+    {
+      "step": "config_load_shows_invite_field_after_load",
+      "ok": true,
+      "detail": "invite_visible=true"
+    },
+    {
+      "step": "admin_settings_tab_opens",
+      "ok": true,
+      "detail": "https://localhost:13444/staging-own/settings?tab=admin-users"
+    },
+    {
+      "step": "open_registration_defaults_off",
+      "ok": true,
+      "detail": "state=false"
+    },
+    {
+      "step": "open_registration_failure_rolls_back",
+      "ok": true,
+      "detail": "state_after_failure=false"
+    },
+    {
+      "step": "admin_can_enable_open_registration",
+      "ok": true,
+      "detail": "state=true"
+    },
+    {
+      "step": "admin_can_disable_open_registration",
+      "ok": true,
+      "detail": "state=false"
+    },
+    {
+      "step": "invite_link_is_full_https_url",
+      "ok": true,
+      "detail": "prefix=https://localhost:13444/register#token="
+    },
+    {
+      "step": "copy_invitation_link_writes_full_link",
+      "ok": true,
+      "detail": "clipboard_matches=true"
+    },
+    {
+      "step": "invite_field_autofocused_on_paste_path",
+      "ok": true,
+      "detail": "autofocused=true"
+    },
+    {
+      "step": "pasted_link_recognised_in_invite_field",
+      "ok": true,
+      "detail": "length=82"
+    },
+    {
+      "step": "invitee_completes_registration_with_keyboard",
+      "ok": true,
+      "detail": "https://localhost:13444/onboarding"
+    },
+    {
+      "step": "fragment_direct_open_prefills_token",
+      "ok": true,
+      "detail": "field_length=43"
+    },
+    {
+      "step": "fragment_removed_from_address_bar",
+      "ok": true,
+      "detail": "hash="
+    },
+    {
+      "step": "fragment_direct_open_completes_registration",
+      "ok": true,
+      "detail": "https://localhost:13444/onboarding"
+    },
+    {
+      "step": "existing_account_returns_to_own_workspace",
+      "ok": true,
+      "detail": "https://localhost:13444/staging-own/issues"
+    },
+    {
+      "step": "self_row_has_no_delete_entry",
+      "ok": true,
+      "detail": "menus=0"
+    },
+    {
+      "step": "delete_preview_lists_blockers_and_disables_confirm",
+      "ok": true,
+      "detail": "disabled=true"
+    },
+    {
+      "step": "delete_preview_allows_account_without_blockers",
+      "ok": true,
+      "detail": "enabled=true"
+    },
+    {
+      "step": "delete_removes_account_from_list",
+      "ok": true,
+      "detail": "rows=0"
+    },
+    {
+      "step": "ordinary_user_has_no_admin_tab",
+      "ok": true,
+      "detail": "entries=0"
+    },
+    {
+      "step": "ordinary_user_admin_api_forbidden",
+      "ok": true,
+      "detail": "status=403"
+    },
+    {
+      "step": "password_change_failure_clears_fields",
+      "ok": true,
+      "detail": "value='' focused=true"
+    },
+    {
+      "step": "password_change_failure_is_localized",
+      "ok": true,
+      "detail": "The current password is incorrect."
+    },
+    {
+      "step": "password_change_success_shows_login_notice",
+      "ok": true,
+      "detail": "notice_visible=true"
+    },
+    {
+      "step": "old_password_rejected",
+      "ok": true,
+      "detail": "path=/login"
+    },
+    {
+      "step": "new_password_login_works",
+      "ok": true,
+      "detail": "https://localhost:13444/staging-own/issues"
+    },
+    {
+      "step": "screenshots_captured",
+      "ok": true,
+      "detail": "9 files"
+    }
+  ],
+  "passed": 28,
+  "failed": 0
+}
