@@ -199,4 +199,4 @@ Chromium（Playwright）访问 `https://192.168.3.49:13443`，正常证书校验
 ### 结束状态与合并
 
 - 仅剩原身份、原工作区与正式数据：`users=1 workspaces=1 members=1 credentials=0 registration_invites=0 instance_admins=1 instance_settings=0`，schema 582；`uworkers-tane` 的名称/创建时间/owner 成员与身份 `onboarded_at` 均未变，无临时凭据、邀请、会话、工作区或上传残留。
-- PR #7 按既有授权 ready→合并 main，记录 merge SHA 与部署源 SHA 分别对应关系。
+- PR #7 按既有授权 ready→合并 main：head `d4da18350`、base `8c61cdef`、merge commit `8e6c08f61`（2026-10-31T12:29:19Z），未绕分支保护、未新增 CI 等待门槛。部署源 `a30713a0a` 是该 merge 的祖先，合并未改变源码，因此无需重新部署；对应关系见 `evidence/clawsta-77/p6/merge.json`。
