@@ -23,7 +23,7 @@ describe("local onboarding", () => {
     expect(screen.getByRole("heading", { name: "Start your first task" })).toBeInTheDocument();
     expect(fake.bootstrap).not.toHaveBeenCalled();
     expect(screen.queryByText(/about you|waitlist|download desktop/i)).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Start with Mika" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start with Siman" }));
     expect(fake.bootstrap).toHaveBeenCalledWith(expect.objectContaining({ workspaceSlug: "test", runtimeId: "rt-test", model: "model-test" }));
     expect(fake.complete).toHaveBeenCalledWith("full", "ws-test");
     expect(done).toHaveBeenCalledWith(expect.objectContaining({ id: "ws-test" }), { kind: "chat", sessionId: "chat-test" });

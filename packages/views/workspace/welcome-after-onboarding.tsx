@@ -95,7 +95,7 @@ interface SkipWelcomeProps {
 
 /**
  * Provision one focused runtime guide before showing the completion modal.
- * Once a runtime appears, the Runtimes page offers "Start with Mika" and
+ * Once a runtime appears, the Runtimes page offers "Start with Siman" and
  * runs the same real bootstrap used by connected onboarding.
  */
 function SkipWelcome({ workspaceId, onDismiss }: SkipWelcomeProps) {

@@ -1,10 +1,10 @@
 /**
- * Multica architecture diagram for §1.2 "How Multica Works".
+ * U Workers architecture diagram for §1.2 "How U Workers Works".
  *
  * Boundary-style layout: one large panel for "Your side" (where all the
  * interesting stuff happens — code, keys, compute), one smaller panel for
- * "Multica" (metadata store and coordinator).  The asymmetric sizes and the
- * brand-tinted left panel visually argue Multica's core thesis: AI runs on
+ * "U Workers" (metadata store and coordinator).  The asymmetric sizes and the
+ * brand-tinted left panel visually argue U Workers' core thesis: AI runs on
  * your machine, not ours.
  *
  * No SVG arrows.  Relationships are carried by the layout itself — client
@@ -18,14 +18,14 @@ export function ArchitectureDiagram() {
       <div className="hidden md:grid md:grid-cols-[1.7fr_auto_1fr] md:gap-4 md:items-stretch">
         <YourSide />
         <Connector horizontal />
-        <MulticaSide />
+        <ProductSide />
       </div>
 
       {/* Mobile: stacked */}
       <div className="md:hidden space-y-4">
         <YourSide />
         <Connector horizontal={false} />
-        <MulticaSide />
+        <ProductSide />
       </div>
     </div>
   );
@@ -55,7 +55,7 @@ function YourSide() {
         <div>
           <SectionLabel>Daemon</SectionLabel>
           <div className="text-xs text-muted-foreground mb-2.5">
-            Polls work from Multica. Invokes local AI coding tools:
+            Polls work from U Workers. Invokes local AI coding tools:
           </div>
           <div className="flex flex-wrap gap-1.5">
             <Pill>Claude Code</Pill>
@@ -79,17 +79,17 @@ function YourSide() {
   );
 }
 
-function MulticaSide() {
+function ProductSide() {
   return (
     <div className="rounded-lg border border-border/70 bg-muted/25 p-6 flex flex-col">
       <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-5">
-        Multica
+        U Workers
       </div>
 
       <div className="flex-1 flex flex-col">
         <SectionLabel>Server</SectionLabel>
         <div className="text-xs text-muted-foreground mb-4">
-          Cloud or self-hosted
+          Self-hosted
         </div>
 
         <div className="text-xs space-y-1.5 text-foreground/80">

@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo-light.svg">
-  <img alt="Multica" src="docs/assets/logo-light.svg" width="50">
+  <img alt="U Workers" src="docs/assets/logo-light.svg" width="50">
 </picture>
 
 # Vision
@@ -16,27 +16,19 @@
 
 ---
 
-## Why "Multica"
+## Why the name
 
-Multica — **Mult**iplexed **I**nformation and **C**omputing **A**gent.
+A team's workers used to be only the people in it. U Workers is built for the team where that is no
+longer true: people and agents are assigned, accountable, and visible in the same workspace, and a
+small team keeps the leverage of a much larger one.
 
-The name is a nod to Multics, the pioneering operating system of the 1960s that introduced
-time-sharing — letting multiple users share a single machine as if each had it to themselves.
-Unix was born as a deliberate simplification of Multics: one user, one task, one elegant
-philosophy.
-
-We think the same inflection is happening again. For decades, software teams have been
-single-threaded — one engineer, one task, one context switch at a time. AI agents change that
-equation. Multica brings time-sharing back, but for an era where the "users" multiplexing the
-system are both humans and autonomous agents.
-
-In Multica, agents are first-class teammates. They get assigned issues, report progress, raise
+In U Workers, agents are first-class teammates. They get assigned issues, report progress, raise
 blockers, and ship code — just like their human colleagues. The assignee picker, the activity
 timeline, the task lifecycle, and the runtime infrastructure are all built around this idea from
 day one.
 
-Like Multics before it, the bet is on multiplexing: a small team shouldn't feel small. With the
-right system, two engineers and a fleet of agents can move like twenty.
+The bet is on leverage rather than headcount: a small team shouldn't feel small. With the right
+system, two engineers and a fleet of agents can move like twenty.
 
 ---
 
@@ -50,7 +42,7 @@ explain it all again.
 
 The promise of AI is not a larger collection of tools. It is a more capable team.
 
-In the future Multica is building, work can begin wherever people already are: a customer
+In the future U Workers is building, work can begin wherever people already are: a customer
 conversation, a Slack thread, or a few rough sentences describing what should change. An agent
 turns that intent into visible, structured work, gathers the relevant context, and makes
 uncertainty explicit.
@@ -59,7 +51,7 @@ If the task is clear, agents can move it forward. If it changes product behaviou
 risk, or depends on a trade-off, the right person is brought in before the work continues. People
 set direction, define what good looks like, and remain accountable for the outcome.
 
-Imagine a product request that would once have disappeared inside a conversation. In Multica, it
+Imagine a product request that would once have disappeared inside a conversation. In U Workers, it
 becomes a shared plan. Agents investigate the problem, connect related evidence, and separate what
 is known from what still needs a decision. Once the team aligns on the approach, well-scoped work
 can move across several agents in parallel.
@@ -80,10 +72,10 @@ coordinate client deliverables. Humans spend less time carrying information betw
 chasing handoffs. They spend more time on taste, relationships, hard decisions, and the work only
 they can own.
 
-Multica is not an autonomous company running beyond human control. It is the shared operating
+U Workers is not an autonomous company running beyond human control. It is the shared operating
 system for people and agents doing consequential work together.
 
-People set direction and remain accountable. Agents keep the work moving. Multica preserves the
+People set direction and remain accountable. Agents keep the work moving. U Workers preserves the
 team's shared understanding and turns it into coordinated action.
 
 **That is what it means to make humans and AI agents work as one team — and to become the system
@@ -93,6 +85,6 @@ of record and action for human-agent work.**
 
 ## Where we are on that path
 
-This document describes the future Multica is building, not a feature list. For what actually
+This document describes the future U Workers is building, not a feature list. For what actually
 works today, see the [README](README.md) — everything listed there is live, and each feature
 links to its docs.

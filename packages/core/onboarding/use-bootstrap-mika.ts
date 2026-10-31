@@ -62,7 +62,7 @@ export async function bootstrapMika(
   // failed attempt and its retry opened another (the title is localized).
   const chatSession = agent.onboarding_session;
   if (!chatSession) {
-    throw new Error("Mika onboarding session was not returned");
+    throw new Error("Siman onboarding session was not returned");
   }
 
   // Language only. Every workspace onboards from scratch — what this member

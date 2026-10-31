@@ -21,13 +21,13 @@ import { StepHeading } from "./step-shell";
  * The step used to be titled after its dependency — "Pick an agent runtime" —
  * with Mika named only in the grey lede. That put the thing being created in
  * the small print and the technical prerequisite in the headline, so a member
- * reached a button saying "Start with Mika" without ever being told who that
+ * reached a button saying "Start with Siman" without ever being told who that
  * is. Headline plus a card with a mark on it is what makes the introduction
  * survive not reading carefully.
  *
  * Mika does not exist yet at this point in the flow — she is created when the
  * member commits — so this cannot render her stored avatar. It reuses the mark
- * the Runtimes page already uses for "Start with Mika" instead, which keeps
+ * the Runtimes page already uses for "Start with Siman" instead, which keeps
  * the two entry points recognisably the same thing.
  */
 export function MikaIntro() {

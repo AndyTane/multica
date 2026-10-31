@@ -95,7 +95,7 @@ func blockingAgentLabel(name, runtimeName, runtimeStatus string, class blockingA
 	case blockingAgentBuilderCarrier:
 		return fmt.Sprintf("an unfinished Agent Builder session on %q (%s)", runtimeName, runtimeStatus)
 	case blockingAgentMika, blockingAgentOtherSystem:
-		return fmt.Sprintf("%q on %q (%s, built into Multica)", name, runtimeName, runtimeStatus)
+		return fmt.Sprintf("%q on %q (%s, built into U Workers)", name, runtimeName, runtimeStatus)
 	default:
 		return fmt.Sprintf("%q on %q (%s)", name, runtimeName, runtimeStatus)
 	}
@@ -126,7 +126,7 @@ func blockingAgentRemedies(classes map[blockingAgentClass]bool, scope blockingAg
 
 	var out []string
 	if classes[blockingAgentUser] && mixed {
-		out = append(out, "The agents above that are not marked as built into Multica can be reassigned or archived.")
+		out = append(out, "The agents above that are not marked as built into U Workers can be reassigned or archived.")
 	} else if classes[blockingAgentUser] {
 		out = append(out, "Reassign or archive them first.")
 	}
@@ -154,12 +154,12 @@ func blockingAgentRemedies(classes map[blockingAgentClass]bool, scope blockingAg
 			target = "a runtime that this profile does not provide"
 		}
 		out = append(out, fmt.Sprintf(
-			"Mika is built into Multica, so it cannot be archived — but it can be moved: open Mika's agent page and bind it to %s.",
+			"Siman is built into U Workers, so it cannot be archived — but it can be moved: open Siman's agent page and bind it to %s.",
 			target,
 		))
 	}
 	if classes[blockingAgentOtherSystem] {
-		out = append(out, "Some blockers are agents built into Multica and cannot be archived.")
+		out = append(out, "Some blockers are agents built into U Workers and cannot be archived.")
 	}
 	return out
 }

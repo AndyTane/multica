@@ -36,7 +36,7 @@
     "skip": {
       "loading": "ワークスペースを準備中…",
       "title": "U Workers へようこそ!",
-      "subtitle": "ランタイム接続を案内するタスクを 1 つ追加しました。準備できたら Runtimes から Mika と始められます。",
+      "subtitle": "ランタイム接続を案内するタスクを 1 つ追加しました。準備できたら Runtimes から Siman と始められます。",
       "got_it": "了解",
       "status_in_progress": "進行中",
       "error_title": "準備できませんでした",
@@ -46,7 +46,7 @@
       "cards": {
         "install_runtime": {
           "title": "ランタイムを接続",
-          "subtitle": "Codex または Kimi をインストールし、Runtimes から Mika の案内チャットを始めてください。"
+          "subtitle": "Codex または Kimi をインストールし、Runtimes から Siman の案内チャットを始めてください。"
         }
       }
     }
@@ -95,7 +95,7 @@
     "scanning_headline": "このコンピュータを接続中…",
     "scanning_lede_prefix": "エージェントは、あなたがすでに持っている AI コーディングツールを通じて作業します — たとえば ",
     "scanning_lede_suffix": " など。このコンピュータにインストール済みのものを確認しています。",
-    "found_headline": "Mika はどこで動かしますか？",
+    "found_headline": "Siman はどこで動かしますか？",
     "runtime_count_other": "エージェントランタイム {{count}} 個",
     "status_all_online": "すべてオンライン",
     "status_none_online": "オンラインなし",
@@ -112,19 +112,19 @@
     "refresh": "更新",
     "refreshing": "更新中…",
     "hint_selected": "選択中: {{name}}",
-    "hint_pick": "Mika と始めるには、上でエージェントランタイムを選んでください。",
+    "hint_pick": "Siman と始めるには、上でエージェントランタイムを選んでください。",
     "hint_waiting": "最初の結果を待っています…",
     "continue": "タスクへ進む"
   },
   "errors": {
     "skip_failed": "オンボーディングを完了できませんでした",
-    "mika_setup_failed": "Mika ワークスペースを開始できませんでした"
+    "mika_setup_failed": "Siman を開始できませんでした"
   },
   "mika_intro": {
-    "headline": "最初のエージェント仲間、Mika を紹介します。",
-    "name": "Mika",
+    "headline": "最初のエージェント仲間、Siman を紹介します。",
+    "name": "Siman",
     "role": "参謀長",
-    "blurb": "やりたいことを Mika に伝えると、タスクになり、適したエージェントが担当します。"
+    "blurb": "やりたいことを Siman に伝えると、タスクになり、適したエージェントが担当します。"
   },
   "service": {
     "title": "サービスに接続",
@@ -133,9 +133,9 @@
   },
   "task": {
     "title": "最初のタスクを始める",
-    "connected": "選択したランタイムとモデルで、Mika が目標をタスクにします。",
+    "connected": "選択したランタイムとモデルで、Siman が目標をタスクにします。",
     "no_runtime": "ワークスペースでタスクを作成できます。ランタイムは後から接続できます。",
-    "start": "Mika と始める",
+    "start": "Siman と始める",
     "starting": "開いています…",
     "open_workspace": "ワークスペースを開く"
   }

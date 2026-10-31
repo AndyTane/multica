@@ -5,13 +5,13 @@ description: Créez un bot Slack pour un agent et utilisez-le dans les messages 
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Multica utilise votre propre application Slack. Une fois la connexion établie, les membres de l'équipe peuvent envoyer des messages directs au bot, le @mentionner dans un canal, utiliser `/issue` pour créer des tâches, `/new` pour démarrer une nouvelle discussion Multica ou `/clear` pour réinitialiser le contexte de l'agent dans la discussion en cours.
+U Workers utilise votre propre application Slack. Une fois la connexion établie, les membres de l'équipe peuvent envoyer des messages directs au bot, le @mentionner dans un canal, utiliser `/issue` pour créer des tâches, `/new` pour démarrer une nouvelle discussion U Workers ou `/clear` pour réinitialiser le contexte de l'agent dans la discussion en cours.
 
-Une application Slack correspond à un agent Multica. Pour connecter plusieurs agents, créez une application distincte pour chacun.
+Une application Slack correspond à un agent U Workers. Pour connecter plusieurs agents, créez une application distincte pour chacun.
 
 ## Avant de commencer
 
-La connexion doit être effectuée par un propriétaire ou un administrateur de l'espace de travail, et se termine en collant deux identifiants dans Multica :
+La connexion doit être effectuée par un propriétaire ou un administrateur de l'espace de travail, et se termine en collant deux identifiants dans U Workers :
 
 - un Bot User OAuth Token (jeton du bot), commençant par `xoxb-` ;
 - un App-level Token (jeton d'application), commençant par `xapp-`.
@@ -100,24 +100,24 @@ Le bot se connecte à Slack en sortie via Socket Mode : aucune Request URL publi
 
 ## 3. Le connecter à un agent
 
-1. Dans Multica, ouvrez **Agents** et sélectionnez l'agent à connecter à Slack.
+1. Dans U Workers, ouvrez **Agents** et sélectionnez l'agent à connecter à Slack.
 2. Accédez à **Intégrations** et cliquez sur **Connecter Slack**.
 3. Collez le jeton du bot et le jeton d'application.
 4. Cliquez sur **Connecter**.
 
-Multica vérifie que les deux jetons proviennent de la même application. Une fois la connexion établie, la page affiche **Connecté à Slack**.
+U Workers vérifie que les deux jetons proviennent de la même application. Une fois la connexion établie, la page affiche **Connecté à Slack**.
 
 <Callout type="warning">
-Les deux jetons sont stockés chiffrés sur le serveur Multica. Les jetons sont des identifiants : ne les placez pas dans des tâches, des commentaires ou des dépôts de code. Une application déjà connectée à un autre agent ou espace de travail ne peut pas être réutilisée directement ; supprimez d'abord la connexion d'origine.
+Les deux jetons sont stockés chiffrés sur le serveur U Workers. Les jetons sont des identifiants : ne les placez pas dans des tâches, des commentaires ou des dépôts de code. Une application déjà connectée à un autre agent ou espace de travail ne peut pas être réutilisée directement ; supprimez d'abord la connexion d'origine.
 </Callout>
 
 ## Première utilisation
 
-La première fois qu'un membre envoie un message direct au bot ou le @mentionne, il reçoit un lien d'association de compte. Connectez-vous avec le compte Multica de cet espace de travail, puis revenez dans Slack et renvoyez le message.
+La première fois qu'un membre envoie un message direct au bot ou le @mentionne, il reçoit un lien d'association de compte. Connectez-vous avec le compte U Workers de cet espace de travail, puis revenez dans Slack et renvoyez le message.
 
-Le lien est à usage unique et expire au bout de 15 minutes. Une fois qu'il a expiré, écrivez de nouveau au bot pour en obtenir un nouveau. Plusieurs bots d'un même espace de travail Multica peuvent généralement réutiliser une association existante s'ils proviennent du même espace de travail Slack.
+Le lien est à usage unique et expire au bout de 15 minutes. Une fois qu'il a expiré, écrivez de nouveau au bot pour en obtenir un nouveau. Plusieurs bots d'un même espace de travail U Workers peuvent généralement réutiliser une association existante s'ils proviennent du même espace de travail Slack.
 
-Seuls les membres de l'espace de travail Multica actuel peuvent utiliser le bot.
+Seuls les membres de l'espace de travail U Workers actuel peuvent utiliser le bot.
 
 ## Confier du travail à l'agent dans Slack
 
@@ -145,21 +145,21 @@ Dans un canal ou un message direct, saisissez :
 /issue Safari reste sur la page de connexion après une connexion réussie
 ```
 
-Cette commande ne nécessite aucune @mention. Multica transmet la description à l'agent qui se trouve derrière le bot actuel ; celui-ci rédige le titre et le corps, puis crée la tâche. Slack affiche d'abord un accusé de réception visible par vous seul ; une fois la tâche créée, vous recevez une notification dans votre Boîte de réception Multica.
+Cette commande ne nécessite aucune @mention. U Workers transmet la description à l'agent qui se trouve derrière le bot actuel ; celui-ci rédige le titre et le corps, puis crée la tâche. Slack affiche d'abord un accusé de réception visible par vous seul ; une fois la tâche créée, vous recevez une notification dans votre Boîte de réception U Workers.
 
 ### Démarrer une nouvelle discussion avec `/new`
 
 Dans un message direct avec le bot, `/new` crée immédiatement une nouvelle discussion vide et visible. `/new <message>` crée la discussion et utilise le message comme premier tour. Un `/new` seul s'affiche sous le nom **Nouvelle discussion** jusqu'à l'arrivée du premier vrai message de l'utilisateur ; le titre suit ensuite le comportement habituel, fondé sur le premier message.
 
-La discussion précédente reste disponible dans Multica, et vous pouvez toujours y écrire sur le web, sur ordinateur et sur mobile. Seuls les messages suivants de cette conversation Slack sont acheminés vers la nouvelle discussion.
+La discussion précédente reste disponible dans U Workers, et vous pouvez toujours y écrire sur le web, sur ordinateur et sur mobile. Seuls les messages suivants de cette conversation Slack sont acheminés vers la nouvelle discussion.
 
 Dans un canal ou un fil, la charge utile de la commande slash native de Slack n'identifie pas le fil cible. Envoyez plutôt `@Multica /new [message]` dans le fil cible.
 
 ### Effacer le contexte de la discussion en cours avec `/clear`
 
-Dans un message direct avec le bot, `/clear` conserve la discussion Multica en cours et réinitialise uniquement le contexte visible par l'agent. L'historique complet de la discussion reste enregistré et visible dans Multica. `/clear <message>` utilise le message comme premier tour du nouveau contexte ; un `/clear` seul applique la limite au prochain vrai message.
+Dans un message direct avec le bot, `/clear` conserve la discussion U Workers en cours et réinitialise uniquement le contexte visible par l'agent. L'historique complet de la discussion reste enregistré et visible dans U Workers. `/clear <message>` utilise le message comme premier tour du nouveau contexte ; un `/clear` seul applique la limite au prochain vrai message.
 
-Dans un canal ou un fil, envoyez `@Multica /clear [message]` dans le fil cible afin que Multica puisse appliquer la limite à la bonne conversation.
+Dans un canal ou un fil, envoyez `@Multica /clear [message]` dans le fil cible afin que U Workers puisse appliquer la limite à la bonne conversation.
 
 ## Gérer les connexions
 
@@ -183,7 +183,7 @@ openssl rand -base64 32
 
 Redémarrez le serveur API, puis connectez l'application Slack. Conservez cette clé durablement : si elle est renouvelée ou perdue, les jetons existants ne peuvent plus être déchiffrés et le bot doit être reconnecté.
 
-Les liens d'association de compte utilisent `MULTICA_APP_URL`, ou `FRONTEND_ORIGIN` si elle n'est pas définie ; cette variable doit pointer vers une adresse Multica accessible aux membres.
+Les liens d'association de compte utilisent `MULTICA_APP_URL`, ou `FRONTEND_ORIGIN` si elle n'est pas définie ; cette variable doit pointer vers une adresse U Workers accessible aux membres.
 
 ## Dépannage
 

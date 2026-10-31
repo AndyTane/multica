@@ -15,10 +15,12 @@ import (
 // three.
 const MikaSystemKey = "mika"
 
-// MikaDefaultName is the name the agent is created with. Owners may rename it;
-// nothing server-side keys off the name, and the prompt is templated on
-// whatever the current name is.
-const MikaDefaultName = "Mika"
+// MikaDefaultName is the display name the agent is created with. The internal
+// identity stays MikaSystemKey ("mika"), so renaming the display name never
+// changes which row is the built-in agent. Owners may rename it too; nothing
+// server-side keys off the name, and the prompt is templated on whatever the
+// current name is.
+const MikaDefaultName = "Siman"
 
 // mikaNamePlaceholder is substituted in the embedded prompt with the agent's
 // current display name.
