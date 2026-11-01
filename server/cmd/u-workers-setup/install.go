@@ -3,6 +3,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -37,6 +39,13 @@ const (
 	uninstallerDirName = ".uninstall"
 	// uninstallerName is the copied installer's file name.
 	uninstallerName = "u-workers-setup.exe"
+	// uninstallKeyPrefix is the Add/Remove Programs key name prefix. One key is
+	// created per installation directory, so two installations never share or
+	// remove each other's registration.
+	uninstallKeyPrefix = "UWorkersCLI-"
+	// legacyUninstallKeyName is the single shared key older installers used. It
+	// is only removed when it points at the directory being uninstalled.
+	legacyUninstallKeyName = "UWorkersCLI"
 )
 
 // Installed executable names. A release installs both: u-workers is the command
@@ -183,6 +192,15 @@ func readPayload(fsys fs.FS) (payloadBinaries, error) {
 	return payloadBinaries{primary: binaries[primaryBinaryName], legacy: binaries[legacyBinaryName]}, nil
 }
 
+// uninstallKeyFor returns the Add/Remove Programs subkey owned by one
+// installation. The normalized directory is hashed into the name so two
+// installations never overwrite or delete each other's entry.
+func uninstallKeyFor(dir string) string {
+	normalized := strings.ToLower(filepath.Clean(dir))
+	sum := sha256.Sum256([]byte(normalized))
+	return uninstallKeyPrefix + hex.EncodeToString(sum[:6])
+}
+
 // uninstallEntry is the Add/Remove Programs record of one installation.
 type uninstallEntry struct {
 	displayName     string
@@ -201,10 +219,15 @@ type userEnvironment interface {
 	userPath() (pathValue, error)
 	// setUserPath stores the user PATH with the given value kind.
 	setUserPath(pathValue) error
-	// writeUninstallEntry creates or replaces the Add/Remove Programs entry.
-	writeUninstallEntry(uninstallEntry) error
-	// removeUninstallEntry deletes it. An absent entry is not an error.
-	removeUninstallEntry() error
+	// writeUninstallEntry creates or replaces the Add/Remove Programs entry for
+	// one installation key.
+	writeUninstallEntry(key string, entry uninstallEntry) error
+	// removeUninstallEntry deletes the entry for key. An absent entry is not an
+	// error.
+	removeUninstallEntry(key string) error
+	// removeLegacyUninstallEntry deletes the old single-key entry, but only when
+	// it records installLocation. A different installation's entry is kept.
+	removeLegacyUninstallEntry(installLocation string) error
 	// notifyEnvironmentChange broadcasts WM_SETTINGCHANGE so new shells pick up
 	// the user PATH without a sign-out.
 	notifyEnvironmentChange() error
@@ -382,7 +405,7 @@ func (i installer) registerInstall(dir, uninstallerPath string) {
 		installLocation: dir,
 		uninstallString: commandLine(uninstallerPath, "--uninstall", "--install-dir", dir),
 	}
-	if err := i.env.writeUninstallEntry(entry); err != nil {
+	if err := i.env.writeUninstallEntry(uninstallKeyFor(dir), entry); err != nil {
 		i.warn("could not write the Add/Remove Programs entry: %v", err)
 		return
 	}
@@ -422,10 +445,13 @@ func (i installer) uninstall(dir string) (bool, error) {
 	} else if changed {
 		i.progress("Removed %s from the user PATH", dir)
 	}
-	if err := i.env.removeUninstallEntry(); err != nil {
+	if err := i.env.removeUninstallEntry(uninstallKeyFor(dir)); err != nil {
 		i.warn("could not remove the Add/Remove Programs entry: %v", err)
 	} else {
 		i.progress("Removed the Add/Remove Programs entry")
+	}
+	if err := i.env.removeLegacyUninstallEntry(dir); err != nil {
+		i.warn("could not remove the legacy Add/Remove Programs entry: %v", err)
 	}
 	return true, nil
 }

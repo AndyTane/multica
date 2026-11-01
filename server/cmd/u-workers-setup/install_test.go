@@ -26,11 +26,15 @@ func testPayload() fstest.MapFS {
 }
 
 // fakeEnvironment plays the role of HKCU: it records what the installer would
-// have written instead of touching the real user environment.
+// have written instead of touching the real user environment. Add/Remove
+// Programs entries are kept per installation key; "uninstall" mirrors the most
+// recently written remaining entry so single-installation tests stay readable.
 type fakeEnvironment struct {
 	path            pathValue
 	pathWrites      []pathValue
 	uninstall       *uninstallEntry
+	entries         map[string]uninstallEntry
+	legacy          *uninstallEntry
 	notifications   int
 	failSetPath     error
 	failEntry       error
@@ -50,19 +54,41 @@ func (f *fakeEnvironment) setUserPath(value pathValue) error {
 	return nil
 }
 
-func (f *fakeEnvironment) writeUninstallEntry(entry uninstallEntry) error {
+func (f *fakeEnvironment) writeUninstallEntry(key string, entry uninstallEntry) error {
 	if f.failEntry != nil {
 		return f.failEntry
 	}
-	f.uninstall = &entry
+	if f.entries == nil {
+		f.entries = make(map[string]uninstallEntry)
+	}
+	f.entries[key] = entry
+	latest := entry
+	f.uninstall = &latest
 	return nil
 }
 
-func (f *fakeEnvironment) removeUninstallEntry() error {
+func (f *fakeEnvironment) removeUninstallEntry(key string) error {
 	if f.failRemoveEntry != nil {
 		return f.failRemoveEntry
 	}
+	if f.entries != nil {
+		delete(f.entries, key)
+	}
 	f.uninstall = nil
+	for _, entry := range f.entries {
+		remaining := entry
+		f.uninstall = &remaining
+		break
+	}
+	return nil
+}
+
+// removeLegacyUninstallEntry mirrors the registry rule: the shared legacy key is
+// only removed when it records the directory being uninstalled.
+func (f *fakeEnvironment) removeLegacyUninstallEntry(installLocation string) error {
+	if f.legacy != nil && sameFilePath(f.legacy.installLocation, installLocation) {
+		f.legacy = nil
+	}
 	return nil
 }
 
@@ -655,5 +681,37 @@ func TestUninstallerLeavesOtherInstallationsAlone(t *testing.T) {
 	}
 	if _, err := os.Stat(otherBinary); err != nil {
 		t.Fatalf("uninstalling %s touched another installation: %v", target, err)
+	}
+}
+
+// TestReview107R1PreservesOtherRegistration pins that two installations never
+// share an Add/Remove Programs entry: installing A then B and uninstalling A
+// must keep B's entry and binaries intact.
+func TestReview107R1PreservesOtherRegistration(t *testing.T) {
+	env := &fakeEnvironment{}
+	inst := installer{payload: testPayload(), env: env, out: io.Discard, errOut: io.Discard}
+	root := t.TempDir()
+	first := filepath.Join(root, "first installation")
+	second := filepath.Join(root, "second installation")
+	if err := inst.install(first, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := inst.install(second, true); err != nil {
+		t.Fatal(err)
+	}
+	if env.uninstall == nil || env.uninstall.installLocation != second {
+		t.Fatal("second installation not registered")
+	}
+	if _, err := inst.uninstall(first); err != nil {
+		t.Fatal(err)
+	}
+	if env.uninstall == nil || env.uninstall.installLocation != second {
+		t.Fatal("uninstalling the older directory removed the newer installation's Add/Remove Programs entry")
+	}
+	if _, err := os.Stat(filepath.Join(second, primaryBinaryName)); err != nil {
+		t.Fatalf("second installation's binary was removed: %v", err)
+	}
+	if !pathContains(env.path.raw, second) {
+		t.Fatalf("second installation's PATH entry was lost: %s", env.path.raw)
 	}
 }

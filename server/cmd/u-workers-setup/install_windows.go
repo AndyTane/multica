@@ -16,7 +16,8 @@ import (
 const (
 	userEnvironmentKeyPath = "Environment"
 	pathValueName          = "Path"
-	uninstallKeyPath       = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + uninstallKeyName
+	uninstallKeyRoot       = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\"
+	legacyUninstallKeyPath = uninstallKeyRoot + legacyUninstallKeyName
 )
 
 // Values for telling running processes the environment changed.
@@ -84,10 +85,11 @@ func (registryEnvironment) setUserPath(value pathValue) error {
 
 // writeUninstallEntry creates the Add/Remove Programs entry. Windows settings
 // reads these exact value names.
-func (registryEnvironment) writeUninstallEntry(entry uninstallEntry) error {
-	key, _, err := registry.CreateKey(registry.CURRENT_USER, uninstallKeyPath, registry.SET_VALUE)
+func (registryEnvironment) writeUninstallEntry(installKey string, entry uninstallEntry) error {
+	keyPath := uninstallKeyRoot + installKey
+	key, _, err := registry.CreateKey(registry.CURRENT_USER, keyPath, registry.SET_VALUE)
 	if err != nil {
-		return fmt.Errorf("create HKCU\\%s: %w", uninstallKeyPath, err)
+		return fmt.Errorf("create HKCU\\%s: %w", keyPath, err)
 	}
 	defer key.Close()
 
@@ -108,9 +110,38 @@ func (registryEnvironment) writeUninstallEntry(entry uninstallEntry) error {
 
 // removeUninstallEntry deletes the Add/Remove Programs entry. An entry that is
 // already gone is not an error, so uninstalling twice stays quiet.
-func (registryEnvironment) removeUninstallEntry() error {
-	if err := registry.DeleteKey(registry.CURRENT_USER, uninstallKeyPath); err != nil && !errors.Is(err, registry.ErrNotExist) {
-		return fmt.Errorf("delete HKCU\\%s: %w", uninstallKeyPath, err)
+func (registryEnvironment) removeUninstallEntry(installKey string) error {
+	keyPath := uninstallKeyRoot + installKey
+	if err := registry.DeleteKey(registry.CURRENT_USER, keyPath); err != nil && !errors.Is(err, registry.ErrNotExist) {
+		return fmt.Errorf("delete HKCU\\%s: %w", keyPath, err)
+	}
+	return nil
+}
+
+// removeLegacyUninstallEntry deletes the shared key older installers wrote, but
+// only when its InstallLocation is the directory being uninstalled. Another
+// installation's entry is left untouched.
+func (registryEnvironment) removeLegacyUninstallEntry(installLocation string) error {
+	key, err := registry.OpenKey(registry.CURRENT_USER, legacyUninstallKeyPath, registry.QUERY_VALUE)
+	if err != nil {
+		if errors.Is(err, registry.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("open HKCU\\%s: %w", legacyUninstallKeyPath, err)
+	}
+	recorded, _, valueErr := key.GetStringValue("InstallLocation")
+	key.Close()
+	if valueErr != nil {
+		if errors.Is(valueErr, registry.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("read HKCU\\%s: %w", legacyUninstallKeyPath, valueErr)
+	}
+	if !sameFilePath(recorded, installLocation) {
+		return nil
+	}
+	if err := registry.DeleteKey(registry.CURRENT_USER, legacyUninstallKeyPath); err != nil && !errors.Is(err, registry.ErrNotExist) {
+		return fmt.Errorf("delete HKCU\\%s: %w", legacyUninstallKeyPath, err)
 	}
 	return nil
 }
