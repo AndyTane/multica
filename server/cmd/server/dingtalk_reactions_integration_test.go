@@ -101,8 +101,9 @@ func TestDingTalkReactionsThroughServerRouter(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(response))}, nil
 	})}
 	t.Cleanup(func() { http.DefaultClient = originalClient })
+	t.Setenv("FF_CHANNEL_DINGTALK", "true")
 	bus := events.New()
-	_, h := NewRouterWithOptions(testPool, realtime.NewHub(), bus, analytics.NoopClient{}, nil, RouterOptions{})
+	_, h := NewRouterWithOptions(testPool, realtime.NewHub(), bus, analytics.NoopClient{}, nil, RouterOptions{FeatureFlags: testFeatureFlags(t)})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	raw, err := json.Marshal(map[string]string{"app_id": appID, "current_text": "question"})
