@@ -537,9 +537,13 @@ if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
     Write-Host 'Note: this installer needs no administrator rights; running it elevated only makes the folder permissions stricter.' -ForegroundColor DarkYellow
 }
 
-# Validate the package before touching anything.
-foreach ($relative in @('payload\release\server.exe', 'payload\release\web\apps\web\server.js', 'payload\release\migrations', 'payload\runtime\pgsql\bin\psql.exe', 'payload\runtime\node.exe', 'payload\runtime\caddy\caddy.exe', 'payload\runtime\opencode\opencode.exe', 'payload\bin\u-workers.exe', 'payload\scripts\native-windows.ps1')) {
-    Get-PortableFile $root $relative | Out-Null
+# Validate the package before touching anything. A resumed install already
+# moved PostgreSQL and Node out of payload into runtime, so only the pristine
+# path is checked here.
+if (-not $resumeInstall) {
+    foreach ($relative in @('payload\release\server.exe', 'payload\release\web\apps\web\server.js', 'payload\release\migrations', 'payload\runtime\pgsql\bin\psql.exe', 'payload\runtime\node.exe', 'payload\runtime\caddy\caddy.exe', 'payload\runtime\opencode\opencode.exe', 'payload\bin\u-workers.exe', 'payload\scripts\native-windows.ps1')) {
+        Get-PortableFile $root $relative | Out-Null
+    }
 }
 
 $hostName = Get-PortablePublicHost $PublicHost

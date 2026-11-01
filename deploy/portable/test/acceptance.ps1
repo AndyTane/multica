@@ -368,6 +368,7 @@ try {
     Add-Check 'acceptance aborted' $false $_.Exception.Message
     $evidence.error = $_.Exception.ToString()
 } finally {
+    try {
     $evidence.checks = @($checks)
     $evidence.durationSeconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
     $failed = @($checks | Where-Object { -not $_.ok })
@@ -427,6 +428,19 @@ try {
         $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
         Write-Host ''
         Write-Host ('Evidence: ' + $EvidencePath)
+    }
+
+    } catch {
+        $failureText = ($_.Exception.ToString() + [Environment]::NewLine + '--- checks ---' + [Environment]::NewLine + (($checks | ForEach-Object { [string]$_.ok + ' ' + $_.name + ' ' + $_.detail }) -join [Environment]::NewLine))
+        try { [IO.File]::WriteAllText((Join-Path $env:TEMP 'uworkers-acceptance-finally-error.txt'), $failureText, (New-Object Text.UTF8Encoding($false))) } catch { }
+        try {
+            $evidence.cleanupError = $failureText
+            $evidence.passed = $false
+            $evidence.checks = @($checks)
+            $directory = Split-Path -Parent $EvidencePath
+            if ($directory -and -not (Test-Path -LiteralPath $directory)) { New-Item -ItemType Directory -Path $directory -Force | Out-Null }
+            $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
+        } catch { }
     }
 
     if ($evidence.passed) {
