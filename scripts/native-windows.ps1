@@ -35,6 +35,22 @@ function Write-NativeJson {
     Move-Item -LiteralPath ($Path + '.tmp') -Destination $Path -Force
 }
 
+function Get-NativeFileHash {
+    # Compute SHA-256 without module cmdlets: the lifecycle script also runs
+    # from a child Windows PowerShell whose module autoloading may be limited.
+    param([string]$Path)
+    $stream = $null
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [IO.File]::OpenRead($Path)
+        $bytes = $sha.ComputeHash($stream)
+        return ((($bytes | ForEach-Object { $_.ToString('x2') }) -join '')).ToUpperInvariant()
+    } finally {
+        if ($stream) { $stream.Dispose() }
+        $sha.Dispose()
+    }
+}
+
 function Read-NativeConfig {
     param([string]$Directory)
     Get-Content -LiteralPath (Join-Path $Directory 'deployment.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -110,7 +126,7 @@ function Expand-NativePostgresArchive {
     param([string]$RuntimeDirectory, [string]$Archive, [string]$Sha256)
     if (-not $Archive -or -not (Test-Path -LiteralPath $Archive)) { throw 'A PostgreSQL Windows binaries archive is required for a clean deployment; download it from the EDB binary archive page.' }
     if (-not $Sha256) { throw 'A SHA-256 checksum is required to verify the PostgreSQL archive.' }
-    $hash = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
+    $hash = Get-NativeFileHash $Archive
     if ($hash -ne $Sha256.Trim().ToUpperInvariant()) { throw 'The PostgreSQL archive does not match the provided SHA-256 checksum.' }
     New-Item -ItemType Directory -Path $RuntimeDirectory -Force | Out-Null
     $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
@@ -518,7 +534,9 @@ function Backup-DockerDeployment {
     Invoke-NativeCommand 'tar.exe' @('-czf', (Join-Path $destination 'uploads.tar.gz'), '-C', $uploadSnapshot, '.')
     Copy-Item -LiteralPath (Join-Path $Config.Root 'deployment.json') -Destination (Join-Path $destination 'deployment.json')
     Invoke-NativeCommand 'docker.exe' @('exec', 'multica-postgres-1', 'rm', '-f', $remoteDump)
-    Get-ChildItem -LiteralPath $destination -File | Get-FileHash -Algorithm SHA256 | Select-Object @{n='File';e={[IO.Path]::GetFileName($_.Path)}}, Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'sha256.json') -Encoding UTF8
+    $hashEntries = @()
+    Get-ChildItem -LiteralPath $destination -File | ForEach-Object { $hashEntries += [pscustomobject]@{ File = $_.Name; Hash = (Get-NativeFileHash $_.FullName) } }
+    $hashEntries | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'sha256.json') -Encoding UTF8
     Write-Host "Backup complete: $destination"
 }
 
@@ -533,7 +551,9 @@ function Backup-NativeDeployment {
     } finally { $env:PGPASSWORD = $savedPassword }
     Invoke-NativeCommand 'tar.exe' @('-czf', (Join-Path $destination 'uploads.tar.gz'), '-C', (Join-Path $Config.Root 'uploads'), '.')
     Copy-Item -LiteralPath (Join-Path $Config.Root 'deployment.json') -Destination (Join-Path $destination 'deployment.json')
-    Get-ChildItem -LiteralPath $destination -File | Get-FileHash -Algorithm SHA256 | Select-Object @{n='File';e={[IO.Path]::GetFileName($_.Path)}}, Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'sha256.json') -Encoding UTF8
+    $hashEntries = @()
+    Get-ChildItem -LiteralPath $destination -File | ForEach-Object { $hashEntries += [pscustomobject]@{ File = $_.Name; Hash = (Get-NativeFileHash $_.FullName) } }
+    $hashEntries | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'sha256.json') -Encoding UTF8
     Write-Host "Native backup complete: $destination"
 }
 
@@ -549,7 +569,7 @@ function Restore-NativeDeployment {
     $checksums = Get-Content -LiteralPath (Join-Path $Source 'sha256.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($entry in $checksums) {
         if ($entry.File -notin @('database.dump', 'uploads.tar.gz', 'deployment.json')) { throw 'Unexpected file in backup checksum manifest.' }
-        if ((Get-FileHash -LiteralPath (Join-Path $Source $entry.File) -Algorithm SHA256).Hash -ne $entry.Hash) { throw "Backup checksum mismatch: $($entry.File)." }
+        if ((Get-NativeFileHash (Join-Path $Source $entry.File)) -ne $entry.Hash) { throw "Backup checksum mismatch: $($entry.File)." }
     }
     Start-NativePostgres $Config
     $existing = @(Invoke-NativeSql $Config ("SELECT datname FROM pg_database WHERE datname='$Name';"))
