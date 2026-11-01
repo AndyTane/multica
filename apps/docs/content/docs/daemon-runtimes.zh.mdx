@@ -129,7 +129,7 @@ multica daemon start
 命令字段里填写的内容会紧跟在可执行文件之后，排在 U Workers 追加的参数之前：
 
 ```text
-<你的命令> <你的固定参数> <Multica 的协议参数> <Agent 的自定义参数>
+<你的命令> <你的固定参数> <U Workers 的协议参数> <Agent 的自定义参数>
 ```
 
 带子命令的 wrapper 正是依靠这个顺序才能工作。如果命令是 `ccms start q36`，工具会先看到 `start q36`，在 U Workers 的 `-p` 等参数到达之前完成子命令选择——这类 wrapper 只接受这一种顺序。

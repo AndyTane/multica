@@ -6,7 +6,7 @@ description: 워크스페이스마다 자체 호스팅 Forgejo, Gitea, GitLab �
 import { Callout } from "fumadocs-ui/components/callout";
 
 <Callout type="warn">
-**자체 배포한 U Workers에서만 사용할 수 있습니다.** 이 연동은 U Workers를 **직접 배포해 운영할 때만** 제공되며 Multica Cloud에서는 사용할 수 없습니다. 여기서 "자체 호스팅"은 **U Workers 자체를 배포하는 것**을 뜻합니다. 일반적으로 자체 네트워크의 Git 인스턴스에 접근하기 위해 사용합니다. 서버 운영자가 `MULTICA_VCS_INTEGRATION_ENABLED=true`로 기능을 켜고 `MULTICA_VCS_SECRET_KEY`도 설정해야 합니다. 그전에는 설정 → 코드에 이 행이 표시되지 않습니다.
+**자체 배포한 U Workers에서만 사용할 수 있습니다.** 이 연동은 U Workers를 **직접 배포해 운영할 때만** 제공되며 U Workers Cloud에서는 사용할 수 없습니다. 여기서 "자체 호스팅"은 **U Workers 자체를 배포하는 것**을 뜻합니다. 일반적으로 자체 네트워크의 Git 인스턴스에 접근하기 위해 사용합니다. 서버 운영자가 `MULTICA_VCS_INTEGRATION_ENABLED=true`로 기능을 켜고 `MULTICA_VCS_SECRET_KEY`도 설정해야 합니다. 그전에는 설정 → 코드에 이 행이 표시되지 않습니다.
 </Callout>
 
 U Workers는 워크스페이스별로 자체 호스팅 Git 코드 호스팅인 **Forgejo**, **Gitea**, **GitLab** 중 하나에 연결합니다. 연결하면 브랜치 이름이나 제목에 태스크 번호(예: `MUL-123`)가 포함되거나 본문의 종료 키워드 뒤에 태스크 번호(`Closes MUL-123`)가 있는 Pull Request(GitLab에서는 Merge Request)가 해당 [태스크](/issues)에 **자동으로 연결**되고 태스크 사이드바의 **Pull requests**에 표시됩니다. 태스크에 연결된 PR이 모두 merge되면 태스크가 워크스페이스가 정한 상태(기본값 완료)로 이동합니다. head commit의 CI는 카드에 check bar로 표시됩니다.
