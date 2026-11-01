@@ -10,7 +10,7 @@ Multica isn't on the App Store yet — until that changes, anyone who wants it o
 pnpm ios:mobile:device:prod:release
 ```
 
-This connects to the same backend as `multica.ai`, so your existing account just works. To use a private backend or your own bundle ID, copy `apps/mobile/.env.production.example` to `apps/mobile/.env.production.local` and edit the copy — it overrides the committed `.env.production` key by key and is gitignored, so personal values stay local.
+There is no built-in server address. Before the first build, copy `apps/mobile/.env.production.example` to `apps/mobile/.env.production.local` and fill in your own deployment's addresses (and, if needed, your own bundle ID). The file is gitignored, so personal values stay local; without `EXPO_PUBLIC_API_URL` the build stops with an error.
 
 **Prerequisites**: Mac with Xcode, a free Apple ID added under Xcode → Settings → Accounts, iPhone connected via USB with [Developer Mode enabled](https://docs.expo.dev/guides/ios-developer-mode/). Walk through Expo's [Set up your environment](https://docs.expo.dev/get-started/set-up-your-environment/) (pick **Development build → iOS Device**) if any of that is missing.
 
@@ -39,8 +39,8 @@ Everything below is for app developers — you can ignore the rest if you only w
 | Command | What it does | Backend |
 |---|---|---|
 | `pnpm dev:mobile` | Metro only (reuse existing install) | local (`.env.development.local`) |
-| `pnpm dev:mobile:staging` | Metro only (reuse existing install) | staging (`.env.staging`) |
-| `pnpm dev:mobile:prod` | Metro only (reuse existing install) | production (`.env.production`, overridden by `.env.production.local`) |
+| `pnpm dev:mobile:staging` | Metro only (reuse existing install) | staging (`.env.staging.local`) |
+| `pnpm dev:mobile:prod` | Metro only (reuse existing install) | production (`.env.production.local`) |
 | `pnpm ios:mobile` | Full rebuild + install on **iOS Simulator**, Debug | local |
 | `pnpm ios:mobile:staging` | Full rebuild + install on **iOS Simulator**, Debug | staging |
 | `pnpm ios:mobile:prod` | Full rebuild + install on **iOS Simulator**, Debug | production |
@@ -98,7 +98,7 @@ Unit tests do not replace this device validation.
 
 ## First-time setup
 
-`.env.staging` is committed (public staging URL). `.env.development.local` is gitignored — copy the template once:
+All env files are gitignored; copy a template once per variant you use. Staging and production read `.env.staging.local` / `.env.production.local` (templates: `.env.staging.example`, `.env.production.example`). For local development:
 
 ```bash
 cp apps/mobile/.env.example apps/mobile/.env.development.local

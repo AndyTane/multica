@@ -96,7 +96,7 @@ MULTICA_WECOM_SECRET_KEY=<base64 编码的 32 字节密钥>
 MULTICA_TELEGRAM_SECRET_KEY=<base64 编码的 32 字节密钥>
 ```
 
-这些密钥用于加密保存 Bot 凭据。生成、保存和轮换方法见[环境变量](/environment-variables)。U Workers Cloud 已完成这项配置。
+这些密钥用于加密保存 Bot 凭据。生成、保存和轮换方法见[环境变量](/environment-variables)。
 
 企业微信的出站只有一条路径——某个进程持有的 WebSocket。回复产生在**其他副本**上时会发生什么，取决于实时中继（realtime relay）的模式：
 

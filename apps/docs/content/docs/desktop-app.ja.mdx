@@ -70,13 +70,13 @@ Desktop はワークスペースごとにタブを保存します。たとえば
 
 ## セルフホストインスタンスへの接続
 
-Desktop はデフォルトで U Workers Cloud に接続します。セルフホストインスタンスに接続するには、ホームディレクトリの `.multica` の中に `desktop.json` を作成します:
+Desktop にはサーバーアドレスが組み込まれていません。初回起動の前に、ホームディレクトリの `.u-workers` の中に `desktop.json` を作成します:
 
 | プラットフォーム | パス |
 | --- | --- |
-| macOS | `/Users/<you>/.multica/desktop.json` |
-| Linux | `/home/<you>/.multica/desktop.json` |
-| Windows | `C:\Users\<you>\.multica\desktop.json` |
+| macOS | `/Users/<you>/.u-workers/desktop.json` |
+| Linux | `/home/<you>/.u-workers/desktop.json` |
+| Windows | `C:\Users\<you>\.u-workers\desktop.json` |
 
 これらはデフォルトの場所です。ホームディレクトリを移動またはリダイレクトしている場合は、実際のパスを使ってください。
 
@@ -113,10 +113,8 @@ Desktop はデフォルトで U Workers Cloud に接続します。セルフホ�
 
 保存後に Desktop を再起動します。この設定は起動時に一度だけ読み込まれます。2 つの失敗の現れ方は異なるため、これが切り分けの手がかりになります:
 
-- **ファイルが見つからない**（ディレクトリが違う、またはファイル名が `desktop.json` ではない）: Desktop はデフォルトの Cloud 設定を使い、エラーは表示しません。つまり Desktop が Cloud のアドレスを表示したままで設定エラーも出ない場合、ファイルは Desktop が探している場所にありません。
-- **ファイルは見つかったが無効**（JSON、バージョン、URL のいずれかに問題がある）: Desktop は設定エラーを表示し、自動では Cloud にフォールバックしません。
-
-そのファイルを削除して再起動すれば、デフォルトの Cloud 設定に戻ります。
+- **ファイルが見つからない**（ディレクトリが違う、またはファイル名が `desktop.json` ではない）: Desktop は `desktop.json` が見つからないというエラーを表示し、実際に探したパスと設定例を示します。
+- **ファイルは見つかったが無効**（JSON、バージョン、URL のいずれかに問題がある）: Desktop は対象のファイル名を示して設定エラーを表示します。
 
 <Callout type="warning">
 Desktop が接続できるのは、ブラウザと実行マシンの両方から到達できるアドレスだけです。リモートのセルフホストインスタンスが HTTPS を使っていない、または WebSocket をプロキシしていない場合、Desktop は接続を確立できません。完全な設定は[セルフホストクイックスタート](/self-host-quickstart#3-アクセス方法を選ぶ)を参照してください。
@@ -126,13 +124,13 @@ Desktop が接続できるのは、ブラウザと実行マシンの両方から
 
 Windows では、エディタの 2 つのデフォルト動作が Desktop の読めないファイルを気づかないうちに作ってしまいます:
 
-- **メモ帳は `.txt` を付け足します。** `desktop.json` として保存したつもりでも実際には `desktop.json.txt` になることがあり、Desktop はファイルが見つからないものとして扱います。エクスプローラーでファイル名拡張子の表示を有効にするか、保存ダイアログで*すべてのファイル*を選んでください。実際のファイル名を確認するには、PowerShell で `Get-ChildItem "$env:USERPROFILE\.multica" -Filter "desktop.json*"` を実行します。`Name` 列がちょうど `desktop.json` になっている必要があります。
+- **メモ帳は `.txt` を付け足します。** `desktop.json` として保存したつもりでも実際には `desktop.json.txt` になることがあり、Desktop はファイルが見つからないものとして扱います。エクスプローラーでファイル名拡張子の表示を有効にするか、保存ダイアログで*すべてのファイル*を選んでください。実際のファイル名を確認するには、PowerShell で `Get-ChildItem "$env:USERPROFILE\.u-workers" -Filter "desktop.json*"` を実行します。`Name` 列がちょうど `desktop.json` になっている必要があります。
 - **PowerShell のリダイレクトは UTF-16 や BOM 付きで書き込みます。** `> desktop.json` や `Out-File` はパースできないエンコーディングを生成することがあり、設定エラーとして現れます。
 
 どちらも避けるには、PowerShell で一度に作成します:
 
 ```powershell
-$dir = "$env:USERPROFILE\.multica"
+$dir = "$env:USERPROFILE\.u-workers"
 New-Item -ItemType Directory -Force $dir | Out-Null
 $json = @'
 {
@@ -166,9 +164,9 @@ Get-FileHash .\multica-cli-<version>-windows-amd64.zip -Algorithm SHA256
 1. **隔離されたファイルを復元する** — Windows セキュリティ → *ウイルスと脅威の防止* → *保護の履歴* → U Workers の項目を選択 → *操作* → *復元*。
 2. **除外を追加する**（再び隔離されないように）— *ウイルスと脅威の防止* → *設定の管理* → *除外* → *除外の追加または削除* → *フォルダー* で、次の両方を追加します。
    - `%LOCALAPPDATA%\Programs\@multicadesktop`
-   - `%APPDATA%\Multica`
+   - `%APPDATA%\U Workers`
 
-   両方が必要です。同梱の CLI が失われると Desktop は代替バイナリを `%APPDATA%\Multica\bin` にダウンロードするため、インストール先だけを除外してもダウンロードした代替バイナリが再び隔離され、同じことの繰り返しになります。
+   両方が必要です。同梱の CLI が失われると Desktop は代替バイナリを `%APPDATA%\U Workers\bin` にダウンロードするため、インストール先だけを除外してもダウンロードした代替バイナリが再び隔離され、同じことの繰り返しになります。
 3. **誤検知を Microsoft に報告する** — [Microsoft Security Intelligence のファイル送信ページ](https://www.microsoft.com/en-us/wdsi/filesubmission)で *Software developer* と *Incorrectly detected as malware* を選択します。すべてのユーザーに対して検出を取り下げてもらうにはこの手順が必要で、通常は数日で反映されます。
 
 <Callout type="warning">

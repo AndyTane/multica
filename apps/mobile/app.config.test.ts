@@ -33,6 +33,7 @@ describe("iOS scene lifecycle configuration", () => {
     ["production", "U Workers", "ai.multica.mobile"],
   ])("enables scene support for %s without changing app identity", (env, name, bundleIdentifier) => {
     vi.stubEnv("APP_ENV", env);
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://api.example.com");
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_DEV", undefined);
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_STAGING", undefined);
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_PROD", undefined);
@@ -53,6 +54,7 @@ describe("iOS scene lifecycle configuration", () => {
     ["production", "com.example.multica"],
   ])("preserves signing overrides for %s", (env, bundleIdentifier) => {
     vi.stubEnv("APP_ENV", env);
+    vi.stubEnv("EXPO_PUBLIC_API_URL", "https://api.example.com");
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_DEV", "com.example.multica.dev");
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_STAGING", "com.example.multica.staging");
     vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_PROD", "com.example.multica");
@@ -61,5 +63,21 @@ describe("iOS scene lifecycle configuration", () => {
     const config = createConfig({ config: {} } as ConfigContext);
     expect(config.ios).toMatchObject({ bundleIdentifier, appleTeamId: "ABCDE12345" });
     expect(config.scheme).toBe("multica");
+  });
+
+  it.each(["staging", "production"])("refuses to build %s without a server address", (env) => {
+    vi.stubEnv("APP_ENV", env);
+    vi.stubEnv("EXPO_PUBLIC_API_URL", undefined);
+
+    expect(() => createConfig({ config: {} } as ConfigContext)).toThrow(
+      `EXPO_PUBLIC_API_URL is not set for APP_ENV=${env}`,
+    );
+  });
+
+  it("builds development without a server address", () => {
+    vi.stubEnv("APP_ENV", undefined);
+    vi.stubEnv("EXPO_PUBLIC_API_URL", undefined);
+
+    expect(() => createConfig({ config: {} } as ConfigContext)).not.toThrow();
   });
 });
