@@ -22,51 +22,51 @@ U Workers 使用你自己的 Slack app。连接后，团队成员可以私聊 Bo
 
 ```yaml
 display_information:
- name: U Workers
+  name: U Workers
 features:
- app_home:
- home_tab_enabled: false
- messages_tab_enabled: true
- messages_tab_read_only_enabled: false
- bot_user:
- display_name: U Workers
- always_online: true
- slash_commands:
- - command: /issue
- description: Create a U Workers issue
- usage_hint: "[description]"
- - command: /new
- description: Start a new U Workers chat
- usage_hint: "[message]"
- - command: /clear
- description: Clear the current U Workers chat context
- usage_hint: "[message]"
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: U Workers
+    always_online: true
+  slash_commands:
+    - command: /issue
+      description: Create a U Workers issue
+      usage_hint: "[description]"
+    - command: /new
+      description: Start a new U Workers chat
+      usage_hint: "[message]"
+    - command: /clear
+      description: Clear the current U Workers chat context
+      usage_hint: "[message]"
 oauth_config:
- scopes:
- bot:
- - app_mentions:read
- - channels:history
- - files:read
- - groups:history
- - im:history
- - mpim:history
- - chat:write
- - reactions:write
- - users:read
- - commands
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - files:read
+      - groups:history
+      - im:history
+      - mpim:history
+      - chat:write
+      - reactions:write
+      - users:read
+      - commands
 settings:
- event_subscriptions:
- bot_events:
- - app_mention
- - message.im
- - message.channels
- - message.groups
- - message.mpim
- interactivity:
- is_enabled: false
- org_deploy_enabled: false
- socket_mode_enabled: true
- token_rotation_enabled: false
+  event_subscriptions:
+    bot_events:
+      - app_mention
+      - message.im
+      - message.channels
+      - message.groups
+      - message.mpim
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false
 ```
 
 创建前可以把两处 `U Workers` 改成智能体的名字。不要删除 manifest 中的权限或事件，否则私聊、频道提及、回复、`/issue`、`/new` 或 `/clear` 可能无法工作。
