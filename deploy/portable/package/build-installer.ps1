@@ -84,17 +84,22 @@ function Invoke-PortableGo {
 
 try {
     $linkFlags = '-s -w -X main.version=' + $Version
-    Write-Host ('==> Building the U Workers CLI (' + $Version + ')')
-    $primary = Join-Path $stage 'u-workers.exe'
-    Invoke-PortableGo @('build', '-trimpath', '-ldflags', $linkFlags, '-o', $primary, './cmd/multica') | Out-Null
-    # The installer embeds both command names; build one binary and copy it.
-    $payload = Join-Path $serverDir 'cmd\u-workers-setup\payload'
-    New-PortableDirectory $payload
-    Copy-Item -LiteralPath $primary -Destination (Join-Path $payload 'u-workers.exe') -Force
-    Copy-Item -LiteralPath $primary -Destination (Join-Path $payload 'multica.exe') -Force
-    Write-Host '==> Building the single-file installer'
-    $installer = Join-Path $dist ('u-workers-setup-' + $Version + '-windows-amd64.exe')
-    Invoke-PortableGo @('build', '-trimpath', '-ldflags', $linkFlags, '-o', $installer, './cmd/u-workers-setup') | Out-Null
+    Push-Location -LiteralPath $serverDir
+    try {
+        Write-Host ('==> Building the U Workers CLI (' + $Version + ')')
+        $primary = Join-Path $stage 'u-workers.exe'
+        Invoke-PortableGo @('build', '-trimpath', '-ldflags', $linkFlags, '-o', $primary, './cmd/multica') | Out-Null
+        # The installer embeds both command names; build one binary and copy it.
+        $payload = Join-Path $serverDir 'cmd\u-workers-setup\payload'
+        New-PortableDirectory $payload
+        Copy-Item -LiteralPath $primary -Destination (Join-Path $payload 'u-workers.exe') -Force
+        Copy-Item -LiteralPath $primary -Destination (Join-Path $payload 'multica.exe') -Force
+        Write-Host '==> Building the single-file installer'
+        $installer = Join-Path $dist ('u-workers-setup-' + $Version + '-windows-amd64.exe')
+        Invoke-PortableGo @('build', '-trimpath', '-ldflags', $linkFlags, '-o', $installer, './cmd/u-workers-setup') | Out-Null
+    } finally {
+        Pop-Location
+    }
 } finally {
     foreach ($name in $saved.Keys) {
         [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process')

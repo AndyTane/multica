@@ -782,6 +782,36 @@ function Repair-PortableWebRelease {
             $recorded++
         }
     }
+    # Windows still has a 260-character path limit for most tools. The pnpm
+    # store directory names (package@version_peer-hash) are the longest path
+    # components; renaming them to short stable hashes keeps the installed web
+    # inside the limit for normal install folders.
+    $storeRoot = Join-Path $WebPath 'node_modules\.pnpm'
+    $renames = @{}
+    foreach ($storeDir in @(Get-ChildItem -LiteralPath $storeRoot -Directory -Force -ErrorAction SilentlyContinue)) {
+        if ($storeDir.Name.Length -le 16) { continue }
+        $hasher = [Security.Cryptography.SHA256]::Create()
+        try { $hashBytes = $hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($storeDir.Name)) } finally { $hasher.Dispose() }
+        $shortName = 'p' + ((($hashBytes | ForEach-Object { $_.ToString('x2') }) -join '').Substring(0, 10))
+        $shortPath = Join-Path $storeRoot $shortName
+        $suffix = 0
+        while (Test-Path -LiteralPath $shortPath) {
+            $suffix++
+            $shortPath = Join-Path $storeRoot ($shortName + '-' + [string]$suffix)
+        }
+        Rename-Item -LiteralPath $storeDir.FullName -NewName (Split-Path -Leaf $shortPath)
+        $renames[[string]$storeDir.Name] = (Split-Path -Leaf $shortPath)
+    }
+    foreach ($entry in $manifest) {
+        foreach ($oldName in @($renames.Keys)) {
+            $prefix = 'node_modules\.pnpm\' + $oldName + '\'
+            if (([string]$entry.target).StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+                $entry.target = 'node_modules\.pnpm\' + $renames[$oldName] + '\' + ([string]$entry.target).Substring($prefix.Length)
+                break
+            }
+        }
+    }
+
     $manifestPath = Join-Path $WebPath 'portable-links.json'
     $linkEntries = @($manifest | ForEach-Object { [pscustomobject]@{ path = [string]$_.path; target = [string]$_.target } })
     $manifestObject = [pscustomobject]@{ links = $linkEntries }

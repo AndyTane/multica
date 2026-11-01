@@ -377,6 +377,11 @@ function Invoke-PortableStageRelease {
     if ($stagedRelease) {
         $restoredLinks = Restore-PortableWebLinks -WebPath (Join-Path $stagedRelease 'web')
         Write-Host ('  package-local web dependency links: ' + $restoredLinks)
+        $sourceFiles = @(Get-ChildItem -LiteralPath $releaseSource -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object).Count
+        $stagedFiles = @(Get-ChildItem -LiteralPath $stagedRelease -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object).Count
+        if ($stagedFiles -lt $sourceFiles) {
+            throw ('The prebuilt release did not copy completely (' + $stagedFiles + ' of ' + $sourceFiles + ' files). The install folder path is probably too long for Windows; choose a shorter folder (for example C:\UWorkers) and run Setup.cmd again.')
+        }
     }
 }
 
