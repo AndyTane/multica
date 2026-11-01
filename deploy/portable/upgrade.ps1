@@ -121,6 +121,13 @@ if ($Source) {
     }
 }
 
+# Record the new version before staging: the native Stage action stamps the
+# release directory from deployment.json, and the install report must agree with
+# the package manifest after the upgrade.
+$currentConfig = Get-PortableDeployment $root
+$currentConfig.Version = $newVersion
+Write-PortableJson (Join-Path $root 'deployment.json') $currentConfig
+
 Write-Host '==> Staging the new release'
 Invoke-PortableNativeAction -Root $root -Action 'Stage' -ExtraArguments @('-ReleaseSource', (Join-Path $root 'payload\release')) | Out-Null
 $stagedRelease = [string](Get-PortableDeployment $root).Release
