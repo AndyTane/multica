@@ -32,6 +32,19 @@ function New-UninstallFixture {
     New-TestFile (Join-Path $Fixture 'data\package-sentinel.txt') 'package data'
     New-TestFile (Join-Path $Fixture 'uploads\upload-sentinel.txt') 'package upload'
     Copy-Item -LiteralPath (Join-Path $portableRoot 'portable-common.ps1') -Destination $Fixture -Force
+    # uninstall.ps1 dot-sources this copy, so isolate external effects there,
+    # after the real definitions. ConfigRoots alone does not isolate Startup,
+    # certificate stores or process control from the current Windows account.
+    $isolatedEffects = @'
+
+function Stop-PortableDaemon { param([string]$Root, [string]$Profile) return $false }
+function Stop-PortableCaddy { param([string]$Root) return $false }
+function Invoke-PortableNativeAction { param([string]$Root, [string]$Action) return '' }
+function Remove-PortableBrowserTrust { param([string]$Root) return $false }
+function Get-PortableStartupShortcutPath { return (Join-Path $PSScriptRoot 'startup-sentinel.vbs') }
+'@
+    [IO.File]::AppendAllText((Join-Path $Fixture 'portable-common.ps1'), $isolatedEffects)
+    New-TestFile (Join-Path $Fixture 'startup-sentinel.vbs') 'test startup entry'
     Copy-Item -LiteralPath (Join-Path $portableRoot 'uninstall.ps1') -Destination $Fixture -Force
     $selected = $SelectedRoots[0]
     New-TestFile (Join-Path $selected 'profiles\portable\config.json') ('{"server_url":"' + $BoardUrl + '"}')
@@ -82,6 +95,7 @@ try {
     $markedKeep = @(New-UninstallFixture -Fixture $fixtureKeep -SelectedRoots @($selectedKeep) -ForeignRoot $foreignKeep -BoardUrl $boardUrl)
     Assert-Test ($markedKeep.Count -eq 1) 'The keep-data fixture must register exactly one owned profile.'
     & (Join-Path $fixtureKeep 'uninstall.ps1') -Force -ConfigRoots @($selectedKeep, $foreignKeep) | Out-Null
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixtureKeep 'startup-sentinel.vbs'))) 'The real startup removal must target only the fixture startup entry.'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $selectedKeep 'profiles\portable'))) 'The owned profile must be removed.'
     Assert-Test (Test-Path -LiteralPath (Join-Path $selectedKeep 'profiles\other-tool\sentinel.txt')) 'Other profiles in the selected root must remain.'
     Assert-Test (Test-Path -LiteralPath (Join-Path $foreignKeep 'profiles\portable\sentinel.txt')) 'The same-named profile in the other root must remain.'
@@ -98,6 +112,7 @@ try {
     $markedPurge = @(New-UninstallFixture -Fixture $fixturePurge -SelectedRoots @($selectedPurge) -ForeignRoot $foreignPurge -BoardUrl $boardUrl)
     Assert-Test ($markedPurge.Count -eq 1) 'The purge fixture must register exactly one owned profile.'
     & (Join-Path $fixturePurge 'uninstall.ps1') -Force -PurgeData -ConfigRoots @($selectedPurge, $foreignPurge) | Out-Null
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixturePurge 'startup-sentinel.vbs'))) 'PurgeData must also target only the fixture startup entry.'
     Assert-Test (-not (Test-Path -LiteralPath (Join-Path $selectedPurge 'profiles\portable'))) 'PurgeData must still remove only the owned profile.'
     Assert-Test (Test-Path -LiteralPath (Join-Path $selectedPurge 'profiles\other-tool\sentinel.txt')) 'PurgeData must not remove other profiles.'
     Assert-Test (Test-Path -LiteralPath (Join-Path $foreignPurge 'profiles\portable\sentinel.txt')) 'PurgeData must not remove the other root profile.'
