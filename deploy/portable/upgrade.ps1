@@ -58,7 +58,7 @@ function Copy-PortableOverlay {
 }
 
 function Get-PortableDataCounts {
-    $rows = Invoke-PortableSql 'SELECT (SELECT count(*) FROM "user")::text || ''|'' || (SELECT count(*) FROM workspace)::text || ''|'' || (SELECT count(*) FROM issue)::text;' ([string](Get-PortableDeployment $root).Database)
+    $rows = Invoke-PortableSql -Root $root -Sql 'SELECT (SELECT count(*) FROM "user")::text || ''|'' || (SELECT count(*) FROM workspace)::text || ''|'' || (SELECT count(*) FROM issue)::text;' -Database ([string](Get-PortableDeployment $root).Database)
     $line = @($rows | Where-Object { $_ -match '\|' })
     if ($line.Count -eq 0) { return [pscustomobject]@{ Users = 0; Workspaces = 0; Issues = 0 } }
     $parts = ([string]$line[$line.Count - 1]).Split('|')

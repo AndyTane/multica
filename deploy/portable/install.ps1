@@ -197,7 +197,8 @@ function Save-PortableCredential {
 
 function Initialize-PortableLocalCredential {
     param([string]$UserId, [string]$Username, [string]$Password)
-    $existing = Invoke-PortableSql "SELECT username_normalized FROM local_password_credential WHERE user_id = '" + $UserId + "';" ([string](Get-PortableDeployment $root).Database)
+    $appDatabase = [string](Get-PortableDeployment $root).Database
+    $existing = Invoke-PortableSql -Root $root -Sql ("SELECT username_normalized FROM local_password_credential WHERE user_id = '" + $UserId + "';") -Database $appDatabase
     $tool = Join-Path ([string](Get-PortableDeployment $root).Release) 'local-auth.exe'
     if (-not (Test-Path -LiteralPath $tool)) { throw ('local-auth.exe is missing from the staged release: ' + $tool) }
     $deploymentConfig = Join-Path $root 'deployment.json'
@@ -265,7 +266,7 @@ function New-PortableUserAccessToken {
     $prefix = $raw.Substring(0, 12)
     $config = Get-PortableDeployment $root
     $sql = "INSERT INTO personal_access_token (user_id, name, token_hash, token_prefix) VALUES ('" + $UserId + "', '" + ($TokenName -replace "'", "''") + "', '" + $hash + "', '" + $prefix + "') RETURNING token_prefix;"
-    $rows = Invoke-PortableSql $sql ([string]$config.Database)
+    $rows = Invoke-PortableSql -Root $root -Sql $sql -Database ([string]$config.Database)
     if ($rows.Count -eq 0) { throw 'Could not mint the local daemon token.' }
     return $raw
 }
@@ -274,11 +275,11 @@ function Get-PortableOwnerUserId {
     param([string]$Email)
     $config = Get-PortableDeployment $root
     if ($Email) {
-        $rows = Invoke-PortableSql ("SELECT id::text FROM ""user"" WHERE lower(email) = lower('" + ($Email -replace "'", "''") + "');") ([string]$config.Database)
+        $rows = Invoke-PortableSql -Root $root -Sql ("SELECT id::text FROM ""user"" WHERE lower(email) = lower('" + ($Email -replace "'", "''") + "');") -Database ([string]$config.Database)
         if ($rows.Count -eq 0) { throw ('No account matches -OperatorEmail ' + $Email + '.') }
         return [string]$rows[$rows.Count - 1]
     }
-    $rows = Invoke-PortableSql "SELECT m.user_id::text FROM member m JOIN workspace w ON m.workspace_id = w.id WHERE m.role = 'owner' ORDER BY w.created_at ASC LIMIT 1;" ([string]$config.Database)
+    $rows = Invoke-PortableSql -Root $root -Sql "SELECT m.user_id::text FROM member m JOIN workspace w ON m.workspace_id = w.id WHERE m.role = 'owner' ORDER BY w.created_at ASC LIMIT 1;" -Database ([string]$config.Database)
     if ($rows.Count -eq 0) { throw 'Adopted deployment has no workspace owner to attach the local daemon to. Pass -OperatorEmail.' }
     return [string]$rows[0]
 }
@@ -501,7 +502,7 @@ function Invoke-PortableAdoption {
     $operatorId = Get-PortableOwnerUserId -Email $OperatorEmail
     $accessToken = New-PortableUserAccessToken -UserId $operatorId -TokenName 'portable-daemon'
     $ownerRows = @()
-    try { $ownerRows = Invoke-PortableSql ('SELECT w.id::text FROM workspace w JOIN member m ON m.workspace_id = w.id WHERE m.user_id = ''' + $operatorId + ''' ORDER BY w.created_at ASC LIMIT 1;') } catch { $ownerRows = @() }
+    try { $ownerRows = Invoke-PortableSql -Root $root -Sql ('SELECT w.id::text FROM workspace w JOIN member m ON m.workspace_id = w.id WHERE m.user_id = ''' + $operatorId + ''' ORDER BY w.created_at ASC LIMIT 1;') -Database ([string](Get-PortableDeployment $root).Database) } catch { $ownerRows = @() }
     $workspaceId = ''
     if ($ownerRows.Count -gt 0) { $workspaceId = [string]$ownerRows[0] }
     return [pscustomobject]@{ RootCA = $rootCA; ServerUrl = $serverUrl; WorkspaceId = $workspaceId; AccessToken = $accessToken; UserId = $operatorId; Backup = ([string]$backup.Output).Trim() }
