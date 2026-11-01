@@ -119,3 +119,103 @@ Go：
 - 从本分支（基于 main `d53f16b41`）继续，提交按原子化 conventional commits，开 Draft PR 到 `main`。
 - 本文件末尾补「交付记录」：base..head、改动文件数、实际跑过的检查与结果、PR #14 是否已合并及文档处理方式。
 - 不合并、不推送 main。
+
+## 交付记录（2026-11-01，DSH，批次 1 / 唯一一批）
+
+**PR**：[#15](https://github.com/AndyTane/UWorkers-nice/pull/15)（Draft，`clawsta-102-im-feishu-only` → `main`）
+**base..head**：`d53f16b41`（main）.. 本 PR 顶部提交；其中代码提交到 `3af1ab39d` 为止，本记录是 PR 最后一个提交。
+**改动文件数**：代码 23 个文件（+779 / −220），另加本任务书（连同任务书共 24 个文件）；4 个代码提交：
+`b346ee25e` feat(channels) 开关与路由接线、`667bd913a` test(channels) 测试、`88598ee8a` feat(web) 前端、
+`3af1ab39d` docs(channels) 文档站导航。
+
+### 做了什么
+
+- **服务端**：`server/internal/featureflags/keys.go` 新增 `channel_slack` / `channel_telegram` / `channel_dingtalk` /
+  `channel_wecom` 四个开关（默认关）并加入 `frontendPublicFlags`；`server/cmd/server/router.go` 在四个渠道
+  `secretbox.LoadKey(...)` 之前先判断开关，关闭时只打一行 `<渠道> integration disabled (feature flag off)`，
+  其余接线、handler 未改；`.env.example` 四个密钥段落各加一条 `FF_CHANNEL_*` 与说明。飞书没有开关，代码未动。
+- **前端**：`packages/core/feature-flags/` 加四个常量并导出；设置页渠道列表、智能体 Integrations 页、
+  智能体概览的 Integrations 入口都按开关过滤，关闭的渠道不再发对应请求（`enabled:false`），指向关闭渠道的
+  深链回到渠道列表；`packages/views` 对应的三个测试文件覆盖这些行为。
+- **文档站**：五种语言 `apps/docs/content/docs/meta*.json` 导航去掉 Slack / 钉钉 / Telegram 三个页面，
+  页面文件保留。
+- **存量数据**：没有迁移、删除、改状态或撤销任何安装/绑定/会话；关闭只影响服务启动时的接线。
+- **CLI / daemon / 移动端**：按方案未改（没有接入入口）。
+
+### 验证
+
+运行方式：本机是 Windows，`scripts/dev-env.sh` 用 `lsof` 与 `ps -o` 证明进程归属，Git Bash 没有这两样，
+所以在同机 WSL（Ubuntu 24.04，与应用共享同一个 PostgreSQL 容器）里执行同一份 `Makefile` / 脚本：
+`make up C=api ARGS=--ephemeral`。没有推送到任何远端环境。
+
+1. **默认配置**（飞书密钥 + Slack/Telegram/钉钉/企业微信密钥全部设置，不设任何 `FF_CHANNEL_*`）的启动日志：
+```text
+15:29:24.675 INF lark integration enabled
+15:29:24.675 INF slack integration disabled (feature flag off)
+15:29:24.675 INF dingtalk integration disabled (feature flag off)
+15:29:24.675 INF wecom integration disabled (feature flag off)
+15:29:24.675 INF telegram integration disabled (feature flag off)
+```
+   同一环境里用 dev 登录建了一个工作区，逐个读安装列表接口（`GET /api/workspaces/{id}/<channel>/installations`，只取 `configured` 字段）：
+```text
+lark      configured=true
+slack     configured=false
+telegram  configured=false
+dingtalk  configured=false
+wecom     configured=false
+```
+2. **只打开一个开关并重启**（每次 `make down C=api && make up C=api`，改的只是 `.env.worktree` 里的 `FF_CHANNEL_*`）：
+```text
+STATE slack only
+  15:29:47.451 INF lark integration enabled
+  15:29:47.451 INF slack integration enabled (BYO per-installation socket mode)
+  15:29:47.451 INF dingtalk/wecom/telegram integration disabled (feature flag off)
+  lark configured=true | slack configured=true | telegram/dingtalk/wecom configured=false
+
+STATE telegram only
+  15:30:09.884 INF telegram integration enabled (per-installation long polling)
+  其余三个 disabled (feature flag off)；telegram configured=true，其余 false
+
+STATE dingtalk only
+  15:30:35.558 INF dingtalk integration enabled (BYO per-installation stream mode)
+  其余三个 disabled (feature flag off)；dingtalk configured=true，其余 false
+
+STATE wecom only
+  15:31:00.390 INF wecom integration enabled (smart bot, long connection)
+  其余三个 disabled (feature flag off)；wecom configured=true，其余 false
+
+STATE all four on
+  四个 integration enabled；四个 configured=true
+```
+   每一种状态下飞书都是 `lark integration enabled` / `lark configured=true`，即飞书行为没有随开关变化。
+3. **静态检查与测试**（实际跑过的）：
+   - `cd server && go build ./...`：通过（BUILD_OK）
+   - `go vet ./cmd/server/ ./internal/featureflags/ ./internal/handler/`：通过（VET_OK）
+   - `go test ./internal/featureflags/`：ok 0.008s
+   - `go test ./cmd/server/`：ok 7.663s；其中新增的 `TestChannelFeatureFlagsGateConfiguredChannels`（默认关、
+     Slack/Telegram/钉钉/企业微信各自单开、四个全开共 6 个子测试）与既有的 DingTalk/WeCom 真实启动路径接线测试
+     全部 PASS（`go test -run '...' -v` 输出：6 个 channel 子测试 + 4 个既有接线测试 PASS）
+   - `go test ./internal/integrations/lark/`：ok 7.829s
+   - `pnpm typecheck`：10/10 成功
+   - `pnpm lint`：7/7 成功，0 error
+   - `pnpm --filter @multica/views exec vitest run settings/components/channels-tab.test.tsx agents/components/tabs/integrations-tab.test.tsx agents/components/agent-overview-pane.test.tsx`：
+     3 个文件 62 个用例全过
+   - 未跑：Playwright E2E（本批没有改动端到端流程，任务书也未要求）
+
+### PR #14（CLAWSTA-96）与文档处理
+
+- 开工时 `origin/main` 仍是 `d53f16b41`，PR #14 **未合并**。因此按任务书：
+  **没有动** `channels*.mdx` 和 `environment-variables*.mdx`（五种语言都不动），只改了 `meta*.json` 导航，
+  避免和 #14 冲突。
+- 合并 #14 后的补丁（留给提交 #14 之后的小批）：`channels*.mdx` 只保留飞书为默认渠道并加一句
+  「其他渠道默认关闭，见环境变量」；`environment-variables*.mdx` 增加四个 `FF_CHANNEL_*` 的说明。
+  另外 `channels*.mdx` 正文里仍有指向已从导航移除的 Slack/钉钉/Telegram 页面的链接，页面文件还在、
+  链接仍可用，等 #14 合并后的补丁一并收口。
+
+### 没做 / 不确定
+
+1. **Web / Desktop / 移动端真机点开设置页**没有做：前端部分由单测覆盖，按任务书交前端负责人评审。
+2. 文档站只改了五种语言的导航，正文与语言内链接按上面「PR #14 与文档处理」处理。
+3. Slack/Telegram/钉钉/企业微信的存量安装、绑定、会话按方案原样保留，没有撤销、没有改状态；关闭期间
+   由这些渠道发起、仍在运行的任务照常结束，只是不再回发到该渠道。
+4. 验证用的本地 dev 环境（WSL 里的 `uworkers_nice-469`）只有本机可见，数据是临时库；关闭只影响该环境。
