@@ -123,6 +123,8 @@ if ($Source) {
 
 Write-Host '==> Staging the new release'
 Invoke-PortableNativeAction -Root $root -Action 'Stage' -ExtraArguments @('-ReleaseSource', (Join-Path $root 'payload\release')) | Out-Null
+$stagedRelease = [string](Get-PortableDeployment $root).Release
+if ($stagedRelease) { Restore-PortableWebLinks -WebPath (Join-Path $stagedRelease 'web') | Out-Null }
 
 Write-Host '==> Starting the new version (database migrations run automatically)'
 Invoke-PortableNativeAction -Root $root -Action 'Start' | Out-Null

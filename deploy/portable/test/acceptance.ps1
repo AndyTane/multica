@@ -58,7 +58,8 @@ param(
     [switch]$SkipInstallerBuild,
     [switch]$KeepWorkRoot,
     [switch]$KeepRunning,
-    [switch]$ResumeExisting
+    [switch]$ResumeExisting,
+    [string]$HideCheckoutPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -227,6 +228,46 @@ try {
     $untrustedRejected = $false
     try { Invoke-PortableWebRequest -Uri ($serverUrl + '/readyz') -TimeoutSec 10 | Out-Null } catch { $untrustedRejected = $true }
     Assert-Check 'HTTPS certificate is not publicly trusted (proves the private CA path)' $untrustedRejected
+
+    # --- portability: the installed web must not reference the build checkout ---
+    $deployment = Get-PortableDeployment $serverCopy
+    $installedWeb = Join-Path ([string]$deployment.Release) 'web'
+    $webLinks = Get-PortableExternalWebLinks -WebPath $installedWeb
+    Assert-Check 'installed web release references only files inside the package' ($webLinks.Outside -eq 0) (('links=' + $webLinks.Total + ' outside=' + $webLinks.Outside + ' ' + (($webLinks.OutsidePaths | Select-Object -First 1) -join '')))
+    if ($HideCheckoutPath) {
+        Write-Step ('Checking the board with the build checkout hidden (' + $HideCheckoutPath + ')')
+        $hideTarget = [IO.Path]::GetFullPath($HideCheckoutPath).TrimEnd('')
+        $hiddenPath = $hideTarget + '.hidden-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $renamed = $false
+        try {
+            for ($attempt = 0; $attempt -lt 40 -and -not $renamed; $attempt++) {
+                try {
+                    Rename-Item -LiteralPath $hideTarget -NewName (Split-Path -Leaf $hiddenPath) -ErrorAction Stop
+                    $renamed = $true
+                } catch {
+                    Start-Sleep -Milliseconds 500
+                }
+            }
+            Assert-Check 'build checkout hidden during the board check' $renamed
+            $loginHidden = Invoke-PortableWebRequest -Uri ($serverUrl + '/login') -RootCAPath $rootCa -TimeoutSec 20
+            Assert-Check 'board works with the build checkout hidden' ($loginHidden.StatusCode -eq 200 -and $loginHidden.Content.Length -gt 10000) ([string]$loginHidden.StatusCode + ' ' + [string]$loginHidden.Content.Length)
+            $apiHidden = Invoke-PortableWebRequest -Uri ($serverUrl + '/readyz') -RootCAPath $rootCa
+            Assert-Check 'API works with the build checkout hidden' ($apiHidden.StatusCode -eq 200) ([string]$apiHidden.StatusCode)
+        } finally {
+            if ($renamed) {
+                $restored = $false
+                for ($attempt = 0; $attempt -lt 40 -and -not $restored; $attempt++) {
+                    try {
+                        Rename-Item -LiteralPath $hiddenPath -NewName (Split-Path -Leaf $hideTarget) -ErrorAction Stop
+                        $restored = $true
+                    } catch {
+                        Start-Sleep -Milliseconds 500
+                    }
+                }
+                if (-not $restored) { throw ('Could not restore the build checkout path: ' + $hiddenPath) }
+            }
+        }
+    }
 
     # --- sign-in and workspace ---------------------------------------------
     Write-Step 'Checking the provisioned local account and workspace'

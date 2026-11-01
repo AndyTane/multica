@@ -731,3 +731,109 @@ function Get-PortableProfileConfigRoots {
     return $roots
 }
 
+
+function Get-PortableReparsePoints {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    return @(Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 })
+}
+
+function Repair-PortableWebRelease {
+    # Next.js standalone output contains a nearly complete pnpm store inside the
+    # folder, but a few dozen package directories are junctions into the build
+    # checkout. Store-internal junctions are expanded to real copies here; the
+    # app-level ones cannot be expanded without breaking dependency resolution,
+    # so they are recorded and recreated as package-local junctions by Setup.
+    param([string]$WebPath, [string]$CheckoutNodeModules)
+    $WebPath = [IO.Path]::GetFullPath($WebPath).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $WebPath)) { throw ('Web release folder missing: ' + $WebPath) }
+    if (-not (Test-Path -LiteralPath (Join-Path $WebPath 'node_modules\.pnpm'))) { throw ('The standalone web folder has no pnpm store: ' + $WebPath) }
+    $storePrefix = [IO.Path]::GetFullPath($CheckoutNodeModules).TrimEnd('\') + '\.pnpm\'
+    $links = @(Get-PortableReparsePoints -Path $WebPath)
+    $manifest = New-Object System.Collections.Generic.List[object]
+    $expanded = 0
+    $recorded = 0
+    foreach ($link in $links) {
+        $linkPath = $link.FullName
+        $relative = $linkPath.Substring($WebPath.Length).TrimStart('\')
+        $targets = @($link.Target)
+        if ($targets.Count -eq 0 -or -not $targets[0]) { throw ('Cannot resolve link target: ' + $linkPath) }
+        $target = [IO.Path]::GetFullPath([string]$targets[0])
+        if (-not $target.StartsWith($storePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw ('Unexpected web dependency link outside the pnpm store: ' + $linkPath + ' -> ' + $target)
+        }
+        $storeRelative = $target.Substring($storePrefix.Length)
+        $isStoreInternal = $relative.Contains('\.pnpm\')
+        $isDirectory = (($link.Attributes -band [IO.FileAttributes]::Directory) -ne 0)
+        if ($isStoreInternal) {
+            if ($isDirectory) {
+                [IO.Directory]::Delete($linkPath, $false)
+                New-Item -ItemType Directory -Path $linkPath -Force | Out-Null
+                $copy = Invoke-PortableCommand -Executable 'robocopy.exe' -Arguments @($target, $linkPath, '/E', '/R:1', '/W:1', '/MT:4', '/NP', '/NFL', '/NDL', '/NJH', '/NJS')
+                if ($copy.ExitCode -ge 8) { throw ('Expanding a web dependency failed (robocopy exit ' + $copy.ExitCode + '): ' + $linkPath) }
+                $expanded++
+            } else {
+                Copy-Item -LiteralPath $target -Destination $linkPath -Force
+                $expanded++
+            }
+        } else {
+            $manifest.Add([ordered]@{ path = $relative; target = ('node_modules\.pnpm\' + $storeRelative) }) | Out-Null
+            if ($isDirectory) { [IO.Directory]::Delete($linkPath, $false) } else { [IO.File]::Delete($linkPath) }
+            $recorded++
+        }
+    }
+    $manifestPath = Join-Path $WebPath 'portable-links.json'
+    $linkEntries = @($manifest | ForEach-Object { [pscustomobject]@{ path = [string]$_.path; target = [string]$_.target } })
+    $manifestObject = [pscustomobject]@{ links = $linkEntries }
+    $manifestJson = $manifestObject | ConvertTo-Json -Depth 5
+    [IO.File]::WriteAllText($manifestPath, $manifestJson, (New-Object Text.UTF8Encoding($false)))
+    $remaining = @(Get-PortableReparsePoints -Path $WebPath)
+    if ($remaining.Count -gt 0) { throw ('The web release still contains ' + $remaining.Count + ' links that would point outside the package. First: ' + $remaining[0].FullName) }
+    return [pscustomobject]@{ Expanded = $expanded; Recorded = $recorded; Manifest = $manifestPath }
+}
+
+function Restore-PortableWebLinks {
+    # Recreates the app-level dependency junctions with the installed package's
+    # absolute paths. Creating junctions does not need administrator rights, so
+    # the installed folder no longer references the build machine.
+    param([string]$WebPath)
+    $manifestPath = Join-Path $WebPath 'portable-links.json'
+    if (-not (Test-Path -LiteralPath $manifestPath)) { return 0 }
+    $manifest = Read-PortableJson -Path $manifestPath
+    if (-not $manifest -or -not $manifest.links) { return 0 }
+    $created = 0
+    foreach ($entry in @($manifest.links)) {
+        if (-not $entry) { continue }
+        $linkPath = [IO.Path]::GetFullPath((Join-Path $WebPath ([string]$entry.path)))
+        $targetPath = [IO.Path]::GetFullPath((Join-Path $WebPath ([string]$entry.target)))
+        if (-not (Test-Path -LiteralPath $targetPath)) { throw ('Web dependency link target is missing from the release: ' + $targetPath) }
+        if (Test-Path -LiteralPath $linkPath) {
+            $existing = Get-Item -LiteralPath $linkPath -Force
+            if ((($existing.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+                $existingTarget = @($existing.Target)
+                if ($existingTarget.Count -gt 0 -and $existingTarget[0] -and ([IO.Path]::GetFullPath([string]$existingTarget[0]) -eq $targetPath)) { continue }
+                if (($existing.Attributes -band [IO.FileAttributes]::Directory) -ne 0) { [IO.Directory]::Delete($linkPath, $false) } else { [IO.File]::Delete($linkPath) }
+            } else {
+                throw ('Refusing to replace a real file with a dependency link: ' + $linkPath)
+            }
+        }
+        New-Item -ItemType Junction -Path $linkPath -Target $targetPath | Out-Null
+        $created++
+    }
+    return $created
+}
+
+function Get-PortableExternalWebLinks {
+    param([string]$WebPath)
+    $WebPath = [IO.Path]::GetFullPath($WebPath).TrimEnd('\')
+    $prefix = $WebPath + '\'
+    $links = @(Get-PortableReparsePoints -Path $WebPath)
+    $outside = @()
+    foreach ($link in $links) {
+        $targets = @($link.Target)
+        if ($targets.Count -eq 0 -or -not $targets[0]) { $outside += $link.FullName; continue }
+        if (-not ([IO.Path]::GetFullPath([string]$targets[0]).StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase))) { $outside += $link.FullName }
+    }
+    return [pscustomobject]@{ Total = $links.Count; Outside = $outside.Count; OutsidePaths = $outside }
+}
+

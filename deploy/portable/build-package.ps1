@@ -89,6 +89,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'server\go.mod'))) {
     throw ('This script must live at deploy\portable\ inside the repository checkout: ' + $portableRoot)
 }
 if ($Version -notmatch '^v\d+\.\d+\.\d+') { throw ('Version must look like v1.2.3: ' + $Version) }
+. (Join-Path $portableRoot 'portable-common.ps1')
 if (-not $OutputRoot) { $OutputRoot = Join-Path $repoRoot 'dist' }
 
 function Write-Step {
@@ -237,6 +238,9 @@ if ($ReusePayloadFrom) {
     if (-not $release) { throw 'The native build produced no release directory.' }
     Write-Step 'Assembling the package payload'
     Copy-BuildTree $release.FullName (Join-Path $payload 'release')
+    Write-Step 'Making the standalone web release portable'
+    $webRepair = Repair-PortableWebRelease -WebPath (Join-Path $payload 'release\web') -CheckoutNodeModules (Join-Path $repoRoot 'node_modules')
+    Write-Host ('  expanded ' + $webRepair.Expanded + ' store links; recorded ' + $webRepair.Recorded + ' package-local dependency links')
     Copy-BuildTree (Join-Path $buildRoot 'runtime\pgsql') (Join-Path $payload 'runtime\pgsql')
     Write-Step 'Building the u-workers CLI for the package'
     $env:CGO_ENABLED = '0'
@@ -257,7 +261,7 @@ Remove-PortableUnneededPostgresParts (Join-Path $payload 'runtime\pgsql')
 
 $releaseLinks = @(Get-ChildItem -LiteralPath (Join-Path $payload 'release') -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 })
 if ($releaseLinks.Count -gt 0) {
-    Write-Host ('  Warning: the web release carries ' + $releaseLinks.Count + ' dependency junctions that point into the build checkout; the web app runs on this machine only until the node_modules layout is packaged portably.') -ForegroundColor Yellow
+    throw ('The release still contains ' + $releaseLinks.Count + ' junctions pointing into the build checkout, so the package is not portable. First: ' + $releaseLinks[0].FullName)
 }
 
 if (-not $SkipBuildKit) {

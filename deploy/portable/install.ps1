@@ -373,6 +373,11 @@ function Invoke-PortableStageRelease {
     $releaseSource = Join-Path $root 'payload\release'
     if (-not (Test-Path -LiteralPath (Join-Path $releaseSource 'server.exe'))) { throw 'payload\release is missing server.exe; the package is incomplete.' }
     Invoke-PortableNativeAction -Root $root -Action 'Stage' -ExtraArguments @('-ReleaseSource', $releaseSource) | Out-Null
+    $stagedRelease = [string](Get-PortableDeployment $root).Release
+    if ($stagedRelease) {
+        $restoredLinks = Restore-PortableWebLinks -WebPath (Join-Path $stagedRelease 'web')
+        Write-Host ('  package-local web dependency links: ' + $restoredLinks)
+    }
 }
 
 function Invoke-PortableStartServer {
@@ -588,6 +593,8 @@ if ($AdoptRoot) {
         $resumedDeployment = Get-PortableDeployment $root
         if (-not $resumedDeployment.Release -or -not (Test-Path -LiteralPath (Join-Path ([string]$resumedDeployment.Release) 'server.exe'))) {
             Invoke-PortableStageRelease
+        } elseif ([string]$resumedDeployment.Release) {
+            Restore-PortableWebLinks -WebPath (Join-Path ([string]$resumedDeployment.Release) 'web') | Out-Null
         }
     }
     Invoke-PortableStartServer
