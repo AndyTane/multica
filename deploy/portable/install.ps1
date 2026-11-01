@@ -354,6 +354,13 @@ function Invoke-PortablePrepare {
         '-WebHost', '127.0.0.1'
     )
     Invoke-PortableNativeAction -Root $root -Action 'Prepare' -ExtraArguments (@('-Clean') + $arguments) | Out-Null
+    # The packaged deployment signs its operator in with a host-provisioned
+    # local account; email-code login has no mail service to talk to, so the
+    # password form is the entry point and the email flow is switched off.
+    $config = Read-PortableDeployment $root
+    $config.BackendEnvironment | Add-Member -NotePropertyName AUTH_LOCAL_PASSWORD_ENABLED -NotePropertyValue 'true' -Force
+    $config.BackendEnvironment | Add-Member -NotePropertyName AUTH_EMAIL_CODE_ENABLED -NotePropertyValue 'false' -Force
+    Write-PortableJson (Join-Path $root 'deployment.json') $config
 }
 
 function Invoke-PortableStageRelease {

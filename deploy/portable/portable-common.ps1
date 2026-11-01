@@ -387,32 +387,11 @@ function New-PortablePassword {
     return (-join $characters)
 }
 
-function Get-PortableCertificateValidator {
-    param([string]$RootCAPath)
-    if (-not (Test-Path -LiteralPath $RootCAPath)) { throw ('Root CA not found: ' + $RootCAPath) }
-    $rootCertificate = New-Object Security.Cryptography.X509Certificates.X509Certificate2($RootCAPath)
-    $trustedRoots = New-Object Security.Cryptography.X509Certificates.X509Certificate2Collection
-    [void]$trustedRoots.Add($rootCertificate)
-    return {
-        param($sender, $certificate, $chain, $sslPolicyErrors)
-        if ($sslPolicyErrors -band [Net.Security.SslPolicyErrors]::RemoteCertificateNameMismatch) { return $false }
-        if ($null -eq $certificate) { return $false }
-        $validationChain = New-Object Security.Cryptography.X509Certificates.X509Chain
-        try {
-            $validationChain.ChainPolicy.RevocationMode = [Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
-            $validationChain.ChainPolicy.VerificationFlags = [Security.Cryptography.X509Certificates.X509VerificationFlags]::NoFlag
-            $validationChain.ChainPolicy.TrustMode = [Security.Cryptography.X509Certificates.X509ChainTrustMode]::CustomRootTrust
-            $validationChain.ChainPolicy.CustomTrustStore = $trustedRoots
-            $leaf = New-Object Security.Cryptography.X509Certificates.X509Certificate2($certificate)
-            return $validationChain.Build($leaf)
-        } catch {
-            return $false
-        } finally {
-            if ($validationChain) { $validationChain.Dispose() }
-        }
-    }
-}
-
+# HTTPS requests from the package scripts go through curl.exe. It ships with
+# Windows 10 1803+ and validates a private CA with --cacert without touching
+# the user's certificate store, and it behaves the same from Windows PowerShell
+# 5.1 and PowerShell 7 (unlike .NET TLS callbacks, which need a runspace on the
+# networking thread only the older runtime has).
 function Invoke-PortableWebRequest {
     param(
         [string]$Uri,
@@ -422,43 +401,40 @@ function Invoke-PortableWebRequest {
         [string]$RootCAPath,
         [int]$TimeoutSec = 30
     )
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $request = [Net.WebRequest]::Create($Uri)
-    $request.Method = $Method
-    $request.Timeout = $TimeoutSec * 1000
-    $request.AllowAutoRedirect = $true
-    if ($RootCAPath) { $request.ServerCertificateValidationCallback = (Get-PortableCertificateValidator $RootCAPath) }
-    if ($Headers) {
-        foreach ($key in $Headers.Keys) { $request.Headers[$key] = [string]$Headers[$key] }
-    }
-    if ($Body) {
-        $bytes = [Text.Encoding]::UTF8.GetBytes($Body)
-        $request.ContentType = 'application/json; charset=utf-8'
-        $request.ContentLength = $bytes.Length
-        $stream = $request.GetRequestStream()
-        try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
-    }
-    $response = $null
+    $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+    if (-not (Test-Path -LiteralPath $curl)) { $curl = 'curl.exe' }
+    $workingDirectory = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-curl-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $workingDirectory -Force | Out-Null
+    $bodyFile = Join-Path $workingDirectory 'request-body.txt'
+    $responseFile = Join-Path $workingDirectory 'response-body.txt'
+    $stderrFile = Join-Path $workingDirectory 'curl-error.txt'
     try {
-        $response = $request.GetResponse()
-    } catch [Net.WebException] {
-        $webException = $_.Exception
-        if ($webException.Response) {
-            $response = $webException.Response
-        } else {
-            throw
+        $arguments = @('--silent', '--show-error', '--max-time', [string]$TimeoutSec, '--output', $responseFile, '--write-out', '%{http_code}')
+        if ($RootCAPath) { $arguments += @('--cacert', $RootCAPath, '--ssl-no-revoke') }
+        if ($Method -and $Method -ne 'GET') { $arguments += @('--request', $Method) }
+        if ($Body) {
+            [IO.File]::WriteAllText($bodyFile, $Body, (New-Object Text.UTF8Encoding($false)))
+            $arguments += @('--data-binary', ('@' + $bodyFile))
+            $arguments += @('--header', 'Content-Type: application/json; charset=utf-8')
         }
-    }
-    try {
-        $reader = New-Object IO.StreamReader($response.GetResponseStream(), [Text.Encoding]::UTF8)
-        try { $content = $reader.ReadToEnd() } finally { $reader.Dispose() }
-        return [pscustomobject]@{
-            StatusCode = [int]$response.StatusCode
-            Content = $content
-            Headers = $response.Headers
+        if ($Headers) {
+            foreach ($key in $Headers.Keys) { $arguments += @('--header', ([string]$key + ': ' + [string]$Headers[$key])) }
         }
+        $arguments += $Uri
+        $statusText = & $curl @arguments 2> $stderrFile
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            $details = ''
+            if (Test-Path -LiteralPath $stderrFile) { $details = [string](Get-Content -LiteralPath $stderrFile -Raw -ErrorAction SilentlyContinue) }
+            throw ('HTTPS request failed (' + $exitCode + '): ' + $details.Trim())
+        }
+        $statusCode = 0
+        if (-not [int]::TryParse(([string]$statusText).Trim(), [ref]$statusCode)) { throw ('HTTPS request returned no status code: ' + $Uri) }
+        $content = ''
+        if (Test-Path -LiteralPath $responseFile) { $content = [string](Get-Content -LiteralPath $responseFile -Raw -ErrorAction SilentlyContinue) }
+        return [pscustomobject]@{ StatusCode = $statusCode; Content = $content; Headers = @{} }
     } finally {
-        if ($response) { $response.Dispose() }
+        Remove-Item -LiteralPath $workingDirectory -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
