@@ -36,7 +36,12 @@ system key、令牌前缀、移动端 bundle id 不动（父任务「不做」�
 - 两个都设 → **新名获胜**（新旧名读到同一个新值）；
 - 未涉及的变量不动；空字符串按「已设置」复制，因为「设成空」和「未设置」对读取方含义不同。
 
-这样没有第二份读取逻辑，也没有 224 个读取点各自实现一次优先级。安装脚本自身的 `MULTICA_*`
+这样没有第二份读取逻辑，也没有 224 个读取点各自实现一次优先级。
+
+桥接的代价是：daemon 自己的环境里每个产品变量都会有两个名字。所有「不让 daemon 的值进入任务子进程」的过滤点
+（`mergeEnv`、custom_env 黑名单 `isBlockedEnvKey`、Codex shell 白名单、`agent resume` 子进程环境）
+统一用 `brand.IsProductEnvKey` 同时拦两个前缀；只拦旧前缀会让 `U_WORKERS_*` 副本漏进任务，
+子进程里的 CLI 再桥接一次时新名获胜，覆盖 daemon 为该任务注入的 token / server / 配置根。安装脚本自身的 `MULTICA_*`
 变量同样支持 `U_WORKERS_*` 优先读取（`scripts/install.sh`、`scripts/install.ps1`）。
 Docker Compose 的 operator 变量映射（`.env.example`、`docker-compose*.yml` 里那 41 个 `MULTICA_*`）
 仍走旧名，属于部署批次；本轮的 Go 桥接保证镜像内进程对两种前缀都生效，但 Compose 只透传旧名，
@@ -68,7 +73,8 @@ Desktop 用同一条规则解析 `profileDir`（`apps/desktop/src/main/daemon-pr
 
 - `X-U-Workers-Next-Before` / `-Next-Before-Id`：评论分页游标，服务端两套都发，CLI 新名优先读。
 - `X-U-Workers-Retryable`：daemon 仓库忙信号，daemon 两套都发，CLI 两套都读。
-- `X-U-Workers-Plugin-Installation`：插件 surface 的安装标识；CORS allowlist 同时放行两套，浏览器端两套都发。
+- `X-U-Workers-Plugin-Installation`：插件 surface 的安装标识；服务端两套都读、CORS allowlist 两套都放行；
+  浏览器端过渡期只发旧名（与 CSRF 只用一个头同理：旧服务端的 allowlist 不认新名，预检会失败）。
 - `X-U-Workers-Timestamp` / `-Signature`：插件 webhook 签名头，两套都发；插件服务端迁移期间读哪套都行。
 - `X-U-Workers-RateLimit-Scope`：seat-capacity 服务响应头，客户端两套都读。
 
@@ -97,7 +103,7 @@ C1（本 PR）只开兼容，不删任何旧路径。之后按下面的条件逐
 | 环境变量 | 无「写」方向：新名一直是唯一写入方 | 本版本发布 ≥2 个 tag，且 `.env.example`、`SELF_HOSTING*` 文档已全部改成 `U_WORKERS_*`，Compose 映射（部署批次）同时接受两种前缀 |
 | 配置目录 | 永久：不做自动迁移；旧目录一直可用 | 永不删除旧目录支持；可选将来提供显式 `config migrate`，不排期 |
 | 旧 CLI 命令 `multica` | 一个 major 版本里在 release notes 宣布后移除；在此之前两个名字一直一起装 | — |
-| 旧不带版本号下载包 `multica_<os>_<arch>` | 本版本发布 ≥2 个 tag，确认没有更旧的 CLI 还在自更新（发布页下载统计/issue 反馈；无遥测，按保守估计），release notes 宣布 | 与「写」同批 |
+| 旧不带版本号下载包 `multica_<os>_<arch>` | 本版本发布 ≥2 个 tag，确认没有更旧的 CLI 还在自更新（发布页下载统计/issue 反馈；无遥测，按保守估计），且 Desktop 的 CLI 下载（`apps/desktop/src/main/cli-release-asset.ts`，目前只认 `multica-cli-` 前缀、靠这个旧包兜底）已改认 `u-workers-cli-` 并发布，release notes 宣布 | 与「写」同批 |
 | 旧下载包名/旧二进制名回退读逻辑 | 与上一条同批 | 与上一条同批 |
 
 判定口径统一为「本版本发布 ≥2 个 tag」而不是日历时间，因为 GitHub Actions 当前不可用、发布节奏不确定；
