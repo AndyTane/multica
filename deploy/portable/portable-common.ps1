@@ -314,43 +314,75 @@ function Invoke-PortableCommand {
     # starts a long-lived child (the native supervisor) keeps inherited pipe
     # handles open, and a pipeline would then block forever after the launcher
     # itself exited. Waiting only for the started process avoids that.
+    #
+    # The command runs through a small helper script started with
+    # System.Diagnostics.Process rather than Start-Process: Windows PowerShell 5.1
+    # (what Setup.cmd runs on a fresh machine) leaves Start-Process' ExitCode
+    # empty unless -Wait is passed, and -Wait would also wait for long-lived
+    # grandchildren such as the native supervisor or the daemon.
     param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory)
-    $saved = @{}
     $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-command-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
     $stdoutPath = Join-Path $temporaryDirectory 'stdout.log'
     $stderrPath = Join-Path $temporaryDirectory 'stderr.log'
+    $exitCodePath = Join-Path $temporaryDirectory 'exit-code.txt'
+    $payloadPath = Join-Path $temporaryDirectory 'command.json'
+    $runnerPath = Join-Path $temporaryDirectory 'run-command.ps1'
+    $runnerText = @'
+param([string]$Payload)
+$ErrorActionPreference = 'Continue'
+$info = Get-Content -LiteralPath $Payload -Raw -Encoding UTF8 | ConvertFrom-Json
+foreach ($property in $info.Environment.PSObject.Properties) {
+    [Environment]::SetEnvironmentVariable([string]$property.Name, [string]$property.Value, 'Process')
+}
+if ($info.WorkingDirectory) { Set-Location -LiteralPath ([string]$info.WorkingDirectory) }
+$arguments = @()
+foreach ($argument in @($info.Arguments)) { $arguments += [string]$argument }
+& ([string]$info.Executable) @arguments 1> ([string]$info.Stdout) 2> ([string]$info.Stderr)
+$code = $LASTEXITCODE
+if ($null -eq $code) { $code = 0 }
+[IO.File]::WriteAllText([string]$info.ExitCodeFile, [string]$code, (New-Object Text.UTF8Encoding($false)))
+exit $code
+'@
     try {
+        $environmentPayload = [ordered]@{}
         if ($Environment) {
-            foreach ($key in $Environment.Keys) {
-                $saved[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
-                [Environment]::SetEnvironmentVariable($key, [string]$Environment[$key], 'Process')
-            }
+            foreach ($key in $Environment.Keys) { $environmentPayload[[string]$key] = [string]$Environment[$key] }
         }
-        $options = @{
-            FilePath = $Executable
-            RedirectStandardOutput = $stdoutPath
-            RedirectStandardError = $stderrPath
-            NoNewWindow = $true
-            PassThru = $true
+        $payload = [ordered]@{
+            Executable = [string]$Executable
+            Arguments = @($Arguments)
+            Environment = $environmentPayload
+            WorkingDirectory = [string]$WorkingDirectory
+            Stdout = $stdoutPath
+            Stderr = $stderrPath
+            ExitCodeFile = $exitCodePath
         }
-        if ($Arguments -and $Arguments.Count -gt 0) { $options.ArgumentList = (ConvertTo-PortableArgumentLine $Arguments) }
-        if ($WorkingDirectory) { $options.WorkingDirectory = $WorkingDirectory }
-        $process = Start-Process @options
+        $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $payloadPath -Encoding UTF8
+        [IO.File]::WriteAllText($runnerPath, $runnerText, (New-Object Text.UTF8Encoding($false)))
+        $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $shell
+        $startInfo.Arguments = (ConvertTo-PortableArgumentLine @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $runnerPath, '-Payload', $payloadPath))
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        $process = [System.Diagnostics.Process]::Start($startInfo)
         $process.WaitForExit()
+        $exitCode = $process.ExitCode
+        if ($null -eq $exitCode -and (Test-Path -LiteralPath $exitCodePath)) {
+            $parsed = 0
+            $rawCode = (Get-Content -LiteralPath $exitCodePath -Raw -ErrorAction SilentlyContinue)
+            if ($rawCode -and [int]::TryParse(([string]$rawCode).Trim(), [ref]$parsed)) { $exitCode = $parsed }
+        }
         $output = ''
         foreach ($path in @($stdoutPath, $stderrPath)) {
             if (Test-Path -LiteralPath $path) {
                 $output += (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)
             }
         }
-        return [pscustomobject]@{ ExitCode = $process.ExitCode; Output = [string]$output }
+        return [pscustomobject]@{ ExitCode = $exitCode; Output = [string]$output }
     } finally {
-        foreach ($key in $saved.Keys) {
-            $original = $saved[$key]
-            if ($null -eq $original) { $original = [NullString]::Value }
-            [Environment]::SetEnvironmentVariable($key, $original, 'Process')
-        }
         Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
