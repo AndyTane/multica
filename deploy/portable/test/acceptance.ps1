@@ -271,7 +271,8 @@ try {
         $installerExit = $LASTEXITCODE
     }
     Assert-Check 'prebuilt installer starts and prints usage' ($installerExit -eq 0 -and $help -match 'u-workers-setup') ([string]$installerExit)
-    if (-not $SkipInstallerBuild -and [bool]$manifest.buildKit) {
+    $hasBuildKit = Test-Path -LiteralPath (Join-Path $serverCopy 'tools\go\bin\go.exe')
+    if (-not $SkipInstallerBuild -and $hasBuildKit) {
         $rebuildDir = Join-Path $workRoot 'installer-rebuild'
         New-Item -ItemType Directory -Path $rebuildDir -Force | Out-Null
         $env:GOPROXY = 'off'
@@ -279,7 +280,7 @@ try {
         $rebuilt = Get-ChildItem -LiteralPath $rebuildDir -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
         Assert-Check 'installer rebuilt offline from the bundled toolchain' ($null -ne $rebuilt -and $rebuilt.Length -gt 10MB) ($rebuild -split "\r?\n" | Select-Object -Last 2 | Out-String)
     } elseif (-not $SkipInstallerBuild) {
-        Add-Check 'installer rebuild' $false 'the package was built without -SkipBuildKit: no go toolchain bundled'
+        Add-Check 'installer rebuild' $false 'the package has no tools\go build kit (built with -SkipBuildKit)'
     } else {
         Add-Check 'installer rebuild' $true 'skipped (-SkipInstallerBuild)'
     }
@@ -332,7 +333,12 @@ try {
         }
         Start-Sleep -Seconds 2
     }
-    Assert-Check 'second machine added a runtime to the board' ($runtimesAfterSecond.Count -gt $runtimesBeforeSecond) (($runtimesAfterSecond | ForEach-Object { [string]$_.name + '/' + [string]$_.provider }) -join ', ')
+    # Runtimes are unique per (workspace, daemon, provider) and the daemon
+    # identity is derived from the host, so a second profile on the same host
+    # does not add rows. What proves the join is connect's own report: it waits
+    # for the server to accept the machine and its runtime before it returns.
+    Assert-Check 'second machine connect reported a running daemon and a registered runtime' ($connectOutput -match 'Connected to' -and $connectOutput -match 'runtimes:\s*[1-9]') (($connectOutput -split "\r?\n" | Where-Object { $_ -match 'daemon:|runtimes:' }) -join ' | ')
+    $evidence.secondMachine = 'connect exit 0; daemon and runtime confirmed by the connect output; same-host runtime rows are shared by daemon identity'
 
     # Stop the simulated second machine's daemon again.
     & $secondCli --profile $SecondProfile daemon stop 2>&1 | Out-Null
