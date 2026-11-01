@@ -432,7 +432,7 @@ try {
     # Evidence bookkeeping must never change the acceptance verdict; a
     # formatting failure is recorded but the checks already made stand.
     try {
-        $evidence.checks = @($checks)
+        $evidence.checks = $checks.ToArray()
         $evidence.version = $version
         $evidence.package = $packagePath
         $evidence.packageSha256 = [ordered]@{ server = [string]$manifest.sha256.server; cli = [string]$manifest.sha256.cli; installer = [string]$manifest.sha256.installer }
@@ -449,7 +449,7 @@ try {
     $evidence.error = $_.Exception.ToString()
 } finally {
     try {
-    $evidence.checks = @($checks)
+    $evidence.checks = $checks.ToArray()
     $evidence.durationSeconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
     $failed = @($checks | Where-Object { -not $_.ok })
     $evidence.passed = ($failed.Count -eq 0 -and $checks.Count -gt 0)
@@ -535,7 +535,7 @@ try {
         try {
             $evidence.cleanupError = $failureText
             $evidence.passed = $false
-            $evidence.checks = @($checks)
+            $evidence.checks = $checks.ToArray()
             $directory = Split-Path -Parent $EvidencePath
             if ($directory -and -not (Test-Path -LiteralPath $directory)) { New-Item -ItemType Directory -Path $directory -Force | Out-Null }
             $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
