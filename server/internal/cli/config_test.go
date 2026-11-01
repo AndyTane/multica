@@ -566,3 +566,41 @@ func TestCLIConfigRoot_AcceptsRenamedTaskRootEnv(t *testing.T) {
 		t.Fatalf("CLIConfigPathForProfile(dev) = %q, want %q from the renamed env var", got, want)
 	}
 }
+
+// A fresh install whose login is already in ~/.u-workers must keep using it
+// when an unrelated legacy directory appears (the Pi runtime creates
+// ~/.multica/pi-sessions). See CLAWSTA-99 review item 2.
+func TestCLIConfigRoot_CurrentStateSurvivesUnrelatedLegacyDirectory(t *testing.T) {
+	home := t.TempDir()
+	redirectTestHome(t, home)
+	t.Setenv(TaskConfigRootEnv, "")
+
+	currentDir := filepath.Join(home, brand.ConfigDir)
+	if err := os.MkdirAll(currentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(currentDir, "config.json"), []byte(`{"server_url":"https://fresh.example"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Another product runtime creates a directory under the legacy root.
+	if err := os.MkdirAll(filepath.Join(home, brand.LegacyConfigDir, "pi-sessions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := CLIConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(currentDir, "config.json")
+	if got != want {
+		t.Fatalf("CLIConfigPath() = %q, want %q: a Pi session directory must not move the CLI config root", got, want)
+	}
+	cfg, err := LoadCLIConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ServerURL != "https://fresh.example" {
+		t.Fatalf("loaded server_url = %q, want the value saved in the current directory", cfg.ServerURL)
+	}
+}

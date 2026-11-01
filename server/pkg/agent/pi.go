@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/brand"
 )
 
 // piBackend implements Backend by spawning the Pi CLI in non-interactive
@@ -1178,12 +1180,23 @@ func filterPiCustomArgs(args []string, logger *slog.Logger) []string {
 // piSessionDir returns the directory where Pi session JSONL files live.
 // Exported via a helper so the usage scanner (package usage) can point at
 // the same location without duplicating the path construction.
+//
+// It follows the CLI config root (internal/brand.ConfigRoot), so the directory
+// name is decided by where the CLI keeps its state rather than by a legacy
+// directory merely existing. An install that still resolves to the legacy root
+// keeps reading and writing the session store it already has.
 func piSessionDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".multica", "pi-sessions"), nil
+	return filepath.Join(brand.ConfigRoot(home, agentPathExists), "pi-sessions"), nil
+}
+
+// agentPathExists reports whether path exists, file or directory.
+func agentPathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func newPiSessionPath() (string, error) {

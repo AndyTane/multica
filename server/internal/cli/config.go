@@ -296,10 +296,12 @@ func ConfigRootDir() (root string, taskLocal bool, err error) {
 }
 
 // defaultConfigRoot resolves the per-user config directory below home.
+// Existence covers files and directories: the marker that decides the root can
+// be either config.json or profiles/.
 func defaultConfigRoot(home string) string {
 	return brand.ConfigRoot(home, func(path string) bool {
-		info, err := os.Stat(path)
-		return err == nil && info.IsDir()
+		_, err := os.Stat(path)
+		return err == nil
 	})
 }
 

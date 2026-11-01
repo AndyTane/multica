@@ -55,19 +55,29 @@ export function healthPortForProfile(profile: string): number {
 
 /**
  * The CLI config root, resolved exactly like the Go CLI
- * (server/internal/brand.ConfigRoot): an existing legacy ~/.multica directory
- * wins, so an upgraded install keeps its saved login, profiles, and daemon
- * state; a machine that never ran the product gets ~/.u-workers. Desktop must
- * agree with the CLI here, or the profile it holds would live somewhere the
- * bundled CLI never looks.
+ * (server/internal/brand.ConfigRoot).
+ *
+ * The rule follows where CLI state lives, not which directory merely exists:
+ * the current directory wins as soon as it holds config.json or profiles/, so a
+ * fresh install is not moved by an unrelated legacy directory appearing beside
+ * it (the Pi runtime creates ~/.multica/pi-sessions). An install from before
+ * the rename only has the legacy directory, so that one keeps being used; a
+ * machine with neither gets the current directory.
  */
 export function resolveCliConfigRoot(
   home: string,
   exists: (path: string) => boolean = existsSync,
 ): string {
+  const current = join(home, CONFIG_DIRECTORY);
+  if (
+    exists(join(current, "config.json")) ||
+    exists(join(current, "profiles"))
+  ) {
+    return current;
+  }
   const legacy = join(home, LEGACY_CONFIG_DIRECTORY);
   if (exists(legacy)) return legacy;
-  return join(home, CONFIG_DIRECTORY);
+  return current;
 }
 
 export function cliConfigRoot(): string {

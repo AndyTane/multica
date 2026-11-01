@@ -17,7 +17,7 @@ system key、令牌前缀、移动端 bundle id 不动（父任务「不做」�
 | 版本化 CLI 下载包 | `multica-cli-<v>-<os>-<arch>.(tar.gz\|zip)` | `u-workers-cli-<v>-<os>-<arch>.(tar.gz\|zip)` | Windows 包即 `u-workers-cli-<v>-windows-<arch>.zip` |
 | 旧版不带版本号下载包 | `multica_<os>_<arch>.(tar.gz\|zip)` | 不新增 | 只为已发布旧 CLI 的自更新继续发布 |
 | 环境变量前缀 | `MULTICA_*` | `U_WORKERS_*` | 进程启动时双向映射，见下文 |
-| 配置目录 | `~/.multica/` | `~/.u-workers/` | 已有旧目录的机器继续用旧目录；新机器用新目录 |
+| 配置目录 | `~/.multica/` | `~/.u-workers/` | 按「里面有没有 CLI 状态」选：新目录有 `config.json`/`profiles/` 就用新目录，否则旧目录存在用旧目录，都没有用新目录 |
 | 会话 Cookie | `multica_auth` / `multica_csrf` / `multica_csrf_session` | `u_workers_auth` / `u_workers_csrf` / `u_workers_csrf_session` | 服务端新旧都读、都写 |
 | HTTP 头 | `X-Multica-*` | `X-U-Workers-*` | 服务端新旧都发，客户端新旧都读 |
 
@@ -47,17 +47,24 @@ Docker Compose 的 operator 变量映射（`.env.example`、`docker-compose*.yml
 仍走旧名，属于部署批次；本轮的 Go 桥接保证镜像内进程对两种前缀都生效，但 Compose 只透传旧名，
 这一点已写进 `.env.example` 顶部提示。
 
-### 配置目录：旧目录优先，绝不静默搬家
+### 配置目录：按「有没有 CLI 状态」选，绝不静默搬家
 
 `cli.ConfigRootDir()` 的解析顺序：
 
 1. `MULTICA_TASK_CONFIG_ROOT`（也接受 `U_WORKERS_TASK_CONFIG_ROOT`）— daemon 任务私有根，行为不变；
-2. `~/.multica` 已存在 → 用它。升级机器保留登录、profile、daemon 状态；
-3. 否则 `~/.u-workers` — 从没跑过本产品的机器。
+2. `~/.u-workers` 里已有 CLI 状态（`config.json` 或 `profiles/`）→ 用它。新装机器登录后即使别的
+   运行时在旧目录里建了东西，也不会被拽回旧目录；
+3. 否则 `~/.multica` 存在 → 用它。升级机器保留登录、profile、daemon 状态；
+4. 都没有 → `~/.u-workers`。
+
+只看「CLI 状态」而不是「目录在不在」是必须的：Pi 运行时会自己创建 `~/.multica/pi-sessions`，
+按旧规则会让全新安装的机器在 Pi 跑过一次之后突然改读 `~/.multica/config.json`，登录和 daemon
+状态一起丢掉。Pi 的会话目录 `piSessionDir` 跟随同一根目录，仍解析到旧目录的机器继续读写原来的
+session store，已有会话照常 resume。
 
 配置目录里放的是凭据和 daemon 状态，升级过程中自动改目录名会静默丢登录，所以不做自动迁移。
-Desktop 用同一条规则解析 `profileDir`（`apps/desktop/src/main/daemon-profile.ts`），否则它持有的
-`u-workers-desktop-*` profile 会落在 CLI 不看的目录。
+Desktop（`apps/desktop/src/main/daemon-profile.ts`）和 `scripts/configure-dsh-web.ps1` 用同一条规则，
+否则 Desktop 持有的 `u-workers-desktop-*` profile 会落在 CLI 不看的目录。
 
 ### Cookie：旧名照读照写
 
@@ -101,7 +108,7 @@ C1（本 PR）只开兼容，不删任何旧路径。之后按下面的条件逐
 | --- | --- | --- |
 | Cookie | 本版本发布 ≥2 个 tag，且 Web/Desktop/Mobile 的最低支持版本都已读新名（届时回滚目标也都认识新 cookie）；同一 PR 把服务端与前端的读取顺序翻成新名优先 | 停写后再过 1 个 tag，旧名 cookie 自然过期（TTL 30 天） |
 | HTTP 头 | 与 Cookie 同批（同一批客户端/服务端组合决定） | 停发后再过 1 个 tag |
-| 环境变量 | 无「写」方向：新名一直是唯一写入方 | 本版本发布 ≥2 个 tag，且 `.env.example`、`SELF_HOSTING*` 文档已全部改成 `U_WORKERS_*`，Compose 映射（部署批次）同时接受两种前缀 |
+| 环境变量 | 无「写」方向：新名一直是唯一写入方 | 本版本发布 ≥2 个 tag，且 `.env.example`、`SELF_HOSTING*` 文档已全部改成 `U_WORKERS_*`，Compose 映射（部署批次）同时接受两种前缀；**另一个前提：daemon 注入任务的 `taskMulticaEnvironment` 必须先改成新名**（否则移除旧名读取会断掉任务上下文） |
 | 配置目录 | 永久：不做自动迁移；旧目录一直可用 | 永不删除旧目录支持；可选将来提供显式 `config migrate`，不排期 |
 | 旧 CLI 命令 `multica` | 一个 major 版本里在 release notes 宣布后移除；在此之前两个名字一直一起装 | — |
 | 旧不带版本号下载包 `multica_<os>_<arch>` | 本版本发布 ≥2 个 tag，确认没有更旧的 CLI 还在自更新（发布页下载统计/issue 反馈；无遥测，按保守估计），且 Desktop 的 CLI 下载（`apps/desktop/src/main/cli-release-asset.ts`，目前只认 `multica-cli-` 前缀、靠这个旧包兜底）已改认 `u-workers-cli-` 并发布，release notes 宣布 | 与「写」同批 |
@@ -119,6 +126,7 @@ C1（本 PR）只开兼容，不删任何旧路径。之后按下面的条件逐
 | `go build ./...`（server） | 通过 |
 | `go test ./internal/brand ./internal/envcompat` | 通过 |
 | `go test ./internal/cli` | 通过，除 `TestCLIConfig_TaskRootOverridesOwnerHome`：Windows 上 `chmod` 语义导致 0777 ≠ 0700，在 `origin/main` 干净 worktree 上同样失败（既有问题） |
+| `go test ./internal/brand ./internal/cli ./pkg/agent`（配置目录状态规则与 Pi sessions 用例） | 通过 |
 | `go test ./internal/auth ./internal/middleware` | 通过 |
 | `go test ./internal/handler ./internal/service ./internal/seatcapacity` | 通过 / 数据库相关用例按既有方式跳过 |
 | `go test ./cmd/multica` | 通过，除 origin/main 上同样失败的 4 个 Windows 路径语义用例与 1 个同类 lint 用例 |
@@ -127,7 +135,7 @@ C1（本 PR）只开兼容，不删任何旧路径。之后按下面的条件逐
 | `bash scripts/install-source.test.sh` | `install source tests passed` |
 | `pwsh scripts/install.ps1.test.ps1` | `install.ps1 tests passed` |
 | `pwsh scripts/install-source.test.ps1` | `install source tests passed` |
-| `pnpm --filter @multica/core test` | 173 文件 / 2226 用例通过 |
+| `pnpm --filter @multica/core test` | 173 文件 / 2227 用例通过 |
 | `pnpm --filter @multica/desktop test` | 通过（含 daemon-profile 新旧目录用例） |
 | `pnpm typecheck` | 通过 |
 | `pnpm lint` | 见下方结果 |
@@ -147,13 +155,19 @@ Token is invalid or expired: GET /api/me: Get "http://127.0.0.1:9/api/me": dial 
 
 三种情况都指向预期地址，两个都设时新名获胜。
 
-### 配置目录三种情况（真实二进制）
+### 配置目录矩阵（真实二进制）
 
 ```
-A 只有 ~/.multica（升级机器）：config file: ...\.multica\config.json，server_url 来自旧文件，未创建 ~/.u-workers
+A 升级机器（只有 ~/.multica）：config file: ...\.multica\config.json，server_url 来自旧文件，未创建 ~/.u-workers
 B 全新 HOME：config set server_url 创建 ...\.u-workers\config.json，未创建 ~/.multica
-C 两个目录都在：读取 ...\.multica\config.json（旧目录优先，不掉登录）
+C 新装后 Pi 运行时创建 ~/.multica/pi-sessions（回归场景）：
+  目录内容 .multica .u-workers → config show 仍读 ...\.u-workers\config.json，server_url 正常
+D 两个目录都有 CLI 状态：读 ...\.u-workers\config.json（新目录优先）
+E 旧目录只有 pi-sessions、新目录有 config：仍读 ...\.u-workers\config.json（不被打回旧目录）
 ```
+
+C/E 是 CLAWSTA-99 评审第 2 项修复后的回归场景：旧规则在这两处会切回 `~/.multica` 并显示
+`server_url: (not set)`，新规则只看「新目录里有没有 CLI 状态」。
 
 ### 新旧 CLI 命令
 
@@ -173,6 +187,84 @@ Go 测试覆盖：
 `TestClearAuthCookies_ClearsBothNameFamilies`（登出清六个名字）、`TestValidateCSRF_ReadsLegacyAuthCookieName`（旧名 cookie 下 CSRF 校验通过）；
 前端 `packages/core/api/client.test.ts` 覆盖「只读旧名」「只读新名」「新旧都在时旧名优先」三种 CSRF cookie 场景。
 
+## CLAWSTA-99 评审修复记录（第二轮，PR #12 同分支）
+
+后端架构师结论「需修改」，名字与过渡方案拍板通过。三项必改与两条不阻塞项的处理如下。
+
+### 1. 任务子进程会拿到 daemon 自己的令牌（安全）
+
+启动桥接让 daemon 进程里同时存在两套前缀副本，而四处过滤点只认 `MULTICA_`。副本进入任务子进程后，
+子进程 CLI 再桥接一次、新名获胜，任务专属的 `TOKEN`/`SERVER_URL`/`WORKSPACE_ID`/`LAUNCHED_BY`
+被 daemon 自己的值覆盖；`custom_env` 也能用 `U_WORKERS_TOKEN` 绕过黑名单。
+
+修复（提交 `4f37ef8e3`）：`brand.IsProductEnvKey` 同时认两种前缀，四处过滤点统一使用——
+`pkg/agent/claude.go`（mergeEnv）、`internal/daemon/daemon.go`（isBlockedEnvKey）、
+`internal/daemon/execenv/codex_shell_env.go`（Codex shell 白名单）、
+`cmd/multica/cmd_agent_resume.go`（resumeEnvironment）。
+
+回归测试：`server/pkg/agent/env_bridge_test.go` 的
+`TestMergeEnvKeepsTaskValuesAfterChildBridge` 复现评审实测场景（daemon `MULTICA_TOKEN=pat_user`
++ 任务 `MULTICA_TOKEN=mat_task`，按子进程桥接规则重算后有效值是 `mat_task`）；
+`TestIsBlockedEnvKey` 增补 `U_WORKERS_TOKEN`、`u_workers_task_config_root`；
+`TestCodexShellEnvAllowlistUsesExactTaskAndSafeInheritedNames` 与
+`TestAgentResumeEnvironmentAndInteractiveArguments` 增补桥接副本用例。
+
+### 2. 新装机器会「掉登录」
+
+原因：旧规则是「`~/.multica` 目录存在就用旧目录」，而 Pi 运行时会自行创建 `~/.multica/pi-sessions`。
+全新安装的登录写在 `~/.u-workers/config.json`，Pi 跑过一次后 CLI 改读 `~/.multica/config.json`，
+`server_url` 变成 `(not set)`，登录与 daemon 状态一起丢。
+
+修复：根目录改按「里面有没有 CLI 状态」判断（规则见上文「配置目录」一节）。Go `brand.ConfigRoot`、
+Desktop `resolveCliConfigRoot`、`scripts/configure-dsh-web.ps1` 三处同步；`piSessionDir` 跟随同一根目录
+（解析到旧目录的机器继续读写原来的 session store，已有会话照常 resume）。
+
+回归测试（本轮新增）：
+
+```
+--- PASS: TestConfigRootCurrentStateWinsOverAnUnrelatedLegacyDirectory
+--- PASS: TestCLIConfigRoot_CurrentStateSurvivesUnrelatedLegacyDirectory
+--- PASS: TestPiSessionDirFollowsTheCLIConfigRoot
+    fresh→~/.u-workers、升级→~/.multica、新目录有状态+旧目录出现→~/.u-workers
+--- PASS: resolveCliConfigRoot > "keeps the current directory once it holds CLI state"（desktop）
+```
+
+### 3. 插件安装头在回滚时会被拒
+
+修复（提交 `de26d0ec2`）：过渡期内 `packages/core/api/client.ts` 只发旧名
+`X-Multica-Plugin-Installation`；服务端继续两种都收、CORS allowlist 同时放行；收口时再把客户端切到新名。
+理由与 CSRF 只用一个头一致：回滚后的旧服务端只 allowlist 它自带的头名，第二个头会让预检直接失败且客户端无法重试。
+
+### 评审提出、不阻塞的两条
+
+- 先回滚再升级时浏览器残留 `u_workers_auth` 并压过 `multica_auth`：已在提交 `dbd6a1970` 处理——
+  双写期内服务端与前端读取都改成**旧名优先**（旧名是每个版本都会写、都会清的，新名回滚后可能残留旧账号的
+  cookie），停止双写时把读取顺序翻成新名优先，并已写进过渡表。
+- `internal/daemon/config.go` 里写死的 `~/.multica/hooks`（只用于识别 hooks 目录）归部署批次处理，本轮不动。
+- 过渡期结束条件补一条前提：移除旧环境变量读取前，daemon 注入任务的 `taskMulticaEnvironment`
+  必须先改成新名（已写进过渡表）。
+
+### 修复后重跑的矩阵（真实二进制）
+
+```
+环境变量（auth status，只给 MULTICA_TOKEN）：
+  只设 MULTICA_SERVER_URL=http://127.0.0.1:9   → 请求打到 :9
+  只设 U_WORKERS_SERVER_URL=http://127.0.0.1:9 → 请求打到 :9
+  旧=:1、新=:9 同时设                          → 请求打到 :9（新名获胜）
+
+配置目录：
+  A 升级机器（只有 ~/.multica）                       → 读 ...\.multica\config.json
+  B 全新 HOME                                         → config set 写入 ...\.u-workers\config.json
+  C 新装后 Pi 创建 ~/.multica/pi-sessions（回归场景） → 仍读 ...\.u-workers\config.json
+  D 两个目录都有 CLI 状态                             → 读 ...\.u-workers\config.json
+  E 旧目录只有 pi-sessions、新目录有 config           → 仍读 ...\.u-workers\config.json
+```
+
+整包失败集合与修复前 `e003a96e` 干净 worktree 逐项比对无新增；`internal/brand`、`internal/envcompat`、
+`internal/auth`、`internal/middleware`、`internal/seatcapacity` 全通过；`pkg/agent`、`internal/daemon`、
+`internal/daemon/execenv`、`cmd/multica` 的失败与本机既有失败集合一致。前端 `@multica/core` 2227 用例、
+desktop `daemon-profile.test.ts` 14 用例、`pnpm typecheck` 10/10、`pnpm lint` 0 error 均通过。
+
 ## 没做 / 边界（明确留给后续批次）
 
 1. **部署批次**：Windows 计划任务改名、Compose 里 41 个 operator 变量映射、`.env.example` 变量实际改名
@@ -191,5 +283,5 @@ Go 测试覆盖：
 - 六个 Cookie 与两套 header 是刻意多出来的写操作，体积可忽略；回滚方式就是回滚本 PR：旧服务端只认旧名，
   而本轮旧名照写，所以回滚不会把用户踢下线。
 - 环境变量桥接是进程内的一次性映射，不落盘、不改子进程协议；回滚后旧名行为与之前完全一致。
-- 配置目录只在「旧目录不存在」时才用新目录，回滚不会产生两个 profile 根。
+- 配置目录按「CLI 状态在哪」选择：新目录没有 `config.json`/`profiles/` 时仍走旧目录，回滚不会产生两个 profile 根。
 - 自更新新增「刷新同目录另一个可执行文件名」是 best-effort：失败不影响主更新（只是另一个命令名版本落后）。

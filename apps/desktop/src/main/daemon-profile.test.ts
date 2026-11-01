@@ -49,6 +49,25 @@ describe("resolveCliConfigRoot", () => {
       join("/home/user", ".u-workers"),
     );
   });
+
+  // A fresh install's state is already in ~/.u-workers. An unrelated directory
+  // appearing under ~/.multica (the Pi runtime creates pi-sessions there) must
+  // not move the config root. See CLAWSTA-99 review item 2.
+  it("keeps the current directory once it holds CLI state", () => {
+    const paths = new Set([
+      join("/home/user", ".u-workers", "config.json"),
+      join("/home/user", ".multica"),
+    ]);
+    expect(resolveCliConfigRoot("/home/user", (path) => paths.has(path))).toBe(
+      join("/home/user", ".u-workers"),
+    );
+
+    paths.delete(join("/home/user", ".u-workers", "config.json"));
+    paths.add(join("/home/user", ".u-workers", "profiles"));
+    expect(resolveCliConfigRoot("/home/user", (path) => paths.has(path))).toBe(
+      join("/home/user", ".u-workers"),
+    );
+  });
 });
 
 describe("profile paths", () => {

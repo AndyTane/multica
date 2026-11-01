@@ -16,12 +16,17 @@ $AccessLog = (Resolve-Path -LiteralPath $AccessLog).Path
 $CliPath = (Resolve-Path -LiteralPath $CliPath).Path
 $BridgePath = (Resolve-Path -LiteralPath $BridgePath).Path
 # Same config-root resolution as the CLI (server/internal/brand.ConfigRoot):
-# an existing legacy ~/.multica wins so an upgraded install finds the bridge
-# config it already wrote; a machine that never ran the product uses
-# ~/.u-workers.
+# the current directory wins once it holds CLI state (config.json or profiles/),
+# an existing legacy ~/.multica is used by an upgraded install, and a machine
+# that never ran the product uses ~/.u-workers. A mere legacy directory — the
+# Pi runtime creates ~/.multica/pi-sessions — must not move the CLI root.
 $userHome = [Environment]::GetFolderPath('UserProfile')
+$currentConfigDirectory = Join-Path $userHome '.u-workers'
 $legacyConfigDirectory = Join-Path $userHome '.multica'
-$configDirectory = if (Test-Path -LiteralPath $legacyConfigDirectory) { $legacyConfigDirectory } else { Join-Path $userHome '.u-workers' }
+$currentHasCliState =
+    (Test-Path -LiteralPath (Join-Path $currentConfigDirectory 'config.json')) -or
+    (Test-Path -LiteralPath (Join-Path $currentConfigDirectory 'profiles'))
+$configDirectory = if ($currentHasCliState) { $currentConfigDirectory } elseif (Test-Path -LiteralPath $legacyConfigDirectory) { $legacyConfigDirectory } else { $currentConfigDirectory }
 New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
 $configFile = Join-Path $configDirectory 'dsh-web.json'
 @{ origin = $origin.GetLeftPart([UriPartial]::Authority); accessLog = $AccessLog } |

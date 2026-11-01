@@ -109,3 +109,28 @@ func TestCLICommandForReportsTheInvokedName(t *testing.T) {
 		}
 	}
 }
+
+// A fresh install whose state is already in the current directory must not be
+// moved by an unrelated legacy directory appearing beside it: other product
+// runtimes (the Pi runtime writes ~/.multica/pi-sessions) create that directory
+// without being CLI state. See CLAWSTA-99 review item 2.
+func TestConfigRootCurrentStateWinsOverAnUnrelatedLegacyDirectory(t *testing.T) {
+	home := t.TempDir()
+	current := filepath.Join(home, ConfigDir)
+	legacy := filepath.Join(home, LegacyConfigDir)
+	markers := map[string]bool{
+		filepath.Join(current, "config.json"): true,
+		filepath.Join(current, "profiles"):    true,
+		legacy:                                true,
+	}
+	got := ConfigRoot(home, func(path string) bool { return markers[path] })
+	if got != current {
+		t.Fatalf("ConfigRoot() = %q, want the current directory %q when it already holds CLI state", got, current)
+	}
+
+	// profiles/ alone is enough CLI state too.
+	markers[filepath.Join(current, "config.json")] = false
+	if got := ConfigRoot(home, func(path string) bool { return markers[path] }); got != current {
+		t.Fatalf("ConfigRoot() = %q, want the current directory %q when only profiles/ exists", got, current)
+	}
+}

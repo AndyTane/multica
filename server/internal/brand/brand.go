@@ -113,18 +113,32 @@ func IsProductEnvKey(key string) bool {
 }
 
 // ConfigRoot returns the per-user directory that owns CLI profiles and
-// config.json for the given home directory: the legacy directory when it
-// already exists (an upgraded install keeps its login and daemon state), and
-// the current directory for a machine that has never run the product.
+// config.json for the given home directory.
 //
-// exists reports whether a path exists. Callers pass os.Stat's result so this
-// stays testable without touching the filesystem.
+// The choice follows where CLI state actually lives, not which directory merely
+// exists. Other product runtimes create their own entries under the legacy
+// directory (the Pi runtime writes ~/.multica/pi-sessions), so a fresh install
+// — whose state is already in ~/.u-workers/config.json — must not be moved to
+// the legacy directory by an unrelated directory appearing beside it.
+//
+// Order:
+//  1. ~/.u-workers when it already holds CLI state (config.json or profiles/);
+//  2. otherwise ~/.multica when it exists (an install from before the rename
+//     keeps its login, profiles, and daemon state);
+//  3. otherwise ~/.u-workers (a machine that has never run the product).
+//
+// exists reports whether a path exists (file or directory). Callers pass
+// os.Stat's result so this stays testable without touching the filesystem.
 func ConfigRoot(home string, exists func(path string) bool) string {
+	current := filepath.Join(home, ConfigDir)
+	if exists(filepath.Join(current, "config.json")) || exists(filepath.Join(current, "profiles")) {
+		return current
+	}
 	legacy := filepath.Join(home, LegacyConfigDir)
 	if exists(legacy) {
 		return legacy
 	}
-	return filepath.Join(home, ConfigDir)
+	return current
 }
 
 // IsCLICommandName reports whether base is one of the CLI executable names
