@@ -55,9 +55,9 @@ const (
 	slashInternalErrorText    = "⚠️ Something went wrong creating the issue. Please try again."
 	slashDisabledText         = "This Slack app isn't connected to U Workers (or was disconnected). Ask a workspace admin to reconnect it."
 	slashNewStartedText       = "✅ Started a new U Workers chat."
-	slashNewThreadGuideText   = "In a channel, start the new chat from the target thread with `@Multica /new`."
+	slashNewThreadGuideText   = "In a channel, start the new chat from the target thread with `@U Workers /new`."
 	slashClearStartedText     = "✅ Cleared the agent context in this U Workers chat."
-	slashClearThreadGuideText = "In a channel, clear the target thread's context with `@Multica /clear`."
+	slashClearThreadGuideText = "In a channel, clear the target thread's context with `@U Workers /clear`."
 )
 
 // slashQueries is the narrow slice of generated queries the slash-command

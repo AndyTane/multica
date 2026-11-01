@@ -38,7 +38,7 @@ export interface RegisterWecomBYORequest {
   /** The bot's name as it appears in a chat. Optional, and used for one
    * thing: recognising the bot's own @-mention in a group. WeCom delivers a
    * mention as literal text with no structured mention list, so a name
-   * containing a space ("Multica Bot") otherwise swallows the slash command
+   * containing a space ("U Workers Bot") otherwise swallows the slash command
    * typed after it. Omitting it on a re-install of the same bot keeps the
    * name already stored. */
   bot_name?: string;
