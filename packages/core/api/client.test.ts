@@ -2951,13 +2951,24 @@ describe("ApiClient CSRF headers", () => {
   });
 
   // A browser that signed in before the rename holds only the legacy cookies,
-  // and one that signed in after it holds both. The current name must win so a
-  // renewal's session-bound value is not shadowed by a stale legacy value.
-  it("prefers the current cookie names when both spellings are present", async () => {
+  // and one that signed in after it holds both. The legacy name wins: every
+  // server version writes it, so after a rollback it is the one that matches the
+  // auth cookie the server reads.
+  it("prefers the legacy cookie names when both spellings are present", async () => {
     stubCookies(
       "multica_csrf=legacy-token-bound; multica_csrf_session=legacy-session-bound; " +
         "u_workers_csrf=current-token-bound; u_workers_csrf_session=current-session-bound",
     );
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new ApiClient("https://api.example.test").markOnboardingComplete();
+
+    expect(capturedHeaders(fetchMock)["X-CSRF-Token"]).toBe("legacy-session-bound");
+  });
+
+  it("reads the current cookie names when no legacy spelling exists", async () => {
+    stubCookies("u_workers_csrf=current-token-bound; u_workers_csrf_session=current-session-bound");
     const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
 

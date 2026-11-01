@@ -61,12 +61,13 @@ Desktop 用同一条规则解析 `profileDir`（`apps/desktop/src/main/daemon-pr
 
 ### Cookie：旧名照读照写
 
-`server/internal/auth` 在登录、续期时同时写三对 cookie（新名 + 旧名），读会话时新名优先、旧名兜底，
-登出同时清六个名字。这样：
+`server/internal/auth` 在登录、续期时同时写三对 cookie（新名 + 旧名），读会话时**旧名优先**、新名兜底，
+登出同时清六个名字。旧名优先是因为双写期内只有旧名是每个服务端版本都会写、都会清的：回滚到旧服务端后，
+旧服务端的登录/登出不碰新名，而登出不吊销 token，新名优先会把上一个账号带回来。停止双写时把读取顺序翻成新名优先。这样：
 
 - 升级前登录的浏览器手里只有旧 cookie，新服务端照样认；
 - 新登录后回滚到旧服务端，旧服务端读旧 cookie，仍然认；
-- 前端（`packages/core/api/client.ts`）读 CSRF 值时新旧名都读，握手仍然只用 `X-CSRF-Token` 一个头
+- 前端（`packages/core/api/client.ts`）读 CSRF 值时新旧名都读、与服务端同样旧名优先，握手仍然只用 `X-CSRF-Token` 一个头
   （加第二个头会让旧服务端的 CORS allowlist 拒绝预检，见 MUL-7436 的注释）。
 
 ### HTTP 头：服务端双发，客户端双读
@@ -98,7 +99,7 @@ C1（本 PR）只开兼容，不删任何旧路径。之后按下面的条件逐
 
 | 项 | 停止双写的条件 | 停止双读的条件 |
 | --- | --- | --- |
-| Cookie | 本版本发布 ≥2 个 tag，且 Web/Desktop/Mobile 的最低支持版本都已读新名（届时回滚目标也都认识新 cookie） | 停写后再过 1 个 tag，旧名 cookie 自然过期（TTL 30 天） |
+| Cookie | 本版本发布 ≥2 个 tag，且 Web/Desktop/Mobile 的最低支持版本都已读新名（届时回滚目标也都认识新 cookie）；同一 PR 把服务端与前端的读取顺序翻成新名优先 | 停写后再过 1 个 tag，旧名 cookie 自然过期（TTL 30 天） |
 | HTTP 头 | 与 Cookie 同批（同一批客户端/服务端组合决定） | 停发后再过 1 个 tag |
 | 环境变量 | 无「写」方向：新名一直是唯一写入方 | 本版本发布 ≥2 个 tag，且 `.env.example`、`SELF_HOSTING*` 文档已全部改成 `U_WORKERS_*`，Compose 映射（部署批次）同时接受两种前缀 |
 | 配置目录 | 永久：不做自动迁移；旧目录一直可用 | 永不删除旧目录支持；可选将来提供显式 `config migrate`，不排期 |
@@ -170,7 +171,7 @@ multica --help    → USAGE: multica <command> <subcommand> [flags]
 Go 测试覆盖：
 `TestAuthCookie_ReadsBothSpellings`（旧名 cookie 可认证）、`TestSetAuthCookies_WritesBothNameFamilies`（登录同时写新旧名）、
 `TestClearAuthCookies_ClearsBothNameFamilies`（登出清六个名字）、`TestValidateCSRF_ReadsLegacyAuthCookieName`（旧名 cookie 下 CSRF 校验通过）；
-前端 `packages/core/api/client.test.ts` 覆盖「只读旧名」「新旧都在时新名优先」「旧名回退」三种 CSRF cookie 场景。
+前端 `packages/core/api/client.test.ts` 覆盖「只读旧名」「只读新名」「新旧都在时旧名优先」三种 CSRF cookie 场景。
 
 ## 没做 / 边界（明确留给后续批次）
 

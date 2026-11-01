@@ -422,12 +422,14 @@ func TestAuthCookie_ReadsBothSpellings(t *testing.T) {
 			wantOK:    true,
 		},
 		{
-			name: "both present: the current name wins",
+			// After a rollback an older server rewrites only the legacy name,
+			// so the current one can belong to a previous account.
+			name: "both present: the legacy name wins while both are written",
 			cookies: []*http.Cookie{
 				{Name: LegacyAuthCookieName, Value: "legacy"},
 				{Name: AuthCookieName, Value: "current"},
 			},
-			wantValue: "current",
+			wantValue: "legacy",
 			wantOK:    true,
 		},
 		{

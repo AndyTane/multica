@@ -350,10 +350,16 @@ func ClearAuthCookies(w http.ResponseWriter) {
 	expire(LegacySessionCSRFCookieName, false)
 }
 
-// AuthCookie returns the session-token cookie from either spelling. The current
-// name wins when a browser somehow holds both.
+// AuthCookie returns the session-token cookie from either spelling.
+//
+// While both names are written, the legacy one is read first: it is the only
+// name every server version writes and clears, so it is never older than the
+// current one. The current name can be stale after a rollback, because an older
+// server's login and logout leave it untouched and logout does not revoke the
+// token; preferring it would bring back the account that held it. Flip the
+// order when the legacy writes stop.
 func AuthCookie(r *http.Request) (*http.Cookie, bool) {
-	for _, name := range []string{AuthCookieName, LegacyAuthCookieName} {
+	for _, name := range []string{LegacyAuthCookieName, AuthCookieName} {
 		if cookie, err := r.Cookie(name); err == nil && cookie.Value != "" {
 			return cookie, true
 		}

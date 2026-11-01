@@ -859,14 +859,16 @@ export class ApiClient {
   }
 
   /**
-   * Read a cookie under its current name, then its legacy name.
+   * Read a cookie under its legacy name, then its current name.
    *
-   * A server from before the rename sets only the legacy name, and a browser
-   * that has not signed in since the rename still holds only that one; reading
-   * a single name would drop the CSRF header and fail every write.
+   * A server from before the rename sets only the legacy name; reading a single
+   * name would drop the CSRF header and fail every write. The legacy name goes
+   * first because every server version writes it, so it always matches the
+   * auth cookie the server reads (see AuthCookie in server/internal/auth).
+   * Flip the order when the server stops writing legacy names.
    */
   private readCookieAny(name: string, legacyName: string): string | null {
-    return this.readCookie(name) ?? this.readCookie(legacyName);
+    return this.readCookie(legacyName) ?? this.readCookie(name);
   }
 
   private readCookie(name: string): string | null {
