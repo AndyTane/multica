@@ -285,6 +285,16 @@ Get-ChildItem -LiteralPath (Join-Path $portableRoot 'package') -File | ForEach-O
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $packageDir $_.Name) -Force
 }
 
+Write-Step 'Validating the assembled package'
+$installerPath = Join-Path $payload ('installer\u-workers-setup-' + $Version + '-windows-amd64.exe')
+if (-not (Test-Path -LiteralPath $installerPath)) { throw ('The package is missing the prebuilt installer: ' + $installerPath) }
+if (-not $SkipBuildKit) {
+    $requiredBuildInputs = @('payload\source\source.zip', 'tools\go\bin\go.exe', 'tools\gomodcache')
+    foreach ($relative in $requiredBuildInputs) {
+        if (-not (Test-Path -LiteralPath (Join-Path $packageDir $relative))) { throw ('The package is missing the offline build input: ' + $relative) }
+    }
+}
+
 Write-Step 'Writing the package manifest'
 function Get-PortableFileHash {
     param([string]$Path)

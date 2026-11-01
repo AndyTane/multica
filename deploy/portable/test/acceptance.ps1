@@ -262,10 +262,15 @@ try {
 
     # --- installer artifact + offline rebuild -------------------------------
     Write-Step 'Checking the prebuilt installer and rebuilding it offline'
-    $installer = Get-ChildItem -LiteralPath (Join-Path $serverCopy 'payload\installer') -Filter 'u-workers-setup-*.exe' | Select-Object -First 1
-    Assert-Check 'prebuilt installer shipped in the package' ($null -ne $installer -and $installer.Length -gt 10MB) ([string]$installer.Length)
-    $help = & $installer.FullName --help 2>&1 | Out-String
-    Assert-Check 'prebuilt installer starts and prints usage' ($LASTEXITCODE -eq 0 -and $help -match 'u-workers-setup')
+    $installer = Get-ChildItem -LiteralPath (Join-Path $serverCopy 'payload\installer') -Filter 'u-workers-setup-*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+    Assert-Check 'prebuilt installer shipped in the package' ($null -ne $installer -and $installer.Length -gt 10MB) $(if ($installer) { [string]$installer.Length } else { 'missing' })
+    $help = ''
+    $installerExit = -1
+    if ($installer) {
+        $help = & $installer.FullName --help 2>&1 | Out-String
+        $installerExit = $LASTEXITCODE
+    }
+    Assert-Check 'prebuilt installer starts and prints usage' ($installerExit -eq 0 -and $help -match 'u-workers-setup') ([string]$installerExit)
     if (-not $SkipInstallerBuild -and [bool]$manifest.buildKit) {
         $rebuildDir = Join-Path $workRoot 'installer-rebuild'
         New-Item -ItemType Directory -Path $rebuildDir -Force | Out-Null
