@@ -124,13 +124,13 @@ Desktop ne peut se connecter qu'à des adresses joignables à la fois depuis le 
 
 Deux comportements par défaut des éditeurs Windows produisent silencieusement un fichier que Desktop ne peut pas utiliser :
 
-- **Le Bloc-notes ajoute `.txt`.** Enregistrer sous `desktop.json` peut produire `desktop.json.txt`, que Desktop considère comme introuvable. Activez l'affichage des extensions de noms de fichiers dans l'Explorateur de fichiers, ou choisissez *Tous les fichiers* dans la boîte de dialogue d'enregistrement. Pour voir le vrai nom du fichier, exécutez `Get-ChildItem "$env:USERPROFILE.u-workers" -Filter "desktop.json*"` dans PowerShell — la colonne `Name` doit indiquer exactement `desktop.json`.
+- **Le Bloc-notes ajoute `.txt`.** Enregistrer sous `desktop.json` peut produire `desktop.json.txt`, que Desktop considère comme introuvable. Activez l'affichage des extensions de noms de fichiers dans l'Explorateur de fichiers, ou choisissez *Tous les fichiers* dans la boîte de dialogue d'enregistrement. Pour voir le vrai nom du fichier, exécutez `Get-ChildItem "$env:USERPROFILE\.u-workers" -Filter "desktop.json*"` dans PowerShell — la colonne `Name` doit indiquer exactement `desktop.json`.
 - **La redirection PowerShell écrit en UTF-16 ou avec un BOM.** `> desktop.json` et `Out-File` peuvent produire un encodage impossible à analyser, qui se traduit par une erreur de configuration.
 
 Pour éviter ces deux problèmes, créez le fichier depuis PowerShell en une seule étape :
 
 ```powershell
-$dir = "$env:USERPROFILE.u-workers"
+$dir = "$env:USERPROFILE\.u-workers"
 New-Item -ItemType Directory -Force $dir | Out-Null
 $json = @'
 {
