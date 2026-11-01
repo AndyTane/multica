@@ -41,13 +41,17 @@ func TestWecomReplierGetsItsLanguageLookupOnTheRealBootPath(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	t.Cleanup(func() { slog.SetDefault(restore) })
 
+	// The WeCom channel switch is on for both routers (CLAWSTA-102): this test
+	// isolates the key as the one variable, so the flag must not be the reason
+	// the two differ.
+	t.Setenv("FF_CHANNEL_WECOM", "true")
 	t.Setenv("MULTICA_WECOM_SECRET_KEY", "")
 	withoutWecom := events.New()
-	NewRouter(nil, realtime.NewHub(), withoutWecom, analytics.NoopClient{}, nil)
+	NewRouterWithOptions(nil, realtime.NewHub(), withoutWecom, analytics.NoopClient{}, nil, RouterOptions{FeatureFlags: testFeatureFlags(t)})
 
 	t.Setenv("MULTICA_WECOM_SECRET_KEY", base64.StdEncoding.EncodeToString(key))
 	withWecom := events.New()
-	NewRouter(nil, realtime.NewHub(), withWecom, analytics.NoopClient{}, nil)
+	NewRouterWithOptions(nil, realtime.NewHub(), withWecom, analytics.NoopClient{}, nil, RouterOptions{FeatureFlags: testFeatureFlags(t)})
 
 	// Anti-vacuity: with no WeCom block entered, no replier is built and the
 	// warning cannot appear for the reason this test names.

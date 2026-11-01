@@ -35,6 +35,18 @@ const (
 	// makes those endpoints answer 404, so clients stop syncing and search
 	// through the server again without a client release.
 	LocalSearchIndex = "local_search_index"
+	// ChannelSlack, ChannelTelegram, ChannelDingtalk and ChannelWecom gate the
+	// four IM channels that Feishu is deliberately the only *default* one of
+	// (CLAWSTA-102). Each is off by default, and off means exactly what an
+	// unset MULTICA_<CHANNEL>_SECRET_KEY already meant: the router wires no
+	// service, the handlers answer not-configured, and the channel supervisor
+	// holds no connection. Turning one back on and restarting restores the
+	// integration against the installations already in the database — no
+	// reinstall, no data migration. Feishu has no flag: it is unchanged.
+	ChannelSlack    = "channel_slack"
+	ChannelTelegram = "channel_telegram"
+	ChannelDingtalk = "channel_dingtalk"
+	ChannelWecom    = "channel_wecom"
 	// agentBuilderCompat is no longer a release flag. Keep publishing the key
 	// as enabled so installed desktop clients that still gate the AI creation
 	// entry on this config decision receive the permanently enabled behavior.
@@ -56,6 +68,15 @@ var frontendPublicFlags = []string{
 	BillingWorkspaceSubscriptions,
 	ComposioMCPApps,
 	PluginsV1,
+	// The channel switches reach the clients as well: the settings page and
+	// the agent Integrations tab read them to decide which channels to list,
+	// and they stop issuing the corresponding requests while a channel is
+	// off. Publishing them here keeps web/desktop on the same switch as the
+	// server instead of maintaining a second list in the frontend.
+	ChannelSlack,
+	ChannelTelegram,
+	ChannelDingtalk,
+	ChannelWecom,
 }
 
 func BillingWorkspaceSubscriptionsEnabled(ctx context.Context, flags *featureflag.Service) bool {
@@ -76,6 +97,22 @@ func TriageV1Enabled(ctx context.Context, flags *featureflag.Service) bool {
 
 func LocalSearchIndexEnabled(ctx context.Context, flags *featureflag.Service) bool {
 	return flags.IsEnabled(ctx, LocalSearchIndex, true)
+}
+
+func ChannelSlackEnabled(ctx context.Context, flags *featureflag.Service) bool {
+	return flags.IsEnabled(ctx, ChannelSlack, false)
+}
+
+func ChannelTelegramEnabled(ctx context.Context, flags *featureflag.Service) bool {
+	return flags.IsEnabled(ctx, ChannelTelegram, false)
+}
+
+func ChannelDingtalkEnabled(ctx context.Context, flags *featureflag.Service) bool {
+	return flags.IsEnabled(ctx, ChannelDingtalk, false)
+}
+
+func ChannelWecomEnabled(ctx context.Context, flags *featureflag.Service) bool {
+	return flags.IsEnabled(ctx, ChannelWecom, false)
 }
 
 func EvaluateFrontendPublicFlags(ctx context.Context, flags *featureflag.Service) map[string]bool {

@@ -32,12 +32,16 @@ func TestWecomBubbleClosersAreWiredOnTheRealBootPath(t *testing.T) {
 		t.Fatalf("generate a wecom secretbox key: %v", err)
 	}
 
+	// The WeCom channel switch is on for both routers (CLAWSTA-102): this
+	// test isolates the key as the one variable, so the flag must not be the
+	// reason the two differ.
+	t.Setenv("FF_CHANNEL_WECOM", "true")
 	withoutWecom := events.New()
-	NewRouter(nil, realtime.NewHub(), withoutWecom, analytics.NoopClient{}, nil)
+	NewRouterWithOptions(nil, realtime.NewHub(), withoutWecom, analytics.NoopClient{}, nil, RouterOptions{FeatureFlags: testFeatureFlags(t)})
 
 	t.Setenv("MULTICA_WECOM_SECRET_KEY", base64.StdEncoding.EncodeToString(key))
 	withWecom := events.New()
-	NewRouter(nil, realtime.NewHub(), withWecom, analytics.NoopClient{}, nil)
+	NewRouterWithOptions(nil, realtime.NewHub(), withWecom, analytics.NoopClient{}, nil, RouterOptions{FeatureFlags: testFeatureFlags(t)})
 
 	// Anti-vacuity: if the WeCom block did not run at all, nothing below can
 	// fail for the reason it names. chat:done is the subscription that has

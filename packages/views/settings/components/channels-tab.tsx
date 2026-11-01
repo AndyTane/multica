@@ -3,6 +3,13 @@
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useFeatureEnabled } from "@multica/core/config";
+import {
+  CHANNEL_DINGTALK_FLAG,
+  CHANNEL_SLACK_FLAG,
+  CHANNEL_TELEGRAM_FLAG,
+  CHANNEL_WECOM_FLAG,
+} from "@multica/core/feature-flags";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentMember } from "@multica/core/permissions";
 import { larkInstallationsOptions } from "@multica/core/lark";
@@ -59,6 +66,17 @@ export function ChannelsTab() {
   const { member } = useCurrentMember(wsId);
   const canView = !!wsId && !!member;
 
+  // CLAWSTA-102: Feishu is the only IM channel shipped enabled. A channel whose
+  // switch is off is absent from this list AND stops querying — the settings
+  // page never asks the server about a channel it is not showing, and a deep
+  // link to it (for example ?integration=slack) falls back to the list below
+  // because the channel is not there to match. Turning the switch on and
+  // restarting the server adds the channel back with no client change.
+  const slackEnabled = useFeatureEnabled(CHANNEL_SLACK_FLAG, false);
+  const dingtalkEnabled = useFeatureEnabled(CHANNEL_DINGTALK_FLAG, false);
+  const wecomEnabled = useFeatureEnabled(CHANNEL_WECOM_FLAG, false);
+  const telegramEnabled = useFeatureEnabled(CHANNEL_TELEGRAM_FLAG, false);
+
   // Reuse the detail pages' query caches. Never report a failed or pending
   // read as disconnected.
   const lark = useQuery({
@@ -68,22 +86,22 @@ export function ChannelsTab() {
   });
   const slack = useQuery({
     ...slackInstallationsOptions(wsId),
-    enabled: canView,
+    enabled: canView && slackEnabled,
     select: hasActiveInstallation,
   });
   const dingtalk = useQuery({
     ...dingtalkInstallationsOptions(wsId),
-    enabled: canView,
+    enabled: canView && dingtalkEnabled,
     select: hasActiveInstallation,
   });
   const wecom = useQuery({
     ...wecomInstallationsOptions(wsId),
-    enabled: canView,
+    enabled: canView && wecomEnabled,
     select: hasActiveInstallation,
   });
   const telegram = useQuery({
     ...telegramInstallationsOptions(wsId),
-    enabled: canView,
+    enabled: canView && telegramEnabled,
     select: hasActiveInstallation,
   });
   const channels: ChannelEntry[] = [
@@ -94,35 +112,43 @@ export function ChannelsTab() {
       content: <LarkTab />,
       state: lark,
     },
-    {
+  ];
+  if (slackEnabled) {
+    channels.push({
       id: "slack",
       label: t(($) => $.slack.section_title),
       description: t(($) => $.slack.page_description),
       content: <SlackTab />,
       state: slack,
-    },
-    {
+    });
+  }
+  if (dingtalkEnabled) {
+    channels.push({
       id: "dingtalk",
       label: t(($) => $.dingtalk.section_title),
       description: t(($) => $.dingtalk.page_description),
       content: <DingTalkTab />,
       state: dingtalk,
-    },
-    {
+    });
+  }
+  if (wecomEnabled) {
+    channels.push({
       id: "wecom",
       label: t(($) => $.wecom.section_title),
       description: t(($) => $.wecom.page_description),
       content: <WecomTab />,
       state: wecom,
-    },
-    {
+    });
+  }
+  if (telegramEnabled) {
+    channels.push({
       id: "telegram",
       label: t(($) => $.telegram.section_title),
       description: t(($) => $.telegram.page_description),
       content: <TelegramTab />,
       state: telegram,
-    },
-  ];
+    });
+  }
   const requested = resolveSettingsLocation(navigation.searchParams).integration;
   const selected = channels.find((channel) => channel.id === requested);
   const href = (integration?: string) =>

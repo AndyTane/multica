@@ -30,10 +30,15 @@ func TestWecomChannelGetsItsDeduperOnTheRealBootPath(t *testing.T) {
 		t.Fatalf("generate a wecom secretbox key: %v", err)
 	}
 
+	// The WeCom channel switch is on for both routers (CLAWSTA-102): this
+	// test isolates the key as the one variable, so the flag must not be the
+	// reason the two differ.
+	t.Setenv("FF_CHANNEL_WECOM", "true")
+
 	// Anti-vacuity as a difference rather than a count: chat:done has listeners
 	// that have nothing to do with WeCom, so a non-zero count proves nothing.
 	withoutWecom := events.New()
-	NewRouter(nil, realtime.NewHub(), withoutWecom, analytics.NoopClient{}, nil)
+	NewRouterWithOptions(nil, realtime.NewHub(), withoutWecom, analytics.NoopClient{}, nil, RouterOptions{FeatureFlags: testFeatureFlags(t)})
 
 	var logged bytes.Buffer
 	restore := slog.Default()
@@ -42,7 +47,7 @@ func TestWecomChannelGetsItsDeduperOnTheRealBootPath(t *testing.T) {
 
 	t.Setenv("MULTICA_WECOM_SECRET_KEY", base64.StdEncoding.EncodeToString(key))
 	withWecom := events.New()
-	NewRouter(nil, realtime.NewHub(), withWecom, analytics.NoopClient{}, nil)
+	NewRouterWithOptions(nil, realtime.NewHub(), withWecom, analytics.NoopClient{}, nil, RouterOptions{FeatureFlags: testFeatureFlags(t)})
 
 	if got, base := withWecom.SubscriberCount(protocol.EventChatDone),
 		withoutWecom.SubscriberCount(protocol.EventChatDone); got <= base {

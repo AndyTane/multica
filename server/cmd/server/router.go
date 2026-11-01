@@ -756,7 +756,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// installation is a bring-your-own-app (BYO) install carrying its OWN
 	// app-level token, so a per-installation Slack Factory is registered and the
 	// Supervisor drives one Socket Mode connection per installation (like Feishu).
-	if slackKey, err := secretbox.LoadKey("MULTICA_SLACK_SECRET_KEY"); err == nil {
+	// CLAWSTA-102: the channel_slack flag gate comes first. Off means exactly
+	// what a deployment without MULTICA_SLACK_SECRET_KEY already meant — the
+	// handlers answer "not configured" and the supervisor is given no Factory —
+	// so turning it back on plus a restart resumes every existing installation
+	// without a reinstall. Feishu has no such flag.
+	if !featureflags.ChannelSlackEnabled(context.Background(), opts.FeatureFlags) {
+		slog.Info("slack integration disabled (feature flag off)")
+	} else if slackKey, err := secretbox.LoadKey("MULTICA_SLACK_SECRET_KEY"); err == nil {
 		box, err := secretbox.New(slackKey)
 		if err != nil {
 			slog.Error("slack: secretbox.New failed; slack integration disabled", "error", err)
@@ -844,7 +851,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// DingTalk uses one outbound Stream connection per BYO installation. The
 	// AppSecret is encrypted at rest and the integration is inert unless its
 	// dedicated deployment key is configured.
-	if dingtalkKey, err := secretbox.LoadKey("MULTICA_DINGTALK_SECRET_KEY"); err == nil {
+	// Gated by the channel_dingtalk flag (CLAWSTA-102) before the key is read.
+	// Off is the same state as a deployment that never configured the key.
+	if !featureflags.ChannelDingtalkEnabled(context.Background(), opts.FeatureFlags) {
+		slog.Info("dingtalk integration disabled (feature flag off)")
+	} else if dingtalkKey, err := secretbox.LoadKey("MULTICA_DINGTALK_SECRET_KEY"); err == nil {
 		box, err := secretbox.New(dingtalkKey)
 		if err != nil {
 			slog.Error("dingtalk: secretbox.New failed; integration disabled", "error", err)
@@ -901,7 +912,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// skipped and the wecom Web-UI endpoints return 503; existing deployments
 	// are unaffected. The smart-bot flow does NOT require any public HTTP
 	// callback, so nothing else needs to be exposed to the internet.
-	if wecomKey, err := secretbox.LoadKey("MULTICA_WECOM_SECRET_KEY"); err == nil {
+	// Gated by the channel_wecom flag (CLAWSTA-102) before the key is read.
+	// Off is the same state as a deployment that never configured the key: no
+	// connection is created and the WeCom settings endpoints report
+	// configured:false until the flag is turned back on.
+	if !featureflags.ChannelWecomEnabled(context.Background(), opts.FeatureFlags) {
+		slog.Info("wecom integration disabled (feature flag off)")
+	} else if wecomKey, err := secretbox.LoadKey("MULTICA_WECOM_SECRET_KEY"); err == nil {
 		box, err := secretbox.New(wecomKey)
 		if err != nil {
 			slog.Error("wecom: secretbox.New failed; wecom integration disabled", "error", err)
@@ -1156,7 +1173,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// the event bus. Gated by MULTICA_TELEGRAM_SECRET_KEY (the at-rest token
 	// encryption key); when unset the handlers return 503 and no Factory is
 	// registered.
-	if telegramKey, err := secretbox.LoadKey("MULTICA_TELEGRAM_SECRET_KEY"); err == nil {
+	// Gated by the channel_telegram flag (CLAWSTA-102) before the key is read.
+	// Off is the same state as a deployment that never configured the key.
+	if !featureflags.ChannelTelegramEnabled(context.Background(), opts.FeatureFlags) {
+		slog.Info("telegram integration disabled (feature flag off)")
+	} else if telegramKey, err := secretbox.LoadKey("MULTICA_TELEGRAM_SECRET_KEY"); err == nil {
 		box, err := secretbox.New(telegramKey)
 		if err != nil {
 			slog.Error("telegram: secretbox.New failed; telegram integration disabled", "error", err)

@@ -173,6 +173,8 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 
 ## 外部集成
 
+飞书不设渠道开关。以下四个开关默认 `false`；配置对应的 `MULTICA_<CHANNEL>_SECRET_KEY`、将开关设为 `true` 并重启 API，即可恢复该渠道。Docker Compose 部署使用 `docker compose -f docker-compose.selfhost.yml up -d backend` 重建后端。关闭渠道会保留安装、绑定和会话。
+
 | 集成 | 变量 | 说明 |
 |---|---|---|
 | GitHub | `GITHUB_APP_SLUG` | GitHub App slug |
@@ -180,6 +182,10 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | GitHub | `GITHUB_APP_ID` | PR 卡片的 CI 状态、可合并性和"从 GitHub 选择"仓库都需要它 |
 | GitHub | `GITHUB_APP_PRIVATE_KEY` | 与 App ID 配套的完整 PEM 私钥，用途同上 |
 | 飞书 | `MULTICA_LARK_SECRET_KEY` | base64 编码的 32 字节凭据加密密钥 |
+| Slack | `FF_CHANNEL_SLACK` | 默认 `false`；设为 `true` 并重启 API。还需配置 `MULTICA_SLACK_SECRET_KEY` |
+| Telegram | `FF_CHANNEL_TELEGRAM` | 默认 `false`；设为 `true` 并重启 API。还需配置 `MULTICA_TELEGRAM_SECRET_KEY` |
+| 钉钉 | `FF_CHANNEL_DINGTALK` | 默认 `false`；设为 `true` 并重启 API。还需配置 `MULTICA_DINGTALK_SECRET_KEY` |
+| 企业微信 | `FF_CHANNEL_WECOM` | 默认 `false`；设为 `true` 并重启 API。还需配置 `MULTICA_WECOM_SECRET_KEY` |
 | Slack | `MULTICA_SLACK_SECRET_KEY` | base64 编码的 32 字节 token 加密密钥 |
 | Telegram | `MULTICA_TELEGRAM_SECRET_KEY` | base64 编码的 32 字节 Bot token 加密密钥 |
 | Composio | `COMPOSIO_API_KEY` | 启用 Composio 工具连接 |
