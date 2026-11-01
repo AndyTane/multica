@@ -371,7 +371,9 @@ function Invoke-PortableSql {
         Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
     }
     if ($exitCode -ne 0) { throw ('PostgreSQL command failed: ' + $output.Trim()) }
-    return @($output -split "\r?\n" | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ -ne '' })
+    # -NoEnumerate keeps a single-row (or empty) result an array for callers.
+    $rows = @($output -split "\r?\n" | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ -ne '' })
+    Write-Output -NoEnumerate $rows
 }
 
 function New-PortablePassword {
