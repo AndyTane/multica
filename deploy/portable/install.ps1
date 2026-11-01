@@ -455,6 +455,11 @@ function Get-PortableAdoptedDatabaseConfiguration {
 
 function Invoke-PortableAdoption {
     param([string]$OldRoot, [string]$HostName)
+    # The clean-install path stages the bundled runtime (PostgreSQL, node and the
+    # server runner) out of payload before Prepare runs; the adoption path skips
+    # that call, so stage it here or Prepare cannot find runtime\pgsql,
+    # runtime\node and runtime\native-windows.ps1.
+    Invoke-PortableStageRuntime
     $oldConfig = Get-PortableAdoptedDatabaseConfiguration $OldRoot
     $oldRunner = Join-Path $OldRoot 'runtime\native-windows.ps1'
     if (-not (Test-Path -LiteralPath $oldRunner)) { throw ('The deployment under -AdoptRoot has no runtime\native-windows.ps1: ' + $OldRoot) }
