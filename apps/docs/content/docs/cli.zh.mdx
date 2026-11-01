@@ -35,7 +35,7 @@ multica version
 
 ## 第一次连接
 
-连接 U Workers Cloud：
+连接本机上的服务（默认 `localhost:8080` 和 `localhost:3000`）：
 
 ```bash
 multica setup
@@ -295,7 +295,7 @@ CLI 配置文件包含可代表你访问 U Workers 的令牌。不要提交到�
 | `auth` | `status` / `logout` | 查看认证状态；`logout` 只删除本地保存的令牌，不吊销服务端令牌 | |
 | `user` | `profile get/update` | 查看或更新当前用户资料 | |
 | `login` | — | 浏览器登录并自动配置全部工作区 | `--token`（不带值时在终端交互式输入） |
-| `setup` | `cloud`（默认）、`self-host` | 保存服务地址、完成登录并启动守护进程 | `self-host`：`--server-url`、`--app-url`、`--port`、`--frontend-port` |
+| `setup` | `self-host`（与 `setup` 相同） | 保存服务地址、完成登录并启动守护进程 | `--server-url`、`--app-url`、`--port`、`--frontend-port` |
 | `attachment` | `download <attachment-id>`、`upload <path>` | 下载或上传附件 | `download`：`--output-dir`；`upload`：`--task` |
 | `config` | `show`、`set <key> <value>` | 查看或修改当前 profile 的本地配置 | 优先级：命令行 flag > 环境变量 > `config.json` > 内置默认；设为空串可清除 |
 | `update` | — | 更新 CLI 到最新版本 | |

@@ -35,7 +35,7 @@ multica version
 
 ## First connection
 
-Connect to U Workers Cloud:
+Connect to a server on this machine (defaults to `localhost:8080` and `localhost:3000`):
 
 ```bash
 multica setup
@@ -318,7 +318,7 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | `auth` | `status` / `logout` | Check auth status; `logout` only deletes the locally saved token and does not revoke it on the server | |
 | `user` | `profile get/update` | View or update the current user's profile | |
 | `login` | — | Sign in via the browser and configure all workspaces automatically | `--token` (prompts interactively in the terminal when passed without a value) |
-| `setup` | `cloud` (default), `self-host` | Save the server address, complete sign-in, and start the daemon | `self-host`: `--server-url`, `--app-url`, `--port`, `--frontend-port` |
+| `setup` | `self-host` (same as `setup`) | Save the server address, complete sign-in, and start the daemon | `--server-url`, `--app-url`, `--port`, `--frontend-port` |
 | `attachment` | `download <attachment-id>`, `upload <path>` | Download or upload attachments | `download`: `--output-dir`; `upload`: `--task` |
 | `config` | `show`, `set <key> <value>` | View or edit the current profile's local configuration | Precedence: command-line flags > environment variables > `config.json` > built-in defaults; set an empty string to clear a value |
 | `update` | — | Update the CLI to the latest version | |

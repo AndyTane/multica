@@ -96,7 +96,7 @@ MULTICA_WECOM_SECRET_KEY=<base64-encoded 32-byte key>
 MULTICA_TELEGRAM_SECRET_KEY=<base64-encoded 32-byte key>
 ```
 
-These keys encrypt stored Bot credentials. See [Environment variables](/environment-variables) for how to generate, store, and rotate them. U Workers Cloud already has this configured.
+These keys encrypt stored Bot credentials. See [Environment variables](/environment-variables) for how to generate, store, and rotate them.
 
 WeCom's only outbound path is the WebSocket held by one process, so what happens to a reply produced on a *different* replica depends on the realtime relay:
 

@@ -109,7 +109,7 @@ To restore access:
 2. For a Mac that runs unattended, grant Full Disk Access to the new binary. Print its path with `realpath "$(command -v multica)"`, then under **System Settings → Privacy & Security → Full Disk Access** remove the stale `multica` entry and add that path (press ⌘⇧G in the file picker to paste it).
 3. Restart the daemon the same way you started it: `multica daemon restart`, or `launchctl kickstart -k gui/$(id -u)/<label>` for a LaunchAgent.
 
-Repeat this after every CLI upgrade. Auto-update is on by default only for daemons connected to U Workers Cloud; start the daemon with `--no-auto-update` so upgrades happen only when you run them. The CLI bundled with [U Workers Desktop](/desktop-app) is signed with a Developer ID, so its grants survive upgrades.
+Repeat this after every CLI upgrade. Auto-update is off by default; if you turned it on, start the daemon with `--no-auto-update` so upgrades happen only when you run them. The CLI bundled with [U Workers Desktop](/desktop-app) is signed with a Developer ID, so its grants survive upgrades.
 
 ## Realtime updates stop working
 
