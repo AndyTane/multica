@@ -1,5 +1,7 @@
 # Windows native self-hosting
 
+> For the recommended one-folder deployment that needs no administrator rights, no developer tools and no internet access on the target machine, see [windows-portable.md](windows-portable.md) (the portable package builds on this native runtime). The manual workflow below remains valid for building this deployment from source.
+
 This workflow runs PostgreSQL, the Go API, and the production web application as native Windows processes. Docker is needed only to export an existing Docker deployment. The CLI/agent daemon remains a separate process and keeps its existing identity and credentials.
 
 Use `scripts/native-windows.ps1` from the repository root. Keep the checkout and installed dependencies available: Windows standalone dependency junctions may refer to their original locations, so a built release is valid only on the machine that built it (moving it to another machine requires a rebuild there). Build the frontend on Windows; Linux binaries and native Node dependencies are not portable to Windows.
