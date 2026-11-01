@@ -57,7 +57,8 @@ param(
     [int]$DatabasePort = 26433,
     [switch]$SkipInstallerBuild,
     [switch]$KeepWorkRoot,
-    [switch]$KeepRunning
+    [switch]$KeepRunning,
+    [switch]$ResumeExisting
 )
 
 $ErrorActionPreference = 'Stop'
@@ -134,20 +135,28 @@ $installed = $false
 $cleanupErrors = @()
 
 try {
-    Write-Step ('Preparing an isolated acceptance area under ' + $workRoot)
-    if (Test-Path -LiteralPath $workRoot) {
-        if (-not $KeepWorkRoot) { Remove-Item -LiteralPath $workRoot -Recurse -Force }
-    }
-    New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
-    Invoke-Robocopy $packagePath $serverCopy
-    New-Item -ItemType Directory -Path $secondMachine -Force | Out-Null
-    Assert-Check 'package copied to a clean folder' (Test-Path -LiteralPath (Join-Path $serverCopy 'install.ps1')) $serverCopy
+    if ($ResumeExisting) {
+        # Continue against a clean copy left behind by an interrupted acceptance
+        # run; Setup itself resumes an unfinished install in that folder.
+        Write-Step ('Resuming acceptance against the existing clean copy under ' + $workRoot)
+        Assert-Check 'existing acceptance copy present' (Test-Path -LiteralPath (Join-Path $serverCopy 'install.ps1')) $serverCopy
+        if (-not (Test-Path -LiteralPath $secondMachine)) { New-Item -ItemType Directory -Path $secondMachine -Force | Out-Null }
+    } else {
+        Write-Step ('Preparing an isolated acceptance area under ' + $workRoot)
+        if (Test-Path -LiteralPath $workRoot) {
+            if (-not $KeepWorkRoot) { Remove-Item -LiteralPath $workRoot -Recurse -Force }
+        }
+        New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
+        Invoke-Robocopy $packagePath $serverCopy
+        New-Item -ItemType Directory -Path $secondMachine -Force | Out-Null
+        Assert-Check 'package copied to a clean folder' (Test-Path -LiteralPath (Join-Path $serverCopy 'install.ps1')) $serverCopy
 
-    foreach ($port in @($HttpsPort, $ApiPort, $WebPort, $DatabasePort)) {
-        $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, $port)
-        $free = $true
-        try { $listener.Start() } catch { $free = $false } finally { $listener.Stop() }
-        Assert-Check ('port ' + $port + ' is free before the install') $free
+        foreach ($port in @($HttpsPort, $ApiPort, $WebPort, $DatabasePort)) {
+            $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, $port)
+            $free = $true
+            try { $listener.Start() } catch { $free = $false } finally { $listener.Stop() }
+            Assert-Check ('port ' + $port + ' is free before the install') $free
+        }
     }
 
     # --- offline simulation -------------------------------------------------

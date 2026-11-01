@@ -310,8 +310,16 @@ function Start-PortableHiddenProcess {
 }
 
 function Invoke-PortableCommand {
+    # Capture output through files, not a PowerShell pipeline. A command that
+    # starts a long-lived child (the native supervisor) keeps inherited pipe
+    # handles open, and a pipeline would then block forever after the launcher
+    # itself exited. Waiting only for the started process avoids that.
     param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory)
     $saved = @{}
+    $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-command-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
+    $stdoutPath = Join-Path $temporaryDirectory 'stdout.log'
+    $stderrPath = Join-Path $temporaryDirectory 'stderr.log'
     try {
         if ($Environment) {
             foreach ($key in $Environment.Keys) {
@@ -319,22 +327,31 @@ function Invoke-PortableCommand {
                 [Environment]::SetEnvironmentVariable($key, [string]$Environment[$key], 'Process')
             }
         }
-        $previous = $ErrorActionPreference
-        $ErrorActionPreference = 'Continue'
-        try {
-            if ($WorkingDirectory) { Push-Location -LiteralPath $WorkingDirectory }
-            try { $output = & $Executable @Arguments 2>&1 | Out-String } finally { if ($WorkingDirectory) { Pop-Location } }
-            $exitCode = $LASTEXITCODE
-        } finally {
-            $ErrorActionPreference = $previous
+        $options = @{
+            FilePath = $Executable
+            RedirectStandardOutput = $stdoutPath
+            RedirectStandardError = $stderrPath
+            NoNewWindow = $true
+            PassThru = $true
         }
-        return [pscustomobject]@{ ExitCode = $exitCode; Output = $output }
+        if ($Arguments -and $Arguments.Count -gt 0) { $options.ArgumentList = (ConvertTo-PortableArgumentLine $Arguments) }
+        if ($WorkingDirectory) { $options.WorkingDirectory = $WorkingDirectory }
+        $process = Start-Process @options
+        $process.WaitForExit()
+        $output = ''
+        foreach ($path in @($stdoutPath, $stderrPath)) {
+            if (Test-Path -LiteralPath $path) {
+                $output += (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)
+            }
+        }
+        return [pscustomobject]@{ ExitCode = $process.ExitCode; Output = [string]$output }
     } finally {
         foreach ($key in $saved.Keys) {
             $original = $saved[$key]
             if ($null -eq $original) { $original = [NullString]::Value }
             [Environment]::SetEnvironmentVariable($key, $original, 'Process')
         }
+        Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
