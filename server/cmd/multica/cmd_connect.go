@@ -289,8 +289,11 @@ func verifyServerTrustsCA(serverURL string, anchors []*x509.Certificate) error {
 		return fmt.Errorf("invalid server URL %q", serverURL)
 	}
 	if parsed.Scheme != "https" {
-		// Plain HTTP carries no certificate; nothing to verify here.
-		return verifyServerReachable(serverURL)
+		// A CA can only be verified against a TLS handshake. Accepting a plain
+		// HTTP /health answer here would mark an arbitrary certificate as
+		// "verified" and persist/import it, so the combination is refused before
+		// anything is written.
+		return fmt.Errorf("cannot verify a root CA over %s: the server URL is not HTTPS, so no server certificate exists to check the CA against\\nuse the https:// address of the deployment, or drop --root-ca when the server certificate is publicly trusted", serverURL)
 	}
 	port := parsed.Port()
 	if port == "" {
@@ -317,7 +320,11 @@ func verifyServerTrustsCA(serverURL string, anchors []*x509.Certificate) error {
 // trusted TLS roots. Called when no --root-ca was supplied so a missing CA is
 // reported as such before any configuration is written.
 func verifyServerReachable(serverURL string) error {
-	client := &http.Client{Timeout: 8 * time.Second}
+	// Use the process's configured trust (a root CA saved by an earlier connect
+	// run) rather than the system pool: after the operator chose to skip the
+	// browser trust, the CLI and daemon must still reach a LAN deployment whose
+	// certificate is signed by that saved CA.
+	client := &http.Client{Timeout: 8 * time.Second, Transport: tlsx.HTTPTransport()}
 	resp, err := client.Get(strings.TrimRight(serverURL, "/") + "/health")
 	if err != nil {
 		return fmt.Errorf("cannot reach %s: %w\nif the deployment uses an internal CA, pass --root-ca <root-ca.crt>", serverURL, err)
