@@ -152,6 +152,10 @@ func TestIsBlockedEnvKey(t *testing.T) {
 	}{
 		{key: "MULTICA_TOKEN", want: true},
 		{key: "multica_runtime_id", want: true},
+		// Bridge mirrors every product name onto the other prefix, so custom_env
+		// must not reach the task under the new spelling either.
+		{key: "U_WORKERS_TOKEN", want: true},
+		{key: "u_workers_task_config_root", want: true},
 		{key: "HOME", want: true},
 		{key: "PATH", want: true},
 		{key: "TMPDIR", want: true},

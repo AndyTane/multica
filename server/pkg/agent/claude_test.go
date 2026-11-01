@@ -611,6 +611,8 @@ func TestMergeEnvFiltersClaudeCodeVars(t *testing.T) {
 		"CLAUDE_CODE_TMPDIR=/custom/tmp",
 		"MULTICA_LLM_API_KEY=daemon-secret",
 		"MULTICA_SERVER_URL=https://daemon.example",
+		"U_WORKERS_SERVER_URL=https://daemon.example",
+		"U_WORKERS_TASK_CONFIG_ROOT=",
 	}, map[string]string{
 		"FOO":                "bar",
 		"MULTICA_SERVER_URL": "https://task.example",
@@ -627,6 +629,8 @@ func TestMergeEnvFiltersClaudeCodeVars(t *testing.T) {
 		"CLAUDE_CODE_SSE_PORT=9999",
 		"MULTICA_LLM_API_KEY=daemon-secret",
 		"MULTICA_SERVER_URL=https://daemon.example",
+		"U_WORKERS_SERVER_URL=https://daemon.example",
+		"U_WORKERS_TASK_CONFIG_ROOT=",
 	}
 	for _, entry := range env {
 		for _, banned := range filteredOut {

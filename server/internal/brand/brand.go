@@ -101,6 +101,17 @@ func LegacyEnvName(name string) (legacy string, ok bool) {
 	return LegacyEnvPrefix + rest, true
 }
 
+// IsProductEnvKey reports whether key belongs to the product's environment
+// namespace under either prefix. Every filter that keeps daemon-owned settings
+// away from a task child must use it: Bridge mirrors each name onto the other
+// prefix, so a filter that only knows one prefix lets the mirror through and
+// the child's own Bridge then lets that value win. Environment names are
+// case-insensitive on Windows, so the comparison is too.
+func IsProductEnvKey(key string) bool {
+	upper := strings.ToUpper(key)
+	return strings.HasPrefix(upper, EnvPrefix) || strings.HasPrefix(upper, LegacyEnvPrefix)
+}
+
 // ConfigRoot returns the per-user directory that owns CLI profiles and
 // config.json for the given home directory: the legacy directory when it
 // already exists (an upgraded install keeps its login and daemon state), and

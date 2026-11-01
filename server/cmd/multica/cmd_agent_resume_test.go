@@ -190,7 +190,7 @@ func TestAgentResumePrintAndActiveConversationGate(t *testing.T) {
 }
 
 func TestAgentResumeEnvironmentAndInteractiveArguments(t *testing.T) {
-	got := resumeEnvironment([]string{"PATH=fake", "MULTICA_TOKEN=owner-secret", "MULTICA_TASK_ID=task", "CODEX_HOME=old"}, "new-home")
+	got := resumeEnvironment([]string{"PATH=fake", "MULTICA_TOKEN=owner-secret", "U_WORKERS_TOKEN=owner-secret", "MULTICA_TASK_ID=task", "CODEX_HOME=old"}, "new-home")
 	if !reflect.DeepEqual(got, []string{"PATH=fake", "CODEX_HOME=new-home"}) {
 		t.Fatalf("child environment: %#v", got)
 	}

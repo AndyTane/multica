@@ -6,6 +6,23 @@ import (
 	"testing"
 )
 
+func TestIsProductEnvKeyCoversBothPrefixes(t *testing.T) {
+	for key, want := range map[string]bool{
+		"MULTICA_TOKEN":        true,
+		"multica_token":        true,
+		"U_WORKERS_TOKEN":      true,
+		"u_workers_server_url": true,
+		"MULTICA":              false,
+		"U_WORKERS":            false,
+		"ANTHROPIC_API_KEY":    false,
+		"XMULTICA_TOKEN":       false,
+	} {
+		if got := IsProductEnvKey(key); got != want {
+			t.Errorf("IsProductEnvKey(%q) = %v, want %v", key, got, want)
+		}
+	}
+}
+
 func TestEveryRenameHasDistinctSpellings(t *testing.T) {
 	pairs := map[string][2]string{
 		"display name":       {DisplayName, LegacyDisplayName},

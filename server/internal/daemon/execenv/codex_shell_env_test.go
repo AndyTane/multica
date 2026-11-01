@@ -48,6 +48,7 @@ func TestCodexShellEnvAllowlistUsesExactTaskAndSafeInheritedNames(t *testing.T) 
 		"GH_TOKEN=host-secret",
 		"MULTICA_LLM_API_KEY=daemon-secret",
 		"MULTICA_SERVER_URL=https://wrong.example",
+		"U_WORKERS_SERVER_URL=https://wrong.example",
 	}
 	explicit := map[string]string{
 		"MULTICA_TOKEN":      "mat_task",
