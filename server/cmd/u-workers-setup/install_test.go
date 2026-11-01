@@ -354,8 +354,9 @@ func TestInstallAndUninstall(t *testing.T) {
 	if entry.displayVersion != version {
 		t.Fatalf("DisplayVersion = %q, want %q", entry.displayVersion, version)
 	}
-	if !strings.HasSuffix(entry.uninstallString, " --uninstall") {
-		t.Fatalf("UninstallString = %q, want it to end with --uninstall", entry.uninstallString)
+	uninstallerPath := filepath.Join(dir, uninstallerDirName, uninstallerName)
+	if want := commandLine(uninstallerPath, "--uninstall", "--install-dir", dir); entry.uninstallString != want {
+		t.Fatalf("UninstallString = %q, want %q", entry.uninstallString, want)
 	}
 
 	// Reinstalling must not append a second PATH entry.
@@ -573,5 +574,86 @@ func TestCommandLine(t *testing.T) {
 	}
 	if got, want := commandLine(`C:\bin\u-workers.exe`, "--uninstall"), `C:\bin\u-workers.exe --uninstall`; got != want {
 		t.Fatalf("commandLine = %q, want %q", got, want)
+	}
+}
+
+// TestReview107UninstallerRetainsTarget pins that a custom installation target
+// survives into the Add/Remove Programs entry: the uninstall command must carry
+// --install-dir, or Windows would resolve the default directory instead.
+func TestReview107UninstallerRetainsTarget(t *testing.T) {
+	env := &fakeEnvironment{}
+	inst := installer{payload: testPayload(), env: env, out: io.Discard, errOut: io.Discard}
+	target := filepath.Join(t.TempDir(), "custom-bin")
+	if err := inst.install(target, true); err != nil {
+		t.Fatal(err)
+	}
+	if env.uninstall == nil {
+		t.Fatal("no uninstall registration")
+	}
+	if !strings.Contains(env.uninstall.uninstallString, "--install-dir") || !strings.Contains(env.uninstall.uninstallString, target) {
+		t.Fatalf("uninstall registration loses custom installation target: %s", env.uninstall.uninstallString)
+	}
+}
+
+// TestUninstallerUninstallsItsOwnDirectory runs the uninstall the registered
+// entry would run: the binaries, the copied uninstaller, the directory, the PATH
+// entry and the Add/Remove Programs record are all removed.
+func TestUninstallerUninstallsItsOwnDirectory(t *testing.T) {
+	env := &fakeEnvironment{}
+	inst := installer{payload: testPayload(), env: env, out: io.Discard, errOut: io.Discard}
+	target := filepath.Join(t.TempDir(), "custom-bin")
+	if err := inst.install(target, true); err != nil {
+		t.Fatal(err)
+	}
+	registered := env.uninstall
+	if registered == nil || !strings.Contains(registered.uninstallString, "--install-dir") {
+		t.Fatalf("uninstall registration is incomplete: %+v", registered)
+	}
+	if _, err := os.Stat(filepath.Join(target, uninstallerDirName, uninstallerName)); err != nil {
+		t.Fatalf("stable uninstaller copy missing: %v", err)
+	}
+	removed, err := inst.uninstall(target)
+	if err != nil || !removed {
+		t.Fatalf("uninstall(%s) = (%v, %v), want removed", target, removed, err)
+	}
+	for _, name := range []string{primaryBinaryName, legacyBinaryName, uninstallerDirName} {
+		if _, err := os.Stat(filepath.Join(target, name)); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("%s survived uninstall (err=%v)", name, err)
+		}
+	}
+	if _, err := os.Stat(target); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the emptied installation directory survived uninstall (err=%v)", err)
+	}
+	if env.uninstall != nil {
+		t.Fatal("Add/Remove Programs entry survived uninstall")
+	}
+	if pathContains(env.path.raw, target) {
+		t.Fatalf("PATH still contains %s: %s", target, env.path.raw)
+	}
+}
+
+// TestUninstallerLeavesOtherInstallationsAlone pins that removing one
+// installation neither deletes an adjacent installation nor the default one.
+func TestUninstallerLeavesOtherInstallationsAlone(t *testing.T) {
+	env := &fakeEnvironment{}
+	inst := installer{payload: testPayload(), env: env, out: io.Discard, errOut: io.Discard}
+	base := t.TempDir()
+	target := filepath.Join(base, "custom-bin")
+	other := filepath.Join(base, "other-install", "bin")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	otherBinary := filepath.Join(other, primaryBinaryName)
+	if err := os.WriteFile(otherBinary, []byte("other-install"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := inst.install(target, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inst.uninstall(target); err != nil {
+		t.Fatalf("uninstall: %v", err)
+	}
+	if _, err := os.Stat(otherBinary); err != nil {
+		t.Fatalf("uninstalling %s touched another installation: %v", target, err)
 	}
 }

@@ -8,9 +8,13 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // Product identity, as shown in the installation and in Add/Remove Programs.
@@ -27,6 +31,12 @@ const (
 	binDirName = "bin"
 	// uninstallKeyName is the Add/Remove Programs subkey this installer owns.
 	uninstallKeyName = "UWorkersCLI"
+	// uninstallerDirName is the folder inside the installation that keeps a
+	// stable copy of this installer: the Add/Remove Programs entry must not
+	// depend on where the downloaded setup file happens to sit.
+	uninstallerDirName = ".uninstall"
+	// uninstallerName is the copied installer's file name.
+	uninstallerName = "u-workers-setup.exe"
 )
 
 // Installed executable names. A release installs both: u-workers is the command
@@ -258,7 +268,8 @@ func (i installer) install(dir string, updatePath bool) error {
 			return err
 		}
 	}
-	i.registerInstall(dir)
+	uninstallerPath := i.installUninstaller(dir)
+	i.registerInstall(dir, uninstallerPath)
 	i.progress("Installed %s %s into %s", productName, version, dir)
 	return nil
 }
@@ -308,20 +319,68 @@ func (i installer) broadcastEnvironmentChange() {
 	}
 }
 
-// registerInstall writes the Add/Remove Programs entry, best effort: a failure
-// here never fails the install.
-func (i installer) registerInstall(dir string) {
-	setupPath, err := os.Executable()
+// installUninstaller copies this installer into the installation it manages and
+// returns the stable path the Add/Remove Programs entry points at. It returns ""
+// when the copy failed; the caller then falls back to this executable's current
+// path and the operator is warned that the entry depends on it.
+func (i installer) installUninstaller(dir string) string {
+	current, err := os.Executable()
 	if err != nil {
-		i.warn("could not locate this installer, so the Add/Remove Programs entry was skipped: %v", err)
-		return
+		i.warn("could not locate this installer, so the Add/Remove Programs entry depends on the downloaded file: %v", err)
+		return ""
+	}
+	target := filepath.Join(dir, uninstallerDirName, uninstallerName)
+	if sameFilePath(current, target) {
+		// This process is the installed copy (Add/Remove Programs started it).
+		return target
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		i.warn("could not keep a stable uninstaller copy in %s: %v", dir, err)
+		return ""
+	}
+	data, err := os.ReadFile(current)
+	if err != nil {
+		i.warn("could not read this installer to keep a stable copy: %v", err)
+		return ""
+	}
+	if err := os.WriteFile(target, data, 0o755); err != nil {
+		i.warn("could not keep a stable uninstaller copy in %s: %v", dir, err)
+		return ""
+	}
+	i.progress("Kept the uninstaller at %s", target)
+	return target
+}
+
+// sameFilePath reports whether two paths name the same existing file. Paths that
+// do not exist yet fall back to a case-insensitive spelling comparison.
+func sameFilePath(a, b string) bool {
+	fa, errA := os.Stat(a)
+	fb, errB := os.Stat(b)
+	if errA == nil && errB == nil {
+		return os.SameFile(fa, fb)
+	}
+	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
+}
+
+// registerInstall writes the Add/Remove Programs entry, best effort: a failure
+// here never fails the install. The entry names the stable uninstaller copy and
+// repeats --install-dir, because a bare --uninstall would resolve the default
+// directory and could remove a different installation.
+func (i installer) registerInstall(dir, uninstallerPath string) {
+	if uninstallerPath == "" {
+		executable, err := os.Executable()
+		if err != nil {
+			i.warn("could not locate this installer, so the Add/Remove Programs entry was skipped: %v", err)
+			return
+		}
+		uninstallerPath = executable
 	}
 	entry := uninstallEntry{
 		displayName:     displayName,
 		displayVersion:  version,
 		publisher:       publisher,
 		installLocation: dir,
-		uninstallString: commandLine(setupPath, "--uninstall"),
+		uninstallString: commandLine(uninstallerPath, "--uninstall", "--install-dir", dir),
 	}
 	if err := i.env.writeUninstallEntry(entry); err != nil {
 		i.warn("could not write the Add/Remove Programs entry: %v", err)
@@ -347,7 +406,10 @@ func (i installer) uninstall(dir string) (bool, error) {
 		removedBinaries = true
 		i.progress("Removed %s", target)
 	}
-	if removedBinaries {
+	uninstallerRemoved, deferred := i.removeInstalledUninstaller(dir)
+	if deferred {
+		i.progress("The rest of %s will be removed after this window closes", dir)
+	} else if removedBinaries || uninstallerRemoved {
 		// Only a directory this install emptied is ours to delete.
 		i.removeEmptyDir(dir)
 	} else if _, err := os.Stat(dir); err != nil {
@@ -366,6 +428,58 @@ func (i installer) uninstall(dir string) (bool, error) {
 		i.progress("Removed the Add/Remove Programs entry")
 	}
 	return true, nil
+}
+
+// removeInstalledUninstaller deletes the stable installer copy this
+// installation owns. When the running process *is* that copy, Windows cannot
+// delete it; a detached shell removes it and the leftover folders after this
+// process exits, and the second result reports that deferral.
+func (i installer) removeInstalledUninstaller(dir string) (bool, bool) {
+	target := filepath.Join(dir, uninstallerDirName, uninstallerName)
+	removed := false
+	if _, err := os.Stat(target); err == nil {
+		current, currentErr := os.Executable()
+		if currentErr == nil && sameFilePath(current, target) {
+			i.scheduleDeferredRemoval(target, dir)
+			return true, true
+		}
+		if err := os.Remove(target); err != nil {
+			i.warn("could not remove %s: %v", target, err)
+			return false, false
+		}
+		removed = true
+		i.progress("Removed %s", target)
+	}
+	if err := os.Remove(filepath.Join(dir, uninstallerDirName)); err == nil {
+		removed = true
+	}
+	return removed, false
+}
+
+// scheduleDeferredRemoval starts a detached shell that waits for this process to
+// exit, then deletes the owned uninstaller copy and the directories it leaves
+// behind. It is best effort: a failure only keeps the files around.
+func (i installer) scheduleDeferredRemoval(target, dir string) {
+	script := filepath.Join(os.TempDir(), "u-workers-uninstall-"+strconv.FormatInt(time.Now().UnixNano(), 36)+".cmd")
+	lines := []string{
+		"@echo off",
+		"ping -n 3 127.0.0.1 >nul",
+		"del /f /q \"" + target + "\" >nul 2>&1",
+		"rmdir \"" + filepath.Join(dir, uninstallerDirName) + "\" >nul 2>&1",
+		"rmdir \"" + dir + "\" >nul 2>&1",
+		"del /f /q \"%~f0\" >nul 2>&1",
+	}
+	if err := os.WriteFile(script, []byte(strings.Join(lines, "\r\n")+"\r\n"), 0o644); err != nil {
+		i.warn("could not schedule removal of %s: %v", target, err)
+		return
+	}
+	cmd := exec.Command("cmd.exe", "/d", "/c", "start", "", "/b", script)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	if err := cmd.Start(); err != nil {
+		i.warn("could not schedule removal of %s: %v", target, err)
+		return
+	}
+	i.progress("The uninstaller copy will be removed after this window closes")
 }
 
 // removeEmptyDir deletes dir when nothing is left in it. A directory holding
