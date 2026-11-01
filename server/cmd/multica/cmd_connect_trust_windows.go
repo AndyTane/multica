@@ -47,6 +47,6 @@ func installBrowserRootCA(cert *x509.Certificate) (bool, error) {
 		}
 		return true, nil
 	case <-time.After(browserTrustConfirmationTimeout):
-		return false, fmt.Errorf("timed out waiting for the Windows certificate confirmation (%s); answer the security warning with 是/Yes, or rerun with --trust-browser=false and install the certificate later with deploy/windows-https/import-client-root.ps1", browserTrustConfirmationTimeout)
+		return false, fmt.Errorf("timed out waiting for the Windows certificate confirmation (%s); answer the security warning with 是/Yes, or rerun with --skip-browser-trust and install the certificate later with deploy/windows-https/import-client-root.ps1", browserTrustConfirmationTimeout)
 	}
 }

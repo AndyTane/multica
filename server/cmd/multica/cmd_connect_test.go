@@ -299,3 +299,41 @@ func mustSetFlag(t *testing.T, cmd *cobra.Command, name, value string) {
 		t.Fatalf("set --%s: %v", name, err)
 	}
 }
+
+// TestReview107RejectCAOverHTTP pins that a plain-HTTP server URL cannot turn an
+// arbitrary root CA into a trusted, persisted certificate: there is no server
+// certificate to verify against.
+func TestReview107RejectCAOverHTTP(t *testing.T) {
+	isolateConnectHome(t)
+	deployment := newFakeDeployment(t)
+	anchors, err := loadConnectRootCA(deployment.caPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }))
+	defer plain.Close()
+	if err := verifyServerTrustsCA(plain.URL, anchors); err == nil {
+		t.Fatal("accepted an arbitrary CA as verified against an HTTP-only server")
+	}
+}
+
+// TestReview107ReconnectUsesSavedTrust pins that the reachability check before a
+// second connect uses the CA already saved by the first connect (the operator
+// chose to skip the browser trust), not only the system pool.
+func TestReview107ReconnectUsesSavedTrust(t *testing.T) {
+	isolateConnectHome(t)
+	deployment := newFakeDeployment(t)
+	t.Setenv(tlsx.RootCAEnv, deployment.caPath)
+	if err := tlsx.InstallFromEnv(); err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Transport: tlsx.HTTPTransport()}
+	resp, err := client.Get(deployment.server.URL + "/health")
+	if err != nil {
+		t.Fatalf("control: configured trust failed: %v", err)
+	}
+	resp.Body.Close()
+	if err := verifyServerReachable(deployment.server.URL); err != nil {
+		t.Fatalf("connect ignored configured trust: %v", err)
+	}
+}
