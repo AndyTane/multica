@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 	"github.com/multica-ai/multica/server/internal/issueactivitybackfill"
 	"github.com/multica-ai/multica/server/internal/logger"
 )
@@ -54,6 +55,7 @@ func (g *stalledPassGuard) observe(passRows, remaining int64) error {
 }
 
 func main() {
+	envcompat.Bridge()
 	logger.Init()
 	if err := run(); err != nil {
 		slog.Error("issue last-activity backfill failed", "error", err)

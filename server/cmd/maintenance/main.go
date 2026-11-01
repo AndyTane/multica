@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 	"github.com/multica-ai/multica/server/internal/maintenance"
 )
 
@@ -284,6 +285,7 @@ func exitCode(err error) int {
 }
 
 func main() {
+	envcompat.Bridge()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	err := run(ctx, os.Args[1:], os.Getenv("MAINTENANCE_PORT"), os.Stdout, os.Stderr)
 	cancel()

@@ -16,6 +16,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/attributionbackfill"
 	"github.com/multica-ai/multica/server/internal/chatoriginbackfill"
 	"github.com/multica-ai/multica/server/internal/dbstartup"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/migrations"
 	"github.com/multica-ai/multica/server/internal/taskusagebackfill"
@@ -788,6 +789,7 @@ type runOptions struct {
 }
 
 func main() {
+	envcompat.Bridge()
 	logger.Init()
 
 	if len(os.Args) < 2 {

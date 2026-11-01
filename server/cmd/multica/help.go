@@ -107,10 +107,10 @@ func init() {
 	})
 }
 
-var rootHelpTemplate = `Work seamlessly with Multica from the command line.
+var rootHelpTemplate = `{{.Long}}
 
 USAGE
-  multica <command> <subcommand> [flags]
+  {{.Name}} <command> <subcommand> [flags]
 {{range .Groups}}
 {{.Title}}
 {{formatCommandList (commandsInGroup $.Commands .ID)}}
@@ -118,17 +118,17 @@ USAGE
 FLAGS
 {{.LocalFlags.FlagUsages}}
 EXAMPLES
-  $ multica login
-  $ multica issue list --output json
-  $ multica daemon start
-  $ multica agent list --output json
+  $ {{.Name}} login
+  $ {{.Name}} issue list --output json
+  $ {{.Name}} daemon start
+  $ {{.Name}} agent list --output json
 
 ENVIRONMENT VARIABLES
-  MULTICA_SERVER_URL    Override the default server URL
-  MULTICA_WORKSPACE_ID  Set the active workspace
+  U_WORKERS_SERVER_URL      Override the default server URL (legacy: MULTICA_SERVER_URL)
+  U_WORKERS_WORKSPACE_ID    Set the active workspace (legacy: MULTICA_WORKSPACE_ID)
 
 LEARN MORE
-  Use ` + "`multica <command> <subcommand> --help`" + ` for more information about a command.
+  Use ` + "`{{.Name}} <command> <subcommand> --help`" + ` for more information about a command.
 `
 
 var subHelpTemplate = `{{.Short}}
@@ -173,5 +173,5 @@ EXAMPLES
 {{- end}}
 
 LEARN MORE
-  Use ` + "`multica <command> <subcommand> --help`" + ` for more information about a command.
+  Use ` + "`{{.CommandPath}} --help`" + ` for more information about a command.
 `

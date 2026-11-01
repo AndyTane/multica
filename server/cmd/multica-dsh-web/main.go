@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/multica-ai/multica/server/internal/dshweb"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 )
 
 // nodeUnavailable describes a Node.js runtime that could not be started, which
@@ -18,6 +19,7 @@ import (
 const nodeUnavailable = "DSH web bridge requires Node.js 24 or newer"
 
 func main() {
+	envcompat.Bridge()
 	code, err := run(os.Getenv("MULTICA_DSH_NODE_PATH"), os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
