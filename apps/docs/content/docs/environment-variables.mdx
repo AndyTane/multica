@@ -173,6 +173,8 @@ The auth rate limits require `REDIS_URL`; without it, the startup log notes that
 
 ## External integrations
 
+Feishu needs no channel switch. The four switches below default to `false`; set one to `true` with its matching `MULTICA_<CHANNEL>_SECRET_KEY` and restart the API to restore that channel. With Docker Compose, recreate the backend with `docker compose -f docker-compose.selfhost.yml up -d backend`. Disabling a channel preserves installations, bindings, and conversations.
+
 | Integration | Variable | Description |
 |---|---|---|
 | GitHub | `GITHUB_APP_SLUG` | GitHub App slug |
@@ -180,6 +182,10 @@ The auth rate limits require `REDIS_URL`; without it, the startup log notes that
 | GitHub | `GITHUB_APP_ID` | Needed for CI status and mergeability on PR cards and the "pick from GitHub" repository picker |
 | GitHub | `GITHUB_APP_PRIVATE_KEY` | Full PEM private key paired with the App ID; same uses as above |
 | Lark | `MULTICA_LARK_SECRET_KEY` | Base64-encoded 32-byte credential encryption key |
+| Slack | `FF_CHANNEL_SLACK` | Default `false`; set to `true` and restart the API. Requires `MULTICA_SLACK_SECRET_KEY` |
+| Telegram | `FF_CHANNEL_TELEGRAM` | Default `false`; set to `true` and restart the API. Requires `MULTICA_TELEGRAM_SECRET_KEY` |
+| DingTalk | `FF_CHANNEL_DINGTALK` | Default `false`; set to `true` and restart the API. Requires `MULTICA_DINGTALK_SECRET_KEY` |
+| WeCom | `FF_CHANNEL_WECOM` | Default `false`; set to `true` and restart the API. Requires `MULTICA_WECOM_SECRET_KEY` |
 | Slack | `MULTICA_SLACK_SECRET_KEY` | Base64-encoded 32-byte token encryption key |
 | Telegram | `MULTICA_TELEGRAM_SECRET_KEY` | Base64-encoded 32-byte Bot token encryption key |
 | Composio | `COMPOSIO_API_KEY` | Enables Composio tool connections |

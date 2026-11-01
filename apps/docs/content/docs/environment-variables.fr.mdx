@@ -173,6 +173,8 @@ Les limites de débit d'authentification nécessitent `REDIS_URL` ; sans cette v
 
 ## Intégrations externes
 
+Feishu ne nécessite aucun indicateur de canal. Les quatre indicateurs ci-dessous valent `false` par défaut. Définissez celui du canal voulu à `true` avec sa clé `MULTICA_<CHANNEL>_SECRET_KEY`, puis redémarrez l’API. Avec Docker Compose, recréez le backend via `docker compose -f docker-compose.selfhost.yml up -d backend`. La désactivation conserve installations, associations de comptes et conversations.
+
 | Intégration | Variable | Description |
 |---|---|---|
 | GitHub | `GITHUB_APP_SLUG` | Slug de la GitHub App |
@@ -180,6 +182,10 @@ Les limites de débit d'authentification nécessitent `REDIS_URL` ; sans cette v
 | GitHub | `GITHUB_APP_ID` | Nécessaire pour le statut CI et la possibilité de fusion sur les cartes de PR, ainsi que pour le sélecteur de dépôts « Choisir depuis GitHub » |
 | GitHub | `GITHUB_APP_PRIVATE_KEY` | Clé privée PEM complète associée à l'App ID ; mêmes usages que ci-dessus |
 | Lark | `MULTICA_LARK_SECRET_KEY` | Clé de chiffrement des identifiants de 32 octets, encodée en Base64 |
+| Slack | `FF_CHANNEL_SLACK` | Par défaut `false` ; activer avec `true` et redémarrer l’API. Nécessite `MULTICA_SLACK_SECRET_KEY` |
+| Telegram | `FF_CHANNEL_TELEGRAM` | Par défaut `false` ; activer avec `true` et redémarrer l’API. Nécessite `MULTICA_TELEGRAM_SECRET_KEY` |
+| DingTalk | `FF_CHANNEL_DINGTALK` | Par défaut `false` ; activer avec `true` et redémarrer l’API. Nécessite `MULTICA_DINGTALK_SECRET_KEY` |
+| WeCom | `FF_CHANNEL_WECOM` | Par défaut `false` ; activer avec `true` et redémarrer l’API. Nécessite `MULTICA_WECOM_SECRET_KEY` |
 | Slack | `MULTICA_SLACK_SECRET_KEY` | Clé de chiffrement des jetons de 32 octets, encodée en Base64 |
 | Telegram | `MULTICA_TELEGRAM_SECRET_KEY` | Clé de chiffrement du jeton du bot de 32 octets, encodée en Base64 |
 | Composio | `COMPOSIO_API_KEY` | Active les connexions d'outils Composio |

@@ -1,42 +1,41 @@
 ---
 title: チャット連携
-description: U Workers のエージェントを Feishu、Lark、Slack、DingTalk、WeCom、Telegram に接続し、チームが普段使っているチャットツールから利用する方法を説明します。
+description: U Workers のエージェントを Feishu に接続し、チームのチャットから利用します。
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
 チャット連携を使うと、U Workers を開かなくても、エージェントへの質問、グループチャットでの @メンション、チャット画面からのタスク作成ができます。
 
-現在は Feishu/Lark、Slack、DingTalk、WeCom、Telegram に対応しています。セッション、ユーザー識別、実行の仕組みは共通ですが、インストール方法が異なります。
+デフォルトで有効なのは Feishu のみです。Slack、Telegram、DingTalk、WeCom は無効です。[環境変数](/environment-variables)の設定で個別に有効化できます。既存の国際版 Lark 接続は引き続き利用できます。
 
-## プラットフォームを選ぶ
+## デフォルトのチャネル
 
-| | Feishu / Lark | Slack | DingTalk | WeCom | Telegram |
-|---|---|---|---|---|---|
-| インストール | U Workers で QR コードを生成し、Feishu でスキャンして認証 | Slack でアプリを作成し、2 つのトークンを U Workers に入力 | 社内アプリと Stream モードのロボットを作成し、AppKey と AppSecret を U Workers に入力 | WeCom 管理コンソールで常時接続を有効にしたスマートボットを作成し、Bot ID と Secret を U Workers に入力 | @BotFather で Bot を作成し、token を U Workers に入力 |
-| エージェントとの DM | 対応 | 対応 | 対応 | 対応 | 対応 |
-| グループまたはチャンネル | Bot を @メンションするとトリガー | Bot を @メンションするとトリガー | Bot を @メンションするとトリガー | Bot を @メンションするとトリガー | Bot を @メンション、または Bot に返信するとトリガー |
-| タスクの作成 | `/issue` メッセージコマンド。入力内容からそのまま作成 | `/issue` スラッシュコマンド。エージェントが説明を整理してから作成 | `/issue` メッセージコマンド。入力内容からそのまま作成 | `/issue` メッセージコマンド。入力内容からそのまま作成 | `/issue` メッセージコマンド。入力内容からそのまま作成 |
-| 新しい Chat を開始 | `/new [メッセージ]` | DM: `/new [メッセージ]`、チャンネル/スレッド: `@U Workers /new [メッセージ]` | `/new [メッセージ]` | `/new [メッセージ]` | `/new [メッセージ]` |
-| 現在の Chat のコンテキストをクリア | `/clear [メッセージ]` | DM: `/clear [メッセージ]`、チャンネル/スレッド: `@U Workers /clear [メッセージ]` | `/clear [メッセージ]` | `/clear [メッセージ]` | `/clear [メッセージ]` |
-| 接続方式 | プラットフォームの常時接続 | Socket Mode | Stream モード | プラットフォームの常時接続 | `getUpdates` long polling |
+| | Feishu / Lark |
+|---|---|
+| インストール | U Workers で QR コードを生成し、Feishu でスキャンして認証 |
+| エージェントとの DM | 対応 |
+| グループまたはチャンネル | Bot を @メンションするとトリガー |
+| タスクの作成 | `/issue` メッセージコマンド。入力内容からそのまま作成 |
+| 新しい Chat を開始 | `/new [メッセージ]` |
+| 現在の Chat のコンテキストをクリア | `/clear [メッセージ]` |
+| 接続方式 | プラットフォームの常時接続 |
 
 新規接続は現在、中国本土版の Feishu でのみ利用できます。既存の国際版 Lark 接続は、引き続き利用および管理できます。
 
 各 Bot は 1 つの U Workers エージェントに紐づきます。同じチャットプラットフォームで複数のエージェントを使う場合は、エージェントごとに Bot を接続してください。
+
+詳しい手順:
+
+- [Feishu / Lark Bot 連携](/lark-bot-integration)
+
+### 任意のチャネル（デフォルトでは無効）
 
 DingTalk、WeCom、Telegram は[コミュニティメンテナンス](/community-maintained)です。各リリースに含まれますが、公式サポート SLA はありません。問題は [GitHub issues](https://github.com/multica-ai/multica/issues) で報告してください。
 
 WeCom が現在扱えるのはテキストメッセージのみです。音声、画像、ファイルのメッセージにはその旨の短い返信が返り、エージェントには渡されません。
 
 Telegram は画像、ファイル、動画、音声を添付ファイルとしてエージェントに渡し、エージェントが生成したファイルをチャットに送り返します。どちらもサーバー側にオブジェクトストレージの設定が必要で、未設定の場合メディアには従来どおり非対応の短い返信が返ります。sticker などファイル以外のメッセージにも同じ返信が返り、エージェントには渡されません。
-
-詳しい手順:
-
-- [Feishu / Lark Bot 連携](/lark-bot-integration)
-- [Slack Bot 連携](/slack-bot-integration)
-- [DingTalk Bot 連携](/dingtalk-bot-integration)
-- [Telegram Bot 連携](/telegram-bot-integration)
 
 ## メッセージが処理される流れ
 
@@ -86,7 +85,7 @@ U Workers がエージェントを実行するのは、アカウント連携が�
 
 ## セルフホスト
 
-セルフホスト環境では、U Workers が接続エンドポイントを有効にする前に、プラットフォームごとに 32 バイトの暗号化キーを設定する必要があります。
+セルフホストでは Feishu の暗号化キーを設定してください。ほかのチャネルには、下記の対応するキーと `true` に設定した `FF_CHANNEL_*` が必要です。設定後は API を再起動してください。既存のキーを維持すると、保存済みの接続を再利用できます。
 
 ```dotenv
 MULTICA_LARK_SECRET_KEY=<base64-encoded 32-byte key>
@@ -108,7 +107,4 @@ WeCom の送信経路は、1 つのプロセスが保持する WebSocket だけ�
 ## 次のステップ
 
 - [Feishu / Lark Bot 連携](/lark-bot-integration)
-- [Slack Bot 連携](/slack-bot-integration)
-- [DingTalk Bot 連携](/dingtalk-bot-integration)
-- [Telegram Bot 連携](/telegram-bot-integration)
 - [エージェントとチャットする](/chat)

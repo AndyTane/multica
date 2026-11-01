@@ -173,6 +173,8 @@ allowlist の正確な判定順序は[ログインとサインアップ](/auth-s
 
 ## 外部連携
 
+Feishu にチャネルスイッチはありません。以下の 4 つのスイッチはデフォルトで `false` です。対応する `MULTICA_<CHANNEL>_SECRET_KEY` を設定し、スイッチを `true` にして API を再起動すると、そのチャネルが復元されます。Docker Compose では `docker compose -f docker-compose.selfhost.yml up -d backend` でバックエンドを再作成します。無効化しても接続設定、アカウント連携、会話は保持されます。
+
 | 連携 | 変数 | 説明 |
 |---|---|---|
 | GitHub | `GITHUB_APP_SLUG` | GitHub App の slug |
@@ -180,6 +182,10 @@ allowlist の正確な判定順序は[ログインとサインアップ](/auth-s
 | GitHub | `GITHUB_APP_ID` | PR カードの CI ステータス・マージ可否と「GitHub から選択」リポジトリに必要です |
 | GitHub | `GITHUB_APP_PRIVATE_KEY` | App ID と対になる完全な PEM 秘密鍵。用途は同上 |
 | Lark | `MULTICA_LARK_SECRET_KEY` | base64 エンコードされた 32 バイトの資格情報暗号化キー |
+| Slack | `FF_CHANNEL_SLACK` | デフォルトは `false`。`true` に設定し API を再起動。必要なキー： `MULTICA_SLACK_SECRET_KEY` |
+| Telegram | `FF_CHANNEL_TELEGRAM` | デフォルトは `false`。`true` に設定し API を再起動。必要なキー： `MULTICA_TELEGRAM_SECRET_KEY` |
+| DingTalk | `FF_CHANNEL_DINGTALK` | デフォルトは `false`。`true` に設定し API を再起動。必要なキー： `MULTICA_DINGTALK_SECRET_KEY` |
+| WeCom | `FF_CHANNEL_WECOM` | デフォルトは `false`。`true` に設定し API を再起動。必要なキー： `MULTICA_WECOM_SECRET_KEY` |
 | Slack | `MULTICA_SLACK_SECRET_KEY` | base64 エンコードされた 32 バイトの token 暗号化キー |
 | Telegram | `MULTICA_TELEGRAM_SECRET_KEY` | base64 エンコードされた 32 バイトの Bot token 暗号化キー |
 | Composio | `COMPOSIO_API_KEY` | Composio ツール接続を有効化 |
