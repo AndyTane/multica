@@ -1282,7 +1282,7 @@ func TestInjectRuntimeConfigClaude(t *testing.T) {
 
 	s := string(content)
 	for _, want := range []string{
-		"Multica Agent Runtime",
+		"U Workers Agent Runtime",
 		"multica issue get",
 		"multica issue comment list",
 		// Skills are listed by on-disk slug: that is the directory
@@ -1367,7 +1367,7 @@ func TestInjectRuntimeConfigBackgroundTaskSafetyProviderAgnostic(t *testing.T) {
 				"verify readiness",
 				"URL, logs, and stop instructions",
 				"survival as best-effort, not guaranteed",
-				"Never terminate `multica` or `multica.exe` by executable name",
+				"Never terminate `u-workers`, `multica`, `u-workers.exe`, or `multica.exe` by executable name",
 				"exact child PID you started",
 				"`multica daemon status --output json`",
 				"never kill it if it is the reported daemon PID",
@@ -1505,7 +1505,7 @@ func TestInjectRuntimeConfigCodex(t *testing.T) {
 	}
 
 	s := string(content)
-	if !strings.Contains(s, "Multica Agent Runtime") {
+	if !strings.Contains(s, "U Workers Agent Runtime") {
 		t.Error("AGENTS.md missing meta skill header")
 	}
 	// Listed by on-disk slug rather than the display name (MUL-5529).
@@ -2008,7 +2008,7 @@ func TestInjectRuntimeConfigOpencode(t *testing.T) {
 	}
 
 	s := string(content)
-	if !strings.Contains(s, "Multica Agent Runtime") {
+	if !strings.Contains(s, "U Workers Agent Runtime") {
 		t.Error("AGENTS.md missing meta skill header")
 	}
 	// Listed by on-disk slug rather than the display name (MUL-5529).
@@ -2044,7 +2044,7 @@ func TestInjectRuntimeConfigKiro(t *testing.T) {
 	}
 
 	s := string(content)
-	if !strings.Contains(s, "Multica Agent Runtime") {
+	if !strings.Contains(s, "U Workers Agent Runtime") {
 		t.Error("AGENTS.md missing meta skill header")
 	}
 	// Listed by on-disk slug rather than the display name (MUL-5529).
@@ -2075,7 +2075,7 @@ func TestInjectRuntimeConfigQoder(t *testing.T) {
 	}
 
 	s := string(content)
-	if !strings.Contains(s, "Multica Agent Runtime") {
+	if !strings.Contains(s, "U Workers Agent Runtime") {
 		t.Error("AGENTS.md missing meta skill header")
 	}
 	// Listed by on-disk slug rather than the display name (MUL-5529).
@@ -2104,7 +2104,7 @@ func TestInjectRuntimeConfigQoderCN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read AGENTS.md: %v", err)
 	}
-	if !strings.Contains(string(content), "Multica Agent Runtime") {
+	if !strings.Contains(string(content), "U Workers Agent Runtime") {
 		t.Error("AGENTS.md missing meta skill header")
 	}
 }
@@ -2131,7 +2131,7 @@ func TestInjectRuntimeConfigAntigravity(t *testing.T) {
 	}
 
 	s := string(content)
-	if !strings.Contains(s, "Multica Agent Runtime") {
+	if !strings.Contains(s, "U Workers Agent Runtime") {
 		t.Error("AGENTS.md missing meta skill header")
 	}
 	// Listed by on-disk slug rather than the display name (MUL-5529).
@@ -2168,7 +2168,7 @@ func TestInjectRuntimeConfigDim(t *testing.T) {
 	}
 
 	s := string(content)
-	if !strings.Contains(s, "Multica Agent Runtime") {
+	if !strings.Contains(s, "U Workers Agent Runtime") {
 		t.Error("AGENTS.md missing meta skill header")
 	}
 	if !strings.Contains(s, "coding") {
@@ -2640,7 +2640,7 @@ func TestInjectRuntimeConfigHermes(t *testing.T) {
 	}
 
 	s := string(content)
-	if !strings.Contains(s, "Multica Agent Runtime") {
+	if !strings.Contains(s, "U Workers Agent Runtime") {
 		t.Error("AGENTS.md missing meta skill header")
 	}
 	// Listed by on-disk slug rather than the display name (MUL-5529).
@@ -5738,7 +5738,7 @@ func TestBuildMetaSkillContentOmitsRequestingUserWhenEmpty(t *testing.T) {
 // change whenever a different person causes the next run on the same issue.
 func TestOnBehalfOfBlock(t *testing.T) {
 	t.Parallel()
-	const want = "## On Behalf Of\n\nYou are acting on behalf of **Bohan** (bohan@example.com). Apply any person-specific privacy or access rules in your instructions to this person. Your Multica credentials and access remain scoped to the runtime owner; do not assume this person can access everything you can.\n\n"
+	const want = "## On Behalf Of\n\nYou are acting on behalf of **Bohan** (bohan@example.com). Apply any person-specific privacy or access rules in your instructions to this person. Your U Workers credentials and access remain scoped to the runtime owner; do not assume this person can access everything you can.\n\n"
 	if got := BuildOnBehalfOfBlock("Bohan", "bohan@example.com"); got != want {
 		t.Errorf("on-behalf-of block = %q, want %q", got, want)
 	}

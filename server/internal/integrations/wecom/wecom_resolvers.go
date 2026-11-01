@@ -257,7 +257,7 @@ func (r *sessionBinder) AppendMessage(ctx context.Context, p engine.AppendParams
 	// The adapter's own command source wins, and Text is only the fallback.
 	// Overwriting it with Text — which this used to do — threw away the
 	// mention-stripped line the adapter had already worked out, so in a group
-	// the /issue parser was handed "@Multica Bot /issue …" and saw prose.
+	// the /issue parser was handed "@U Workers Bot /issue …" and saw prose.
 	// Same two lines as lark/feishu_resolvers.go:206 and slack/resolvers.go:337.
 	commandText := p.Message.CommandText
 	if commandText == "" {

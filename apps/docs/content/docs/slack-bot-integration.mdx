@@ -22,24 +22,24 @@ Open [Slack API Apps](https://api.slack.com/apps), click **Create New App → Fr
 
 ```yaml
 display_information:
-  name: Multica
+  name: U Workers
 features:
   app_home:
     home_tab_enabled: false
     messages_tab_enabled: true
     messages_tab_read_only_enabled: false
   bot_user:
-    display_name: Multica
+    display_name: U Workers
     always_online: true
   slash_commands:
     - command: /issue
-      description: Create a Multica issue
+      description: Create a U Workers issue
       usage_hint: "[description]"
     - command: /new
-      description: Start a new Multica chat
+      description: Start a new U Workers chat
       usage_hint: "[message]"
     - command: /clear
-      description: Clear the current Multica chat context
+      description: Clear the current U Workers chat context
       usage_hint: "[message]"
 oauth_config:
   scopes:
@@ -69,10 +69,10 @@ settings:
   token_rotation_enabled: false
 ```
 
-Before creating, you can replace both occurrences of `Multica` with the agent's name. Do not remove scopes or events from the manifest, or DMs, channel mentions, replies, `/issue`, `/new`, or `/clear` may stop working.
+Before creating, you can replace both occurrences of `U Workers` with the agent's name. Do not remove scopes or events from the manifest, or DMs, channel mentions, replies, `/issue`, `/new`, or `/clear` may stop working.
 
 <Callout type="warning">
-Slack slash-command names are workspace-global. If another installed app already owns `/new` or `/clear`, Slack rejects the conflicting command when you create or update the app. Resolve the collision, or send the message form — `@Multica /new [message]` or `@Multica /clear [message]` — to bypass native slash-command interception.
+Slack slash-command names are workspace-global. If another installed app already owns `/new` or `/clear`, Slack rejects the conflicting command when you create or update the app. Resolve the collision, or send the message form — `@U Workers /new [message]` or `@U Workers /clear [message]` — to bypass native slash-command interception.
 </Callout>
 
 <Callout type="warning">
@@ -153,13 +153,13 @@ In a DM with the Bot, `/new` immediately creates a new, visible empty Chat. `/ne
 
 The previous Chat remains available and writable in U Workers on the web, desktop, and mobile. Only subsequent messages from this Slack conversation are routed to the new Chat.
 
-In a channel or thread, Slack's native slash-command payload does not identify the target thread. Send `@Multica /new [message]` in the target thread instead.
+In a channel or thread, Slack's native slash-command payload does not identify the target thread. Send `@U Workers /new [message]` in the target thread instead.
 
 ### Clear the current Chat context with `/clear`
 
 In a DM with the Bot, `/clear` keeps the current U Workers Chat and resets only the context visible to the agent. The complete Chat history remains stored and visible in U Workers. `/clear <message>` uses the message as the first turn in the new context; a bare `/clear` applies the boundary to the next real message.
 
-In a channel or thread, send `@Multica /clear [message]` in the target thread so U Workers can apply the boundary to the correct conversation.
+In a channel or thread, send `@U Workers /clear [message]` in the target thread so U Workers can apply the boundary to the correct conversation.
 
 ## Manage connections
 
@@ -191,7 +191,7 @@ Account binding links use `MULTICA_APP_URL`, falling back to `FRONTEND_ORIGIN` w
 - **App can't be verified**: confirm the manifest includes `users:read`, then reinstall the app after updating permissions.
 - **No DM entry point**: confirm `app_home.messages_tab_enabled` is `true`.
 - **No reply in a channel**: confirm the Bot has been invited to the channel and the message @-mentions it.
-- **`/issue`, `/new`, or `/clear` doesn't exist**: confirm the manifest includes all three slash commands and the `commands` scope, then reinstall the app. If Slack reports that `/new` or `/clear` is already taken, use the `@Multica` message form or resolve the workspace-level command collision first.
+- **`/issue`, `/new`, or `/clear` doesn't exist**: confirm the manifest includes all three slash commands and the `commands` scope, then reinstall the app. If Slack reports that `/new` or `/clear` is already taken, use the `@U Workers` message form or resolve the workspace-level command collision first.
 - **Files don't reach the agent**: confirm the manifest includes `files:read` and that the app was reinstalled after the scope was added, and check the file is 20 MiB or smaller.
 - **The Bot doesn't run**: check whether the agent is archived and whether the [runtime](/daemon-runtimes) it uses is online.
 

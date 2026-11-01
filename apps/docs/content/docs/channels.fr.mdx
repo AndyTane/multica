@@ -17,8 +17,8 @@ Feishu/Lark, Slack, DingTalk, WeCom et Telegram sont pris en charge aujourd'hui.
 | Messages directs à l'agent | Pris en charge | Pris en charge | Pris en charge | Pris en charge | Pris en charge |
 | Groupes ou canaux | Déclenché en @mentionnant le bot | Déclenché en @mentionnant le bot | Déclenché en @mentionnant le bot | Déclenché en @mentionnant le bot | Déclenché en @mentionnant le bot ou en lui répondant |
 | Créer des tâches | Commande de message `/issue` ; crée la tâche à partir de votre saisie telle quelle | Commande slash `/issue` ; l'agent rédige la description avant de créer la tâche | Commande de message `/issue` ; crée la tâche à partir de votre saisie telle quelle | Commande de message `/issue` ; crée la tâche à partir de votre saisie telle quelle | Commande de message `/issue` ; crée la tâche à partir de votre saisie telle quelle |
-| Démarrer une nouvelle discussion | `/new [message]` | Message direct : `/new [message]` ; canal/fil : `@Multica /new [message]` | `/new [message]` | `/new [message]` | `/new [message]` |
-| Effacer le contexte de la discussion en cours | `/clear [message]` | Message direct : `/clear [message]` ; canal/fil : `@Multica /clear [message]` | `/clear [message]` | `/clear [message]` | `/clear [message]` |
+| Démarrer une nouvelle discussion | `/new [message]` | Message direct : `/new [message]` ; canal/fil : `@U Workers /new [message]` | `/new [message]` | `/new [message]` | `/new [message]` |
+| Effacer le contexte de la discussion en cours | `/clear [message]` | Message direct : `/clear [message]` ; canal/fil : `@U Workers /clear [message]` | `/clear [message]` | `/clear [message]` | `/clear [message]` |
 | Connexion | Connexion longue de la plateforme | Socket Mode | Mode Stream | Connexion longue de la plateforme | Long polling `getUpdates` |
 
 Les nouvelles connexions ne sont actuellement ouvertes qu'à Feishu en Chine continentale ; les connexions Lark internationales existantes continuent de fonctionner et peuvent toujours être gérées.
@@ -56,7 +56,7 @@ Les messages ordinaires suivent ce flux. `/issue` est une commande, pas un tour 
 
 `/clear` reste dans la discussion U Workers en cours, mais démarre un nouveau contexte visible par l'agent. L'historique complet de la discussion reste disponible dans U Workers, tandis que l'agent ne peut plus récupérer les messages antérieurs à cette limite. `/clear <message>` utilise le message comme premier tour du nouveau contexte ; un `/clear` seul s'applique au prochain vrai message.
 
-Sur Slack, `/new` et `/clear` sont des commandes slash natives dans un message direct. La charge utile d'une commande slash native n'identifie pas le fil d'un canal : utilisez donc `@Multica /new [message]` ou `@Multica /clear [message]` dans le fil cible.
+Sur Slack, `/new` et `/clear` sont des commandes slash natives dans un message direct. La charge utile d'une commande slash native n'identifie pas le fil d'un canal : utilisez donc `@U Workers /new [message]` ou `@U Workers /clear [message]` dans le fil cible.
 
 ## Isolation des sessions
 

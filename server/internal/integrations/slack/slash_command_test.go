@@ -368,7 +368,7 @@ func TestSlashHandle_NewChannelGuidesToMentionWithoutGuessingThread(t *testing.T
 	if starter.newCalls != 0 || starter.clearCalls != 0 {
 		t.Fatal("channel slash command must not rotate a guessed route")
 	}
-	if *captured != slashNewThreadGuideText {
+	if *captured != newThreadGuideText("") {
 		t.Fatalf("reply=%q", *captured)
 	}
 }
@@ -400,7 +400,64 @@ func TestSlashHandle_ClearChannelGuidesToMentionWithoutGuessingThread(t *testing
 	if starter.newCalls != 0 || starter.clearCalls != 0 {
 		t.Fatal("channel slash command must not clear a guessed route")
 	}
-	if *captured != slashClearThreadGuideText {
+	if *captured != clearThreadGuideText("") {
 		t.Fatalf("reply=%q", *captured)
+	}
+}
+
+// TestSlashHandle_ChannelGuideMentionsTheInstalledBot pins the CLAWSTA-100
+// review ask: the thread guides must render the bot as a real <@U…> mention
+// built from the installation's stored bot_user_id, so Slack shows the name the
+// installed app carries today — @Multica on an install that predates the
+// rename, @U Workers on a new one — instead of a hard-coded name.
+func TestSlashHandle_ChannelGuideMentionsTheInstalledBot(t *testing.T) {
+	inst := activeSlashInstallation()
+	inst.Config = []byte(`{"app_id":"A1","team_id":"T1","bot_user_id":"UBOTLEGACY"}`)
+	q := &fakeSlashQueries{inst: inst, binding: db.ChannelUserBinding{MulticaUserID: slashTestUUID(9)}}
+	p, captured, _ := newTestSlashProcessor(q, &fakeQuickCreate{}, &fakeBindingMinter{})
+	starter := &fakeSlashControlStarter{}
+	p.control = starter
+
+	for _, tc := range []struct{ command, want string }{
+		{"/new", "<@UBOTLEGACY>"},
+		{"/clear", "<@UBOTLEGACY>"},
+	} {
+		cmd := issueSlashCmd()
+		cmd.Command, cmd.ChannelID = tc.command, "C1"
+		p.HandleEnvelope(context.Background(), cmd, "env-mention-"+tc.command)
+		if starter.newCalls != 0 || starter.clearCalls != 0 {
+			t.Fatalf("%s in a channel must not rotate a guessed route", tc.command)
+		}
+		if !strings.Contains(*captured, tc.want) {
+			t.Fatalf("%s guide = %q, want a real mention %s", tc.command, *captured, tc.want)
+		}
+		if strings.Contains(*captured, "`<@") {
+			t.Fatalf("%s guide puts the mention inside backticks, so Slack would print the raw token: %q", tc.command, *captured)
+		}
+	}
+}
+
+// TestSlashHandle_ChannelGuideFallsBackWithoutABotUserID covers the installs
+// whose config predates bot_user_id: the guide still names the current default
+// bot name instead of leaking an empty token.
+func TestSlashHandle_ChannelGuideFallsBackWithoutABotUserID(t *testing.T) {
+	q := &fakeSlashQueries{inst: activeSlashInstallation(), binding: db.ChannelUserBinding{MulticaUserID: slashTestUUID(9)}}
+	p, captured, _ := newTestSlashProcessor(q, &fakeQuickCreate{}, &fakeBindingMinter{})
+	starter := &fakeSlashControlStarter{}
+	p.control = starter
+
+	for _, tc := range []struct{ command string }{
+		{"/new"},
+		{"/clear"},
+	} {
+		cmd := issueSlashCmd()
+		cmd.Command, cmd.ChannelID = tc.command, "C1"
+		p.HandleEnvelope(context.Background(), cmd, "env-fallback-"+tc.command)
+		if strings.Contains(*captured, "<@") {
+			t.Fatalf("%s guide leaked an empty mention token: %q", tc.command, *captured)
+		}
+		if !strings.Contains(*captured, threadGuideFallbackBotName) {
+			t.Fatalf("%s guide = %q, want the fallback name %q", tc.command, *captured, threadGuideFallbackBotName)
+		}
 	}
 }

@@ -287,13 +287,13 @@ export async function prepareSession(command, config, rpc) {
     const checked = await rpc('workspace/create', { path: command.cwd });
     if (checked?.workspace?.workspaceId !== workspace.workspaceId || !checked.workspace.sessionIds?.includes(sessionId)) fail('workspace_membership_unconfirmed');
     await journal.refresh();
-    if (!command.resume_session_id && command.thread_name) await rpc('session/rename', { sessionId, title: `Multica · ${command.thread_name}` });
+    if (!command.resume_session_id && command.thread_name) await rpc('session/rename', { sessionId, title: `U Workers · ${command.thread_name}` });
     await journal.readNew();
     return { sessionId, journal, rows: journal.rows, header: journal.header, origin: config.origin };
   } catch (error) { journal.close(); throw error; }
 }
 
-// The browser host has its own environment. Give only Multica CLI calls the task-scoped environment.
+// The browser host has its own environment. Give only U Workers CLI calls the task-scoped environment.
 export function taskCli(env = process.env) {
   if (!env.MULTICA_TASK_ID) return { instructions: '', cleanup() {} };
   if (!env.MULTICA_TOKEN?.startsWith('mat_') || !path.isAbsolute(env.MULTICA_TASK_CONFIG_ROOT ?? '')) fail('task_cli_environment_missing');
@@ -308,7 +308,7 @@ export function taskCli(env = process.env) {
   fs.writeFileSync(path.join(directory, 'env.json'), JSON.stringify(environment), { mode: 0o600 });
   fs.writeFileSync(entry, `import fs from 'node:fs';\nimport {spawnSync} from 'node:child_process';\nconst env=JSON.parse(fs.readFileSync(new URL('./env.json',import.meta.url),'utf8'));\nconst result=spawnSync('multica',process.argv.slice(2),{env:{...process.env,...env},stdio:'inherit',windowsHide:true});\nprocess.exit(result.status??1);\n`, { mode: 0o600 });
   return {
-    instructions: `For every Multica CLI command below, replace the executable multica with node ${JSON.stringify(entry)} and keep the arguments. This entry uses this run's agent credentials. Use it only for this run; never use the owner's signed-in Multica CLI.\n`,
+    instructions: `For every U Workers CLI command below, replace the executable named multica — or its newer name u-workers — with node ${JSON.stringify(entry)} and keep the arguments. This entry uses this run's agent credentials. Use it only for this run; never use the owner's signed-in U Workers CLI.\n`,
     cleanup() { fs.rmSync(directory, { recursive: true, force: true }); },
   };
 }

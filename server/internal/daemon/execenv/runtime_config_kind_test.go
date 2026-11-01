@@ -131,7 +131,7 @@ func TestBuildMetaSkillContentSlimKindMatrix(t *testing.T) {
 	}
 	issueKinds := map[taskKind]bool{kindIssue: true}
 	checks := []sectionCheck{
-		{"# Multica Agent Runtime", allKinds},
+		{"# U Workers Agent Runtime", allKinds},
 		{"## Background Task Safety", allKinds},
 		{"## Agent Identity", allKinds},
 		{"## Available Commands", allKinds},
@@ -353,7 +353,7 @@ func TestBackgroundTaskSafetySlimHardPins(t *testing.T) {
 		"verify readiness",
 		"URL, logs, and stop instructions",
 		"survival as best-effort, not guaranteed",
-		"Never terminate `multica` or `multica.exe` by executable name",
+		"Never terminate `u-workers`, `multica`, `u-workers.exe`, or `multica.exe` by executable name",
 		"exact child PID you started",
 		"`multica daemon status --output json`",
 		"never kill it if it is the reported daemon PID",

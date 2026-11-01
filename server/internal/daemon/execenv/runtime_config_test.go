@@ -925,7 +925,7 @@ func TestWriteRuntimeConfigFileCreatesMissingFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "CLAUDE.md")
-	const brief = "# Multica Agent Runtime\n\nbrief body line"
+	const brief = "# U Workers Agent Runtime\n\nbrief body line"
 
 	if err := writeRuntimeConfigFile(path, brief); err != nil {
 		t.Fatalf("writeRuntimeConfigFile returned error: %v", err)

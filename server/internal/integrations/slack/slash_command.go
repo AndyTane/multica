@@ -47,18 +47,57 @@ const clearSlashCommand = "/clear"
 
 // User-facing ephemeral replies. Kept terse; only the invoker sees them.
 const (
-	slashUsageText            = "Tell me what to file, e.g. `/issue the login button does nothing on Safari`."
-	slashQueuedText           = "✅ On it — I'm turning that into an issue. You'll get a U Workers notification when it's ready."
-	slashNotMemberText        = "You're not a member of this U Workers workspace, so I can't file an issue for you."
-	slashLinkAccountFallback  = "Link your Slack account to U Workers first, then try `/issue` again."
-	slashIssueLimitText       = "⚠️ This workspace has reached its issue limit. Open U Workers to view the available recovery options."
-	slashInternalErrorText    = "⚠️ Something went wrong creating the issue. Please try again."
-	slashDisabledText         = "This Slack app isn't connected to U Workers (or was disconnected). Ask a workspace admin to reconnect it."
-	slashNewStartedText       = "✅ Started a new U Workers chat."
-	slashNewThreadGuideText   = "In a channel, start the new chat from the target thread with `@Multica /new`."
-	slashClearStartedText     = "✅ Cleared the agent context in this U Workers chat."
-	slashClearThreadGuideText = "In a channel, clear the target thread's context with `@Multica /clear`."
+	slashUsageText           = "Tell me what to file, e.g. `/issue the login button does nothing on Safari`."
+	slashQueuedText          = "✅ On it — I'm turning that into an issue. You'll get a U Workers notification when it's ready."
+	slashNotMemberText       = "You're not a member of this U Workers workspace, so I can't file an issue for you."
+	slashLinkAccountFallback = "Link your Slack account to U Workers first, then try `/issue` again."
+	slashIssueLimitText      = "⚠️ This workspace has reached its issue limit. Open U Workers to view the available recovery options."
+	slashInternalErrorText   = "⚠️ Something went wrong creating the issue. Please try again."
+	slashDisabledText        = "This Slack app isn't connected to U Workers (or was disconnected). Ask a workspace admin to reconnect it."
+	slashNewStartedText      = "✅ Started a new U Workers chat."
+	slashClearStartedText    = "✅ Cleared the agent context in this U Workers chat."
 )
+
+// threadGuideFallbackBotName is the name the channel guides fall back to when
+// an installation has no stored bot user id (a row written before the BYO
+// install path started recording auth.test's user id).
+const threadGuideFallbackBotName = "@U Workers"
+
+// botMention renders the bot as a real Slack mention token. Slack substitutes
+// the name the installed app carries today, so an installation that predates
+// the U Workers rename shows @Multica and a new one shows @U Workers without
+// storing a display name anywhere. The token must stay OUTSIDE backticks:
+// inside a code span Slack prints "<@U…>" literally instead of the name.
+func botMention(botUserID string) string {
+	if botUserID == "" {
+		return threadGuideFallbackBotName
+	}
+	return "<@" + botUserID + ">"
+}
+
+// newThreadGuideText answers a channel-scoped /new that cannot guess a thread
+// (slash payloads carry no thread_ts), pointing the user at the mention form.
+func newThreadGuideText(botUserID string) string {
+	return "In a channel, start the new chat from the target thread by mentioning " +
+		botMention(botUserID) + " there, followed by `/new`."
+}
+
+// clearThreadGuideText is newThreadGuideText's /clear counterpart.
+func clearThreadGuideText(botUserID string) string {
+	return "In a channel, clear the target thread's context by mentioning " +
+		botMention(botUserID) + " there, followed by `/clear`."
+}
+
+// guideBotUserID reads the bot user id recorded on the resolved installation.
+// It is best-effort: a row without a decodable config yields "", which the
+// guides render with the fallback name.
+func guideBotUserID(inst engine.ResolvedInstallation) string {
+	platform, ok := inst.Platform.(db.ChannelInstallation)
+	if !ok {
+		return ""
+	}
+	return DecodePublicConfig(platform.Config).BotUserID
+}
 
 // slashQueries is the narrow slice of generated queries the slash-command
 // processor needs. *db.Queries satisfies it; tests supply a fake. The
@@ -200,10 +239,11 @@ func (p *SlashCommandProcessor) processControl(ctx context.Context, cmd slack.Sl
 	// would move an unrelated conversation. Channel users must use the mention
 	// form, which arrives through the ordinary Router with an exact thread root.
 	if !strings.HasPrefix(cmd.ChannelID, "D") {
+		botUserID := guideBotUserID(inst)
 		if cmd.Command == clearSlashCommand {
-			return slashClearThreadGuideText
+			return clearThreadGuideText(botUserID)
 		}
-		return slashNewThreadGuideText
+		return newThreadGuideText(botUserID)
 	}
 	if p.control == nil {
 		return slashInternalErrorText
