@@ -116,10 +116,13 @@ function Copy-BuildTree {
     param([string]$Source, [string]$Destination)
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     # robocopy signals "files copied" with exit code 1..7; only 8+ is a failure.
+    # Junctions and symlinks are expanded into real files here: the standalone
+    # web build links node_modules back into the build checkout, and a package
+    # that keeps those links only runs on the machine that built it.
     $previous = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        & robocopy.exe $Source $Destination /E /SJ /SL /R:2 /W:1 /MT:4 /NP /NFL /NDL /NJH /NJS | Out-Null
+        & robocopy.exe $Source $Destination /E /R:2 /W:1 /MT:4 /NP /NFL /NDL /NJH /NJS | Out-Null
         $exitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previous
@@ -249,6 +252,9 @@ if ($ReusePayloadFrom) {
 }
 
 Remove-PortableUnneededPostgresParts (Join-Path $payload 'runtime\pgsql')
+
+$releaseLinks = @(Get-ChildItem -LiteralPath (Join-Path $payload 'release') -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 })
+if ($releaseLinks.Count -gt 0) { throw ('The release still contains ' + $releaseLinks.Count + ' junctions or symlinks, so the package would only run on this build machine. First: ' + $releaseLinks[0].FullName) }
 
 if (-not $SkipBuildKit) {
     Write-Step 'Bundling the source snapshot and the offline build kit'

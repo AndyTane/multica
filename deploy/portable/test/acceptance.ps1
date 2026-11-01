@@ -92,7 +92,9 @@ function Invoke-Robocopy {
     $previous = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        & robocopy.exe $Source $Destination /E /SJ /SL /R:2 /W:1 /MT:8 /NP /NFL /NDL /NJH /NJS /XD @ExcludeDirectories | Out-Null
+        # A copied package is a fresh machine: junctions and symlinks are
+        # expanded so the copy is self-contained.
+        & robocopy.exe $Source $Destination /E /R:2 /W:1 /MT:8 /NP /NFL /NDL /NJH /NJS /XD @ExcludeDirectories | Out-Null
         $exitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previous
@@ -123,6 +125,11 @@ $manifest = Get-Content -LiteralPath (Join-Path $packagePath 'manifest.json') -R
 $version = [string]$manifest.version
 if (-not $EvidencePath) { $EvidencePath = Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) ('evidence\clawsta-107\acceptance.json') }
 $workRoot = [IO.Path]::GetFullPath($WorkRoot)
+# Safety: the acceptance run purges this directory; it must be a scratch path.
+$tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+if (-not $workRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -and -not $workRoot.StartsWith('D:\UWorkers\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw ('The acceptance work root must be a scratch directory: ' + $workRoot)
+}
 $serverCopy = Join-Path $workRoot 'server'
 $secondMachine = Join-Path $workRoot 'second-machine'
 $upgradeCopy = Join-Path $workRoot 'upgrade-package'
@@ -448,7 +455,7 @@ try {
                 $previous = $ErrorActionPreference
                 try {
                     $ErrorActionPreference = 'Continue'
-                    & robocopy.exe $empty $workRoot /MIR /R:0 /W:0 /MT:16 /NP /NFL /NDL /NJH /NJS | Out-Null
+                    & robocopy.exe $empty $workRoot /MIR /XJ /R:0 /W:0 /MT:16 /NP /NFL /NDL /NJH /NJS | Out-Null
                 } finally { $ErrorActionPreference = $previous }
                 Remove-Item -LiteralPath $empty -Recurse -Force -ErrorAction SilentlyContinue
                 Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
