@@ -70,13 +70,13 @@ Desktop 설정에서 실행 상태와 로그를 확인할 수 있습니다. 도�
 
 ## 자체 호스팅 인스턴스 연결
 
-Desktop은 기본적으로 U Workers Cloud에 연결됩니다. 자체 호스팅 인스턴스에 연결하려면 사용자 디렉터리의 `.multica` 안에 `desktop.json`을 만듭니다.
+Desktop에는 서버 주소가 내장되어 있지 않습니다. 처음 실행하기 전에 사용자 디렉터리의 `.u-workers` 안에 `desktop.json`을 만듭니다.
 
 | 플랫폼 | 경로 |
 | --- | --- |
-| macOS | `/Users/<사용자>/.multica/desktop.json` |
-| Linux | `/home/<사용자>/.multica/desktop.json` |
-| Windows | `C:\Users\<사용자>\.multica\desktop.json` |
+| macOS | `/Users/<사용자>/.u-workers/desktop.json` |
+| Linux | `/home/<사용자>/.u-workers/desktop.json` |
+| Windows | `C:\Users\<사용자>\.u-workers\desktop.json` |
 
 위 경로는 기본 위치입니다. 홈 디렉터리를 옮겼거나 리디렉션한 경우에는 실제 경로를 사용하세요.
 
@@ -113,10 +113,8 @@ Desktop은 기본적으로 U Workers Cloud에 연결됩니다. 자체 호스팅 
 
 저장한 뒤 Desktop을 다시 시작합니다. 이 설정은 시작할 때 한 번만 읽습니다. 두 가지 실패는 다르게 나타나므로 이를 보고 빠르게 구분할 수 있습니다.
 
-- **파일을 찾지 못한 경우**(디렉터리가 다르거나 파일 이름이 `desktop.json`이 아닌 경우): Desktop은 기본 Cloud 설정을 사용하고 오류를 표시하지 않습니다. 따라서 Desktop이 여전히 Cloud 주소를 표시하고 설정 오류도 없다면, 파일이 Desktop이 찾는 위치에 없다는 뜻입니다.
-- **파일은 찾았지만 유효하지 않은 경우**(JSON, 버전, URL에 문제가 있는 경우): Desktop에 설정 오류가 표시되며 Cloud로 자동 폴백하지 않습니다.
-
-해당 파일을 삭제하고 다시 시작하면 기본 Cloud 설정으로 돌아갑니다.
+- **파일을 찾지 못한 경우**(디렉터리가 다르거나 파일 이름이 `desktop.json`이 아닌 경우): Desktop은 `desktop.json`이 없다는 오류와 함께 실제로 확인한 경로와 설정 예시를 보여 줍니다.
+- **파일은 찾았지만 유효하지 않은 경우**(JSON, 버전, URL에 문제가 있는 경우): Desktop에 해당 파일을 가리키는 설정 오류가 표시됩니다.
 
 <Callout type="warning">
 Desktop은 브라우저와 실행 컴퓨터에서 모두 접근할 수 있는 주소에만 연결할 수 있습니다. 원격 자체 호스팅 인스턴스에 HTTPS가 없거나 WebSocket 프록시가 설정되지 않으면 Desktop이 연결되지 않습니다. 전체 설정은 [자체 호스팅 빠른 시작](/self-host-quickstart#3-접근-방식-선택)을 참고하세요.
@@ -126,13 +124,13 @@ Desktop은 브라우저와 실행 컴퓨터에서 모두 접근할 수 있는 �
 
 Windows에서는 편집기의 두 가지 기본 동작 때문에 Desktop이 사용할 수 없는 파일이 조용히 만들어집니다.
 
-- **메모장이 `.txt`를 덧붙입니다.** `desktop.json`으로 저장해도 실제로는 `desktop.json.txt`가 될 수 있으며, Desktop은 이를 파일이 없는 것으로 처리합니다. 파일 탐색기에서 파일 확장명 표시를 켜거나 저장 대화 상자에서 *모든 파일*을 선택하세요. 실제 파일 이름을 확인하려면 PowerShell에서 `Get-ChildItem "$env:USERPROFILE\.multica" -Filter "desktop.json*"`를 실행하세요. `Name` 열이 정확히 `desktop.json`이어야 합니다.
+- **메모장이 `.txt`를 덧붙입니다.** `desktop.json`으로 저장해도 실제로는 `desktop.json.txt`가 될 수 있으며, Desktop은 이를 파일이 없는 것으로 처리합니다. 파일 탐색기에서 파일 확장명 표시를 켜거나 저장 대화 상자에서 *모든 파일*을 선택하세요. 실제 파일 이름을 확인하려면 PowerShell에서 `Get-ChildItem "$env:USERPROFILE\.u-workers" -Filter "desktop.json*"`를 실행하세요. `Name` 열이 정확히 `desktop.json`이어야 합니다.
 - **PowerShell 리디렉션은 UTF-16이나 BOM을 씁니다.** `> desktop.json`과 `Out-File`은 파싱할 수 없는 인코딩을 만들 수 있으며, 설정 오류로 나타납니다.
 
 두 가지를 모두 피하려면 PowerShell에서 한 번에 파일을 만듭니다.
 
 ```powershell
-$dir = "$env:USERPROFILE\.multica"
+$dir = "$env:USERPROFILE\.u-workers"
 New-Item -ItemType Directory -Force $dir | Out-Null
 $json = @'
 {
@@ -166,9 +164,9 @@ Get-FileHash .\multica-cli-<version>-windows-amd64.zip -Algorithm SHA256
 1. **격리된 파일 복원** — Windows 보안 → *바이러스 및 위협 방지* → *보호 기록* → U Workers 항목 선택 → *작업* → *복원*.
 2. **제외 항목 추가** (다시 격리되지 않도록) — *바이러스 및 위협 방지* → *설정 관리* → *제외* → *제외 추가 또는 제거* → *폴더*에서 다음 두 경로를 모두 추가합니다.
    - `%LOCALAPPDATA%\Programs\@multicadesktop`
-   - `%APPDATA%\Multica`
+   - `%APPDATA%\U Workers`
 
-   두 경로 모두 필요합니다. 포함된 CLI가 사라지면 Desktop이 대체 바이너리를 `%APPDATA%\Multica\bin`에 내려받기 때문에, 설치 폴더만 제외하면 새로 받은 파일이 다시 격리되는 상황이 반복됩니다.
+   두 경로 모두 필요합니다. 포함된 CLI가 사라지면 Desktop이 대체 바이너리를 `%APPDATA%\U Workers\bin`에 내려받기 때문에, 설치 폴더만 제외하면 새로 받은 파일이 다시 격리되는 상황이 반복됩니다.
 3. **오탐을 Microsoft에 신고** — [Microsoft Security Intelligence 파일 제출 페이지](https://www.microsoft.com/en-us/wdsi/filesubmission)에서 *Software developer*와 *Incorrectly detected as malware*를 선택하세요. 모든 사용자에 대해 탐지를 철회시키는 방법은 이것이며, 보통 며칠 안에 반영됩니다.
 
 <Callout type="warning">

@@ -35,7 +35,7 @@ multica version
 
 ## Première connexion
 
-Se connecter à U Workers Cloud :
+Se connecter à un serveur sur cette machine (par défaut `localhost:8080` et `localhost:3000`) :
 
 ```bash
 multica setup
@@ -303,7 +303,7 @@ Les tableaux ci-dessous couvrent toutes les commandes de premier niveau actuelle
 | `auth` | `status` / `logout` | Vérifier l'état de l'authentification ; `logout` supprime seulement le jeton enregistré localement et ne le révoque pas côté serveur | |
 | `user` | `profile get/update` | Consulter ou mettre à jour le profil de l'utilisateur actuel | |
 | `login` | — | Se connecter via le navigateur et configurer automatiquement tous les espaces de travail | `--token` (demande la saisie de façon interactive dans le terminal lorsque l'option est passée sans valeur) |
-| `setup` | `cloud` (par défaut), `self-host` | Enregistrer l'adresse du serveur, finaliser la connexion et démarrer le daemon | `self-host` : `--server-url`, `--app-url`, `--port`, `--frontend-port` |
+| `setup` | `self-host` (identique à `setup`) | Enregistrer l'adresse du serveur, finaliser la connexion et démarrer le daemon | `--server-url`, `--app-url`, `--port`, `--frontend-port` |
 | `attachment` | `download <attachment-id>`, `upload <path>` | Télécharger ou envoyer des pièces jointes | `download` : `--output-dir` ; `upload` : `--task` |
 | `config` | `show`, `set <key> <value>` | Consulter ou modifier la configuration locale du profil actuel | Priorité : options de ligne de commande > variables d'environnement > `config.json` > valeurs par défaut intégrées ; définissez une chaîne vide pour effacer une valeur |
 | `update` | — | Mettre à jour le CLI vers la dernière version | |

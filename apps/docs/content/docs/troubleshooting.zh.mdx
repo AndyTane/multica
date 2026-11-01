@@ -109,7 +109,7 @@ multica issue runs <issue-id>
 2. 无人值守的 Mac 请给新二进制授予完全磁盘访问权限。用 `realpath "$(command -v multica)"` 打印路径，然后在**系统设置 → 隐私与安全性 → 完全磁盘访问权限**中删除旧的 `multica` 条目并添加该路径（在文件选择器中按 ⌘⇧G 粘贴路径）。
 3. 按启动守护进程时的方式重启它：`multica daemon restart`；LaunchAgent 则用 `launchctl kickstart -k gui/$(id -u)/<label>`。
 
-每次升级 CLI 后都需要重复这些步骤。只有连接 U Workers Cloud 的守护进程默认开启自动更新；用 `--no-auto-update` 启动守护进程后，只在你手动升级时更新。[桌面应用](/desktop-app)内置的 CLI 使用 Developer ID 签名，授权在升级后依然有效。
+每次升级 CLI 后都需要重复这些步骤。自动更新默认关闭；如果你开启过，用 `--no-auto-update` 启动守护进程，之后只在你手动升级时更新。[桌面应用](/desktop-app)内置的 CLI 使用 Developer ID 签名，授权在升级后依然有效。
 
 ## 实时更新失效
 
