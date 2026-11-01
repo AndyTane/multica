@@ -190,7 +190,7 @@
     "title": "コンピュータを追加",
     "description": "同梱またはローカルビルドした CLI を使用し、このサービスに接続します。",
     "step1_label": "CLI をビルド",
-    "step1_hint": "U Workers のソースフォルダで実行します（Go と Git が必要）。このサーバーと同じバージョンでビルドし、このターミナルの PATH に u-workers を追加します。何もダウンロードしません。",
+    "step1_hint": "U Workers のソースフォルダで実行します（Go と Git が必要）。このサーバーと同じバージョンでビルドし、このターミナルの PATH に u-workers を追加します。リモートのインストールスクリプトはダウンロードしません。",
     "platform_group": "プラットフォームを選択",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

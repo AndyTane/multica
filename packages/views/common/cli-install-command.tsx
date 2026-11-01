@@ -28,7 +28,7 @@ export function cliBuildVersion(serverVersion: string | undefined): string {
 
 /**
  * Build the CLI from the source checkout and put it on this terminal's PATH,
- * so the next step's `u-workers` resolves. Nothing is downloaded.
+ * so the next step's `u-workers` resolves. No remote installer script is downloaded.
  */
 export function cliInstallCommands(version: string) {
   return {

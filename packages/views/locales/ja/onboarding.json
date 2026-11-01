@@ -25,7 +25,7 @@
   },
   "cli_install": {
     "copy_aria": "コピー",
-    "intro": "U Workers のソースフォルダで実行します（Go と Git が必要）。このサーバーと同じバージョンでビルドし、このターミナルの PATH に u-workers を追加します。何もダウンロードしません。",
+    "intro": "U Workers のソースフォルダで実行します（Go と Git が必要）。このサーバーと同じバージョンでビルドし、このターミナルの PATH に u-workers を追加します。リモートのインストールスクリプトはダウンロードしません。",
     "step1_label": "CLI をビルド",
     "platform_group": "プラットフォームを選択",
     "platform_macos_linux": "macOS / Linux",
