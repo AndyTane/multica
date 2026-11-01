@@ -123,7 +123,8 @@ Go：
 ## 交付记录（2026-11-01，DSH，批次 1 / 唯一一批）
 
 **PR**：[#15](https://github.com/AndyTane/UWorkers-nice/pull/15)（Draft，`clawsta-102-im-feishu-only` → `main`）
-**base..head**：`d53f16b41`（main）.. 本 PR 顶部提交；其中代码提交到 `3af1ab39d` 为止，本记录是 PR 最后一个提交。
+**base..head**：任务基于 `d53f16b41`；PR base 现为 `b578c3197`（#14 在本批进行中合并，已把最新 main 合并进分支，
+见文末「交付后更新」）。代码提交到 `3af1ab39d` 为止，head 见 PR 顶部。
 **改动文件数**：代码 23 个文件（+779 / −220），另加本任务书（连同任务书共 24 个文件）；4 个代码提交：
 `b346ee25e` feat(channels) 开关与路由接线、`667bd913a` test(channels) 测试、`88598ee8a` feat(web) 前端、
 `3af1ab39d` docs(channels) 文档站导航。
@@ -219,3 +220,15 @@ STATE all four on
 3. Slack/Telegram/钉钉/企业微信的存量安装、绑定、会话按方案原样保留，没有撤销、没有改状态；关闭期间
    由这些渠道发起、仍在运行的任务照常结束，只是不再回发到该渠道。
 4. 验证用的本地 dev 环境（WSL 里的 `uworkers_nice-469`）只有本机可见，数据是临时库；关闭只影响该环境。
+
+### 交付后更新：PR #14 已合并
+
+本批开工时 `origin/main` 是 `d53f16b41`、PR #14 未合并，所以按任务书「未合并」分支处理：不动
+`channels*.mdx` 与 `environment-variables*.mdx`，只改导航。交付前复查时发现 #14 已于 15:14 合并到 main
+（`b578c3197`），于是把最新 main 合并进本分支（merge commit `0342b935c`），PR base 更新为 `b578c3197`
+且保持可合并；合并后在合并结果上重跑了 `go build ./...`、`go vet`、`go test ./internal/featureflags/
+./cmd/server/ ./internal/integrations/lark/...` 与 `pnpm typecheck`，全部通过（结果与前面一致）。
+
+**文档补丁的去向**：`channels*.mdx`（只保留飞书为默认渠道，并写一句「其他渠道默认关闭，见环境变量」）与
+`environment-variables*.mdx`（加四个 `FF_CHANNEL_*`）仍按任务书作为 #14 合并后的独立补充，没有塞进本批：
+它涉及五种语言共 10 个页面，单列一批更容易审翻译和文案。评审若希望并入本 PR，我可以按现有分支直接补一个提交。
