@@ -22,24 +22,24 @@ Ouvrez [Slack API Apps](https://api.slack.com/apps), cliquez sur **Create New Ap
 
 ```yaml
 display_information:
-  name: Multica
+  name: U Workers
 features:
   app_home:
     home_tab_enabled: false
     messages_tab_enabled: true
     messages_tab_read_only_enabled: false
   bot_user:
-    display_name: Multica
+    display_name: U Workers
     always_online: true
   slash_commands:
     - command: /issue
-      description: Create a Multica issue
+      description: Create a U Workers issue
       usage_hint: "[description]"
     - command: /new
-      description: Start a new Multica chat
+      description: Start a new U Workers chat
       usage_hint: "[message]"
     - command: /clear
-      description: Clear the current Multica chat context
+      description: Clear the current U Workers chat context
       usage_hint: "[message]"
 oauth_config:
   scopes:
@@ -69,10 +69,10 @@ settings:
   token_rotation_enabled: false
 ```
 
-Avant de créer l'application, vous pouvez remplacer les deux occurrences de `Multica` par le nom de l'agent. Ne supprimez aucune portée ni aucun événement du manifeste, sinon les messages directs, les mentions dans les canaux, les réponses, `/issue`, `/new` ou `/clear` risquent de ne plus fonctionner.
+Avant de créer l'application, vous pouvez remplacer les deux occurrences de `U Workers` par le nom de l'agent. Ne supprimez aucune portée ni aucun événement du manifeste, sinon les messages directs, les mentions dans les canaux, les réponses, `/issue`, `/new` ou `/clear` risquent de ne plus fonctionner.
 
 <Callout type="warning">
-Les noms des commandes slash Slack sont globaux à l'espace de travail. Si une autre application installée utilise déjà `/new` ou `/clear`, Slack rejette la commande en conflit lorsque vous créez ou mettez à jour l'application. Résolvez le conflit, ou envoyez la forme message — `@Multica /new [message]` ou `@Multica /clear [message]` — pour contourner l'interception des commandes slash natives.
+Les noms des commandes slash Slack sont globaux à l'espace de travail. Si une autre application installée utilise déjà `/new` ou `/clear`, Slack rejette la commande en conflit lorsque vous créez ou mettez à jour l'application. Résolvez le conflit, ou envoyez la forme message — `@U Workers /new [message]` ou `@U Workers /clear [message]` — pour contourner l'interception des commandes slash natives.
 </Callout>
 
 <Callout type="warning">
@@ -153,13 +153,13 @@ Dans un message direct avec le bot, `/new` crée immédiatement une nouvelle dis
 
 La discussion précédente reste disponible dans U Workers, et vous pouvez toujours y écrire sur le web, sur ordinateur et sur mobile. Seuls les messages suivants de cette conversation Slack sont acheminés vers la nouvelle discussion.
 
-Dans un canal ou un fil, la charge utile de la commande slash native de Slack n'identifie pas le fil cible. Envoyez plutôt `@Multica /new [message]` dans le fil cible.
+Dans un canal ou un fil, la charge utile de la commande slash native de Slack n'identifie pas le fil cible. Envoyez plutôt `@U Workers /new [message]` dans le fil cible.
 
 ### Effacer le contexte de la discussion en cours avec `/clear`
 
 Dans un message direct avec le bot, `/clear` conserve la discussion U Workers en cours et réinitialise uniquement le contexte visible par l'agent. L'historique complet de la discussion reste enregistré et visible dans U Workers. `/clear <message>` utilise le message comme premier tour du nouveau contexte ; un `/clear` seul applique la limite au prochain vrai message.
 
-Dans un canal ou un fil, envoyez `@Multica /clear [message]` dans le fil cible afin que U Workers puisse appliquer la limite à la bonne conversation.
+Dans un canal ou un fil, envoyez `@U Workers /clear [message]` dans le fil cible afin que U Workers puisse appliquer la limite à la bonne conversation.
 
 ## Gérer les connexions
 
@@ -191,7 +191,7 @@ Les liens d'association de compte utilisent `MULTICA_APP_URL`, ou `FRONTEND_ORIG
 - **L'application ne peut pas être vérifiée** : vérifiez que le manifeste inclut `users:read`, puis réinstallez l'application après avoir mis à jour les permissions.
 - **Aucun point d'entrée pour les messages directs** : vérifiez que `app_home.messages_tab_enabled` vaut `true`.
 - **Aucune réponse dans un canal** : vérifiez que le bot a été invité dans le canal et que le message le @mentionne.
-- **`/issue`, `/new` ou `/clear` n'existe pas** : vérifiez que le manifeste inclut les trois commandes slash et la portée `commands`, puis réinstallez l'application. Si Slack indique que `/new` ou `/clear` est déjà pris, utilisez la forme message `@Multica` ou résolvez d'abord le conflit de commandes au niveau de l'espace de travail.
+- **`/issue`, `/new` ou `/clear` n'existe pas** : vérifiez que le manifeste inclut les trois commandes slash et la portée `commands`, puis réinstallez l'application. Si Slack indique que `/new` ou `/clear` est déjà pris, utilisez la forme message `@U Workers` ou résolvez d'abord le conflit de commandes au niveau de l'espace de travail.
 - **Les fichiers ne parviennent pas à l'agent** : vérifiez que le manifeste inclut `files:read` et que l'application a été réinstallée après l'ajout de cette portée, et que le fichier fait 20 Mio au maximum.
 - **Le bot ne s'exécute pas** : vérifiez si l'agent est archivé et si le [runtime](/daemon-runtimes) qu'il utilise est en ligne.
 
