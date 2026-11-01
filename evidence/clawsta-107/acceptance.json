@@ -1,0 +1,315 @@
+{
+  "secondMachine": "connect exit 0; daemon and runtime confirmed by the connect output; same-host runtime rows are shared by daemon identity",
+  "upgrade": {
+    "from": "v0.2.0",
+    "to": "v0.2.1",
+    "backup": "C:\\Users\\HuaWei\\AppData\\Local\\Temp\\uw-a\\server\\backups\\native-20261102-005306",
+    "countsBefore": "1|1|1",
+    "countsAfter": "1|1|1"
+  },
+  "checks": [
+    {
+      "name": "package copied to a clean folder",
+      "ok": true,
+      "detail": "C:\\Users\\HuaWei\\AppData\\Local\\Temp\\uw-a\\server",
+      "at": "2026-11-01T16:47:46.0965827Z"
+    },
+    {
+      "name": "port 23443 is free before the install",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:47:46.1344694Z"
+    },
+    {
+      "name": "port 28080 is free before the install",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:47:46.1389871Z"
+    },
+    {
+      "name": "port 23000 is free before the install",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:47:46.1425702Z"
+    },
+    {
+      "name": "port 26433 is free before the install",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:47:46.1457375Z"
+    },
+    {
+      "name": "dependency downloads disabled for the install",
+      "ok": true,
+      "detail": "HTTP(S)_PROXY=http://127.0.0.1:9",
+      "at": "2026-11-01T16:47:46.1608746Z"
+    },
+    {
+      "name": "install script completed",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:49:03.1985674Z"
+    },
+    {
+      "name": "install report written",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:49:03.2066832Z"
+    },
+    {
+      "name": "install report says clean install",
+      "ok": true,
+      "detail": "clean",
+      "at": "2026-11-01T16:49:03.2095871Z"
+    },
+    {
+      "name": "install report version matches the package",
+      "ok": true,
+      "detail": "v0.2.0",
+      "at": "2026-11-01T16:49:03.2113272Z"
+    },
+    {
+      "name": "root-ca.crt exported next to the server scripts",
+      "ok": true,
+      "detail": "C:\\Users\\HuaWei\\AppData\\Local\\Temp\\uw-a\\server\\root-ca.crt",
+      "at": "2026-11-01T16:49:03.2259676Z"
+    },
+    {
+      "name": "API ready over HTTPS",
+      "ok": true,
+      "detail": "200",
+      "at": "2026-11-01T16:49:03.3168654Z"
+    },
+    {
+      "name": "sign-in page over HTTPS",
+      "ok": true,
+      "detail": "200",
+      "at": "2026-11-01T16:49:03.6032471Z"
+    },
+    {
+      "name": "board responds over HTTPS",
+      "ok": true,
+      "detail": "307",
+      "at": "2026-11-01T16:49:03.6883254Z"
+    },
+    {
+      "name": "HTTPS certificate is not publicly trusted (proves the private CA path)",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:49:03.7560993Z"
+    },
+    {
+      "name": "installed web release references only files inside the package",
+      "ok": true,
+      "detail": "links=2 outside=0 ",
+      "at": "2026-11-01T16:49:04.4723556Z"
+    },
+    {
+      "name": "build checkout hidden during the board check",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:49:04.5017288Z"
+    },
+    {
+      "name": "board works with the build checkout hidden",
+      "ok": true,
+      "detail": "200 318184",
+      "at": "2026-11-01T16:49:04.8132956Z"
+    },
+    {
+      "name": "API works with the build checkout hidden",
+      "ok": true,
+      "detail": "200",
+      "at": "2026-11-01T16:49:04.9209038Z"
+    },
+    {
+      "name": "local credentials file exists",
+      "ok": true,
+      "detail": "C:\\Users\\HuaWei\\AppData\\Local\\Temp\\uw-a\\server\\data\\local-login.txt",
+      "at": "2026-11-01T16:49:04.9387586Z"
+    },
+    {
+      "name": "local sign-in succeeds",
+      "ok": true,
+      "detail": "200",
+      "at": "2026-11-01T16:49:05.4582127Z"
+    },
+    {
+      "name": "onboarding completed for the operator",
+      "ok": true,
+      "detail": "11/02/2026 00:48:58",
+      "at": "2026-11-01T16:49:05.4651750Z"
+    },
+    {
+      "name": "initial workspace created",
+      "ok": true,
+      "detail": "1",
+      "at": "2026-11-01T16:49:05.6476953Z"
+    },
+    {
+      "name": "at least one runtime is online",
+      "ok": true,
+      "detail": "Claude (移动专用机)/claude, Codex (移动专用机)/codex, Openclaw (移动专用机)/openclaw, Opencode (移动专用机)/opencode",
+      "at": "2026-11-01T16:49:05.8032671Z"
+    },
+    {
+      "name": "the bundled opencode runtime is online",
+      "ok": true,
+      "detail": "Claude (移动专用机)/claude, Codex (移动专用机)/codex, Openclaw (移动专用机)/openclaw, Opencode (移动专用机)/opencode",
+      "at": "2026-11-01T16:49:05.8085769Z"
+    },
+    {
+      "name": "local daemon reports running",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:49:06.0024902Z"
+    },
+    {
+      "name": "start-on-login item registered in the current user Startup folder",
+      "ok": true,
+      "detail": "C:\\Users\\HuaWei\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\U Workers Portable.vbs",
+      "at": "2026-11-01T16:49:06.0042900Z"
+    },
+    {
+      "name": "prebuilt installer shipped in the package",
+      "ok": true,
+      "detail": "21572608",
+      "at": "2026-11-01T16:49:06.0306623Z"
+    },
+    {
+      "name": "prebuilt installer starts and prints usage",
+      "ok": true,
+      "detail": "0",
+      "at": "2026-11-01T16:49:06.4216786Z"
+    },
+    {
+      "name": "installer rebuilt offline from the bundled toolchain",
+      "ok": true,
+      "detail": "\r\n",
+      "at": "2026-11-01T16:50:48.8648434Z"
+    },
+    {
+      "name": "personal access token minted for the second machine",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:50:49.1563518Z"
+    },
+    {
+      "name": "second machine connect exit code 0",
+      "ok": true,
+      "detail": "\r\nNext: open the board to see this machine's runtime, or run 'daemon status'.\r\n\r\n",
+      "at": "2026-11-01T16:50:54.6033579Z"
+    },
+    {
+      "name": "second machine connect reported a running daemon and a registered runtime",
+      "ok": true,
+      "detail": "  daemon:   daemon running (pid 79804) |   runtimes: 4 online",
+      "at": "2026-11-01T16:52:54.6338364Z"
+    },
+    {
+      "name": "marker issue created before the upgrade",
+      "ok": true,
+      "detail": "201",
+      "at": "2026-11-01T16:52:54.9515624Z"
+    },
+    {
+      "name": "upgrade script completed",
+      "ok": true,
+      "detail": "\r\n",
+      "at": "2026-11-01T16:54:02.5336930Z"
+    },
+    {
+      "name": "upgrade changed the installed version",
+      "ok": true,
+      "detail": "v0.2.1",
+      "at": "2026-11-01T16:54:02.5446696Z"
+    },
+    {
+      "name": "upgrade made a database backup first",
+      "ok": true,
+      "detail": "C:\\Users\\HuaWei\\AppData\\Local\\Temp\\uw-a\\server\\backups\\native-20261102-005306",
+      "at": "2026-11-01T16:54:02.5483901Z"
+    },
+    {
+      "name": "deployment.json now names the new version",
+      "ok": true,
+      "detail": "v0.2.1",
+      "at": "2026-11-01T16:54:02.5505190Z"
+    },
+    {
+      "name": "API ready after the upgrade",
+      "ok": true,
+      "detail": "200",
+      "at": "2026-11-01T16:54:02.6779497Z"
+    },
+    {
+      "name": "data written before the upgrade still exists",
+      "ok": true,
+      "detail": "200",
+      "at": "2026-11-01T16:54:02.8898719Z"
+    },
+    {
+      "name": "row counts did not shrink during the upgrade",
+      "ok": true,
+      "detail": "1|1|1 -> 1|1|1",
+      "at": "2026-11-01T16:54:03.0036273Z"
+    },
+    {
+      "name": "Multica CLI config hash unchanged",
+      "ok": true,
+      "detail": "",
+      "at": "2026-11-01T16:54:03.0326155Z"
+    }
+  ],
+  "version": "v0.2.0",
+  "package": "D:\\UWorkers\\clawsta107\\dist\\UWorkers-Portable-v0.2.0",
+  "packageSha256": {
+    "server": "30447CB52CE1BD99A05689DD6065833370D75059519C638C80B28D1DE07FAF39",
+    "cli": "9E46B144865B2362F8E9B4A825E92D2656CF6D7C8552C43975194E9A1D778F56",
+    "installer": "6AC8B16D464BDF70C73E576F92FF03A604CEFBB2120E24DB36345498BDD8F604"
+  },
+  "durationSeconds": 384.7,
+  "offlineSimulation": "HTTP_PROXY/HTTPS_PROXY/ALL_PROXY pointed at http://127.0.0.1:9 for all child processes",
+  "boardUrl": "https://127.0.0.1:23443",
+  "runtimes": [
+    {
+      "name": "Claude (移动专用机)",
+      "provider": "claude",
+      "status": "online"
+    },
+    {
+      "name": "Codex (移动专用机)",
+      "provider": "codex",
+      "status": "online"
+    },
+    {
+      "name": "Openclaw (移动专用机)",
+      "provider": "openclaw",
+      "status": "online"
+    },
+    {
+      "name": "Opencode (移动专用机)",
+      "provider": "opencode",
+      "status": "online"
+    }
+  ],
+  "os": {
+    "caption": "Microsoft Windows 11 家庭版 中文版",
+    "version": "Microsoft Windows NT 10.0.26200.0",
+    "user": "HuaWei"
+  },
+  "passed": true,
+  "cleanup": {
+    "errors": [
+      "profile C:\\Users\\HuaWei\\.multica\\profiles\\uworkers-acceptance-second: The process cannot access the file 'C:\\Users\\HuaWei\\.multica\\profiles\\uworkers-acceptance-second\\daemon.err.log' because it is being used by another process.",
+      "processes still running: 66648:u-workers"
+    ],
+    "ports": [
+      23443,
+      28080,
+      23000,
+      26433
+    ]
+  },
+  "failedChecks": []
+}
