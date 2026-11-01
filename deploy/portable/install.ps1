@@ -354,10 +354,14 @@ function Invoke-PortablePrepare {
         '-WebHost', '127.0.0.1'
     )
     Invoke-PortableNativeAction -Root $root -Action 'Prepare' -ExtraArguments (@('-Clean') + $arguments) | Out-Null
+    Set-PortableLocalLoginFlags
+}
+
+function Set-PortableLocalLoginFlags {
     # The packaged deployment signs its operator in with a host-provisioned
     # local account; email-code login has no mail service to talk to, so the
     # password form is the entry point and the email flow is switched off.
-    $config = Read-PortableDeployment $root
+    $config = Get-PortableDeployment $root
     $config.BackendEnvironment | Add-Member -NotePropertyName AUTH_LOCAL_PASSWORD_ENABLED -NotePropertyValue 'true' -Force
     $config.BackendEnvironment | Add-Member -NotePropertyName AUTH_EMAIL_CODE_ENABLED -NotePropertyValue 'false' -Force
     Write-PortableJson (Join-Path $root 'deployment.json') $config
@@ -472,7 +476,7 @@ function Invoke-PortableAdoption {
     Invoke-PortablePrepare -HostName $HostName
     # Keep the credentials the copied cluster was initialized with, and keep the
     # existing JWT secret so signed-in sessions survive the move.
-    $config = Read-PortableDeployment $root
+    $config = Get-PortableDeployment $root
     $config.DatabaseUser = [string]$oldConfig.DatabaseUser
     $config.DatabasePassword = [string]$oldConfig.DatabasePassword
     $config.SourceDatabase = [string]$oldConfig.SourceDatabase
@@ -578,6 +582,12 @@ if ($AdoptRoot) {
         Invoke-PortableStageRuntime
         Invoke-PortablePrepare -HostName $hostName
         Invoke-PortableStageRelease
+    } else {
+        Set-PortableLocalLoginFlags
+        $resumedDeployment = Get-PortableDeployment $root
+        if (-not $resumedDeployment.Release -or -not (Test-Path -LiteralPath (Join-Path ([string]$resumedDeployment.Release) 'server.exe'))) {
+            Invoke-PortableStageRelease
+        }
     }
     Invoke-PortableStartServer
     $rootCA = Start-PortableHttps -HostName $hostName
@@ -585,7 +595,9 @@ if ($AdoptRoot) {
     Write-Step 'Checking the board over HTTPS'
     Wait-PortableHttp -Uri ($serverUrl + '/login') -RootCAPath $rootCA.Path -TimeoutSec 90 -Description 'the sign-in page' | Out-Null
     $board = Invoke-PortableWebRequest -Uri ($serverUrl + '/') -RootCAPath $rootCA.Path
-    if ($board.StatusCode -ne 200) { throw ('The board did not answer over HTTPS (status ' + $board.StatusCode + ').') }
+    # The Next.js app answers "/" with a redirect (onboarding or workspace); any
+    # non-error response proves the HTTPS entry serves the web app.
+    if ($board.StatusCode -lt 200 -or $board.StatusCode -ge 400) { throw ('The board did not answer over HTTPS (status ' + $board.StatusCode + ').') }
     $account = Install-PortableAccount -HostName $hostName -RootCAPath $rootCA.Path
     $result = [ordered]@{
         ServerUrl = $account.ServerUrl

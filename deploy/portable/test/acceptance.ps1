@@ -86,12 +86,13 @@ function Write-Step {
 }
 
 function Invoke-Robocopy {
-    param([string]$Source, [string]$Destination)
+    param([string]$Source, [string]$Destination, [string[]]$ExcludeDirectories)
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    if (-not $ExcludeDirectories) { $ExcludeDirectories = @() }
     $previous = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        & robocopy.exe $Source $Destination /E /SJ /SL /R:2 /W:1 /MT:4 /NP /NFL /NDL /NJH /NJS | Out-Null
+        & robocopy.exe $Source $Destination /E /SJ /SL /R:2 /W:1 /MT:8 /NP /NFL /NDL /NJH /NJS /XD @ExcludeDirectories | Out-Null
         $exitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previous
@@ -147,7 +148,17 @@ try {
             if (-not $KeepWorkRoot) { Remove-Item -LiteralPath $workRoot -Recurse -Force }
         }
         New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
-        Invoke-Robocopy $packagePath $serverCopy
+        # The Go build kit is read-only input. Copying it would move a few
+        # gigabytes of module cache per test run, so the clean copy links it
+        # from the package folder instead; the offline rebuild still reads only
+        # files inside the package.
+        Invoke-Robocopy $packagePath $serverCopy -ExcludeDirectories @('tools')
+        $sourceTools = Join-Path $packagePath 'tools'
+        if (Test-Path -LiteralPath $sourceTools) {
+            $linkedTools = Join-Path $serverCopy 'tools'
+            if (Test-Path -LiteralPath $linkedTools) { Remove-Item -LiteralPath $linkedTools -Recurse -Force }
+            New-Item -ItemType Junction -Path $linkedTools -Target $sourceTools | Out-Null
+        }
         New-Item -ItemType Directory -Path $secondMachine -Force | Out-Null
         Assert-Check 'package copied to a clean folder' (Test-Path -LiteralPath (Join-Path $serverCopy 'install.ps1')) $serverCopy
 
@@ -202,7 +213,9 @@ try {
     $loginPage = Invoke-PortableWebRequest -Uri ($serverUrl + '/login') -RootCAPath $rootCa
     Assert-Check 'sign-in page over HTTPS' ($loginPage.StatusCode -eq 200) ([string]$loginPage.StatusCode)
     $board = Invoke-PortableWebRequest -Uri ($serverUrl + '/') -RootCAPath $rootCa
-    Assert-Check 'board responds over HTTPS' ($board.StatusCode -eq 200) ([string]$board.StatusCode)
+    # "/" redirects to onboarding or the workspace; a non-error status proves the
+    # web app is served through the HTTPS entry.
+    Assert-Check 'board responds over HTTPS' ($board.StatusCode -ge 200 -and $board.StatusCode -lt 400) ([string]$board.StatusCode)
     $untrustedRejected = $false
     try { Invoke-PortableWebRequest -Uri ($serverUrl + '/readyz') -TimeoutSec 10 | Out-Null } catch { $untrustedRejected = $true }
     Assert-Check 'HTTPS certificate is not publicly trusted (proves the private CA path)' $untrustedRejected
@@ -409,6 +422,12 @@ try {
         Add-Check 'cleanup left no process or port behind' ($cleanupErrors.Count -eq 0) ($cleanupErrors -join '; ')
         $evidence.cleanup = [ordered]@{ errors = $cleanupErrors; ports = @($HttpsPort, $ApiPort, $WebPort, $DatabasePort) }
         if (-not $KeepWorkRoot) {
+            $linkedTools = Join-Path $serverCopy 'tools'
+            try {
+                if ((Test-Path -LiteralPath $linkedTools) -and ((Get-Item -LiteralPath $linkedTools -Force).LinkType -eq 'Junction')) {
+                    [IO.Directory]::Delete($linkedTools, $false)
+                }
+            } catch { }
             try { Remove-Item -LiteralPath $workRoot -Recurse -Force } catch { }
         }
         $evidence.failedChecks = @($failed | ForEach-Object { $_.name + ': ' + $_.detail })
