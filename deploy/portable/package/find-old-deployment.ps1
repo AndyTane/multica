@@ -1,4 +1,4 @@
-# 查找本机上的 U Workers 原生部署（deployment.json），帮 Tane 确认操作单里的旧目录默认值。
+﻿# 查找本机上的 U Workers 原生部署（deployment.json），帮 Tane 确认操作单里的旧目录默认值。
 $ErrorActionPreference = 'SilentlyContinue'
 $defaultPath = 'D:\UWorkers\clawsta80\native'
 $candidates = New-Object System.Collections.Generic.List[string]
