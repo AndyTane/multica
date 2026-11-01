@@ -32,7 +32,8 @@
 | 企业微信默认 bot 名 | `Multica Bot` → `U Workers Bot`：安装/群提及夹具、bot 名回填测试、媒体入站夹具，以及三处说明注释；对「含空格的 bot 名」这一被测语义没有影响 | 9 个文件 42 处 |
 | 文档站 Slack manifest 与 handle | 五语言 `slack-bot-integration.mdx`：manifest `name`、`bot_user.display_name`、三个 slash command 描述、正文「两处 `Multica`」、4 处 `@Multica` handle；五语言 `channels.mdx`：3 处 `@Multica` handle | 10 个文件 65 处 |
 
-合计：29 个文件（28 改 1 新增），旧品牌文案 136 处、测试断言 18 处；渲染后的 brief 中 `Multica` 出现 0 次。
+合计：29 个交付文件（28 改 + 1 个新增回归测试；本计划文档另计，PR diff 共 30 个文件），旧品牌文案 136 处、
+测试断言 18 处；渲染后的 brief 中 `Multica` 出现 0 次。
 
 ## 为什么命令示例仍写 `multica`（本批的关键取舍）
 
