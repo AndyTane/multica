@@ -166,8 +166,8 @@ func TestMikaSystemInstructionsUsesTheCurrentDisplayName(t *testing.T) {
 		t.Fatal("the name placeholder must be substituted")
 	}
 	// The product identity is still stated, just not as the display name.
-	if !strings.Contains(renamed, "built-in system agent (Mika)") {
-		t.Fatal("prompt should still identify itself as Multica's built-in agent")
+	if !strings.Contains(renamed, "built-in system agent (Siman)") {
+		t.Fatal("prompt should still identify itself as U Workers' built-in agent")
 	}
 
 	if blank := service.MikaSystemInstructions("   "); !strings.HasPrefix(blank, "You are Siman,") {

@@ -129,7 +129,7 @@ The command field takes an executable and arguments, not a shell script. Plain a
 Everything you type in the command field stays directly after the executable, ahead of the arguments U Workers adds:
 
 ```text
-<your command> <your fixed arguments> <Multica's protocol arguments> <the agent's custom arguments>
+<your command> <your fixed arguments> <U Workers' protocol arguments> <the agent's custom arguments>
 ```
 
 This is what makes a subcommand-style wrapper work. If your command is `ccms start q36`, the tool sees `start q36` first and can select its subcommand before U Workers' `-p` and the rest arrive — which is the only order such a wrapper accepts.

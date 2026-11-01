@@ -68,7 +68,7 @@ export const localeLabels: Record<Lang, string> = {
 export const homeCopy = {
   en: {
     eyebrow: "U Workers Docs",
-    titleLead: "Humans and agents,",
+    titleLead: "Humans and agents, ",
     titleAccent: "in one place.",
     byline: ["Getting started", "Updated July 2026", "2 min read"],
   },
@@ -80,7 +80,7 @@ export const homeCopy = {
   },
   ko: {
     eyebrow: "U Workers 문서",
-    titleLead: "사람과 에이전트,",
+    titleLead: "사람과 에이전트, ",
     titleAccent: "한곳에서.",
     byline: ["시작하기", "2026년 7월 업데이트", "약 2분 분량"],
   },
@@ -92,7 +92,7 @@ export const homeCopy = {
   },
   fr: {
     eyebrow: "Documentation U Workers",
-    titleLead: "Humains et agents,",
+    titleLead: "Humains et agents, ",
     titleAccent: "au même endroit.",
     byline: ["Premiers pas", "Mis à jour en juillet 2026", "2 min de lecture"],
   },

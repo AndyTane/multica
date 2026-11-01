@@ -129,7 +129,7 @@ Le champ de commande accepte un exécutable et des arguments, pas un script shel
 Tout ce que vous saisissez dans le champ de commande reste directement après l'exécutable, avant les arguments ajoutés par U Workers :
 
 ```text
-<your command> <your fixed arguments> <Multica's protocol arguments> <the agent's custom arguments>
+<your command> <your fixed arguments> <U Workers' protocol arguments> <the agent's custom arguments>
 ```
 
 C'est ce qui permet à un wrapper à sous-commandes de fonctionner. Si votre commande est `ccms start q36`, l'outil voit d'abord `start q36` et peut sélectionner sa sous-commande avant que n'arrivent le `-p` de U Workers et le reste — c'est le seul ordre qu'accepte ce type de wrapper.
