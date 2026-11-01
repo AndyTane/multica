@@ -45,22 +45,27 @@ function normalizeCommandURL(url: string | undefined) {
 function daemonCommands(serverUrl: string | undefined, appUrl: string | undefined) {
   const normalizedServerUrl = normalizeCommandURL(serverUrl);
   const normalizedAppUrl = normalizeCommandURL(appUrl);
-  if (normalizedServerUrl && normalizedAppUrl) {
+  // One command replaces the old setup + login + daemon-start sequence: it also
+  // verifies and trusts a self-hosted deployment's private root CA when the
+  // machine is on the same LAN (see docs/windows-second-machine.md).
+  if (normalizedServerUrl) {
     return {
-      setupCmd: `multica setup self-host --server-url ${normalizedServerUrl} --app-url ${normalizedAppUrl}`,
-      tokenCmd: `multica config set server_url ${normalizedServerUrl}
-multica config set app_url ${normalizedAppUrl}
-multica login --token <YOUR_TOKEN>
-multica daemon start`,
+      setupCmd: normalizedAppUrl
+        ? `u-workers connect --server-url ${normalizedServerUrl} --app-url ${normalizedAppUrl}`
+        : `u-workers connect --server-url ${normalizedServerUrl}`,
+      tokenCmd: `u-workers config set server_url ${normalizedServerUrl}
+u-workers config set app_url ${normalizedAppUrl}
+u-workers login --token <YOUR_TOKEN>
+u-workers daemon start`,
     };
   }
 
   return {
-    setupCmd: "multica setup self-host --server-url <SERVER_URL> --app-url <APP_URL>",
-    tokenCmd: `multica config set server_url <SERVER_URL>
-multica config set app_url <APP_URL>
-multica login --token <YOUR_TOKEN>
-multica daemon start`,
+    setupCmd: "u-workers connect --server-url <SERVER_URL> --app-url <APP_URL>",
+    tokenCmd: `u-workers config set server_url <SERVER_URL>
+u-workers config set app_url <APP_URL>
+u-workers login --token <YOUR_TOKEN>
+u-workers daemon start`,
   };
 }
 
@@ -73,8 +78,8 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
   const shouldReduceMotion = useReducedMotion() ?? false;
   const newRuntimeIdRef = useRef<string | null>(null);
 
-  // `multica setup` is one blocking command that handles config + login
-  // + daemon start; the dialog passively listens for the resulting
+  // `u-workers connect` is one blocking command that handles certificate trust,
+  // config, login and daemon start; the dialog passively listens for the resulting
   // `daemon:register` WS event and auto-advances to success.
   const handleDaemonRegister = useCallback(
     (payload: unknown) => {
@@ -257,7 +262,7 @@ function InstructionsStep({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           {/* Step 1 owns the platform switch: the install command differs by
               OS, so the user picks instead of us guessing. Step 2's
-              `multica setup` is platform-independent. */}
+              `u-workers connect` is platform-independent. */}
           <CommandStep n={1} label={t(($) => $.connect.step1_label)}>
             <CliInstallCommand
               labels={{
@@ -338,7 +343,7 @@ function TroubleshootingDetails({ tokenCmd }: { tokenCmd: string }) {
                 CODE_LIGATURE_CLASS,
               )}
             >
-              {"multica daemon status"}
+              {"u-workers daemon status"}
             </code>
           </li>
           <li className="flex items-center gap-1.5">
@@ -350,7 +355,7 @@ function TroubleshootingDetails({ tokenCmd }: { tokenCmd: string }) {
                 CODE_LIGATURE_CLASS,
               )}
             >
-              {"multica daemon logs -f"}
+              {"u-workers daemon logs -f"}
             </code>
           </li>
         </ul>

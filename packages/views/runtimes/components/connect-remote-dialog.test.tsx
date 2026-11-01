@@ -89,13 +89,13 @@ describe("ConnectRemoteDialog", () => {
   it("requires explicit service addresses when unconfigured", () => {
     const { baseElement } = renderDialog();
 
-    expect(baseElement).toHaveTextContent("multica setup");
-    expect(baseElement).toHaveTextContent("multica setup self-host");
+    expect(baseElement).toHaveTextContent("u-workers connect");
+    expect(baseElement).toHaveTextContent("u-workers connect");
     expect(baseElement).toHaveTextContent(
-      "multica config set server_url <SERVER_URL>",
+      "u-workers config set server_url <SERVER_URL>",
     );
     expect(baseElement).toHaveTextContent(
-      "multica config set app_url <APP_URL>",
+      "u-workers config set app_url <APP_URL>",
     );
   });
 
@@ -106,13 +106,13 @@ describe("ConnectRemoteDialog", () => {
     });
 
     expect(baseElement).toHaveTextContent(
-      "multica setup self-host --server-url https://api.example.com --app-url https://app.example.com",
+      "u-workers connect --server-url https://api.example.com --app-url https://app.example.com",
     );
     expect(baseElement).toHaveTextContent(
-      "multica config set server_url https://api.example.com",
+      "u-workers config set server_url https://api.example.com",
     );
     expect(baseElement).toHaveTextContent(
-      "multica config set app_url https://app.example.com",
+      "u-workers config set app_url https://app.example.com",
     );
   });
 
@@ -136,7 +136,7 @@ describe("ConnectRemoteDialog", () => {
   it("transitions from setup instructions to the connected state", async () => {
     const { baseElement } = renderDialog();
 
-    expect(baseElement).toHaveTextContent("multica setup");
+    expect(baseElement).toHaveTextContent("u-workers connect");
     act(() => {
       wsEventState.handler?.({ runtime_id: "rt-test" });
     });
@@ -147,6 +147,6 @@ describe("ConnectRemoteDialog", () => {
         screen.getByRole("button", { name: "Create an agent" }),
       ).toBeInTheDocument();
     });
-    expect(baseElement).not.toHaveTextContent("multica setup");
+    expect(baseElement).not.toHaveTextContent("u-workers connect");
   });
 });
