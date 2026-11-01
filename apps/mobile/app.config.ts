@@ -14,6 +14,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const isProd = env === "production";
   const isStaging = env === "staging";
 
+  // Release variants have no built-in backend: the operator supplies their
+  // own address in .env.<variant>.local. Fail the build here instead of
+  // shipping an app that can only error at launch.
+  if ((isProd || isStaging) && !process.env.EXPO_PUBLIC_API_URL) {
+    throw new Error(
+      `EXPO_PUBLIC_API_URL is not set for APP_ENV=${env}. Copy .env.${env}.example to .env.${env}.local and fill in your own server address.`,
+    );
+  }
+
   return {
     ...config,
     name: isProd
