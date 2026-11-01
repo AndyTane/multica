@@ -119,7 +119,7 @@ $packagePath = [IO.Path]::GetFullPath($Package)
 if (-not (Test-Path -LiteralPath (Join-Path $packagePath 'manifest.json'))) { throw ('Not a package folder: ' + $packagePath) }
 $manifest = Get-Content -LiteralPath (Join-Path $packagePath 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = [string]$manifest.version
-if (-not $EvidencePath) { $EvidencePath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) ('evidence\clawsta-107\acceptance.json') }
+if (-not $EvidencePath) { $EvidencePath = Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) ('evidence\clawsta-107\acceptance.json') }
 $workRoot = [IO.Path]::GetFullPath($WorkRoot)
 $serverCopy = Join-Path $workRoot 'server'
 $secondMachine = Join-Path $workRoot 'second-machine'
