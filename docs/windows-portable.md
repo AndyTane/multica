@@ -139,6 +139,7 @@ pwsh -File deploy\portable\test\acceptance.ps1 -Package D:\UWorkers\packages\UWo
 
 ## 已知限制
 
+- **需要 Windows 10 1803 或更新的 Windows**：脚本用的是 Windows 自带的 PowerShell 5.1 和 curl.exe（安装时不联网、不装任何东西）��Windows 7/8 和精简版系统可能没有 curl，Setup 会在 HTTPS 校验那一步明确报错。
 - **没有代码签名**：安装包和 `u-workers.exe` 是自签的，Windows SmartScreen 会提示“未知发布者”，点“仍要运行”。
 - **浏览器信任必须手点一次**：Windows 对根证书安装弹的安全警告无法用脚本静默通过；可以跳过，CLI 和守护进程不受影响。
 - **局域网地址写死在证书里**：换网络要重签（重跑 Setup 即可）。
