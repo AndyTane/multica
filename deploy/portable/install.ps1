@@ -482,6 +482,17 @@ function Assert-PortableAdoptionPreflight {
             throw ('The new package folder already contains ' + $relative + '. Adoption must start from a freshly extracted package; extract a clean copy to another folder and run Setup.cmd again. The old deployment was not touched.')
         }
     }
+    # Empty folders are a legal freshly-extracted layout, but any existing
+    # business data (uploads, database files, backups, HTTPS state) would be
+    # overwritten by the copy below, so a non-empty one refuses the adoption.
+    foreach ($relative in @('uploads', 'data', 'backups', 'https', 'state', 'logs')) {
+        $candidate = Join-Path $target $relative
+        if (-not (Test-Path -LiteralPath $candidate)) { continue }
+        $existing = @(Get-ChildItem -LiteralPath $candidate -Force -ErrorAction SilentlyContinue)
+        if ($existing.Count -gt 0) {
+            throw ('The new package folder already holds existing ' + $relative + ' data (' + $candidate + '). Copying the old deployment over it could overwrite files that are not the old deployment''s. Extract a clean package copy to another folder and run Setup.cmd again. The old deployment was not touched.')
+        }
+    }
     $oldData = Join-Path $source 'data\postgres'
     if (-not (Test-Path -LiteralPath (Join-Path $oldData 'PG_VERSION'))) {
         throw ('No PostgreSQL data directory under ' + $source + '\data\postgres; -AdoptRoot must point at an existing native deployment. The old deployment was not touched.')

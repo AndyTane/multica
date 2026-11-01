@@ -18,7 +18,11 @@
 param(
     [string]$Profile = '',
     [switch]$PurgeData,
-    [switch]$Force
+    [switch]$Force,
+    # Optional config-root override: the CLI's actual root is the first entry.
+    # Used by tests to run the uninstall control flow against a temporary HOME;
+    # production callers leave it empty.
+    [string[]]$ConfigRoots
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,7 +43,9 @@ if (-not $Profile) {
 # profile directory. "." and ".." used to escape profiles\ and could delete the
 # whole config root.
 Assert-PortableProfileName $Profile | Out-Null
-$ownedProfiles = @(Get-PortableOwnedProfileDirectories -Profile $Profile -PackageRoot $root)
+$ownershipArguments = @{ Profile = $Profile; PackageRoot = $root }
+if ($ConfigRoots) { $ownershipArguments.ConfigRoots = $ConfigRoots }
+$ownedProfiles = @(Get-PortableOwnedProfileDirectories @ownershipArguments)
 
 if (-not $Force) {
     $answer = Read-Host ('Stop U Workers, remove its start-on-login item and browser trust' + $(if ($PurgeData) { ', and DELETE its data' } else { ' (data is kept)' }) + '? [y/N]')

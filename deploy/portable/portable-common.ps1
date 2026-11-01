@@ -801,73 +801,94 @@ function Assert-PortableProfileName {
 
 function Get-PortableOwnedProfileDirectories {
     # The uninstaller may only delete profile directories this package marked as
-    # its own. Walking both CLI config roots by name would delete another product's
-    # same-named profile.
+    # its own in the CLI's actual config root. The other root is never scanned by
+    # default, so another product's same-named profile cannot be claimed by
+    # matching a server URL.
     param([string]$Profile, [string]$PackageRoot, [string[]]$ConfigRoots)
     Assert-PortableProfileName $Profile | Out-Null
     if (-not $ConfigRoots) { $ConfigRoots = @(Get-PortableProfileConfigRoots) }
+    if (@($ConfigRoots).Count -eq 0) { return @() }
+    $activeRoot = [IO.Path]::GetFullPath([string]$ConfigRoots[0]).TrimEnd('\')
+    $profilesParent = [IO.Path]::GetFullPath((Join-Path $activeRoot 'profiles')).TrimEnd('\')
+    $candidate = [IO.Path]::GetFullPath((Join-Path $profilesParent $Profile))
+    $parent = [IO.Path]::GetFullPath((Split-Path -Parent $candidate)).TrimEnd('\')
+    if (-not [string]::Equals($parent, $profilesParent, [StringComparison]::OrdinalIgnoreCase)) { return @() }
+    if (-not (Test-Path -LiteralPath $candidate)) { return @() }
+    $marker = Read-PortableJson (Join-Path $candidate 'uworkers-portable-profile.json')
+    if (-not $marker) { return @() }
     $package = [IO.Path]::GetFullPath($PackageRoot).TrimEnd('\')
-    $owned = @()
-    foreach ($configRoot in $ConfigRoots) {
-        $profilesParent = [IO.Path]::GetFullPath((Join-Path $configRoot 'profiles')).TrimEnd('\')
-        $candidate = [IO.Path]::GetFullPath((Join-Path $profilesParent $Profile))
-        $parent = [IO.Path]::GetFullPath((Split-Path -Parent $candidate)).TrimEnd('\')
-        if (-not [string]::Equals($parent, $profilesParent, [StringComparison]::OrdinalIgnoreCase)) { continue }
-        if (-not (Test-Path -LiteralPath $candidate)) { continue }
-        $marker = Read-PortableJson (Join-Path $candidate 'uworkers-portable-profile.json')
-        if (-not $marker) { continue }
-        if (-not [string]::Equals([string]$marker.packageRoot, $package, [StringComparison]::OrdinalIgnoreCase)) { continue }
-        if (-not [string]::Equals([string]$marker.profile, $Profile, [StringComparison]::OrdinalIgnoreCase)) { continue }
-        $owned += $candidate
+    if (-not [string]::Equals([string]$marker.packageRoot, $package, [StringComparison]::OrdinalIgnoreCase)) { return @() }
+    if (-not [string]::Equals([string]$marker.profile, $Profile, [StringComparison]::OrdinalIgnoreCase)) { return @() }
+    # A marker from the earlier version has no configRoot; accept it only in the
+    # active root (it is where the CLI actually wrote this profile). New markers
+    # must name this exact root.
+    if ($marker.PSObject.Properties['configRoot']) {
+        $recordedRoot = [IO.Path]::GetFullPath([string]$marker.configRoot).TrimEnd('\')
+        if (-not [string]::Equals($recordedRoot, $activeRoot, [StringComparison]::OrdinalIgnoreCase)) { return @() }
     }
-    return $owned
+    return @($candidate)
 }
 
 function Register-PortableProfileOwnership {
-    # Record which profile directory belongs to this package so the uninstaller can
-    # prove ownership instead of guessing by name. When -ServerUrl is given, only a
-    # profile whose saved config points at that deployment is marked, so a
-    # same-named profile of another product in the other CLI root is never
-    # claimed. Returns the marked directories.
+    # Record which profile directory belongs to this package so the uninstaller
+    # can prove ownership. Only the CLI's actual config root is marked: passing a
+    # root for the other config tree is not evidence that this installation used
+    # it. Returns the marked directory (or nothing).
     param([string]$Profile, [string]$PackageRoot, [string[]]$ConfigRoots, [string]$ServerUrl)
     Assert-PortableProfileName $Profile | Out-Null
     if (-not $ConfigRoots) { $ConfigRoots = @(Get-PortableProfileConfigRoots) }
-    $package = [IO.Path]::GetFullPath($PackageRoot).TrimEnd('\')
+    if (@($ConfigRoots).Count -eq 0) { return @() }
+    $activeRoot = [IO.Path]::GetFullPath([string]$ConfigRoots[0]).TrimEnd('\')
+    $candidate = Join-Path (Join-Path $activeRoot 'profiles') $Profile
+    if (-not (Test-Path -LiteralPath $candidate)) { return @() }
+    if ($ServerUrl) {
+        $config = Read-PortableJson (Join-Path $candidate 'config.json')
+        $configured = ''
+        if ($config -and $config.server_url) { $configured = [string]$config.server_url }
+        if (-not $configured) { return @() }
+        if (-not [string]::Equals($configured.TrimEnd('/'), $ServerUrl.TrimEnd('/'), [StringComparison]::OrdinalIgnoreCase)) { return @() }
+    }
     $marker = [ordered]@{
         profile = $Profile
-        packageRoot = $package
+        packageRoot = [IO.Path]::GetFullPath($PackageRoot).TrimEnd('\')
+        configRoot = $activeRoot
         registeredAt = (Get-Date).ToUniversalTime().ToString('o')
     }
-    $owned = @()
-    foreach ($configRoot in $ConfigRoots) {
-        $candidate = Join-Path (Join-Path $configRoot 'profiles') $Profile
-        if (-not (Test-Path -LiteralPath $candidate)) { continue }
-        if ($ServerUrl) {
-            $config = Read-PortableJson (Join-Path $candidate 'config.json')
-            $configured = ''
-            if ($config -and $config.server_url) { $configured = [string]$config.server_url }
-            if (-not $configured) { continue }
-            if (-not [string]::Equals($configured.TrimEnd('/'), $ServerUrl.TrimEnd('/'), [StringComparison]::OrdinalIgnoreCase)) { continue }
-        }
-        Write-PortableJson (Join-Path $candidate 'uworkers-portable-profile.json') $marker
-        $owned += $candidate
+    Write-PortableJson (Join-Path $candidate 'uworkers-portable-profile.json') $marker
+    return @($candidate)
+}
+
+function Get-PortableCliConfigRoot {
+    # Mirrors server/internal/brand.ConfigRoot for the current user: a
+    # ~/.u-workers directory wins once it holds config.json or profiles, an
+    # existing legacy ~/.multica keeps working, and a new machine starts in
+    # ~/.u-workers. This is the single root the CLI actually uses.
+    $homeDirectory = [Environment]::GetFolderPath('UserProfile')
+    $current = Join-Path $homeDirectory '.u-workers'
+    if ((Test-Path -LiteralPath (Join-Path $current 'config.json')) -or (Test-Path -LiteralPath (Join-Path $current 'profiles'))) {
+        return $current
     }
-    return $owned
+    $legacy = Join-Path $homeDirectory '.multica'
+    if (Test-Path -LiteralPath $legacy) { return $legacy }
+    return $current
 }
 
 function Get-PortableProfileConfigRoots {
-    # The CLI keeps the default profile in ~/.multica when that legacy folder
-    # exists, otherwise in ~/.u-workers. Only the package's own profile
-    # subdirectory is ever removed by the uninstaller.
+    # The CLI's actual config root comes first. Other existing roots follow for
+    # reporting only: ownership registration and removal use only the first
+    # entry, so a same-named profile in the other root is never claimed.
+    $active = [IO.Path]::GetFullPath((Get-PortableCliConfigRoot)).TrimEnd('\')
+    $roots = @($active)
     $homeDirectory = [Environment]::GetFolderPath('UserProfile')
-    $roots = @()
     foreach ($name in @('.u-workers', '.multica')) {
         $path = Join-Path $homeDirectory $name
-        if (Test-Path -LiteralPath $path) { $roots += $path }
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        $normalized = [IO.Path]::GetFullPath($path).TrimEnd('\')
+        if ([string]::Equals($normalized, $active, [StringComparison]::OrdinalIgnoreCase)) { continue }
+        $roots += $normalized
     }
     return $roots
 }
-
 
 function Get-PortableReparsePoints {
     param([string]$Path)

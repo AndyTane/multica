@@ -1,6 +1,6 @@
-# R1-2 regression tests: the uninstaller must validate the profile name before
-# any side effect and delete only profile directories this package owns.
-# Windows PowerShell 5.1 compatible.
+# R1-2 regression tests: ownership must come from the CLI's actual config root
+# and the uninstaller must delete only this package's own profile, in both
+# keep-data and PurgeData modes. Windows PowerShell 5.1 compatible.
 # Run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\portable\test\profile-ownership.test.ps1
 $ErrorActionPreference = 'Stop'
 $portableRoot = Split-Path -Parent $PSScriptRoot
@@ -25,70 +25,87 @@ function New-TestFile {
     [IO.File]::WriteAllText($Path, $Content)
 }
 
+function New-UninstallFixture {
+    param([string]$Fixture, [string[]]$SelectedRoots, [string]$ForeignRoot, [string]$BoardUrl)
+    New-TestFile (Join-Path $Fixture 'deployment.json') '{"Version":"v0.2.0"}'
+    New-TestFile (Join-Path $Fixture 'data\install-report.json') ('{"profile":"portable","version":"v0.2.0"}')
+    New-TestFile (Join-Path $Fixture 'data\package-sentinel.txt') 'package data'
+    New-TestFile (Join-Path $Fixture 'uploads\upload-sentinel.txt') 'package upload'
+    Copy-Item -LiteralPath (Join-Path $portableRoot 'portable-common.ps1') -Destination $Fixture -Force
+    Copy-Item -LiteralPath (Join-Path $portableRoot 'uninstall.ps1') -Destination $Fixture -Force
+    $selected = $SelectedRoots[0]
+    New-TestFile (Join-Path $selected 'profiles\portable\config.json') ('{"server_url":"' + $BoardUrl + '"}')
+    New-TestFile (Join-Path $selected 'profiles\other-tool\config.json') '{"server_url":"https://other.invalid"}'
+    New-TestFile (Join-Path $selected 'profiles\other-tool\sentinel.txt') 'other profile'
+    New-TestFile (Join-Path $foreignRoot 'config.json') '{"server_url":"https://127.0.0.1:13443"}'
+    New-TestFile (Join-Path $foreignRoot 'profiles\portable\config.json') ('{"server_url":"' + $BoardUrl + '"}')
+    New-TestFile (Join-Path $foreignRoot 'profiles\portable\sentinel.txt') 'foreign profile'
+    $marked = @(Register-PortableProfileOwnership -Profile 'portable' -PackageRoot $Fixture -ConfigRoots $SelectedRoots -ServerUrl $BoardUrl)
+    return $marked
+}
+
 $sandbox = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-profile-test-' + [guid]::NewGuid().ToString('N'))
 try {
+    $boardUrl = 'https://127.0.0.1:23443'
+    $selectedRoot = Join-Path $sandbox 'config-selected'
+    $foreignRoot = Join-Path $sandbox 'config-foreign'
     $packageA = Join-Path $sandbox 'package-a'
     $packageB = Join-Path $sandbox 'package-b'
-    $rootA = Join-Path $sandbox 'config-a'
-    $rootB = Join-Path $sandbox 'config-b'
-    $boardUrl = 'https://127.0.0.1:23443'
     New-Item -ItemType Directory -Path $packageA, $packageB -Force | Out-Null
 
-    # rootA holds this deployment's profile; rootB holds another product's
-    # identically named profile (its saved server URL points elsewhere) plus an
-    # unrelated profile name.
-    $ownedDirectory = Join-Path $rootA 'profiles\portable'
-    $foreignDirectory = Join-Path $rootB 'profiles\portable'
-    $otherDirectory = Join-Path $rootB 'profiles\other-tool'
-    New-TestFile (Join-Path $ownedDirectory 'config.json') ('{"server_url":"' + $boardUrl + '"}')
-    New-TestFile (Join-Path $foreignDirectory 'config.json') '{"server_url":"https://example.invalid"}'
-    New-TestFile (Join-Path $otherDirectory 'config.json') '{}'
+    # --- two roots with the same profile name and the same server URL -----
+    New-TestFile (Join-Path $selectedRoot 'profiles\portable\config.json') ('{"server_url":"' + $boardUrl + '"}')
+    New-TestFile (Join-Path $foreignRoot 'profiles\portable\config.json') ('{"server_url":"' + $boardUrl + '"}')
+    $registered = @(Register-PortableProfileOwnership -Profile 'portable' -PackageRoot $packageA -ConfigRoots @($selectedRoot, $foreignRoot) -ServerUrl $boardUrl)
+    Assert-Test ($registered.Count -eq 1) ('Registration must claim only the CLI selected root even when the other root has the same URL, got: ' + ($registered -join '; '))
+    Assert-Test (Test-Path -LiteralPath (Join-Path $selectedRoot 'profiles\portable\uworkers-portable-profile.json')) 'The selected root profile must be marked.'
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $foreignRoot 'profiles\portable\uworkers-portable-profile.json'))) 'The other config root with the same URL must not be claimed.'
+    $removable = @(Get-PortableOwnedProfileDirectories -Profile 'portable' -PackageRoot $packageA -ConfigRoots @($selectedRoot, $foreignRoot))
+    Assert-Test ($removable.Count -eq 1) ('Only the selected root profile may be removable, got: ' + ($removable -join '; '))
+    $marker = Read-PortableJson (Join-Path $selectedRoot 'profiles\portable\uworkers-portable-profile.json')
+    Assert-Test ($marker.configRoot -ieq [IO.Path]::GetFullPath($selectedRoot).TrimEnd('\')) 'The ownership marker must record the CLI config root.'
 
-    # --- registration only claims the profile that points at this board -----
-    $registered = @(Register-PortableProfileOwnership -Profile 'portable' -PackageRoot $packageA -ConfigRoots @($rootA, $rootB) -ServerUrl $boardUrl)
-    Assert-Test ($registered.Count -eq 1) ('Registration must mark only the profile saved for this board, got: ' + ($registered -join '; '))
-    Assert-Test (Test-Path -LiteralPath (Join-Path $ownedDirectory 'uworkers-portable-profile.json')) 'The owned profile must get an ownership marker.'
-    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $foreignDirectory 'uworkers-portable-profile.json'))) 'A same-named profile saved for another server must not be claimed.'
-    $marker = Read-PortableJson (Join-Path $ownedDirectory 'uworkers-portable-profile.json')
-    Assert-Test ($marker.profile -eq 'portable') 'The marker must record the profile name.'
-    Assert-Test ([string]::Equals([string]$marker.packageRoot, [IO.Path]::GetFullPath($packageA).TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) 'The marker must record the package folder.'
-    $noneMarked = @(Register-PortableProfileOwnership -Profile 'portable' -PackageRoot $packageA -ConfigRoots @($rootA) -ServerUrl 'https://127.0.0.1:1')
-    Assert-Test ($noneMarked.Count -eq 0) 'A profile saved for a different server must not be marked.'
+    # A marker naming the other root is not honoured.
+    Write-PortableJson (Join-Path $foreignRoot 'profiles\portable\uworkers-portable-profile.json') ([ordered]@{ profile = 'portable'; packageRoot = [IO.Path]::GetFullPath($packageA).TrimEnd('\'); configRoot = [IO.Path]::GetFullPath($foreignRoot).TrimEnd('\'); registeredAt = 'now' })
+    $wrongRoot = @(Get-PortableOwnedProfileDirectories -Profile 'portable' -PackageRoot $packageA -ConfigRoots @($selectedRoot, $foreignRoot))
+    Assert-Test ($wrongRoot.Count -eq 1) 'A marker for the non-selected root must not be removable.'
 
-    # --- escape attempts are rejected before any lookup or delete --------
+    # --- escape attempts are still rejected before any lookup or delete --
     foreach ($bad in @('.', '..', '.hidden', 'a b', 'a\b', 'a/b', '')) {
         Assert-Throws { Assert-PortableProfileName $bad } '' ('Profile name "' + $bad + '" must be rejected')
     }
-    Assert-Test (Test-Path -LiteralPath $ownedDirectory) 'A rejected profile name must not delete the owned profile.'
-    Assert-Test (Test-Path -LiteralPath $foreignDirectory) 'A rejected profile name must not delete another product profile.'
-    Assert-Test (Test-Path -LiteralPath $otherDirectory) 'A rejected profile name must not delete unrelated profiles.'
 
-    # --- ownership selects only the marked directory ---------------------
-    $owned = @(Get-PortableOwnedProfileDirectories -Profile 'portable' -PackageRoot $packageA -ConfigRoots @($rootA, $rootB))
-    Assert-Test ($owned.Count -eq 1) ('Only the marked profile is owned, got: ' + ($owned -join '; '))
-    Assert-Test ([string]::Equals($owned[0], $ownedDirectory, [StringComparison]::OrdinalIgnoreCase)) 'The owned profile must be the one this package registered.'
+    # --- real uninstall control flow: data kept ---------------------------
+    $fixtureKeep = Join-Path $sandbox 'uninstall-keep'
+    $selectedKeep = Join-Path $sandbox 'root-keep-selected'
+    $foreignKeep = Join-Path $sandbox 'root-keep-foreign'
+    $markedKeep = @(New-UninstallFixture -Fixture $fixtureKeep -SelectedRoots @($selectedKeep) -ForeignRoot $foreignKeep -BoardUrl $boardUrl)
+    Assert-Test ($markedKeep.Count -eq 1) 'The keep-data fixture must register exactly one owned profile.'
+    & (Join-Path $fixtureKeep 'uninstall.ps1') -Force -ConfigRoots @($selectedKeep, $foreignKeep) | Out-Null
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $selectedKeep 'profiles\portable'))) 'The owned profile must be removed.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $selectedKeep 'profiles\other-tool\sentinel.txt')) 'Other profiles in the selected root must remain.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $foreignKeep 'profiles\portable\sentinel.txt')) 'The same-named profile in the other root must remain.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $foreignKeep 'config.json')) 'The other root default configuration must remain.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $fixtureKeep 'data\package-sentinel.txt')) 'Keeping data must keep the package data.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $fixtureKeep 'deployment.json')) 'Keeping data must keep the deployment record.'
 
-    # A marker written by a different package folder does not transfer ownership.
-    Write-PortableJson (Join-Path $foreignDirectory 'uworkers-portable-profile.json') ([ordered]@{ profile = 'portable'; packageRoot = [IO.Path]::GetFullPath($packageB).TrimEnd('\'); registeredAt = 'now' })
-    $ownedByPackageA = @(Get-PortableOwnedProfileDirectories -Profile 'portable' -PackageRoot $packageA -ConfigRoots @($rootB))
-    Assert-Test ($ownedByPackageA.Count -eq 0) 'A marker from another package folder must not make a profile removable.'
-    $ownedByPackageB = @(Get-PortableOwnedProfileDirectories -Profile 'portable' -PackageRoot $packageB -ConfigRoots @($rootB))
-    Assert-Test ($ownedByPackageB.Count -eq 1) 'The profile must be removable by the package that registered it.'
-
-    # --- uninstall deletes only owned profiles ---------------------------
-    foreach ($directory in $owned) { if (Test-Path -LiteralPath $directory) { Remove-Item -LiteralPath $directory -Recurse -Force } }
-    Assert-Test (-not (Test-Path -LiteralPath $ownedDirectory)) 'The owned profile directory must be removed.'
-    Assert-Test (Test-Path -LiteralPath $foreignDirectory) 'Another product profile with the same name must survive.'
-    Assert-Test (Test-Path -LiteralPath $otherDirectory) 'Unrelated profiles must survive.'
-
-    # --- the real uninstall script refuses before any stop ---------------
-    $fixture = Join-Path $sandbox 'uninstall-fixture'
-    New-TestFile (Join-Path $fixture 'deployment.json') '{}'
-    New-TestFile (Join-Path $fixture 'data\install-report.json') ('{"profile":"..","version":"v0.2.0"}')
-    Copy-Item -LiteralPath (Join-Path $portableRoot 'portable-common.ps1') -Destination $fixture -Force
-    Copy-Item -LiteralPath (Join-Path $portableRoot 'uninstall.ps1') -Destination $fixture -Force
-    Assert-Throws { & (Join-Path $fixture 'uninstall.ps1') -Force } 'unexpected CLI profile|Refusing' 'uninstall.ps1 must reject ".." from the install report before stopping anything'
-    Assert-Test (Test-Path -LiteralPath (Join-Path $fixture 'deployment.json')) 'A rejected uninstall must not delete the deployment.'
+    # --- real uninstall control flow: PurgeData ---------------------------
+    $fixturePurge = Join-Path $sandbox 'uninstall-purge'
+    $selectedPurge = Join-Path $sandbox 'root-purge-selected'
+    $foreignPurge = Join-Path $sandbox 'root-purge-foreign'
+    $outsideSentinel = Join-Path $sandbox 'outside-sentinel.txt'
+    New-TestFile $outsideSentinel 'outside'
+    $markedPurge = @(New-UninstallFixture -Fixture $fixturePurge -SelectedRoots @($selectedPurge) -ForeignRoot $foreignPurge -BoardUrl $boardUrl)
+    Assert-Test ($markedPurge.Count -eq 1) 'The purge fixture must register exactly one owned profile.'
+    & (Join-Path $fixturePurge 'uninstall.ps1') -Force -PurgeData -ConfigRoots @($selectedPurge, $foreignPurge) | Out-Null
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $selectedPurge 'profiles\portable'))) 'PurgeData must still remove only the owned profile.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $selectedPurge 'profiles\other-tool\sentinel.txt')) 'PurgeData must not remove other profiles.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $foreignPurge 'profiles\portable\sentinel.txt')) 'PurgeData must not remove the other root profile.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $foreignPurge 'config.json')) 'PurgeData must not remove the other root default configuration.'
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixturePurge 'data'))) 'PurgeData must delete the package data.'
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixturePurge 'uploads'))) 'PurgeData must delete the package uploads.'
+    Assert-Test (-not (Test-Path -LiteralPath (Join-Path $fixturePurge 'deployment.json'))) 'PurgeData must delete the deployment record.'
+    Assert-Test (Test-Path -LiteralPath $outsideSentinel) 'PurgeData must not touch files outside the package.'
 
     # --- validation happens before the first stop in the script source ---
     $uninstallText = [IO.File]::ReadAllText((Join-Path $portableRoot 'uninstall.ps1'))

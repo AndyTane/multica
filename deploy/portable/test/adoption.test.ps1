@@ -207,6 +207,24 @@ try {
     Assert-Test (Test-Path -LiteralPath (Join-Path $newRoot 'payload\runtime\pgsql\bin\psql.exe')) 'A PostgreSQL major mismatch must not consume the packaged runtime.'
 
     Initialize-AdoptionFixture -NewRoot $newRoot -OldRoot $oldRoot
+    New-TestFile (Join-Path $newRoot 'uploads\sentinel.txt') 'target sentinel'
+    Assert-Throws { Invoke-PortableAdoption -OldRoot $oldRoot -HostName '127.0.0.1' } 'already holds existing uploads data|uploads data' 'a target with existing uploads must be refused'
+    Assert-Test (@($script:calls | Where-Object { $_ -match '-Action ' }).Count -eq 0) 'Existing target uploads must be refused before the old service is touched.'
+    Assert-Test ((Get-Content -LiteralPath (Join-Path $newRoot 'uploads\sentinel.txt') -Raw).Trim() -eq 'target sentinel') 'The existing target upload sentinel must be left unchanged.'
+    Assert-Test (Test-Path -LiteralPath (Join-Path $newRoot 'payload\runtime\pgsql\bin\psql.exe')) 'A refused target must not consume the packaged runtime.'
+
+    Initialize-AdoptionFixture -NewRoot $newRoot -OldRoot $oldRoot
+    New-TestFile (Join-Path $newRoot 'data\leftover.txt') 'target data'
+    Assert-Throws { Invoke-PortableAdoption -OldRoot $oldRoot -HostName '127.0.0.1' } 'already holds existing data data|existing data' 'a target with existing data content must be refused'
+    Assert-Test (@($script:calls | Where-Object { $_ -match '-Action ' }).Count -eq 0) 'Existing target data must be refused before the old service is touched.'
+
+    Initialize-AdoptionFixture -NewRoot $newRoot -OldRoot $oldRoot
+    New-Item -ItemType Directory -Path (Join-Path $newRoot 'uploads') -Force | Out-Null
+    $emptyUploadsRejected = $false
+    try { Assert-PortableAdoptionPreflight -OldRoot $oldRoot -OldConfig ([pscustomobject]@{}) | Out-Null } catch { $emptyUploadsRejected = $true }
+    Assert-Test (-not $emptyUploadsRejected) 'An empty uploads folder is a legal freshly-extracted layout and must pass preflight.'
+
+    Initialize-AdoptionFixture -NewRoot $newRoot -OldRoot $oldRoot
     $busy = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 0)
     $busy.Start()
     try {
