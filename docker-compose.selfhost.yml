@@ -174,16 +174,15 @@ services:
       MULTICA_LARK_SECRET_KEY: ${MULTICA_LARK_SECRET_KEY:-}
       MULTICA_LARK_HTTP_BASE_URL: ${MULTICA_LARK_HTTP_BASE_URL:-}
       MULTICA_LARK_CALLBACK_BASE_URL: ${MULTICA_LARK_CALLBACK_BASE_URL:-}
-      # Slack bot integration. MULTICA_SLACK_SECRET_KEY is the opt-in: unset =
-      # integration disabled. It decrypts the per-installation bot/app tokens,
-      # which are brought by each workspace via OAuth/BYO and stored encrypted
-      # in the database, so this single deployment-wide key is all the operator
-      # needs to set here.
+      # Non-Feishu IM channels are off by default. Enable each switch and keep
+      # its encryption key to restore that channel's existing installations.
+      FF_CHANNEL_SLACK: ${FF_CHANNEL_SLACK:-false}
+      FF_CHANNEL_TELEGRAM: ${FF_CHANNEL_TELEGRAM:-false}
+      FF_CHANNEL_DINGTALK: ${FF_CHANNEL_DINGTALK:-false}
+      FF_CHANNEL_WECOM: ${FF_CHANNEL_WECOM:-false}
+      # Slack bot integration. This key encrypts per-installation bot/app tokens.
       MULTICA_SLACK_SECRET_KEY: ${MULTICA_SLACK_SECRET_KEY:-}
-      # DingTalk bot integration. MULTICA_DINGTALK_SECRET_KEY is the opt-in:
-      # unset = integration disabled. It encrypts each installation's AppSecret
-      # at rest, so this single deployment-wide key is all the operator needs
-      # to set here.
+      # DingTalk bot integration. This key encrypts each installation's AppSecret.
       MULTICA_DINGTALK_SECRET_KEY: ${MULTICA_DINGTALK_SECRET_KEY:-}
       # Self-hosted Git provider integration (Forgejo / Gitea / GitLab). This
       # is a self-host-only feature, so the compose file turns it on by default;
@@ -192,8 +191,7 @@ services:
       MULTICA_VCS_INTEGRATION_ENABLED: ${MULTICA_VCS_INTEGRATION_ENABLED:-true}
       # VCS integration at-rest encryption key for token-based providers
       MULTICA_VCS_SECRET_KEY: ${MULTICA_VCS_SECRET_KEY:-}
-      # WeCom smart-bot integration. MULTICA_WECOM_SECRET_KEY is the
-      # opt-in: unset = integration disabled. It encrypts each installation's
+      # WeCom smart-bot integration. This key encrypts each installation's
       # smart-bot secret at rest. The server needs it to unseal a bot's
       # subscribe credentials at connection time, and to seal the secret when
       # an installation is created from the WeCom settings tab.
@@ -209,11 +207,8 @@ services:
       # for a debugging session and unset it when that session ends, because
       # what it records is user message content.
       MULTICA_WECOM_TRACE: ${MULTICA_WECOM_TRACE:-}
-      # Telegram bot integration. MULTICA_TELEGRAM_SECRET_KEY is the
-      # opt-in: unset = integration disabled. It decrypts the
-      # per-installation bot token stored in channel_installation.config
-      # (bot_token_encrypted), so this single deployment-wide key is all
-      # the operator needs to set here.
+      # Telegram bot integration. This key decrypts the per-installation bot
+      # token stored in channel_installation.config (bot_token_encrypted).
       MULTICA_TELEGRAM_SECRET_KEY: ${MULTICA_TELEGRAM_SECRET_KEY:-}
     restart: unless-stopped
 
