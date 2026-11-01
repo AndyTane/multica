@@ -166,9 +166,9 @@ Get-FileHash .\multica-cli-<version>-windows-amd64.zip -Algorithm SHA256
 1. **把隔离的文件恢复回来** —— Windows 安全中心 → *病毒和威胁防护* → *保护历史记录* → 选中 U Workers 那一条 → *操作* → *还原*。
 2. **加排除项**，避免再次被隔离 —— *病毒和威胁防护* → *管理设置* → *排除项* → *添加或删除排除项* → *文件夹*，两个都要加：
  - `%LOCALAPPDATA%\Programs\@multicadesktop`
- - `%APPDATA%\Multica`
+ - `%APPDATA%\U Workers`
 
- 两个路径缺一不可：内置 CLI 被删掉后，Desktop 会把替换版本下载到 `%APPDATA%\Multica\bin`，只排除安装目录的话，下载下来的副本还会再被隔离一次，陷入循环。
+ 两个路径缺一不可：内置 CLI 被删掉后，Desktop 会把替换版本下载到 `%APPDATA%\U Workers\bin`，只排除安装目录的话，下载下来的副本还会再被隔离一次，陷入循环。
 3. **把误报提交给微软** —— 在 [Microsoft Security Intelligence 文件提交页](https://www.microsoft.com/en-us/wdsi/filesubmission)选择 *Software developer* 和 *Incorrectly detected as malware*。这一步才是让检测对所有用户撤销的办法，一般几天内生效。
 
 <Callout type="warning">

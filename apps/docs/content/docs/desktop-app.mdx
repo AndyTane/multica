@@ -166,9 +166,9 @@ Compare the hash with the matching line in `checksums.txt` on the [latest releas
 1. **Restore the quarantined file** — Windows Security → *Virus & threat protection* → *Protection history* → select the U Workers item → *Actions* → *Restore*.
 2. **Add an exclusion** so it isn't quarantined again — *Virus & threat protection* → *Manage settings* → *Exclusions* → *Add an exclusion* → *Folder*, and add both:
    - `%LOCALAPPDATA%\Programs\@multicadesktop`
-   - `%APPDATA%\Multica`
+   - `%APPDATA%\U Workers`
 
-   Both paths matter: when the bundled CLI goes missing, Desktop downloads a replacement into `%APPDATA%\Multica\bin`, so excluding only the install folder leaves you in a loop where the replacement gets quarantined too.
+   Both paths matter: when the bundled CLI goes missing, Desktop downloads a replacement into `%APPDATA%\U Workers\bin`, so excluding only the install folder leaves you in a loop where the replacement gets quarantined too.
 3. **Report the false positive to Microsoft** at [Microsoft Security Intelligence — submit a file](https://www.microsoft.com/en-us/wdsi/filesubmission), choosing *Software developer* and *Incorrectly detected as malware*. That is what gets the detection withdrawn for every user, usually within a few days.
 
 <Callout type="warning">

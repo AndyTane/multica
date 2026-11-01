@@ -166,9 +166,9 @@ Comparez l'empreinte obtenue avec la ligne correspondante de `checksums.txt` dan
 1. **Restaurez le fichier mis en quarantaine** — Sécurité Windows → *Protection contre les virus et menaces* → *Historique de protection* → sélectionnez l'élément U Workers → *Actions* → *Restaurer*.
 2. **Ajoutez une exclusion** pour qu'il ne soit plus mis en quarantaine — *Protection contre les virus et menaces* → *Gérer les paramètres* → *Exclusions* → *Ajouter une exclusion* → *Dossier*, et ajoutez les deux dossiers suivants :
    - `%LOCALAPPDATA%\Programs\@multicadesktop`
-   - `%APPDATA%\Multica`
+   - `%APPDATA%\U Workers`
 
-   Les deux chemins sont nécessaires : lorsque le CLI intégré disparaît, Desktop télécharge un remplaçant dans `%APPDATA%\Multica\bin` ; exclure uniquement le dossier d'installation vous enferme donc dans une boucle où le remplaçant est lui aussi mis en quarantaine.
+   Les deux chemins sont nécessaires : lorsque le CLI intégré disparaît, Desktop télécharge un remplaçant dans `%APPDATA%\U Workers\bin` ; exclure uniquement le dossier d'installation vous enferme donc dans une boucle où le remplaçant est lui aussi mis en quarantaine.
 3. **Signalez le faux positif à Microsoft** sur [Microsoft Security Intelligence — soumettre un fichier](https://www.microsoft.com/en-us/wdsi/filesubmission), en choisissant *Software developer* et *Incorrectly detected as malware*. C'est ce qui permet de retirer la détection pour tous les utilisateurs, généralement en quelques jours.
 
 <Callout type="warning">

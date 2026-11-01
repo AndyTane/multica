@@ -166,9 +166,9 @@ Get-FileHash .\multica-cli-<version>-windows-amd64.zip -Algorithm SHA256
 1. **隔離されたファイルを復元する** — Windows セキュリティ → *ウイルスと脅威の防止* → *保護の履歴* → U Workers の項目を選択 → *操作* → *復元*。
 2. **除外を追加する**（再び隔離されないように）— *ウイルスと脅威の防止* → *設定の管理* → *除外* → *除外の追加または削除* → *フォルダー* で、次の両方を追加します。
    - `%LOCALAPPDATA%\Programs\@multicadesktop`
-   - `%APPDATA%\Multica`
+   - `%APPDATA%\U Workers`
 
-   両方が必要です。同梱の CLI が失われると Desktop は代替バイナリを `%APPDATA%\Multica\bin` にダウンロードするため、インストール先だけを除外してもダウンロードした代替バイナリが再び隔離され、同じことの繰り返しになります。
+   両方が必要です。同梱の CLI が失われると Desktop は代替バイナリを `%APPDATA%\U Workers\bin` にダウンロードするため、インストール先だけを除外してもダウンロードした代替バイナリが再び隔離され、同じことの繰り返しになります。
 3. **誤検知を Microsoft に報告する** — [Microsoft Security Intelligence のファイル送信ページ](https://www.microsoft.com/en-us/wdsi/filesubmission)で *Software developer* と *Incorrectly detected as malware* を選択します。すべてのユーザーに対して検出を取り下げてもらうにはこの手順が必要で、通常は数日で反映されます。
 
 <Callout type="warning">

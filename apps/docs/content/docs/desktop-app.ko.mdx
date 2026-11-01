@@ -166,9 +166,9 @@ Get-FileHash .\multica-cli-<version>-windows-amd64.zip -Algorithm SHA256
 1. **격리된 파일 복원** — Windows 보안 → *바이러스 및 위협 방지* → *보호 기록* → U Workers 항목 선택 → *작업* → *복원*.
 2. **제외 항목 추가** (다시 격리되지 않도록) — *바이러스 및 위협 방지* → *설정 관리* → *제외* → *제외 추가 또는 제거* → *폴더*에서 다음 두 경로를 모두 추가합니다.
    - `%LOCALAPPDATA%\Programs\@multicadesktop`
-   - `%APPDATA%\Multica`
+   - `%APPDATA%\U Workers`
 
-   두 경로 모두 필요합니다. 포함된 CLI가 사라지면 Desktop이 대체 바이너리를 `%APPDATA%\Multica\bin`에 내려받기 때문에, 설치 폴더만 제외하면 새로 받은 파일이 다시 격리되는 상황이 반복됩니다.
+   두 경로 모두 필요합니다. 포함된 CLI가 사라지면 Desktop이 대체 바이너리를 `%APPDATA%\U Workers\bin`에 내려받기 때문에, 설치 폴더만 제외하면 새로 받은 파일이 다시 격리되는 상황이 반복됩니다.
 3. **오탐을 Microsoft에 신고** — [Microsoft Security Intelligence 파일 제출 페이지](https://www.microsoft.com/en-us/wdsi/filesubmission)에서 *Software developer*와 *Incorrectly detected as malware*를 선택하세요. 모든 사용자에 대해 탐지를 철회시키는 방법은 이것이며, 보통 며칠 안에 반영됩니다.
 
 <Callout type="warning">
