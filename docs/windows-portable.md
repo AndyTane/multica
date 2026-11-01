@@ -139,8 +139,8 @@ pwsh -File deploy\portable\test\acceptance.ps1 -Package D:\UWorkers\packages\UWo
 
 ## 已知限制
 
-- **Web 端的 node_modules 还没做到真正可搬移**：Next.js standalone 产物里的 pnpm 依赖是用指向打包机 checkout 的 junction（目录链接）表达的，已打包的 Web 目前只在打包机上能跑。服务端（API、数据库、HTTPS、CLI、守护进程、opencode 运行时）与安装包是自包含的；把 Web 依赖布局做成可搬移的形式（打包时展开 pnpm store + 安装时重建包内 junction）是下一步，本次未完成。
-- **需要 Windows 10 1803 或更新的 Windows**：脚本用的是 Windows 自带的 PowerShell 5.1 和 curl.exe（安装时不联网、不装任何东西）��Windows 7/8 和精简版系统可能没有 curl，Setup 会在 HTTPS 校验那一步明确报错。
+- **安装目录尽量短**：Web 依赖里有一些很深的路径，Windows 仍有 260 字符的路径上限。打包时已经把依赖目录名压成短哈希，正常路径（例如 `C:\UWorkers\Portable`）没问题；如果 Setup 报“release 未完整复制”，换一个更短的目录再装。
+- **需要 Windows 10 1803 或更新的 Windows**：脚本用的是 Windows 自带的 PowerShell 5.1 和 curl.exe（安装时不联网、不装任何东西）。Windows 7/8 和精简版系统可能没有 curl，Setup 会在 HTTPS 校验那一步明确报错。
 - **没有代码签名**：安装包和 `u-workers.exe` 是自签的，Windows SmartScreen 会提示“未知发布者”，点“仍要运行”。
 - **浏览器信任必须手点一次**：Windows 对根证书安装弹的安全警告无法用脚本静默通过；可以跳过，CLI 和守护进程不受影响。
 - **局域网地址写死在证书里**：换网络要重签（重跑 Setup 即可）。
