@@ -9,7 +9,13 @@ import type {
 } from "@multica/core/types";
 import { providerSupportsMcpConfig } from "@multica/core/agents";
 import { useFeatureEnabled } from "@multica/core/config";
-import { COMPOSIO_MCP_APPS_FLAG } from "@multica/core/feature-flags";
+import {
+  CHANNEL_DINGTALK_FLAG,
+  CHANNEL_SLACK_FLAG,
+  CHANNEL_TELEGRAM_FLAG,
+  CHANNEL_WECOM_FLAG,
+  COMPOSIO_MCP_APPS_FLAG,
+} from "@multica/core/feature-flags";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { larkInstallationsOptions } from "@multica/core/lark";
 import { slackInstallationsOptions } from "@multica/core/slack";
@@ -164,6 +170,15 @@ export function AgentOverviewPane({
     COMPOSIO_MCP_APPS_FLAG,
     false,
   );
+  // CLAWSTA-102: Feishu is the only IM channel shipped enabled. A channel whose
+  // switch is off is not queried and does not count towards "this deployment
+  // has an integration" — otherwise a Slack-only deployment would keep the
+  // Integrations tab only to open it on a single Lark row. Turning a switch on
+  // and restarting the server brings the channel (and the tab) back.
+  const slackEnabled = useFeatureEnabled(CHANNEL_SLACK_FLAG, false);
+  const dingtalkEnabled = useFeatureEnabled(CHANNEL_DINGTALK_FLAG, false);
+  const wecomEnabled = useFeatureEnabled(CHANNEL_WECOM_FLAG, false);
+  const telegramEnabled = useFeatureEnabled(CHANNEL_TELEGRAM_FLAG, false);
   const [activeView, setActiveView] = useState<DetailTab>(() =>
     isDetailTab(urlView) ? urlView : "overview",
   );
@@ -177,26 +192,27 @@ export function AgentOverviewPane({
   });
   const { data: slackListing } = useQuery({
     ...slackInstallationsOptions(wsId),
-    enabled: !!wsId,
+    enabled: !!wsId && slackEnabled,
   });
   const { data: dingtalkListing } = useQuery({
     ...dingtalkInstallationsOptions(wsId),
+    enabled: !!wsId && dingtalkEnabled,
   });
   const { data: wecomListing } = useQuery({
     ...wecomInstallationsOptions(wsId),
-    enabled: !!wsId,
+    enabled: !!wsId && wecomEnabled,
   });
   const { data: telegramListing } = useQuery({
     ...telegramInstallationsOptions(wsId),
-    enabled: !!wsId,
+    enabled: !!wsId && telegramEnabled,
   });
 
   const integrationsConfigured =
     larkListing?.configured === true ||
-    slackListing?.configured === true ||
-    dingtalkListing?.configured === true ||
-    wecomListing?.configured === true ||
-    telegramListing?.configured === true;
+    (slackEnabled && slackListing?.configured === true) ||
+    (dingtalkEnabled && dingtalkListing?.configured === true) ||
+    (wecomEnabled && wecomListing?.configured === true) ||
+    (telegramEnabled && telegramListing?.configured === true);
 
   const visibleCapabilityTabs = useMemo(() => {
     const showMcp = runtime

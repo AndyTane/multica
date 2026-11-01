@@ -5,6 +5,13 @@ import type { ReactNode } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Agent } from "@multica/core/types";
+import { configStore } from "@multica/core/config";
+import {
+  CHANNEL_DINGTALK_FLAG,
+  CHANNEL_SLACK_FLAG,
+  CHANNEL_TELEGRAM_FLAG,
+  CHANNEL_WECOM_FLAG,
+} from "@multica/core/feature-flags";
 import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../../../locales/en/common.json";
 import enAgents from "../../../locales/en/agents.json";
@@ -35,9 +42,18 @@ const groupsRef = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
 }));
+// Every useQuery call this render made, so a test can prove a switched-off
+// channel is not merely hidden but no longer requested.
+const queryCallsRef = vi.hoisted(() => ({
+  current: [] as { keys: string; enabled: boolean | undefined }[],
+}));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (opts: { queryKey: unknown[]; enabled?: boolean }) => {
+    queryCallsRef.current.push({
+      keys: JSON.stringify(opts.queryKey),
+      enabled: opts.enabled,
+    });
     if (opts.enabled === false) return { data: undefined };
     const key = JSON.stringify(opts.queryKey);
     if (key.includes("members")) return { data: membersRef.current };
@@ -215,6 +231,16 @@ function renderTab(children: ReactNode) {
 
 function resetFixtures() {
   vi.clearAllMocks();
+  queryCallsRef.current = [];
+  // The bulk of this suite exercises per-channel branches, so start from the
+  // deployment state where every switch is on; the switch-specific tests below
+  // clear the flags to exercise the shipped default.
+  configStore.getState().setFeatureFlags({
+    [CHANNEL_SLACK_FLAG]: true,
+    [CHANNEL_DINGTALK_FLAG]: true,
+    [CHANNEL_WECOM_FLAG]: true,
+    [CHANNEL_TELEGRAM_FLAG]: true,
+  });
   membersRef.current = [{ user_id: "user-1", role: "owner" }];
   installationsRef.current = {
     installations: [],
@@ -280,6 +306,37 @@ describe("IntegrationsTab", () => {
     expect(screen.getByTestId("telegram-bind-button").getAttribute("data-agent-id")).toBe(
       "agent-1",
     );
+  });
+
+  it("renders Feishu only under the default channel switches", () => {
+    configStore.getState().setFeatureFlags({});
+    renderTab(<IntegrationsTab agent={agent} />);
+
+    expect(screen.getByText("Lark")).toBeTruthy();
+    expect(screen.getByTestId("lark-bind-button")).toBeTruthy();
+    for (const hidden of ["Slack", "DingTalk", "WeCom", "Telegram"]) {
+      expect(screen.queryByText(hidden)).toBeNull();
+    }
+    // A switched-off channel is not queried: the bind button for it cannot
+    // depend on a request the client keeps sending in the background.
+    for (const fragment of ['"slack"', '"dingtalk"', '"wecom"', '"telegram"']) {
+      const call = queryCallsRef.current.find((entry) => entry.keys.includes(fragment));
+      expect(call?.enabled).toBe(false);
+    }
+  });
+
+  it("adds one channel back when only its switch is on", () => {
+    configStore.getState().setFeatureFlags({ [CHANNEL_SLACK_FLAG]: true });
+    renderTab(<IntegrationsTab agent={agent} />);
+
+    expect(screen.getByText("Slack")).toBeTruthy();
+    expect(screen.queryByText("DingTalk")).toBeNull();
+    expect(screen.queryByText("WeCom")).toBeNull();
+    expect(screen.queryByText("Telegram")).toBeNull();
+    const slackCall = queryCallsRef.current.find((entry) =>
+      entry.keys.includes('"slack"'),
+    );
+    expect(slackCall?.enabled).toBe(true);
   });
 
   it("shows only this Agent's 1:1 bot and its groups", () => {

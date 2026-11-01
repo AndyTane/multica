@@ -4,6 +4,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent, AgentRuntime } from "@multica/core/types";
+import { configStore } from "@multica/core/config";
+import {
+  CHANNEL_SLACK_FLAG,
+  CHANNEL_TELEGRAM_FLAG,
+} from "@multica/core/feature-flags";
 import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../../locales/en/common.json";
 import enAgents from "../../locales/en/agents.json";
@@ -190,6 +195,9 @@ beforeEach(() => {
   larkListingRef.current = { installations: [], configured: false };
   slackListingRef.current = { installations: [], configured: false };
   telegramListingRef.current = { installations: [], configured: false };
+  // The shipped default: only Feishu is enabled. A test that needs another
+  // channel turns its switch on the same way the server pushes the real value.
+  configStore.getState().setFeatureFlags({});
 });
 
 describe("AgentOverviewPane MCP tab visibility", () => {
@@ -239,9 +247,10 @@ describe("AgentOverviewPane Integrations tab visibility", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the Integrations tab when only Slack is configured (Lark off)", async () => {
+  it("shows the Integrations tab when only Slack is configured and enabled (Lark off)", async () => {
     // Regression: the tab gate must consider Slack too, not just Lark —
     // a Slack-only deployment was hiding the tab (and its bind entry).
+    configStore.getState().setFeatureFlags({ [CHANNEL_SLACK_FLAG]: true });
     slackListingRef.current = { installations: [], configured: true };
     renderPane([makeRuntime("claude")]);
     openCapabilities();
@@ -250,13 +259,26 @@ describe("AgentOverviewPane Integrations tab visibility", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the Integrations tab when only Telegram is configured", async () => {
+  it("shows the Integrations tab when only Telegram is configured and enabled", async () => {
+    configStore.getState().setFeatureFlags({ [CHANNEL_TELEGRAM_FLAG]: true });
     telegramListingRef.current = { installations: [], configured: true };
     renderPane([makeRuntime("claude")]);
     openCapabilities();
     expect(
       await screen.findByRole("tab", { name: /^Integrations$/i }),
     ).toBeInTheDocument();
+  });
+
+  it("hides the Integrations tab when the only configured channel is switched off", () => {
+    // Feishu is the only default channel (CLAWSTA-102). A Slack-only
+    // deployment whose switch is off has nothing to show, so the tab must
+    // not appear and open onto a single Lark row.
+    slackListingRef.current = { installations: [], configured: true };
+    renderPane([makeRuntime("claude")]);
+    openCapabilities();
+    expect(
+      screen.queryByRole("tab", { name: /^Integrations$/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the Integrations tab when no channel integration is configured", () => {

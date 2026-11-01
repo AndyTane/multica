@@ -19,6 +19,10 @@ export { StaticProvider } from "./static-provider";
 export { ChainProvider } from "./chain-provider";
 export {
   BILLING_WORKSPACE_SUBSCRIPTIONS_FLAG,
+  CHANNEL_DINGTALK_FLAG,
+  CHANNEL_SLACK_FLAG,
+  CHANNEL_TELEGRAM_FLAG,
+  CHANNEL_WECOM_FLAG,
   COMPOSIO_MCP_APPS_FLAG,
   PLUGINS_V1_FLAG,
 } from "./keys";
