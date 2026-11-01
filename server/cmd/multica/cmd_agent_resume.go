@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 	"github.com/spf13/cobra"
@@ -242,7 +243,7 @@ func resumeEnvironment(environment []string, codexHome string) []string {
 	for _, item := range environment {
 		key, _, _ := strings.Cut(item, "=")
 		upper := strings.ToUpper(key)
-		if strings.HasPrefix(upper, "MULTICA_") || codexHome != "" && upper == "CODEX_HOME" {
+		if brand.IsProductEnvKey(upper) || codexHome != "" && upper == "CODEX_HOME" {
 			continue
 		}
 		clean = append(clean, item)

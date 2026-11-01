@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/selfexec"
 )
 
@@ -173,12 +174,43 @@ func releaseAssetCandidates(targetVersion, goos, goarch string) []string {
 	tag := normalizeReleaseTag(targetVersion)
 	version := strings.TrimPrefix(tag, "v")
 	ext := releaseArchiveExtension(goos)
-	// Prefer the versioned name (current scheme); fall back to the legacy
-	// `multica_{os}_{arch}` name for releases that still ship it.
+	// Prefer the current package name. Fall back to the pre-rename versioned
+	// name and then to the legacy unversioned name: an update can legitimately
+	// target an older release tag that only shipped the old artifact.
 	return []string{
-		fmt.Sprintf("multica-cli-%s-%s-%s.%s", version, goos, goarch, ext),
-		fmt.Sprintf("multica_%s_%s.%s", goos, goarch, ext),
+		fmt.Sprintf("%s-%s-%s-%s.%s", brand.ReleaseArchivePrefix, version, goos, goarch, ext),
+		fmt.Sprintf("%s-%s-%s-%s.%s", brand.LegacyReleaseArchivePrefix, version, goos, goarch, ext),
+		fmt.Sprintf("%s_%s_%s.%s", brand.LegacyCLICommand, goos, goarch, ext),
 	}
+}
+
+// releaseBinaryNames lists the archive members to try, most specific first:
+// the name this executable was invoked as, then the other product name. A
+// release built from the current goreleaser config ships one binary per
+// archive family, so only one of these exists in any given archive; the old
+// updater extracting from the legacy family is why both spellings matter.
+func releaseBinaryNames(invokedBase, goos string) []string {
+	invoked := strings.ToLower(invokedBase)
+	names := make([]string, 0, 2)
+	for _, name := range []string{brand.CLICommand, brand.LegacyCLICommand} {
+		if strings.TrimSuffix(invoked, ".exe") == name {
+			names = append(names, binaryNameForOS(name, goos))
+		}
+	}
+	for _, name := range []string{brand.CLICommand, brand.LegacyCLICommand} {
+		candidate := binaryNameForOS(name, goos)
+		if strings.ToLower(candidate) != invoked {
+			names = append(names, candidate)
+		}
+	}
+	return names
+}
+
+func binaryNameForOS(name, goos string) string {
+	if goos == "windows" {
+		return name + ".exe"
+	}
+	return name
 }
 
 func findReleaseAsset(assets []GitHubReleaseAsset, targetVersion, goos, goarch string) (*GitHubReleaseAsset, error) {
@@ -467,19 +499,23 @@ func UpdateViaDownloadWithTimeout(targetVersion string, downloadTimeout time.Dur
 		return "", fmt.Errorf("verify download: %w", err)
 	}
 
-	// Extract the binary from the archive.
-	binaryName := "multica"
-	if runtime.GOOS == "windows" {
-		binaryName = "multica.exe"
-	}
+	// Extract the binary from the archive. Release archives carry one binary
+	// family each during the rename, so try this executable own name first
+	// and the other product name second.
 	var binaryData []byte
-	if runtime.GOOS == "windows" {
-		binaryData, err = extractBinaryFromZip(bytes.NewReader(archiveData), binaryName)
-	} else {
-		binaryData, err = extractBinaryFromTarGz(bytes.NewReader(archiveData), binaryName)
+	var extractErr error
+	for _, binaryName := range releaseBinaryNames(filepath.Base(exePath), runtime.GOOS) {
+		if runtime.GOOS == "windows" {
+			binaryData, extractErr = extractBinaryFromZip(bytes.NewReader(archiveData), binaryName)
+		} else {
+			binaryData, extractErr = extractBinaryFromTarGz(bytes.NewReader(archiveData), binaryName)
+		}
+		if extractErr == nil {
+			break
+		}
 	}
-	if err != nil {
-		return "", fmt.Errorf("extract binary: %w", err)
+	if extractErr != nil {
+		return "", fmt.Errorf("extract binary: %w", extractErr)
 	}
 
 	// Atomic replace: write to temp file, then rename over the original.
@@ -515,7 +551,77 @@ func UpdateViaDownloadWithTimeout(targetVersion string, downloadTimeout time.Dur
 		return "", fmt.Errorf("replace binary: %w", err)
 	}
 
-	return fmt.Sprintf("Downloaded %s and replaced %s", assetName, exePath), nil
+	// Current installs create both executable names. A self-update only
+	// replaced the one it was invoked as, so refresh a sibling copy when the
+	// installer made one; otherwise the other command keeps reporting the
+	// previous release.
+	aliasPath, aliasRefreshed := refreshSiblingAlias(exePath, binaryData)
+
+	message := fmt.Sprintf("Downloaded %s and replaced %s", assetName, exePath)
+	if aliasRefreshed {
+		message += fmt.Sprintf(" (also refreshed %s)", aliasPath)
+	}
+	return message, nil
+}
+
+// siblingAliasPath returns the path of the other executable name the product
+// installs next to exePath, or "" when exePath is not one of the two names.
+func siblingAliasPath(exePath string) string {
+	dir := filepath.Dir(exePath)
+	base := filepath.Base(exePath)
+	stem := base
+	ext := ""
+	if strings.HasSuffix(strings.ToLower(base), ".exe") {
+		stem = base[:len(base)-len(".exe")]
+		ext = base[len(base)-len(".exe"):]
+	}
+	switch strings.ToLower(stem) {
+	case brand.CLICommand:
+		return filepath.Join(dir, brand.LegacyCLICommand+ext)
+	case brand.LegacyCLICommand:
+		return filepath.Join(dir, brand.CLICommand+ext)
+	}
+	return ""
+}
+
+// refreshSiblingAlias copies binaryData over the sibling executable name when
+// it exists as a regular file, preserving its mode. A symlinked alias (the
+// Homebrew layout) needs no work: it follows the target that was just
+// replaced. Best effort: a locked or missing alias must not fail an update
+// that already succeeded.
+func refreshSiblingAlias(exePath string, binaryData []byte) (string, bool) {
+	aliasPath := siblingAliasPath(exePath)
+	if aliasPath == "" {
+		return "", false
+	}
+	info, err := os.Lstat(aliasPath)
+	if err != nil || !info.Mode().IsRegular() {
+		return "", false
+	}
+	dir := filepath.Dir(exePath)
+	tmp, err := os.CreateTemp(dir, ".u-workers-alias-*")
+	if err != nil {
+		return "", false
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(binaryData); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return "", false
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return "", false
+	}
+	if err := os.Chmod(tmpPath, info.Mode()); err != nil {
+		os.Remove(tmpPath)
+		return "", false
+	}
+	if err := replaceBinary(tmpPath, aliasPath); err != nil {
+		os.Remove(tmpPath)
+		return "", false
+	}
+	return aliasPath, true
 }
 
 // extractBinaryFromTarGz reads a .tar.gz stream and returns the contents of the

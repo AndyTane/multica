@@ -2,6 +2,7 @@ package execenv
 
 import (
 	"fmt"
+	"github.com/multica-ai/multica/server/internal/brand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +59,7 @@ func TestHermesMemoryStorePathLayout(t *testing.T) {
 
 	agent := "11111111-2222-3333-4444-555555555555"
 	got := HermesMemoryStorePath("", agent, filepath.Join(platformDefaultHermesHome(), "profiles", "research"))
-	want := filepath.Join(home, ".multica", hermesMemoryStoreRoot, agent, "research")
+	want := filepath.Join(home, brand.ConfigDir, hermesMemoryStoreRoot, agent, "research")
 	if got != want {
 		t.Fatalf("store path = %q, want %q", got, want)
 	}
@@ -547,7 +548,7 @@ func TestPruneHermesMemoryStores(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	root := filepath.Join(home, ".multica", hermesMemoryStoreRoot)
+	root := filepath.Join(home, brand.ConfigDir, hermesMemoryStoreRoot)
 	idle := filepath.Join(root, "agent-idle", "default")
 	fresh := filepath.Join(root, "agent-fresh", "default")
 	held := filepath.Join(root, "agent-held", "default")
@@ -598,7 +599,7 @@ func TestPruneHermesMemoryStoresDisabled(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	store := filepath.Join(home, ".multica", hermesMemoryStoreRoot, "agent-1", "default")
+	store := filepath.Join(home, brand.ConfigDir, hermesMemoryStoreRoot, "agent-1", "default")
 	mustWrite(t, filepath.Join(store, "MEMORY.md"), "remembered")
 	old := time.Now().Add(-365 * 24 * time.Hour)
 	if err := os.Chtimes(store, old, old); err != nil {

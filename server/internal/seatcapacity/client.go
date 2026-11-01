@@ -19,13 +19,15 @@ import (
 )
 
 const (
-	defaultTimeout       = 3 * time.Second
-	maxResponseBodySize  = 64 << 10
-	rateLimitScopeHeader = "X-Multica-RateLimit-Scope"
-
+	defaultTimeout          = 3 * time.Second
+	maxResponseBodySize     = 64 << 10
 	RateLimitScopeGlobal    = "global"
 	RateLimitScopeWorkspace = "workspace"
 )
+
+// rateLimitScopeHeaders lists the response header names accepted from the
+// seat-capacity service: the current spelling first, the legacy second.
+var rateLimitScopeHeaders = []string{"X-U-Workers-RateLimit-Scope", "X-Multica-RateLimit-Scope"}
 
 var ErrInvalidConfig = errors.New("seat capacity: invalid configuration")
 
@@ -227,7 +229,7 @@ func (c *Client) do(ctx context.Context, method string, workspaceID uuid.UUID, s
 			Code:           remote.Code,
 			Message:        remote.Error,
 			RetryAfter:     retryAfterDuration(resp.Header.Get("Retry-After")),
-			RateLimitScope: normalizedRateLimitScope(resp.Header.Get(rateLimitScopeHeader)),
+			RateLimitScope: normalizedRateLimitScope(firstHeader(resp, rateLimitScopeHeaders)),
 		}
 	}
 	var out Decision
@@ -297,6 +299,17 @@ func normalizedRateLimitScope(value string) string {
 	default:
 		return ""
 	}
+}
+
+// firstHeader returns the first non-empty value among the accepted header
+// names, so a service that answers with either spelling is understood.
+func firstHeader(resp *http.Response, names []string) string {
+	for _, name := range names {
+		if value := resp.Header.Get(name); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func retryAfterDuration(value string) time.Duration {

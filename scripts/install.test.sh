@@ -78,14 +78,20 @@ _run_installer() {
     return 1
   fi
 
-  if [[ ! -x "$tmp/install-bin/multica" ]]; then
-    echo "expected fallback binary at $tmp/install-bin/multica" >&2
+  if [[ ! -x "$tmp/install-bin/u-workers" ]]; then
+    echo "expected the current command at $tmp/install-bin/u-workers" >&2
     cat "$out" >&2 || true
     cat "$err" >&2 || true
     return 1
   fi
 
-
+  # The legacy command name stays installed alongside it.
+  if [[ ! -x "$tmp/install-bin/multica" ]]; then
+    echo "expected the legacy command alias at $tmp/install-bin/multica" >&2
+    cat "$out" >&2 || true
+    cat "$err" >&2 || true
+    return 1
+  fi
 }
 
 test_install_ignores_original_cli_on_path() {
@@ -113,8 +119,8 @@ test_install_requires_explicit_release_source() {
     echo "installer accepted an absent release source" >&2
     return 1
   fi
-  grep -q 'Set MULTICA_REPO_WEB_URL' "$tmp/out"
-  [ ! -e "$tmp/install-bin/multica" ]
+  grep -q 'Set U_WORKERS_REPO_WEB_URL' "$tmp/out"
+  [ ! -e "$tmp/install-bin/u-workers" ]
 }
 
 test_remote_ssh_install_prints_token_login_hint() {
@@ -347,8 +353,9 @@ STUB
   printf '#!/usr/bin/env bash\nexit 0\n' >"$stub_bin/brew"
   chmod +x "$stub_bin/brew"
 
-  printf '#!/usr/bin/env bash\necho "multica v0.3.2 (commit: test)"\n' >"$stub_bin/multica"
-  chmod +x "$stub_bin/multica"
+  printf '#!/usr/bin/env bash\necho "u-workers v0.3.2 (commit: test)"\n' >"$stub_bin/u-workers"
+  chmod +x "$stub_bin/u-workers"
+  ln -s u-workers "$stub_bin/multica"
 
   # curl records every probed URL so the health-check port can be asserted.
   cat >"$stub_bin/curl" <<'STUB'

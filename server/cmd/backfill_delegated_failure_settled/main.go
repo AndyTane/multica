@@ -45,6 +45,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multica-ai/multica/server/internal/delegatedrecoverybackfill"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 	"github.com/multica-ai/multica/server/internal/logger"
 )
 
@@ -119,6 +120,7 @@ func resolveStart(checkpointFile, afterCreatedAt, afterID string) (*delegatedrec
 }
 
 func main() {
+	envcompat.Bridge()
 	logger.Init()
 	if err := run(); err != nil {
 		slog.Error("delegated failure recovery settled backfill failed", "error", err)

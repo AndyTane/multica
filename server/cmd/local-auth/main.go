@@ -40,6 +40,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multica-ai/multica/server/internal/auth"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"golang.org/x/term"
@@ -111,6 +112,7 @@ with bcrypt (cost 12). Usernames are case-insensitive and independent of email.
 var stdin io.Reader = os.Stdin
 
 func main() {
+	envcompat.Bridge()
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(0)

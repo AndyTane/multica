@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 )
 
@@ -24,7 +25,7 @@ func mkProfiles(t *testing.T, names ...string) string {
 	home := t.TempDir()
 	redirectTestHome(t, home)
 	for _, name := range names {
-		dir := filepath.Join(home, ".multica", "profiles", filepath.FromSlash(name))
+		dir := filepath.Join(home, brand.ConfigDir, "profiles", filepath.FromSlash(name))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("create profile %q: %v", name, err)
 		}

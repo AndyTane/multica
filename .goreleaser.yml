@@ -1,5 +1,9 @@
 version: 2
 
+# The release project name stays "multica": it is baked into the legacy archive
+# names already-released CLIs look for, and into the Homebrew formula name
+# ("brew upgrade multica" must keep working). The product name a person sees
+# lives in the archive name templates and the formula description instead.
 project_name: multica
 
 release:
@@ -8,8 +12,12 @@ release:
   # release assets (for example manually published macOS builds) stay intact.
   replace_existing_artifacts: true
 
+# Two builds of the same command produce the two executable names current
+# releases install. Keeping both in one release is what lets a download, an
+# installer and a self-update pick the name they know without a second
+# distribution channel.
 builds:
-  - id: multica
+  - id: cli-legacy
     main: ./cmd/multica
     dir: server
     binary: multica
@@ -27,12 +35,32 @@ builds:
     goarch:
       - amd64
       - arm64
+  - id: cli-current
+    main: ./cmd/multica
+    dir: server
+    binary: u-workers
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
 
 archives:
-  # Legacy archive name kept so already-released CLIs (whose `multica update`
-  # looks for `multica_{os}_{arch}.{ext}`) can keep self-updating. Remove
-  # once those versions are no longer in use.
+  # Legacy name family, kept so already-released CLIs can keep self-updating:
+  # their updater looks for `multica_{os}_{arch}.{ext}` and unpacks `multica`.
+  # Remove once those versions are no longer in use.
   - id: legacy
+    ids:
+      - cli-legacy
     files:
       - LICENSE*
       - README*
@@ -44,9 +72,12 @@ archives:
         formats:
           - zip
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
-  # Versioned archive name used by current CLI / install scripts /
-  # desktop bootstrap going forward.
+  # Current download package family. The Windows artifact is
+  # u-workers-cli-<version>-windows-<arch>.zip; installers prefer it and fall
+  # back to the legacy family so an older release tag still installs.
   - id: versioned
+    ids:
+      - cli-current
     files:
       - LICENSE*
       - README*
@@ -57,7 +88,7 @@ archives:
       - goos: windows
         formats:
           - zip
-    name_template: "{{ .ProjectName }}-cli-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    name_template: "u-workers-cli-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"
@@ -71,6 +102,9 @@ changelog:
       - "^chore:"
 
 brews:
+  # Formula name stays "multica" so an existing tap install keeps upgrading;
+  # the formula now installs the current executable name and links the legacy
+  # one to it.
   - name: multica
     ids:
       - versioned
@@ -81,11 +115,13 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: "https://github.com/multica-ai/multica"
-    description: "Multica CLI — local agent runtime and management tool for the Multica platform"
-    # No license stanza: Multica ships under the Multica License (Apache 2.0
+    description: "U Workers CLI — local agent runtime and management tool for the U Workers platform"
+    # No license stanza: U Workers ships under the U Workers License (Apache 2.0
     # terms with additional conditions, see LICENSE), which has no SPDX
     # identifier, so declaring "Apache-2.0" here would be a false claim.
     install: |
-      bin.install "multica"
+      bin.install "u-workers"
+      bin.install_symlink "u-workers" => "multica"
     test: |
+      system "#{bin}/u-workers", "version"
       system "#{bin}/multica", "version"

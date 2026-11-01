@@ -21,6 +21,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/database"
 	"github.com/multica-ai/multica/server/internal/dbreader"
 	"github.com/multica-ai/multica/server/internal/dbstartup"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/handler"
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
@@ -333,6 +334,7 @@ func mainListenAddress() string {
 }
 
 func main() {
+	envcompat.Bridge()
 	logger.Init()
 	// Warn about missing configuration
 	if err := jwtSecretBootError(os.Getenv("JWT_SECRET"), os.Getenv("APP_ENV")); err != nil {

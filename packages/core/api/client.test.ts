@@ -343,6 +343,9 @@ describe("ApiClient Plugin surface bridge routes", () => {
         "X-Multica-Plugin-Installation": "installation-1",
       }),
     });
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty(
+      "X-U-Workers-Plugin-Installation",
+    );
   });
 
   it("invokes UI hooks through the session-only bridge prefix", async () => {
@@ -2936,7 +2939,7 @@ describe("ApiClient CSRF headers", () => {
   // server's CORS allowlist, and a rolled-back server allowlists only the
   // names it shipped with — the preflight would fail and no retry could help.
   it("sends exactly one CSRF header, preferring the session-bound value", async () => {
-    stubCookies("multica_csrf=token-bound; multica_csrf_session=session-bound");
+    stubCookies("u_workers_csrf=token-bound; u_workers_csrf_session=session-bound");
     const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({}));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -2945,6 +2948,44 @@ describe("ApiClient CSRF headers", () => {
     const headers = capturedHeaders(fetchMock);
     expect(headers["X-CSRF-Token"]).toBe("session-bound");
     expect(headers["X-CSRF-Session"]).toBeUndefined();
+  });
+
+  // A browser that signed in before the rename holds only the legacy cookies,
+  // and one that signed in after it holds both. The legacy name wins: every
+  // server version writes it, so after a rollback it is the one that matches the
+  // auth cookie the server reads.
+  it("prefers the legacy cookie names when both spellings are present", async () => {
+    stubCookies(
+      "multica_csrf=legacy-token-bound; multica_csrf_session=legacy-session-bound; " +
+        "u_workers_csrf=current-token-bound; u_workers_csrf_session=current-session-bound",
+    );
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new ApiClient("https://api.example.test").markOnboardingComplete();
+
+    expect(capturedHeaders(fetchMock)["X-CSRF-Token"]).toBe("legacy-session-bound");
+  });
+
+  it("reads the current cookie names when no legacy spelling exists", async () => {
+    stubCookies("u_workers_csrf=current-token-bound; u_workers_csrf_session=current-session-bound");
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new ApiClient("https://api.example.test").markOnboardingComplete();
+
+    expect(capturedHeaders(fetchMock)["X-CSRF-Token"]).toBe("current-session-bound");
+  });
+
+  // The pre-rename fallback: only the legacy names exist.
+  it("falls back to the legacy cookie names", async () => {
+    stubCookies("multica_csrf=legacy-token-bound; multica_csrf_session=legacy-session-bound");
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new ApiClient("https://api.example.test").markOnboardingComplete();
+
+    expect(capturedHeaders(fetchMock)["X-CSRF-Token"]).toBe("legacy-session-bound");
   });
 
   // A session that predates the session-bound cookie, and every request after

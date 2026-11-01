@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/spf13/cobra"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 )
 
 var (
@@ -23,26 +26,32 @@ var (
 // user-facing message.
 var debugFlag bool
 
+// cliName is the command name this process presents to users. Current releases
+// install both u-workers and the legacy multica executable from the same
+// binary; help, version output, and suggestions follow the name it was invoked
+// as, so neither installation looks like a renamed leftover.
+var cliName = brand.CLICommandFor(filepath.Base(os.Args[0]))
+
 var rootCmd = &cobra.Command{
-	Use:           "multica",
-	Short:         "Multica CLI — local agent runtime and management tool",
-	Long:          "Work seamlessly with Multica from the command line.",
+	Use:           cliName,
+	Short:         brand.DisplayName + " CLI — local agent runtime and management tool",
+	Long:          "Work seamlessly with " + brand.DisplayName + " from the command line.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
 
 func init() {
 	rootCmd.Version = fmt.Sprintf("%s (commit: %s, built: %s)\ngo: %s, os/arch: %s/%s", version, commit, date, runtime.Version(), runtime.GOOS, runtime.GOARCH)
-	rootCmd.SetVersionTemplate("multica {{.Version}}\n")
+	rootCmd.SetVersionTemplate(cliName + " {{.Version}}\n")
 
 	// Tag every CLI HTTP request with this binary's build version so the
 	// server can split logs/metrics by client version.
 	cli.ClientVersion = version
 
-	rootCmd.PersistentFlags().String("server-url", "", "Multica server URL (env: MULTICA_SERVER_URL)")
-	rootCmd.PersistentFlags().String("workspace-id", "", "Workspace ID (env: MULTICA_WORKSPACE_ID)")
+	rootCmd.PersistentFlags().String("server-url", "", "U Workers server URL (env: U_WORKERS_SERVER_URL, legacy MULTICA_SERVER_URL)")
+	rootCmd.PersistentFlags().String("workspace-id", "", "Workspace ID (env: U_WORKERS_WORKSPACE_ID, legacy MULTICA_WORKSPACE_ID)")
 	rootCmd.PersistentFlags().String("profile", "", "Configuration profile name (e.g. dev) — isolates config, daemon state, and workspaces")
-	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Print full error details on failure (env: MULTICA_DEBUG)")
+	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Print full error details on failure (env: U_WORKERS_DEBUG, legacy MULTICA_DEBUG)")
 
 	// Core commands
 	issueCmd.GroupID = groupCore
@@ -97,6 +106,7 @@ func init() {
 }
 
 func main() {
+	envcompat.Bridge()
 	if len(os.Args) == 2 && os.Args[1] == execenv.PreparationHelperArg {
 		logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 		if err := execenv.RunPreparationHelper(os.Stdin, os.Stdout, logger); err != nil {

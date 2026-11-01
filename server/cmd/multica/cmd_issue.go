@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/util"
 )
@@ -686,8 +687,8 @@ func init() {
 	issueCommentListCmd.Flags().Bool("compact", false, "JSON output only: drop response fields that carry no information for a reader — the issue_id echoed from the request path, source_task_id, updated_at when identical to created_at, null-valued fields, and empty arrays. Content and identity fields pass through untouched. Recommended for agent reads; composes with any mode.")
 	issueCommentListCmd.Flags().Bool("summary", false, "Clip each comment's content to a short preview (sets content_truncated) so you can scan a list without pulling full bodies. Composes with any mode.")
 	issueCommentListCmd.Flags().Bool("full", false, "Escape hatch: return every comment in resolved threads verbatim. By default the complete-thread reads (default list, --recent, --thread without --tail) are folded — a resolved thread collapses to its root + conclusion, with the dropped count reported on the root — so you do not pay tokens for settled discussion. Pass --full when you need the folded discussion. No effect on --since/--tail/--roots-only reads, which are never folded.")
-	issueCommentListCmd.Flags().String("before", "", "Cursor (RFC3339Nano timestamp). With --recent: thread cursor (last_activity_at). With --thread + --tail: reply cursor (reply created_at). Read from the X-Multica-Next-Before response header, printed on stderr as \"Next thread cursor\" / \"Next reply cursor\"; must be paired with --before-id.")
-	issueCommentListCmd.Flags().String("before-id", "", "Cursor UUID. With --recent: thread root UUID. With --thread + --tail: oldest reply UUID. Read from the X-Multica-Next-Before-Id response header; must be paired with --before.")
+	issueCommentListCmd.Flags().String("before", "", "Cursor (RFC3339Nano timestamp). With --recent: thread cursor (last_activity_at). With --thread + --tail: reply cursor (reply created_at). Read from the next-page cursor response header (X-U-Workers-Next-Before, legacy X-Multica-Next-Before), printed on stderr as \"Next thread cursor\" / \"Next reply cursor\"; must be paired with --before-id.")
+	issueCommentListCmd.Flags().String("before-id", "", "Cursor UUID. With --recent: thread root UUID. With --thread + --tail: oldest reply UUID. Read from the cursor-id response header (X-U-Workers-Next-Before-Id, legacy X-Multica-Next-Before-Id); must be paired with --before.")
 
 	// issue runs
 	issueRunsCmd.Flags().String("output", "table", "Output format: table or json")
@@ -2454,8 +2455,8 @@ func runIssueCommentList(cmd *cobra.Command, args []string) error {
 	// to dig into the raw HTTP response. Label depends on which paging mode
 	// the caller is in — under --recent the cursor is a thread cursor;
 	// under --thread + --tail it is a reply cursor inside that thread.
-	if nb := respHeaders.Get("X-Multica-Next-Before"); nb != "" {
-		if nbid := respHeaders.Get("X-Multica-Next-Before-Id"); nbid != "" {
+	if nb := cli.HeaderValue(respHeaders, brand.HeaderNextBefore, brand.LegacyHeaderNextBefore); nb != "" {
+		if nbid := cli.HeaderValue(respHeaders, brand.HeaderNextBeforeID, brand.LegacyHeaderNextBeforeID); nbid != "" {
 			label := "Next thread cursor"
 			if thread != "" && tailSet {
 				label = "Next reply cursor"

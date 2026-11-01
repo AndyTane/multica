@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
 
@@ -1455,10 +1456,10 @@ func mergeEnv(base []string, extra map[string]string) []string {
 	env := make([]string, 0, len(base)+len(extra))
 	for _, entry := range base {
 		key, _, _ := strings.Cut(entry, "=")
-		// MULTICA_* in the daemon's own environment is not task context. Drop
-		// the inherited namespace for every backend and append only the values
-		// daemon.go explicitly assembled for this task below.
-		if isFilteredChildEnvKey(key) || strings.HasPrefix(strings.ToUpper(key), "MULTICA_") {
+		// MULTICA_* / U_WORKERS_* in the daemon's own environment is not task
+		// context. Drop the inherited namespace for every backend and append
+		// only the values daemon.go explicitly assembled for this task below.
+		if isFilteredChildEnvKey(key) || brand.IsProductEnvKey(key) {
 			continue
 		}
 		env = append(env, entry)

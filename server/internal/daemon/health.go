@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/daemon/repocache"
 	"github.com/multica-ai/multica/server/internal/util"
 )
@@ -308,8 +309,9 @@ func authorizeRepoCheckoutWorkDir(activeRoot, requested string) (string, error) 
 const (
 	repoCheckoutLockWaitTimeout = 10 * time.Second
 	repoCheckoutRetryAfter      = 2 * time.Second
-	repoCheckoutRetryHeader     = "X-Multica-Retryable"
-	repoCheckoutRetryValueBusy  = "repo-busy"
+	// repoCheckoutRetryHeaders lists both spellings emitted on a busy repo:
+	// a CLI built before the rename reads the legacy one.
+	repoCheckoutRetryValueBusy = "repo-busy"
 )
 
 // healthHandler returns the /health HTTP handler. Extracted from serveHealth
@@ -534,7 +536,9 @@ func (d *Daemon) repoCheckoutHandler() http.HandlerFunc {
 		}
 		if err != nil {
 			if errors.Is(err, repocache.ErrRepoBusy) && req.RetryBusy {
-				w.Header().Set(repoCheckoutRetryHeader, repoCheckoutRetryValueBusy)
+				for _, name := range []string{brand.HeaderRetryable, brand.LegacyHeaderRetryable} {
+					w.Header().Set(name, repoCheckoutRetryValueBusy)
+				}
 				w.Header().Set("Retry-After", fmt.Sprintf("%.0f", repoCheckoutRetryAfter.Seconds()))
 				http.Error(w, "repository is busy with another operation; retry later", http.StatusServiceUnavailable)
 				return

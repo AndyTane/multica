@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/spf13/cobra"
 )
 
@@ -79,7 +80,7 @@ func TestDaemonLogSourcePathResolvesPerProfile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("daemonLogSourcePath(\"\") = %v, want nil", err)
 		}
-		want := filepath.Join(home, ".multica", "daemon.log")
+		want := filepath.Join(home, brand.ConfigDir, "daemon.log")
 		if got != want {
 			t.Fatalf("daemonLogSourcePath(\"\") = %q, want %q", got, want)
 		}
@@ -92,7 +93,7 @@ func TestDaemonLogSourcePathResolvesPerProfile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("daemonLogSourcePath = %v, want nil", err)
 		}
-		want := filepath.Join(home, ".multica", "profiles", "desktop-api.multica.ai", "daemon.log")
+		want := filepath.Join(home, brand.ConfigDir, "profiles", "desktop-api.multica.ai", "daemon.log")
 		if got != want {
 			t.Fatalf("daemonLogSourcePath = %q, want %q", got, want)
 		}
@@ -206,7 +207,7 @@ func TestRunDaemonLogsMissingFileNamesProfilePath(t *testing.T) {
 
 	// A readable log for the DEFAULT profile exists — the exact trap from
 	// #6038. The error must still point at the requested profile's path.
-	seedDaemonLog(t, filepath.Join(home, ".multica", "daemon.log"))
+	seedDaemonLog(t, filepath.Join(home, brand.ConfigDir, "daemon.log"))
 
 	cmd, errOut := daemonLogsCmdFor(t, "desktop-api.multica.ai", 50, false)
 	rec := stubTailLog(t, errOut)
@@ -215,7 +216,7 @@ func TestRunDaemonLogsMissingFileNamesProfilePath(t *testing.T) {
 	if err == nil {
 		t.Fatal("runDaemonLogs = nil, want the missing-log-file error")
 	}
-	want := filepath.Join(home, ".multica", "profiles", "desktop-api.multica.ai", "daemon.log")
+	want := filepath.Join(home, brand.ConfigDir, "profiles", "desktop-api.multica.ai", "daemon.log")
 	if !strings.Contains(err.Error(), want) {
 		t.Errorf("error = %q, want it to name %q", err, want)
 	}

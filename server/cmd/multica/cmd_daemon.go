@@ -77,7 +77,7 @@ var daemonDiskUsageCmd = &cobra.Command{
 		"Default view is per-run, sorted by size descending. --by-workspace switches to a per-workspace summary;\n" +
 		"--top N keeps only the largest N entries.\n\n" +
 		"By default only the current profile's root is scanned. --all-profiles aggregates across every workspace\n" +
-		"root — the default root plus each ~/.multica/profiles/* root, including the Desktop app's dedicated\n" +
+		"root — the default root plus each profiles/* root under the CLI config root (legacy ~/.multica/profiles), including the Desktop app's dedicated\n" +
 		"`desktop-<host>` root — and prints a per-root breakdown with a combined grand total. In that mode --top\n" +
 		"applies within each root and --workspaces-root is not allowed.\n\n" +
 		"Bytes are split into total and the artifact-cleanable subset (node_modules, .next, .turbo by default,\n" +
@@ -138,7 +138,7 @@ func init() {
 	df.Int("top", 0, "Keep only the largest N entries (per root in --all-profiles mode)")
 	df.String("output", "table", "Output format: table or json")
 	df.String("workspaces-root", "", "Override the workspaces root path (default: same as the daemon)")
-	df.Bool("all-profiles", false, "Scan every workspace root (default root + all ~/.multica/profiles/* roots, incl. the Desktop app's) and report a combined total")
+	df.Bool("all-profiles", false, "Scan every workspace root (default root + all profiles/* roots under the CLI config root, legacy ~/.multica/profiles, incl. the Desktop app's) and report a combined total")
 
 	daemonCmd.AddCommand(daemonStartCmd)
 	daemonCmd.AddCommand(daemonStopCmd)
@@ -2291,11 +2291,11 @@ func countDiskUsageTaskDirs(root string) int {
 }
 
 func profilesRootDir() (string, error) {
-	home, err := os.UserHomeDir()
+	root, _, err := cli.ConfigRootDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".multica", "profiles"), nil
+	return filepath.Join(root, "profiles"), nil
 }
 
 func samePath(a, b string) bool {

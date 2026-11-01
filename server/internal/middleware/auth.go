@@ -34,7 +34,7 @@ func rejectTemporarilyDisabledUser(w http.ResponseWriter, r *http.Request, userI
 // Auth middleware validates JWT tokens or Personal Access Tokens.
 // Token sources (in priority order):
 //  1. Authorization: Bearer <token> header (PAT or JWT)
-//  2. multica_auth HttpOnly cookie (JWT) — requires valid CSRF token for state-changing requests
+//  2. u_workers_auth HttpOnly cookie (JWT, legacy name multica_auth) — requires a valid CSRF token for state-changing requests
 //
 // Sets X-User-ID and X-User-Email headers on the request for downstream handlers.
 //
@@ -321,7 +321,7 @@ func Auth(queries *db.Queries, patCache *auth.PATCache, cloudPAT *auth.CloudPATV
 }
 
 // extractToken returns the bearer token and whether it came from a cookie.
-// Priority: Authorization header > multica_auth cookie.
+// Priority: Authorization header > auth cookie (current name, then the legacy one).
 func extractToken(r *http.Request) (token string, fromCookie bool) {
 	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -330,7 +330,7 @@ func extractToken(r *http.Request) (token string, fromCookie bool) {
 		}
 	}
 
-	if cookie, err := r.Cookie(auth.AuthCookieName); err == nil && cookie.Value != "" {
+	if cookie, ok := auth.AuthCookie(r); ok {
 		return cookie.Value, true
 	}
 

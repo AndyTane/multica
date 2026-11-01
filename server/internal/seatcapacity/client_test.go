@@ -98,21 +98,27 @@ func TestClientPreservesCapacityRateLimit(t *testing.T) {
 	}
 }
 
+// The seat-capacity service may answer with either header spelling while the
+// rename is in flight; both have to be understood.
 func TestClientPreservesCloudWorkspaceRateLimitScope(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Retry-After", "1")
-		w.Header().Set(rateLimitScopeHeader, RateLimitScopeWorkspace)
-		w.WriteHeader(http.StatusTooManyRequests)
-	}))
-	defer server.Close()
+	for _, header := range rateLimitScopeHeaders {
+		t.Run(header, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Retry-After", "1")
+				w.Header().Set(header, RateLimitScopeWorkspace)
+				w.WriteHeader(http.StatusTooManyRequests)
+			}))
+			defer server.Close()
 
-	client, err := New(Config{BaseURL: server.URL})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = client.ReserveInvitation(context.Background(), uuid.New(), uuid.New(), time.Now().Add(time.Hour))
-	if scope := RateLimitScopeOf(err); scope != RateLimitScopeWorkspace {
-		t.Fatalf("rate-limit scope = %q, want %q", scope, RateLimitScopeWorkspace)
+			client, err := New(Config{BaseURL: server.URL})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = client.ReserveInvitation(context.Background(), uuid.New(), uuid.New(), time.Now().Add(time.Hour))
+			if scope := RateLimitScopeOf(err); scope != RateLimitScopeWorkspace {
+				t.Fatalf("rate-limit scope = %q, want %q", scope, RateLimitScopeWorkspace)
+			}
+		})
 	}
 }
 

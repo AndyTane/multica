@@ -964,7 +964,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, sessions SessionValidator, 
 		if !authorize(strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))) {
 			return
 		}
-	} else if cookie, err := r.Cookie(auth.AuthCookieName); err == nil && cookie.Value != "" {
+	} else if cookie, ok := auth.AuthCookie(r); ok {
 		if !authorize(cookie.Value) {
 			return
 		}

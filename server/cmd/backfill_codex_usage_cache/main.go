@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 	"github.com/multica-ai/multica/server/internal/logger"
 )
 
@@ -56,6 +57,7 @@ type totals struct {
 }
 
 func main() {
+	envcompat.Bridge()
 	logger.Init()
 	if err := run(); err != nil {
 		slog.Error("codex usage cache backfill failed", "error", err)

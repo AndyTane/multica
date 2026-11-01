@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 )
 
@@ -337,7 +338,7 @@ func TestRunWorkspaceSwitch(t *testing.T) {
 
 		// Verify the staging profile config landed in the expected path.
 		path, _ := cli.CLIConfigPathForProfile("staging")
-		wantSuffix := filepath.Join(".multica", "profiles", "staging", "config.json")
+		wantSuffix := filepath.Join(brand.ConfigDir, "profiles", "staging", "config.json")
 		if !strings.HasSuffix(path, wantSuffix) {
 			t.Errorf("staging config path = %q, want suffix %q", path, wantSuffix)
 		}

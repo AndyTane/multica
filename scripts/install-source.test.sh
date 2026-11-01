@@ -5,7 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 unset MULTICA_INSTALL_DIR MULTICA_BIN_DIR
 source <(sed '/^main "\$@"$/d' "$ROOT_DIR/scripts/install.sh")
 [[ "$INSTALL_DIR" == "$HOME/.u-workers/server" ]]
-[[ "$CLI_BINARY" == "$HOME/.u-workers/bin/multica" ]]
+[[ "$CLI_BINARY" == "$HOME/.u-workers/bin/u-workers" ]]
+[[ "$LEGACY_CLI_BINARY" == "$HOME/.u-workers/bin/multica" ]]
 
 docker_calls=""
 fake_images=$'u-workers-backend:dev\nu-workers-web:dev\npostgres:16'

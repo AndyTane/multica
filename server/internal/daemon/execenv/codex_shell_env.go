@@ -11,6 +11,8 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/pelletier/go-toml/v2/unstable"
+
+	"github.com/multica-ai/multica/server/internal/brand"
 )
 
 // Codex filters environment variables before running shell tool subprocesses.
@@ -67,7 +69,7 @@ func CodexShellEnvAllowlist(inherited []string, explicit map[string]string, auth
 			return
 		}
 		upper := strings.ToUpper(key)
-		if strings.HasPrefix(upper, "MULTICA_") {
+		if brand.IsProductEnvKey(upper) {
 			if !isExplicit {
 				return
 			}

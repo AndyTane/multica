@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/multica-ai/multica/server/internal/brand"
 	publicapiv1 "github.com/multica-ai/multica/server/pkg/publicapi/v1"
 )
 
@@ -63,7 +64,7 @@ func pluginActionRequest(method, path, installationID string, body any, params m
 	request.Header.Set("X-User-ID", testUserID)
 	request.Header.Set("Content-Type", "application/json")
 	if installationID != "" {
-		request.Header.Set(pluginInstallationHeader, installationID)
+		request.Header.Set(brand.HeaderPluginInstallation, installationID)
 	}
 	routeContext := chi.NewRouteContext()
 	for key, value := range params {
@@ -435,4 +436,21 @@ func createIssueInForeignWorkspace(t *testing.T) string {
 		testPool.Exec(context.Background(), `DELETE FROM "user" WHERE id = $1`, ownerID)
 	})
 	return issueID
+}
+
+// A host page built before the rename sends the legacy header; one built after
+// sends the current name. Both identify the installation, and the current name
+// wins if a request somehow carries both.
+func TestPluginInstallationHeaderValueAcceptsBothSpellings(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/plugin-bridge/v1/context", nil)
+
+	request.Header.Set(brand.LegacyHeaderPluginInstallation, "legacy-id")
+	if got := pluginInstallationHeaderValue(request); got != "legacy-id" {
+		t.Fatalf("legacy header value = %q, want legacy-id", got)
+	}
+
+	request.Header.Set(brand.HeaderPluginInstallation, "current-id")
+	if got := pluginInstallationHeaderValue(request); got != "current-id" {
+		t.Fatalf("current header value = %q, want current-id", got)
+	}
 }

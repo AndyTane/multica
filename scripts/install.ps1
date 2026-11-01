@@ -4,7 +4,7 @@
 #   powershell -File scripts/install.ps1
 #
 # Self-host: starts a local U Workers server + installs CLI + configures
-#   $env:MULTICA_MODE="local"; powershell -File scripts/install.ps1
+#   $env:U_WORKERS_MODE="local"; powershell -File scripts/install.ps1
 #
 
 $ErrorActionPreference = "Stop"
@@ -12,13 +12,31 @@ $ErrorActionPreference = "Stop"
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-$RepoUrl       = $env:MULTICA_REPO_URL
-$RepoWebUrl    = $env:MULTICA_REPO_WEB_URL
-$ReleaseApiUrl = $env:MULTICA_RELEASE_API_BASE_URL
-$BinDir = if ($env:MULTICA_BIN_DIR) { $env:MULTICA_BIN_DIR } else { Join-Path $env:USERPROFILE ".u-workers\bin" }
-$CliBinary = Join-Path $BinDir "multica.exe"
+# Every setting accepts the current U_WORKERS_ spelling first and the legacy
+# MULTICA_ spelling second, so an operator can migrate before the old names
+# are retired. An empty string counts as unset, matching the previous
+# `if ($env:...)` behavior.
+function Get-EnvFirst {
+    param([string[]]$Names)
+    foreach ($name in $Names) {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if ($value) { return $value }
+    }
+    return $null
+}
+
+$RepoUrl       = Get-EnvFirst @("U_WORKERS_REPO_URL", "MULTICA_REPO_URL")
+$RepoWebUrl    = Get-EnvFirst @("U_WORKERS_REPO_WEB_URL", "MULTICA_REPO_WEB_URL")
+$ReleaseApiUrl = Get-EnvFirst @("U_WORKERS_RELEASE_API_BASE_URL", "MULTICA_RELEASE_API_BASE_URL")
+$ConfiguredBinDir = Get-EnvFirst @("U_WORKERS_BIN_DIR", "MULTICA_BIN_DIR")
+$BinDir = if ($ConfiguredBinDir) { $ConfiguredBinDir } else { Join-Path $env:USERPROFILE ".u-workers\bin" }
+# Current releases install both executable names; the current one is the
+# canonical file an update replaces, and the legacy one is kept alongside it.
+$CliBinary = Join-Path $BinDir "u-workers.exe"
+$LegacyCliBinary = Join-Path $BinDir "multica.exe"
 $DefaultInstallDir = Join-Path $env:USERPROFILE ".u-workers\server"
-$InstallDir    = if ($env:MULTICA_INSTALL_DIR) { $env:MULTICA_INSTALL_DIR } else { $DefaultInstallDir }
+$ConfiguredInstallDir = Get-EnvFirst @("U_WORKERS_INSTALL_DIR", "MULTICA_INSTALL_DIR")
+$InstallDir    = if ($ConfiguredInstallDir) { $ConfiguredInstallDir } else { $DefaultInstallDir }
 
 # Host ports Compose reported after `up -d`; set by Setup-Server and reused by
 # the summary so the health check and the printed URLs cannot diverge.
@@ -98,8 +116,9 @@ function Get-LatestVersion {
 }
 
 function Get-SelfHostRef {
-    if ($env:MULTICA_SELFHOST_REF) {
-        return $env:MULTICA_SELFHOST_REF
+    $configuredRef = Get-EnvFirst @("U_WORKERS_SELFHOST_REF", "MULTICA_SELFHOST_REF")
+    if ($configuredRef) {
+        return $configuredRef
     }
 
     $latest = Get-LatestVersion
@@ -240,9 +259,21 @@ function Get-InstalledCliVersion {
 # ---------------------------------------------------------------------------
 # CLI Installation
 # ---------------------------------------------------------------------------
+function Sync-LegacyCliAlias {
+    # Keep the pre-rename multica.exe installed beside the current file so both
+    # commands run the same release. A copy, not a symlink: Windows symlinks
+    # need a privilege the installer must not require. Identical length means
+    # the copy is already current, so a no-op install does not rewrite 30 MB.
+    if (-not (Test-Path -LiteralPath $CliBinary -PathType Leaf)) { return }
+    $current = Get-Item -LiteralPath $CliBinary
+    $legacy = Get-Item -LiteralPath $LegacyCliBinary -ErrorAction SilentlyContinue
+    if ($legacy -and $legacy.Length -eq $current.Length) { return }
+    Copy-Item -LiteralPath $CliBinary -Destination $LegacyCliBinary -Force
+}
+
 function Install-CliBinary {
     if (-not $ReleaseApiUrl -or -not $RepoWebUrl) {
-        Write-Fail "Set MULTICA_RELEASE_API_BASE_URL and MULTICA_REPO_WEB_URL to your release source."
+        Write-Fail "Set U_WORKERS_RELEASE_API_BASE_URL and U_WORKERS_REPO_WEB_URL (or the legacy MULTICA_* names) to your release source."
     }
     Write-Info "Installing U Workers CLI from GitHub Releases..."
 
@@ -258,20 +289,35 @@ function Install-CliBinary {
     }
 
     $version = $latest.TrimStart('v')
-    $url = "$RepoWebUrl/releases/download/$latest/multica-cli-$version-windows-$arch.zip"
     $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("u-workers-install-" + [guid]::NewGuid().ToString("N"))
+    $zipPath = Join-Path $tmpDir "cli.zip"
 
     New-Item -ItemType Directory -Path $tmpDir | Out-Null
 
-    Write-Info "Downloading $url ..."
-    try {
-        Invoke-WebRequest -Uri $url -OutFile (Join-Path $tmpDir "multica.zip") -UseBasicParsing
-    } catch {
+    # Current download package first; fall back to the pre-rename package names
+    # so an older release tag still installs. $asset records which one arrived,
+    # because the checksum has to be looked up under that exact name.
+    $asset = $null
+    foreach ($candidate in @(
+            "u-workers-cli-$version-windows-$arch.zip",
+            "multica-cli-$version-windows-$arch.zip",
+            "multica_windows_$arch.zip")) {
+        $candidateUrl = "$RepoWebUrl/releases/download/$latest/$candidate"
+        Write-Info "Downloading $candidateUrl ..."
+        try {
+            Invoke-WebRequest -Uri $candidateUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+            $asset = $candidate
+            break
+        } catch {
+            continue
+        }
+    }
+    if (-not $asset) {
         Remove-Item $tmpDir -Recurse -Force
-        Write-Fail "Failed to download CLI binary: $_"
+        Write-Fail "Failed to download CLI binary."
     }
 
-    # Verify SHA256 checksum
+    # Verify SHA256 checksum of the package that actually downloaded
     $checksumUrl = "$RepoWebUrl/releases/download/$latest/checksums.txt"
     try {
         $checksums = Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing -ErrorAction Stop
@@ -280,15 +326,9 @@ function Install-CliBinary {
         } else {
             [string]$checksums.Content
         }
-        $zipFile = Join-Path $tmpDir "multica.zip"
-        $actualHash = (Get-FileHash -Path $zipFile -Algorithm SHA256).Hash.ToLower()
-        $releaseAsset = "multica-cli-$version-windows-$arch.zip"
-        $legacyAsset = "multica_windows_$arch.zip"
+        $actualHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
         $expectedLine = ($checksumContent -split "`r?`n") |
-            Where-Object {
-                $_ -match [regex]::Escape($releaseAsset) -or
-                $_ -match [regex]::Escape($legacyAsset)
-            } |
+            Where-Object { $_ -match [regex]::Escape($asset) } |
             Select-Object -First 1
         if ($expectedLine) {
             $expectedHash = ($expectedLine -split "\s+")[0].ToLower()
@@ -298,34 +338,47 @@ function Install-CliBinary {
             }
             Write-Ok "Checksum verified"
         } else {
-            Write-Warn "Could not find checksum entry for $releaseAsset - skipping verification."
+            Write-Warn "Could not find checksum entry for $asset - skipping verification."
         }
     } catch {
         Write-Warn "Could not download checksums.txt - skipping verification."
     }
 
-    Expand-Archive -Path (Join-Path $tmpDir "multica.zip") -DestinationPath $tmpDir -Force
+    Expand-Archive -Path $zipPath -DestinationPath $tmpDir -Force
 
-    if (-not (Test-Path $binDir)) {
-        New-Item -ItemType Directory -Path $binDir -Force | Out-Null
+    if (-not (Test-Path $BinDir)) {
+        New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
     }
 
-    $exeSrc = Join-Path $tmpDir "multica.exe"
+    # Each archive family carries one executable name; accept either so an
+    # older release tag still installs through this same path.
+    $exeSrc = Join-Path $tmpDir "u-workers.exe"
     if (-not (Test-Path $exeSrc)) {
-        $exeSrc = Get-ChildItem -Path $tmpDir -Filter "multica.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+        $exeSrc = Join-Path $tmpDir "multica.exe"
+    }
+    if (-not (Test-Path $exeSrc)) {
+        $exeSrc = Get-ChildItem -Path $tmpDir -Filter "*.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
     }
     if (-not $exeSrc -or -not (Test-Path $exeSrc)) {
         Remove-Item $tmpDir -Recurse -Force
-        Write-Fail "multica.exe not found in downloaded archive."
+        Write-Fail "no CLI executable found in the downloaded archive."
     }
 
-    Copy-Item $exeSrc (Join-Path $binDir "multica.exe") -Force
+    Copy-Item -LiteralPath $exeSrc -Destination $CliBinary -Force
+    Sync-LegacyCliAlias
     Remove-Item $tmpDir -Recurse -Force
 
-    Write-Ok "U Workers CLI installed to $binDir\multica.exe"
+    Write-Ok "U Workers CLI installed to $CliBinary (legacy command: $LegacyCliBinary)"
 }
 
 function Install-Cli {
+    # An install created before the rename only has multica.exe. Adopt it as
+    # the current name first, so an up-to-date machine does not re-download a
+    # binary it already has.
+    if (-not (Test-Path -LiteralPath $CliBinary -PathType Leaf) -and (Test-Path -LiteralPath $LegacyCliBinary -PathType Leaf)) {
+        Copy-Item -LiteralPath $LegacyCliBinary -Destination $CliBinary -Force
+    }
+
     if (Test-Path -LiteralPath $CliBinary -PathType Leaf) {
         $currentVer = Get-InstalledCliVersion
         $latestVer = Get-LatestVersion
@@ -344,6 +397,7 @@ function Install-Cli {
         }
 
         if ($isUpToDate) {
+            Sync-LegacyCliAlias
             Write-Ok "U Workers CLI is up to date ($currentVer)"
             return
         }
@@ -361,6 +415,7 @@ function Install-Cli {
     if (-not (Test-Path -LiteralPath $CliBinary -PathType Leaf)) {
         Write-Fail "CLI binary was not created at the configured target directory."
     }
+    Sync-LegacyCliAlias
 }
 
 # ---------------------------------------------------------------------------
@@ -374,7 +429,7 @@ Docker is not installed. U Workers self-hosting requires Docker and Docker Compo
 Install Docker Desktop for Windows:
   https://docs.docker.com/desktop/install/windows-install/
 
-After installing Docker, re-run this script with `$env:MULTICA_MODE="local"`.
+After installing Docker, re-run this script with `$env:U_WORKERS_MODE="local"`.
 "@
     }
 
@@ -391,7 +446,7 @@ After installing Docker, re-run this script with `$env:MULTICA_MODE="local"`.
 # Server setup (self-host / local)
 # ---------------------------------------------------------------------------
 function Install-Server {
-    if (-not $RepoUrl) { Write-Fail "Set MULTICA_REPO_URL to your source repository." }
+    if (-not $RepoUrl) { Write-Fail "Set U_WORKERS_REPO_URL (or MULTICA_REPO_URL) to your source repository." }
     Write-Info "Setting up U Workers server..."
     $serverRef = Get-SelfHostRef
     Write-Info "Using self-host assets from $serverRef..."
@@ -493,7 +548,7 @@ function Start-DefaultInstall {
     Write-Host "     & `"$CliBinary`" --profile u-workers setup self-host --server-url <YOUR_SERVER> --app-url <YOUR_APP>"
     Write-Host ""
     Write-Host "  Self-hosting? Install the server first:"
-    Write-Host '     $env:MULTICA_MODE="with-server"; powershell -File scripts/install.ps1'
+    Write-Host '     $env:U_WORKERS_MODE="with-server"; powershell -File scripts/install.ps1'
     Write-Host ""
 }
 
@@ -527,7 +582,7 @@ function Start-LocalInstall {
     Write-Host "  or read the generated code from backend logs when Resend is unset."
     Write-Host ""
     Write-Host "  To stop all services:"
-    Write-Host '     $env:MULTICA_MODE="stop"; powershell -File scripts/install.ps1'
+    Write-Host '     $env:U_WORKERS_MODE="stop"; powershell -File scripts/install.ps1'
     Write-Host ""
 }
 
@@ -564,14 +619,15 @@ function Start-Stop {
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-$mode = if ($env:MULTICA_MODE) { $env:MULTICA_MODE.ToLower() } else { "default" }
+$modeSetting = Get-EnvFirst @("U_WORKERS_MODE", "MULTICA_MODE")
+$mode = if ($modeSetting) { $modeSetting.ToLower() } else { "default" }
 
 if ($mode -ne "stop") {
     if (-not $ReleaseApiUrl -or -not $RepoWebUrl) {
-        Write-Fail "Set MULTICA_RELEASE_API_BASE_URL (releases endpoint) and MULTICA_REPO_WEB_URL (repository web URL) before installing."
+        Write-Fail "Set U_WORKERS_RELEASE_API_BASE_URL (releases endpoint) and U_WORKERS_REPO_WEB_URL (repository web URL) before installing; the legacy MULTICA_* names still work."
     }
     if (($mode -eq "with-server" -or $mode -eq "local") -and -not $RepoUrl) {
-        Write-Fail "Set MULTICA_REPO_URL to your source repository before provisioning."
+        Write-Fail "Set U_WORKERS_REPO_URL (or MULTICA_REPO_URL) to your source repository before provisioning."
     }
 }
 

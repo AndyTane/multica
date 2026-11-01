@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/brand"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/plugincontract"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
@@ -321,9 +322,17 @@ func (s *PluginService) callHookEndpoint(ctx context.Context, invocation HookInv
 		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Multica-Timestamp", timestamp)
-	request.Header.Set("X-Multica-Signature", hookSignatureVersion+"="+signature)
-	request.Header.Set("X-Multica-Plugin-Installation", uuidString(installation.ID))
+	// Both header families carry the same signed values: a plugin server that
+	// has not moved to the current names yet must keep verifying these hooks.
+	for _, name := range []string{brand.HeaderHookTimestamp, brand.LegacyHeaderHookTimestamp} {
+		request.Header.Set(name, timestamp)
+	}
+	for _, name := range []string{brand.HeaderHookSignature, brand.LegacyHeaderHookSignature} {
+		request.Header.Set(name, hookSignatureVersion+"="+signature)
+	}
+	for _, name := range []string{brand.HeaderPluginInstallation, brand.LegacyHeaderPluginInstallation} {
+		request.Header.Set(name, uuidString(installation.ID))
+	}
 	request.Header.Set("User-Agent", "Multica-Hooks/1")
 
 	response, err := client.Do(request)

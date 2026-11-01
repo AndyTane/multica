@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/logger"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/service"
@@ -388,7 +389,7 @@ var (
 //
 // Both values must be set together so the cursor can tie-break entries
 // landing in the same microsecond. The cursor for the next page is
-// emitted via the X-Multica-Next-Before / X-Multica-Next-Before-Id
+// emitted via the next-page cursor headers (current and legacy names)
 // response headers.
 //
 // Combination rules (kept narrow on purpose — Elon flagged the matrix risk):
@@ -694,8 +695,15 @@ func (h *Handler) ListComments(w http.ResponseWriter, r *http.Request) {
 	// body so the default flat-array response shape — which the desktop UI
 	// and existing callers depend on — is unchanged.
 	if result.NextBefore != "" && result.NextBeforeID != "" {
-		w.Header().Set("X-Multica-Next-Before", result.NextBefore)
-		w.Header().Set("X-Multica-Next-Before-Id", result.NextBeforeID)
+		// Emitted under both names while the rename is in flight: a CLI built
+		// before it reads the legacy names, one built after reads the current
+		// ones, and neither may lose the cursor.
+		for _, name := range []string{brand.HeaderNextBefore, brand.LegacyHeaderNextBefore} {
+			w.Header().Set(name, result.NextBefore)
+		}
+		for _, name := range []string{brand.HeaderNextBeforeID, brand.LegacyHeaderNextBeforeID} {
+			w.Header().Set(name, result.NextBeforeID)
+		}
 	}
 	if result.CommentsTruncated {
 		w.Header().Set(HeaderCommentsTruncated, "true")

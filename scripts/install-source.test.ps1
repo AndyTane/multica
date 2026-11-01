@@ -5,7 +5,8 @@ $env:MULTICA_INSTALL_DIR = ""
 $env:MULTICA_BIN_DIR = ""
 Invoke-Expression $source
 if ($InstallDir -ne (Join-Path $env:USERPROFILE ".u-workers\server")) { throw "shared server directory" }
-if ($CliBinary -ne (Join-Path $env:USERPROFILE ".u-workers\bin\multica.exe")) { throw "shared binary directory" }
+if ($CliBinary -ne (Join-Path $env:USERPROFILE ".u-workers\bin\u-workers.exe")) { throw "current binary directory" }
+if ($LegacyCliBinary -ne (Join-Path $env:USERPROFILE ".u-workers\bin\multica.exe")) { throw "legacy binary directory" }
 
 $script:dockerCalls = @()
 $script:fakeImages = @("u-workers-backend:dev", "u-workers-web:dev", "postgres:16")
@@ -30,7 +31,9 @@ if ($script:dockerCalls.Count -ne 1 -or $script:dockerCalls[0] -notmatch ' pull$
 # An unrelated executable on PATH must not participate in installation checks.
 $script:installed = $false
 function multica { throw "original CLI must not execute" }
+function u-workers { throw "original CLI must not execute" }
 function Test-Path { return $script:installed }
+function Get-Item { return [pscustomobject]@{ Length = 1 } }
 function Install-CliBinary { $script:installed = $true }
 Install-Cli
 if (-not $script:installed) { throw "target CLI was not installed" }
