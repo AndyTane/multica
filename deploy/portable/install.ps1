@@ -173,7 +173,7 @@ COMMIT;
 SELECT id::text FROM "user" WHERE lower(email) = lower('__EMAIL__');
 '@
     $sql = $sql.Replace('__EMAIL__', $Email).Replace('__NAME__', $DisplayName)
-    $rows = Invoke-PortableSqlFile $sql
+    $rows = Invoke-PortableSqlFile $sql ([string](Get-PortableDeployment $root).Database)
     $identityRows = @($rows | Where-Object { $_ -match '^[0-9a-fA-F-]{36}$' })
     if ($identityRows.Count -eq 0) { throw 'Could not create or find the local operator account.' }
     return [string]$identityRows[$identityRows.Count - 1]
