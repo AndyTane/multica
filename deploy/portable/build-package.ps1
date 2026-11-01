@@ -133,6 +133,17 @@ function Resolve-RequiredFile {
     return (Resolve-Path -LiteralPath $Path).Path
 }
 
+function Remove-PortableUnneededPostgresParts {
+    # The official PostgreSQL Windows archive also ships pgAdmin 4, StackBuilder,
+    # C headers and debug symbols. A deployment only runs the server and tools,
+    # so dropping those parts saves several hundred megabytes per package.
+    param([string]$PostgresDirectory)
+    foreach ($relative in @('pgAdmin 4', 'StackBuilder', 'doc', 'include', 'symbols')) {
+        $path = Join-Path $PostgresDirectory $relative
+        if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
+    }
+}
+
 function Find-OpenCodeExecutable {
     if ($OpenCodeExe) { return (Resolve-RequiredFile $OpenCodeExe 'opencode.exe') }
     $command = Get-Command opencode.cmd -ErrorAction SilentlyContinue
@@ -236,6 +247,8 @@ if ($ReusePayloadFrom) {
     if (-not $installer) { throw 'The installer build produced no file.' }
     Copy-Item -LiteralPath $installer.FullName -Destination (Join-Path $payload ('installer\u-workers-setup-' + $Version + '-windows-amd64.exe')) -Force
 }
+
+Remove-PortableUnneededPostgresParts (Join-Path $payload 'runtime\pgsql')
 
 if (-not $SkipBuildKit) {
     Write-Step 'Bundling the source snapshot and the offline build kit'
