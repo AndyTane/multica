@@ -429,16 +429,21 @@ try {
     Write-Step 'Checking that the existing Multica CLI state was not touched'
     Assert-Check 'Multica CLI config hash unchanged' ((Get-FileSha256 $multicaConfig) -eq $multicaConfigBefore)
 
-    $evidence.checks = @($checks)
-    $evidence.version = $version
-    $evidence.package = $packagePath
-    $evidence.packageSha256 = [ordered]@{ server = [string]$manifest.sha256.server; cli = [string]$manifest.sha256.cli; installer = [string]$manifest.sha256.installer }
-    $evidence.installSeconds = [math]::Round(((Get-ChildItem -LiteralPath (Join-Path $serverCopy 'data\install-report.json')).LastWriteTime - $started).TotalSeconds, 1)
-    $evidence.offlineSimulation = 'HTTP_PROXY/HTTPS_PROXY/ALL_PROXY pointed at http://127.0.0.1:9 for all child processes'
-    $evidence.heap = $null
-    $evidence.boardUrl = $serverUrl
-    $evidence.runtimes = @($runtimesAfterSecond | ForEach-Object { [ordered]@{ name = [string]$_.name; provider = [string]$_.provider; status = [string]$_.status } })
-    $evidence.os = [ordered]@{ caption = (Get-CimInstance Win32_OperatingSystem).Caption; version = [Environment]::OSVersion.VersionString; user = [Environment]::UserName }
+    # Evidence bookkeeping must never change the acceptance verdict; a
+    # formatting failure is recorded but the checks already made stand.
+    try {
+        $evidence.checks = @($checks)
+        $evidence.version = $version
+        $evidence.package = $packagePath
+        $evidence.packageSha256 = [ordered]@{ server = [string]$manifest.sha256.server; cli = [string]$manifest.sha256.cli; installer = [string]$manifest.sha256.installer }
+        $evidence.durationSeconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
+        $evidence.offlineSimulation = 'HTTP_PROXY/HTTPS_PROXY/ALL_PROXY pointed at http://127.0.0.1:9 for all child processes'
+        $evidence.boardUrl = $serverUrl
+        $evidence.runtimes = @($runtimesAfterSecond | ForEach-Object { [ordered]@{ name = [string]$_.name; provider = [string]$_.provider; status = [string]$_.status } })
+        $evidence.os = [ordered]@{ caption = (Get-CimInstance Win32_OperatingSystem).Caption; version = [Environment]::OSVersion.VersionString; user = [Environment]::UserName }
+    } catch {
+        $evidence.evidenceBuildError = $_.Exception.ToString()
+    }
 } catch {
     Add-Check 'acceptance aborted' $false $_.Exception.Message
     $evidence.error = $_.Exception.ToString()
