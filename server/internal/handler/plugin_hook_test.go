@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/featureflags"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/plugincontract"
@@ -73,7 +74,7 @@ func invokeHookRequest(installationID, hookKey string, payload map[string]any) *
 	request := httptest.NewRequest(http.MethodPost, "/api/plugin-bridge/v1/hooks/"+hookKey, bytes.NewReader(body))
 	request.Header.Set("X-User-ID", testUserID)
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set(pluginInstallationHeader, installationID)
+	request.Header.Set(brand.HeaderPluginInstallation, installationID)
 	routeContext := chi.NewRouteContext()
 	routeContext.URLParams.Add("key", hookKey)
 	return request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext))

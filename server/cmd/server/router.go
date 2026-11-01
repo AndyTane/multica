@@ -20,6 +20,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/auth"
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/daemonws"
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/featureflags"
@@ -77,7 +78,11 @@ var corsAllowedHeaders = []string{
 	"X-Client-OS",
 	"X-Client-Capabilities",
 	// Sent by the host page when it relays a plugin surface's Action API call.
-	"X-Multica-Plugin-Installation",
+	// Both spellings are allowlisted while the rename is in flight: a page
+	// built after it sends the current name, one built before sends the legacy
+	// name, and a preflight failure cannot be retried client-side.
+	brand.HeaderPluginInstallation,
+	brand.LegacyHeaderPluginInstallation,
 }
 
 // corsExposedHeaders lists response headers browser clients are allowed to read.

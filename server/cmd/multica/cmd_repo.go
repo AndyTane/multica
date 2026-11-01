@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/spf13/cobra"
 )
@@ -407,7 +408,7 @@ func runRepoCheckout(cmd *cobra.Command, args []string) error {
 		if closeErr != nil {
 			return fmt.Errorf("close daemon checkout response: %w", closeErr)
 		}
-		if resp.StatusCode == http.StatusServiceUnavailable && resp.Header.Get("X-Multica-Retryable") == "repo-busy" {
+		if resp.StatusCode == http.StatusServiceUnavailable && cli.HeaderValue(resp.Header, brand.HeaderRetryable, brand.LegacyHeaderRetryable) == "repo-busy" {
 			delay := repoCheckoutRetryDelay(resp.Header.Get("Retry-After"), time.Now())
 			timer := time.NewTimer(delay)
 			select {

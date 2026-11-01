@@ -149,7 +149,7 @@ func sessionTokenFromRequest(r *http.Request) (token string, fromCookie bool) {
 			return tokenString, false
 		}
 	}
-	if cookie, err := r.Cookie(auth.AuthCookieName); err == nil && cookie.Value != "" {
+	if cookie, ok := auth.AuthCookie(r); ok {
 		return cookie.Value, true
 	}
 	return "", false

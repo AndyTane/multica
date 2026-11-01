@@ -69,9 +69,12 @@ func TestSetAuthCookies_HTTPSelfHost(t *testing.T) {
 		t.Fatalf("SetAuthCookies: %v", err)
 	}
 
+	// Four cookies: the auth cookie and the token-bound CSRF cookie, each
+	// under the current and the legacy name. "test-token" carries no session
+	// id, so no session-bound CSRF cookie is expected.
 	cookies := rec.Result().Cookies()
-	if len(cookies) != 2 {
-		t.Fatalf("expected 2 cookies (auth + csrf), got %d", len(cookies))
+	if len(cookies) != 4 {
+		t.Fatalf("expected 4 cookies (auth + csrf, current + legacy names), got %d: %v", len(cookies), cookieNames(cookies))
 	}
 	for _, c := range cookies {
 		if c.Secure {
@@ -385,5 +388,148 @@ func TestValidateCSRF_SafeMethodsSkipTheCheck(t *testing.T) {
 		if !ValidateCSRF(req) {
 			t.Errorf("%s must not require a CSRF token", method)
 		}
+	}
+}
+
+func cookieNames(cookies []*http.Cookie) []string {
+	names := make([]string, 0, len(cookies))
+	for _, c := range cookies {
+		names = append(names, c.Name)
+	}
+	return names
+}
+
+// A cookie the browser holds under either spelling must authenticate: that is
+// what keeps an upgrade from signing users out and a rollback from stranding
+// the sessions created after it.
+func TestAuthCookie_ReadsBothSpellings(t *testing.T) {
+	tests := []struct {
+		name      string
+		cookies   []*http.Cookie
+		wantValue string
+		wantOK    bool
+	}{
+		{
+			name:      "current name only",
+			cookies:   []*http.Cookie{{Name: AuthCookieName, Value: "current"}},
+			wantValue: "current",
+			wantOK:    true,
+		},
+		{
+			name:      "legacy name only",
+			cookies:   []*http.Cookie{{Name: LegacyAuthCookieName, Value: "legacy"}},
+			wantValue: "legacy",
+			wantOK:    true,
+		},
+		{
+			name: "both present: the current name wins",
+			cookies: []*http.Cookie{
+				{Name: LegacyAuthCookieName, Value: "legacy"},
+				{Name: AuthCookieName, Value: "current"},
+			},
+			wantValue: "current",
+			wantOK:    true,
+		},
+		{
+			name:    "neither present",
+			cookies: []*http.Cookie{{Name: "other", Value: "x"}},
+			wantOK:  false,
+		},
+		{
+			name:    "empty value is not a credential",
+			cookies: []*http.Cookie{{Name: AuthCookieName, Value: ""}},
+			wantOK:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+			for _, c := range tt.cookies {
+				req.AddCookie(c)
+			}
+			cookie, ok := AuthCookie(req)
+			if ok != tt.wantOK {
+				t.Fatalf("AuthCookie() ok = %v, want %v", ok, tt.wantOK)
+			}
+			if ok && cookie.Value != tt.wantValue {
+				t.Fatalf("AuthCookie().Value = %q, want %q", cookie.Value, tt.wantValue)
+			}
+		})
+	}
+}
+
+// Both cookie families are written on login and renewal, so a browser that
+// loaded a bundle from before the rename keeps sending a credential this
+// server reads.
+func TestSetAuthCookies_WritesBothNameFamilies(t *testing.T) {
+	sid, _ := NewSessionID()
+	token := signSession(t, sessionClaims(t, time.Now().Add(time.Hour), sid))
+
+	values := cookieValues(t, token)
+	want := []string{
+		AuthCookieName, LegacyAuthCookieName,
+		CSRFCookieName, LegacyCSRFCookieName,
+		SessionCSRFCookieName, LegacySessionCSRFCookieName,
+	}
+	for _, name := range want {
+		if values[name] == "" {
+			t.Errorf("cookie %q was not set; got %v", name, cookieNames(recCookies(t, token)))
+		}
+	}
+	for _, pair := range [][2]string{
+		{AuthCookieName, LegacyAuthCookieName},
+		{CSRFCookieName, LegacyCSRFCookieName},
+		{SessionCSRFCookieName, LegacySessionCSRFCookieName},
+	} {
+		if values[pair[0]] != values[pair[1]] {
+			t.Errorf("cookie %q and %q must carry the same value", pair[0], pair[1])
+		}
+	}
+}
+
+func recCookies(t *testing.T, token string) []*http.Cookie {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	if err := SetAuthCookies(rec, token); err != nil {
+		t.Fatalf("SetAuthCookies: %v", err)
+	}
+	return rec.Result().Cookies()
+}
+
+// Logout has to clear the legacy names too: a leftover legacy auth cookie
+// would sign the user straight back in.
+func TestClearAuthCookies_ClearsBothNameFamilies(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ClearAuthCookies(rec)
+
+	cleared := map[string]bool{}
+	for _, c := range rec.Result().Cookies() {
+		if c.MaxAge != -1 {
+			t.Errorf("cookie %q MaxAge = %d, want -1", c.Name, c.MaxAge)
+		}
+		cleared[c.Name] = true
+	}
+	for _, name := range []string{
+		AuthCookieName, LegacyAuthCookieName,
+		CSRFCookieName, LegacyCSRFCookieName,
+		SessionCSRFCookieName, LegacySessionCSRFCookieName,
+	} {
+		if !cleared[name] {
+			t.Errorf("cookie %q was not cleared; cleared %v", name, cookieNames(rec.Result().Cookies()))
+		}
+	}
+}
+
+// The CSRF check reads the auth token from whichever cookie name presented it.
+func TestValidateCSRF_ReadsLegacyAuthCookieName(t *testing.T) {
+	sid, _ := NewSessionID()
+	token := signSession(t, sessionClaims(t, time.Now().Add(time.Hour), sid))
+	values := cookieValues(t, token)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/issues", nil)
+	req.AddCookie(&http.Cookie{Name: LegacyAuthCookieName, Value: token})
+	req.Header.Set(CSRFHeaderName, values[LegacyCSRFCookieName])
+	if !ValidateCSRF(req) {
+		t.Error("a request presenting the legacy auth cookie name must validate")
 	}
 }

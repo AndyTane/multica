@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
@@ -41,7 +42,17 @@ import (
 // session and never will. It presents a bearer token instead, and that changes
 // only WHO the call acts as — the three checks above are the same either way.
 // See pluginActor for how identity is decided.
-const pluginInstallationHeader = "X-Multica-Plugin-Installation"
+// pluginInstallationHeaderValue returns the installation id from whichever
+// header spelling the caller sent. A host page built before the rename sends
+// the legacy name; one built after sends the current name.
+func pluginInstallationHeaderValue(r *http.Request) string {
+	for _, name := range []string{brand.HeaderPluginInstallation, brand.LegacyHeaderPluginInstallation} {
+		if value := r.Header.Get(name); value != "" {
+			return value
+		}
+	}
+	return ""
+}
 
 // pluginActor is who a call acts as, and it is decided by how the caller
 // authenticated rather than by anything the caller asks for.
@@ -133,7 +144,7 @@ func (h *Handler) pluginSessionCaller(w http.ResponseWriter, r *http.Request, sc
 		return service.PluginActionCaller{}, pluginActor{}, false
 	}
 
-	caller, err := h.PluginService.AuthorizePluginAction(r.Context(), r.Header.Get(pluginInstallationHeader), parsedUserID, scope)
+	caller, err := h.PluginService.AuthorizePluginAction(r.Context(), pluginInstallationHeaderValue(r), parsedUserID, scope)
 	if err != nil {
 		writePluginActionError(w, r, err, "failed to authorize the Plugin call")
 		return service.PluginActionCaller{}, pluginActor{}, false

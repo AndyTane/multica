@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/daemon/repocache"
 )
 
@@ -687,8 +688,12 @@ func TestRepoCheckoutReturnsRetryableBusyToCapableClient(t *testing.T) {
 	if got := rec.Header().Get("Retry-After"); got != "2" {
 		t.Fatalf("Retry-After = %q, want 2", got)
 	}
-	if got := rec.Header().Get(repoCheckoutRetryHeader); got != repoCheckoutRetryValueBusy {
-		t.Fatalf("%s = %q, want %q", repoCheckoutRetryHeader, got, repoCheckoutRetryValueBusy)
+	// Both header spellings are emitted while the rename is in flight: a CLI
+	// built before it reads the legacy name.
+	for _, header := range []string{brand.HeaderRetryable, brand.LegacyHeaderRetryable} {
+		if got := rec.Header().Get(header); got != repoCheckoutRetryValueBusy {
+			t.Fatalf("%s = %q, want %q", header, got, repoCheckoutRetryValueBusy)
+		}
 	}
 	if got := cache.lastCreateParams().LockWaitTimeout; got != repoCheckoutLockWaitTimeout {
 		t.Fatalf("lock wait timeout = %s, want %s", got, repoCheckoutLockWaitTimeout)

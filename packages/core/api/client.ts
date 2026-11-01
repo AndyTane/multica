@@ -20,6 +20,14 @@ import type {
 import type { InboxFilters } from "../inbox/filter-store";
 import type { ArchivedInboxPage, ArchivedInboxFacets } from "../types/inbox";
 import { configStore } from "../config";
+import {
+  CSRF_COOKIE,
+  LEGACY_CSRF_COOKIE,
+  LEGACY_PLUGIN_INSTALLATION_HEADER,
+  LEGACY_SESSION_CSRF_COOKIE,
+  PLUGIN_INSTALLATION_HEADER,
+  SESSION_CSRF_COOKIE,
+} from "../config/brand";
 import type {
   Issue,
   IssuePriority,
@@ -775,8 +783,6 @@ const CSRF_REJECTED_ERROR = "CSRF validation failed";
 
 // One header, two possible values — see ApiClient.readCsrfValue.
 const CSRF_HEADER = "X-CSRF-Token";
-const CSRF_COOKIE = "multica_csrf";
-const SESSION_CSRF_COOKIE = "multica_csrf_session";
 
 /**
  * Whether a request body can be sent a second time. Strings and multipart
@@ -846,11 +852,22 @@ export class ApiClient {
   private csrfSessionValueRejected: string | null = null;
 
   private readCsrfValue(): string | null {
-    const sessionBound = this.readCookie(SESSION_CSRF_COOKIE);
+    const sessionBound = this.readCookieAny(SESSION_CSRF_COOKIE, LEGACY_SESSION_CSRF_COOKIE);
     if (sessionBound && sessionBound !== this.csrfSessionValueRejected) {
       return sessionBound;
     }
-    return this.readCookie(CSRF_COOKIE) ?? sessionBound;
+    return this.readCookieAny(CSRF_COOKIE, LEGACY_CSRF_COOKIE) ?? sessionBound;
+  }
+
+  /**
+   * Read a cookie under its current name, then its legacy name.
+   *
+   * A server from before the rename sets only the legacy name, and a browser
+   * that has not signed in since the rename still holds only that one; reading
+   * a single name would drop the CSRF header and fail every write.
+   */
+  private readCookieAny(name: string, legacyName: string): string | null {
+    return this.readCookie(name) ?? this.readCookie(legacyName);
   }
 
   private readCookie(name: string): string | null {
@@ -977,7 +994,10 @@ export class ApiClient {
     if (res.status === 403 && isReplayableBody(init?.body)) {
       const { message } = await this.parseErrorBody(res.clone(), "");
       if (message === CSRF_REJECTED_ERROR) {
-        this.csrfSessionValueRejected = this.readCookie(SESSION_CSRF_COOKIE);
+        this.csrfSessionValueRejected = this.readCookieAny(
+          SESSION_CSRF_COOKIE,
+          LEGACY_SESSION_CSRF_COOKIE,
+        );
         this.logger.info(`↻ ${method} ${path} (CSRF token rejected, retrying once)`, { rid });
         res = await send();
       }
@@ -3431,7 +3451,12 @@ export class ApiClient {
       : "";
     return this.fetch<unknown>(`/api/plugin-bridge/v1${request.path}${query}`, {
       method: request.method,
-      headers: { "X-Multica-Plugin-Installation": installationId },
+      headers: {
+        // Both spellings: a server from before the rename reads the legacy
+        // name, one built after it reads the current name.
+        [PLUGIN_INSTALLATION_HEADER]: installationId,
+        [LEGACY_PLUGIN_INSTALLATION_HEADER]: installationId,
+      },
       body: request.body === undefined ? undefined : JSON.stringify(request.body),
     });
   }
@@ -3452,7 +3477,12 @@ export class ApiClient {
   ): Promise<PluginHookResult> {
     const raw = await this.fetch<unknown>(`/api/plugin-bridge/v1/hooks/${encodeURIComponent(hookKey)}`, {
       method: "POST",
-      headers: { "X-Multica-Plugin-Installation": installationId },
+      headers: {
+        // Both spellings: a server from before the rename reads the legacy
+        // name, one built after it reads the current name.
+        [PLUGIN_INSTALLATION_HEADER]: installationId,
+        [LEGACY_PLUGIN_INSTALLATION_HEADER]: installationId,
+      },
       body: JSON.stringify({ trigger: request.trigger, issue_id: request.issueId, input: request.input }),
     });
     return parseWithFallback(raw, PluginHookResultSchema, {

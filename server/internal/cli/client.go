@@ -16,6 +16,18 @@ import (
 	"time"
 )
 
+// HeaderValue returns the first non-empty value among names. Callers pass the
+// current and the legacy spelling of a response header so a server built before
+// the rename and one built after it are both understood.
+func HeaderValue(headers http.Header, names ...string) string {
+	for _, name := range names {
+		if value := headers.Get(name); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 // ClientVersion is the CLI version sent on every request as X-Client-Version.
 // Set by the multica binary at init() so the package doesn't depend on the
 // concrete cmd package. Defaults to "dev" when running unset (e.g. tests).

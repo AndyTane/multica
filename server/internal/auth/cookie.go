@@ -15,20 +15,35 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/brand"
 )
 
 const (
-	AuthCookieName = "multica_auth"
+	// AuthCookieName carries the session token.
+	AuthCookieName = brand.AuthCookie
+	// LegacyAuthCookieName is the session-token cookie name from before the
+	// U Workers rename. It is still read (an upgrade keeps a signed-in user
+	// signed in) and still written (a rollback to an older server, which only
+	// knows this name, must not sign that user out).
+	LegacyAuthCookieName = brand.LegacyAuthCookie
 	// CSRFCookieName carries the token-bound CSRF value, and keeps carrying
 	// it: every server that has ever run this code understands this cookie,
 	// which is what makes rolling BACK past MUL-7436 safe. See
 	// SessionCSRFCookieName.
-	CSRFCookieName = "multica_csrf"
+	CSRFCookieName = brand.CSRFCookie
+	// LegacyCSRFCookieName is the token-bound CSRF cookie from before the
+	// rename. It stays readable for a browser that loaded its bundle before
+	// the rename and still reads the old name.
+	LegacyCSRFCookieName = brand.LegacyCSRFCookie
 	// SessionCSRFCookieName carries the session-bound CSRF value added by
 	// MUL-7436. It is the one the server prefers, because it survives a
 	// sliding renewal; the token-bound cookie above cannot, since renewal
 	// replaces the very token it is keyed to.
-	SessionCSRFCookieName = "multica_csrf_session"
+	SessionCSRFCookieName = brand.SessionCSRFCookie
+	// LegacySessionCSRFCookieName is the session-bound CSRF cookie from
+	// before the rename.
+	LegacySessionCSRFCookieName = brand.LegacySessionCSRFCookie
 
 	// CSRFHeaderName is where clients echo ONE of the two cookies back, and
 	// there is deliberately only one header name.
@@ -246,14 +261,21 @@ func verifyCSRFToken(presented string, sign func(nonce []byte) []byte) bool {
 }
 
 // SetAuthCookies sets the HttpOnly auth cookie and both readable CSRF cookies
-// on the response.
+// on the response, under both the current and the legacy cookie names.
+//
+// Writing both is what makes the rename reversible while it is in flight: a
+// browser that signed in before the rename keeps a cookie the current server
+// reads, and a browser that signed in after it keeps a cookie a rolled-back
+// server reads. Six cookies instead of three is a transition cost; once this
+// release is no longer rollback-relevant, the legacy writes go away and only
+// the reads remain until the older clients age out.
 func SetAuthCookies(w http.ResponseWriter, token string) error {
 	secure := isSecureCookie()
 	domain := cookieDomain()
 	ttl := AuthTokenTTL()
 	now := time.Now()
 
-	readable := func(name, value string) {
+	write := func(name, value string, httpOnly bool) {
 		http.SetCookie(w, &http.Cookie{
 			Name:     name,
 			Value:    value,
@@ -261,23 +283,15 @@ func SetAuthCookies(w http.ResponseWriter, token string) error {
 			Domain:   domain,
 			MaxAge:   int(ttl.Seconds()),
 			Expires:  now.Add(ttl),
-			HttpOnly: false,
+			HttpOnly: httpOnly,
 			Secure:   secure,
 			SameSite: http.SameSiteStrictMode,
 		})
 	}
+	readable := func(name, value string) { write(name, value, false) }
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     AuthCookieName,
-		Value:    token,
-		Path:     "/",
-		Domain:   domain,
-		MaxAge:   int(ttl.Seconds()),
-		Expires:  now.Add(ttl),
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	write(AuthCookieName, token, true)
+	write(LegacyAuthCookieName, token, true)
 
 	tokenBound, err := csrfToken(func(nonce []byte) []byte {
 		return tokenCSRFSignature(token, nonce)
@@ -286,6 +300,7 @@ func SetAuthCookies(w http.ResponseWriter, token string) error {
 		return err
 	}
 	readable(CSRFCookieName, tokenBound)
+	readable(LegacyCSRFCookieName, tokenBound)
 
 	// Only a token carrying `sid` can have a session-bound value. A token
 	// minted before MUL-7436 has none until it renews, and until then the
@@ -298,12 +313,15 @@ func SetAuthCookies(w http.ResponseWriter, token string) error {
 			return err
 		}
 		readable(SessionCSRFCookieName, sessionBound)
+		readable(LegacySessionCSRFCookieName, sessionBound)
 	}
 
 	return nil
 }
 
-// ClearAuthCookies removes the auth cookie and both CSRF cookies.
+// ClearAuthCookies removes the auth cookies and both CSRF cookies, under both
+// cookie names: a logout that left a legacy cookie behind would sign the user
+// back in on the next request from a client that still reads that name.
 func ClearAuthCookies(w http.ResponseWriter) {
 	domain := cookieDomain()
 	secure := isSecureCookie()
@@ -323,10 +341,24 @@ func ClearAuthCookies(w http.ResponseWriter) {
 	}
 
 	expire(AuthCookieName, true)
+	expire(LegacyAuthCookieName, true)
 	expire(CSRFCookieName, false)
+	expire(LegacyCSRFCookieName, false)
 	// Logout must clear BOTH, or a stale session-bound value survives the
 	// logout and is presented alongside the next login's cookies.
 	expire(SessionCSRFCookieName, false)
+	expire(LegacySessionCSRFCookieName, false)
+}
+
+// AuthCookie returns the session-token cookie from either spelling. The current
+// name wins when a browser somehow holds both.
+func AuthCookie(r *http.Request) (*http.Cookie, bool) {
+	for _, name := range []string{AuthCookieName, LegacyAuthCookieName} {
+		if cookie, err := r.Cookie(name); err == nil && cookie.Value != "" {
+			return cookie, true
+		}
+	}
+	return nil, false
 }
 
 // IsSafeMethod reports whether a method is read-only under RFC 9110, i.e. one
@@ -369,8 +401,8 @@ func ValidateCSRF(r *http.Request) bool {
 		return false
 	}
 
-	authCookie, err := r.Cookie(AuthCookieName)
-	if err != nil || authCookie.Value == "" {
+	authCookie, ok := AuthCookie(r)
+	if !ok {
 		return false
 	}
 
