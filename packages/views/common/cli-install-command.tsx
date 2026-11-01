@@ -1,22 +1,45 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useConfigStore } from "@multica/core/config";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@multica/ui/components/ui/tabs";
+import { CLI_COMMAND } from "./cli-command";
 
-/** Use a bundled/local CLI. These commands never fetch a remote installer. */
-export const CLI_INSTALL_COMMANDS = {
-  macosLinux:
-    "export U_WORKERS_CLI_PATH=/absolute/path/to/multica",
-  windows:
-    "pwsh -File scripts/build-local-cli.ps1",
-} as const;
+/** Shown when the server does not report a stamped release version. */
+export const CLI_VERSION_PLACEHOLDER = "<SERVER_VERSION>";
 
-export type CliInstallPlatform = keyof typeof CLI_INSTALL_COMMANDS;
+/**
+ * The local build must carry the server's release version, or version-gated
+ * features refuse it. Servers report `1.2.3` or `v1.2.3`; anything else (dev
+ * builds report nothing) falls back to a placeholder the user fills in.
+ */
+export function cliBuildVersion(serverVersion: string | undefined): string {
+  const raw = serverVersion?.trim() ?? "";
+  const version = /^[0-9]/.test(raw) ? `v${raw}` : raw;
+  return /^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+-g[0-9a-f]+)?$/.test(version)
+    ? version
+    : CLI_VERSION_PLACEHOLDER;
+}
+
+/**
+ * Build the CLI from the source checkout and put it on this terminal's PATH,
+ * so the next step's `u-workers` resolves. Nothing is downloaded.
+ */
+export function cliInstallCommands(version: string) {
+  return {
+    macosLinux: `(cd server && go build -ldflags "-X main.version=${version}" -o bin/${CLI_COMMAND} ./cmd/multica)
+export PATH="$PWD/server/bin:$PATH"`,
+    windows: `pwsh -File scripts/build-local-cli.ps1 -Version ${version}
+$env:Path = "$PWD\\server\\bin;$env:Path"`,
+  } as const;
+}
+
+export type CliInstallPlatform = keyof ReturnType<typeof cliInstallCommands>;
 
 /** Tab order. macOS / Linux stays first so the default matches the old single command. */
 const PLATFORMS = [
@@ -50,6 +73,8 @@ export function CliInstallCommand({
   classNames?: { list?: string; trigger?: string };
   children: (command: string) => ReactNode;
 }) {
+  const serverVersion = useConfigStore((s) => s.serverVersion);
+  const commands = cliInstallCommands(cliBuildVersion(serverVersion));
   return (
     <Tabs defaultValue={PLATFORMS[0]}>
       <TabsList
@@ -69,7 +94,7 @@ export function CliInstallCommand({
       </TabsList>
       {PLATFORMS.map((platform) => (
         <TabsContent key={platform} value={platform}>
-          {children(CLI_INSTALL_COMMANDS[platform])}
+          {children(commands[platform])}
         </TabsContent>
       ))}
     </Tabs>

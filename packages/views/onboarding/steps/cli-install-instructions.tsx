@@ -7,6 +7,7 @@ import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
 import { cn } from "@multica/ui/lib/utils";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { useConfigStore } from "@multica/core/config";
+import { CLI_COMMAND } from "../../common/cli-command";
 import { CliInstallCommand } from "../../common/cli-install-command";
 import { useT } from "../../i18n";
 
@@ -45,7 +46,7 @@ function CommandRow({ cmd }: { cmd: string }) {
       <Terminal className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <code
         className={cn(
-          "min-w-0 flex-1 whitespace-pre-wrap break-all",
+          "min-w-0 flex-1 whitespace-pre-wrap break-words",
           CODE_LIGATURE_CLASS,
         )}
       >
@@ -80,7 +81,7 @@ export function CliInstallInstructions() {
   const { t } = useT("onboarding");
   const server = useConfigStore((s) => s.daemonServerUrl) || "<SERVER_URL>";
   const app = useConfigStore((s) => s.daemonAppUrl) || "<APP_URL>";
-  const SETUP_CMD = `multica setup self-host --server-url ${server} --app-url ${app}`;
+  const SETUP_CMD = `${CLI_COMMAND} setup self-host --server-url ${server} --app-url ${app}`;
   return (
     <Card className="w-full">
       <CardContent className="space-y-4 pt-4">

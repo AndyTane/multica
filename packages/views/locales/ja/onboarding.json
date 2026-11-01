@@ -25,8 +25,8 @@
   },
   "cli_install": {
     "copy_aria": "コピー",
-    "intro": "同梱 CLI、ローカルビルド、または U_WORKERS_CLI_PATH で指定したバイナリを使用します。daemon を起動する前に multica を PATH に追加してください。",
-    "step1_label": "ローカル CLI を使用",
+    "intro": "U Workers のソースフォルダで実行します（Go と Git が必要）。このサーバーと同じバージョンでビルドし、このターミナルの PATH に u-workers を追加します。何もダウンロードしません。",
+    "step1_label": "CLI をビルド",
     "platform_group": "プラットフォームを選択",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

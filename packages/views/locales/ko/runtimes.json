@@ -189,7 +189,8 @@
   "connect": {
     "title": "컴퓨터 추가",
     "description": "이 컴퓨터에서 번들 또는 로컬 빌드 CLI를 사용한 다음 이 서비스에 연결하세요.",
-    "step1_label": "로컬 CLI 사용",
+    "step1_label": "CLI 빌드",
+    "step1_hint": "U Workers 소스 폴더에서 실행하세요(Go와 Git 필요). 이 서버와 같은 버전으로 빌드하고 현재 터미널의 PATH에 u-workers를 추가합니다. 아무것도 다운로드하지 않습니다.",
     "platform_group": "플랫폼 선택",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

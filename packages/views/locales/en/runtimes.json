@@ -201,7 +201,8 @@
   "connect": {
     "title": "Add a computer",
     "description": "Choose a bundled or locally built CLI on this computer, then connect it to this service.",
-    "step1_label": "Use a local CLI",
+    "step1_label": "Build the CLI",
+    "step1_hint": "Run in the U Workers source folder; needs Go and Git. The build carries this server's version and adds u-workers to this terminal's PATH. Nothing is downloaded.",
     "platform_group": "Choose your platform",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

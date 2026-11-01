@@ -59,8 +59,8 @@ describe("Desktop daemon localization with real zh-Hans resources", () => {
         "登录时自动启动。",
       ),
     ).toBeInTheDocument();
-    const command = screen.getByText("multica daemon stop");
-    expect(command.closest("p")).toHaveTextContent(/multica daemon stop。$/);
+    const command = screen.getByText("u-workers daemon stop");
+    expect(command.closest("p")).toHaveTextContent(/u-workers daemon stop。$/);
   });
 
   it("renders repeated log messages with straight double quotes", async () => {

@@ -25,8 +25,8 @@
   },
   "cli_install": {
     "copy_aria": "复制",
-    "intro": "使用随包 CLI、本地构建，或通过 U_WORKERS_CLI_PATH 指定本地二进制。启动 daemon 前，将 multica 可执行文件加入 PATH。",
-    "step1_label": "使用本地 CLI",
+    "intro": "在 U Workers 源码目录中运行，需要 Go 和 Git。构建会使用与本服务器一致的版本，并把 u-workers 加入当前终端的 PATH，不会下载任何内容。",
+    "step1_label": "构建 CLI",
     "platform_group": "选择你的系统",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
