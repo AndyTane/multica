@@ -25,7 +25,6 @@ import {
   LEGACY_CSRF_COOKIE,
   LEGACY_PLUGIN_INSTALLATION_HEADER,
   LEGACY_SESSION_CSRF_COOKIE,
-  PLUGIN_INSTALLATION_HEADER,
   SESSION_CSRF_COOKIE,
 } from "../config/brand";
 import type {
@@ -3451,12 +3450,10 @@ export class ApiClient {
       : "";
     return this.fetch<unknown>(`/api/plugin-bridge/v1${request.path}${query}`, {
       method: request.method,
-      headers: {
-        // Both spellings: a server from before the rename reads the legacy
-        // name, one built after it reads the current name.
-        [PLUGIN_INSTALLATION_HEADER]: installationId,
-        [LEGACY_PLUGIN_INSTALLATION_HEADER]: installationId,
-      },
+      // Legacy name only, like the single CSRF header: servers on both sides
+      // of the rename read it, while a header an older server's CORS
+      // allowlist does not know fails the preflight.
+      headers: { [LEGACY_PLUGIN_INSTALLATION_HEADER]: installationId },
       body: request.body === undefined ? undefined : JSON.stringify(request.body),
     });
   }
@@ -3477,12 +3474,10 @@ export class ApiClient {
   ): Promise<PluginHookResult> {
     const raw = await this.fetch<unknown>(`/api/plugin-bridge/v1/hooks/${encodeURIComponent(hookKey)}`, {
       method: "POST",
-      headers: {
-        // Both spellings: a server from before the rename reads the legacy
-        // name, one built after it reads the current name.
-        [PLUGIN_INSTALLATION_HEADER]: installationId,
-        [LEGACY_PLUGIN_INSTALLATION_HEADER]: installationId,
-      },
+      // Legacy name only, like the single CSRF header: servers on both sides
+      // of the rename read it, while a header an older server's CORS
+      // allowlist does not know fails the preflight.
+      headers: { [LEGACY_PLUGIN_INSTALLATION_HEADER]: installationId },
       body: JSON.stringify({ trigger: request.trigger, issue_id: request.issueId, input: request.input }),
     });
     return parseWithFallback(raw, PluginHookResultSchema, {

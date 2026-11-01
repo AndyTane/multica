@@ -340,10 +340,12 @@ describe("ApiClient Plugin surface bridge routes", () => {
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       method: "GET",
       headers: expect.objectContaining({
-        "X-U-Workers-Plugin-Installation": "installation-1",
         "X-Multica-Plugin-Installation": "installation-1",
       }),
     });
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty(
+      "X-U-Workers-Plugin-Installation",
+    );
   });
 
   it("invokes UI hooks through the session-only bridge prefix", async () => {

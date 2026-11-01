@@ -39,6 +39,10 @@ export const LEGACY_CSRF_COOKIE = "multica_csrf";
 export const SESSION_CSRF_COOKIE = "u_workers_csrf_session";
 export const LEGACY_SESSION_CSRF_COOKIE = "multica_csrf_session";
 
-/** Request headers, current then legacy. */
+/**
+ * Request headers, current then legacy. Clients send the legacy name until the
+ * transition's dual-write phase ends: every server reads it, and an older
+ * server's CORS allowlist rejects the current one.
+ */
 export const PLUGIN_INSTALLATION_HEADER = "X-U-Workers-Plugin-Installation";
 export const LEGACY_PLUGIN_INSTALLATION_HEADER = "X-Multica-Plugin-Installation";
