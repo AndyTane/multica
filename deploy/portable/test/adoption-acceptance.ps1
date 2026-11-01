@@ -75,7 +75,7 @@ try {
     Add-Check 'fixed package copied to a clean folder' (Test-Path -LiteralPath (Join-Path $newRoot 'install.ps1'))
 
     Write-Host '==> Installing the old native deployment (real server, PostgreSQL and HTTPS)' -ForegroundColor Cyan
-    & (Join-Path $oldRoot 'install.ps1') -HttpsPort $OldHttpsPort -ApiPort $OldApiPort -WebPort $OldWebPort -DatabasePort $OldDatabasePort -Profile 'uworkers-r1-old' -SkipBrowserTrust -SkipDaemon -NoBrowser -NoStartup
+    & (Join-Path $oldRoot 'install.ps1') -PublicHost '127.0.0.1' -HttpsPort $OldHttpsPort -ApiPort $OldApiPort -WebPort $OldWebPort -DatabasePort $OldDatabasePort -Profile 'uworkers-r1-old' -SkipBrowserTrust -SkipDaemon -NoBrowser -NoStartup
     if ($LASTEXITCODE -ne 0) { throw ('Creating the old deployment failed (exit ' + $LASTEXITCODE + ').') }
     $oldStarted = $true
     $oldReport = Read-PortableJson (Join-Path $oldRoot 'data\install-report.json')
@@ -108,7 +108,7 @@ try {
     Add-Check 'old deployment has a workspace name to preserve' ([bool]$oldWorkspaceName) $oldWorkspaceName
 
     Write-Host '==> Adopting the old deployment into the fresh fixed package' -ForegroundColor Cyan
-    & (Join-Path $newRoot 'install.ps1') -AdoptRoot $oldRoot -HttpsPort $NewHttpsPort -ApiPort $NewApiPort -WebPort $NewWebPort -DatabasePort $NewDatabasePort -Profile 'uworkers-r1-new' -SkipBrowserTrust -SkipDaemon -NoBrowser -NoStartup
+    & (Join-Path $newRoot 'install.ps1') -PublicHost '127.0.0.1' -AdoptRoot $oldRoot -HttpsPort $NewHttpsPort -ApiPort $NewApiPort -WebPort $NewWebPort -DatabasePort $NewDatabasePort -Profile 'uworkers-r1-new' -SkipBrowserTrust -SkipDaemon -NoBrowser -NoStartup
     if ($LASTEXITCODE -ne 0) { throw ('Adoption failed (exit ' + $LASTEXITCODE + ').') }
     $newStarted = $true
     $newReport = Read-PortableJson (Join-Path $newRoot 'data\install-report.json')
@@ -139,7 +139,8 @@ try {
     $newSession = ConvertFrom-PortableResponse $newLogin
     $newHeaders = @{ Authorization = 'Bearer ' + [string]$newSession.token; 'X-Workspace-ID' = $workspaceId }
     $issues = ConvertFrom-PortableResponse (Invoke-PortableWebRequest -Uri ($newServerUrl + '/api/issues') -RootCAPath $newRootCA -Headers $newHeaders)
-    $titles = @(@($issues) | ForEach-Object { [string]$_.title })
+    # GET /api/issues wraps the rows in an "issues" object.
+    $titles = @(@($issues.issues) | ForEach-Object { [string]$_.title })
     Add-Check 'the issue created before the adoption still exists' ($titles -contains $issueTitle) $issueTitle
     $newWorkspaces = ConvertFrom-PortableResponse (Invoke-PortableWebRequest -Uri ($newServerUrl + '/api/workspaces') -RootCAPath $newRootCA -Headers $newHeaders)
     $workspaceNames = @(@($newWorkspaces) | ForEach-Object { [string]$_.name })
@@ -160,7 +161,9 @@ try {
             try { Invoke-PortableCommand -Executable $shell -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $oldRunner, '-Action', 'Stop', '-Root', $oldRoot) | Out-Null } catch { Write-Host ('  stop old: ' + $_.Exception.Message) -ForegroundColor Yellow }
         }
     }
-    Start-Sleep -Seconds 2
+    # A test component may still own a process even after its stop script ran.
+    Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($WorkRoot + '\', [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Seconds 3
     $portsStillBusy = @()
     foreach ($port in @($OldHttpsPort, $OldApiPort, $OldWebPort, $OldDatabasePort, $NewHttpsPort, $NewApiPort, $NewWebPort, $NewDatabasePort)) {
         if (-not (Test-PortablePortFree $port)) { $portsStillBusy += $port }
