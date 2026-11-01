@@ -428,7 +428,20 @@ try {
                     [IO.Directory]::Delete($linkedTools, $false)
                 }
             } catch { }
-            try { Remove-Item -LiteralPath $workRoot -Recurse -Force } catch { }
+            try {
+                # A robocopy mirror from an empty folder deletes the tree much
+                # faster than Remove-Item on a package with tens of thousands of
+                # small files.
+                $empty = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-empty-' + [guid]::NewGuid().ToString('N'))
+                New-Item -ItemType Directory -Path $empty -Force | Out-Null
+                $previous = $ErrorActionPreference
+                try {
+                    $ErrorActionPreference = 'Continue'
+                    & robocopy.exe $empty $workRoot /MIR /R:0 /W:0 /MT:16 /NP /NFL /NDL /NJH /NJS | Out-Null
+                } finally { $ErrorActionPreference = $previous }
+                Remove-Item -LiteralPath $empty -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
+            } catch { }
         }
         $evidence.failedChecks = @($failed | ForEach-Object { $_.name + ': ' + $_.detail })
     }
