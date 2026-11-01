@@ -330,7 +330,7 @@ This local fork disables PostHog product/error reporting, signup-attribution coo
 
 Native startup also forces `DO_NOT_TRACK=1`, `ANALYTICS_DISABLED=true`, empty `POSTHOG_API_KEY`/`POSTHOG_HOST`, and `NEXT_TELEMETRY_DISABLED=1` after imported settings. Production frontend builds set `NEXT_TELEMETRY_DISABLED=1` and restore the caller's environment afterwards. Enabling reporting requires an explicit source change, rebuild, and deployment; do not remove these gates during upstream merges.
 
-The same shared privacy module disables optional background GitHub star/release requests. The runtime's official self-update controls are hidden; build this fork's CLI with `scripts/build-local-cli.ps1`. Directly opening a documentation/download link remains an explicit user action.
+The same shared privacy module disables optional background GitHub star/release requests. The runtime's official self-update controls are hidden; build this fork's CLI with `scripts/build-local-cli.ps1`. The output is `server/bin/u-workers.exe`. For a fork without release tags, pass `-Version vX.Y.Z` matching your self-hosted release, as with the native deployment build. Add `server/bin` to your current shell's PATH before running `u-workers`. Existing installations keep the `multica` compatibility command. Directly opening a documentation/download link remains an explicit user action.
 
 `/health/realtime` requires a configured `REALTIME_METRICS_TOKEN` and its bearer credential. Without a token the route returns 404 even from loopback, since the LAN TCP relay cannot preserve the caller's address or add forwarding headers. General readiness and authenticated data routes remain available.
 

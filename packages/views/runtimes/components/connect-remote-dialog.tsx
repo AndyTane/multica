@@ -31,6 +31,7 @@ import {
   UI_MOTION_DURATION,
 } from "@multica/ui/lib/motion";
 import { cn } from "@multica/ui/lib/utils";
+import { CLI_COMMAND } from "../../common/cli-command";
 import { CliInstallCommand } from "../../common/cli-install-command";
 import { useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
@@ -47,20 +48,20 @@ function daemonCommands(serverUrl: string | undefined, appUrl: string | undefine
   const normalizedAppUrl = normalizeCommandURL(appUrl);
   if (normalizedServerUrl && normalizedAppUrl) {
     return {
-      setupCmd: `multica setup self-host --server-url ${normalizedServerUrl} --app-url ${normalizedAppUrl}`,
-      tokenCmd: `multica config set server_url ${normalizedServerUrl}
-multica config set app_url ${normalizedAppUrl}
-multica login --token <YOUR_TOKEN>
-multica daemon start`,
+      setupCmd: `${CLI_COMMAND} setup self-host --server-url ${normalizedServerUrl} --app-url ${normalizedAppUrl}`,
+      tokenCmd: `${CLI_COMMAND} config set server_url ${normalizedServerUrl}
+${CLI_COMMAND} config set app_url ${normalizedAppUrl}
+${CLI_COMMAND} login --token <YOUR_TOKEN>
+${CLI_COMMAND} daemon start`,
     };
   }
 
   return {
-    setupCmd: "multica setup self-host --server-url <SERVER_URL> --app-url <APP_URL>",
-    tokenCmd: `multica config set server_url <SERVER_URL>
-multica config set app_url <APP_URL>
-multica login --token <YOUR_TOKEN>
-multica daemon start`,
+    setupCmd: `${CLI_COMMAND} setup self-host --server-url <SERVER_URL> --app-url <APP_URL>`,
+    tokenCmd: `${CLI_COMMAND} config set server_url <SERVER_URL>
+${CLI_COMMAND} config set app_url <APP_URL>
+${CLI_COMMAND} login --token <YOUR_TOKEN>
+${CLI_COMMAND} daemon start`,
   };
 }
 
@@ -73,7 +74,7 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
   const shouldReduceMotion = useReducedMotion() ?? false;
   const newRuntimeIdRef = useRef<string | null>(null);
 
-  // `multica setup` is one blocking command that handles config + login
+  // `u-workers setup` is one blocking command that handles config + login
   // + daemon start; the dialog passively listens for the resulting
   // `daemon:register` WS event and auto-advances to success.
   const handleDaemonRegister = useCallback(
@@ -203,7 +204,7 @@ function CommandRow({ cmd, copyAria }: { cmd: string; copyAria: string }) {
       />
       <code
         className={cn(
-          "min-w-0 flex-1 break-all whitespace-pre-wrap tabular-nums",
+          "min-w-0 flex-1 break-words whitespace-pre-wrap tabular-nums",
           CODE_LIGATURE_CLASS,
         )}
       >
@@ -257,23 +258,28 @@ function InstructionsStep({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           {/* Step 1 owns the platform switch: the install command differs by
               OS, so the user picks instead of us guessing. Step 2's
-              `multica setup` is platform-independent. */}
-          <CommandStep n={1} label={t(($) => $.connect.step1_label)}>
-            <CliInstallCommand
-              labels={{
-                group: t(($) => $.connect.platform_group),
-                macosLinux: t(($) => $.connect.platform_macos_linux),
-                windows: t(($) => $.connect.platform_windows),
-              }}
-            >
-              {(cmd) => (
-                <CommandRow
-                  cmd={cmd}
-                  copyAria={t(($) => $.connect.copy_aria)}
-                />
-              )}
-            </CliInstallCommand>
-          </CommandStep>
+              `u-workers setup` is platform-independent. */}
+          <div>
+            <CommandStep n={1} label={t(($) => $.connect.step1_label)}>
+              <CliInstallCommand
+                labels={{
+                  group: t(($) => $.connect.platform_group),
+                  macosLinux: t(($) => $.connect.platform_macos_linux),
+                  windows: t(($) => $.connect.platform_windows),
+                }}
+              >
+                {(cmd) => (
+                  <CommandRow
+                    cmd={cmd}
+                    copyAria={t(($) => $.connect.copy_aria)}
+                  />
+                )}
+              </CliInstallCommand>
+            </CommandStep>
+            <p className="mt-1.5 text-micro leading-[1.55] text-muted-foreground">
+              {t(($) => $.connect.step1_hint)}
+            </p>
+          </div>
 
           <div>
             <CommandStep n={2} label={t(($) => $.connect.step2_label)}>
@@ -338,7 +344,7 @@ function TroubleshootingDetails({ tokenCmd }: { tokenCmd: string }) {
                 CODE_LIGATURE_CLASS,
               )}
             >
-              {"multica daemon status"}
+              {`${CLI_COMMAND} daemon status`}
             </code>
           </li>
           <li className="flex items-center gap-1.5">
@@ -350,7 +356,7 @@ function TroubleshootingDetails({ tokenCmd }: { tokenCmd: string }) {
                 CODE_LIGATURE_CLASS,
               )}
             >
-              {"multica daemon logs -f"}
+              {`${CLI_COMMAND} daemon logs -f`}
             </code>
           </li>
         </ul>
