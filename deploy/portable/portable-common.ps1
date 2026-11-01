@@ -769,6 +769,92 @@ function Get-PortableHttpsPortFromConfig {
     return 13443
 }
 
+function Get-PortablePostgresMajorVersion {
+    # The bundled PostgreSQL distribution has no PG_VERSION file (that file lives
+    # in a data directory), so ask the binary itself. Adoption compares this
+    # major version with the old cluster's PG_VERSION before copying anything.
+    param([string]$Root)
+    $bin = Join-Path $Root 'payload\runtime\pgsql\bin'
+    if (-not (Test-Path -LiteralPath (Join-Path $bin 'postgres.exe'))) {
+        $bin = Join-Path $Root 'runtime\pgsql\bin'
+    }
+    $exe = Join-Path $bin 'postgres.exe'
+    if (-not (Test-Path -LiteralPath $exe)) { throw ('The package has no bundled PostgreSQL binary: ' + $exe) }
+    $result = Invoke-PortableCommand -Executable $exe -Arguments @('--version')
+    if ($result.ExitCode -ne 0) { throw ('Could not determine the bundled PostgreSQL version: ' + ([string]$result.Output).Trim()) }
+    $match = [regex]::Match([string]$result.Output, '(?i)PostgreSQL\)?\s+(\d+)')
+    if (-not $match.Success) { throw ('Could not parse the bundled PostgreSQL version: ' + ([string]$result.Output).Trim()) }
+    return $match.Groups[1].Value
+}
+
+function Assert-PortableProfileName {
+    # One plain path segment: dots are allowed inside a name (uworkers-acceptance),
+    # but "." and ".." and any leading dot would escape the profiles directory.
+    param([string]$Profile)
+    if (-not $Profile) { throw 'The CLI profile name is empty; refusing to touch any profile directory.' }
+    if ($Profile -ne $Profile.Trim()) { throw ('Refusing a CLI profile name with surrounding whitespace: ' + $Profile) }
+    if ($Profile -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
+        throw ('Refusing an unexpected CLI profile name: ' + $Profile + '. The portable package only manages its own profile (letters, digits, dot, dash, underscore).')
+    }
+    return $Profile
+}
+
+function Get-PortableOwnedProfileDirectories {
+    # The uninstaller may only delete profile directories this package marked as
+    # its own. Walking both CLI config roots by name would delete another product's
+    # same-named profile.
+    param([string]$Profile, [string]$PackageRoot, [string[]]$ConfigRoots)
+    Assert-PortableProfileName $Profile | Out-Null
+    if (-not $ConfigRoots) { $ConfigRoots = @(Get-PortableProfileConfigRoots) }
+    $package = [IO.Path]::GetFullPath($PackageRoot).TrimEnd('\')
+    $owned = @()
+    foreach ($configRoot in $ConfigRoots) {
+        $profilesParent = [IO.Path]::GetFullPath((Join-Path $configRoot 'profiles')).TrimEnd('\')
+        $candidate = [IO.Path]::GetFullPath((Join-Path $profilesParent $Profile))
+        $parent = [IO.Path]::GetFullPath((Split-Path -Parent $candidate)).TrimEnd('\')
+        if (-not [string]::Equals($parent, $profilesParent, [StringComparison]::OrdinalIgnoreCase)) { continue }
+        if (-not (Test-Path -LiteralPath $candidate)) { continue }
+        $marker = Read-PortableJson (Join-Path $candidate 'uworkers-portable-profile.json')
+        if (-not $marker) { continue }
+        if (-not [string]::Equals([string]$marker.packageRoot, $package, [StringComparison]::OrdinalIgnoreCase)) { continue }
+        if (-not [string]::Equals([string]$marker.profile, $Profile, [StringComparison]::OrdinalIgnoreCase)) { continue }
+        $owned += $candidate
+    }
+    return $owned
+}
+
+function Register-PortableProfileOwnership {
+    # Record which profile directory belongs to this package so the uninstaller can
+    # prove ownership instead of guessing by name. When -ServerUrl is given, only a
+    # profile whose saved config points at that deployment is marked, so a
+    # same-named profile of another product in the other CLI root is never
+    # claimed. Returns the marked directories.
+    param([string]$Profile, [string]$PackageRoot, [string[]]$ConfigRoots, [string]$ServerUrl)
+    Assert-PortableProfileName $Profile | Out-Null
+    if (-not $ConfigRoots) { $ConfigRoots = @(Get-PortableProfileConfigRoots) }
+    $package = [IO.Path]::GetFullPath($PackageRoot).TrimEnd('\')
+    $marker = [ordered]@{
+        profile = $Profile
+        packageRoot = $package
+        registeredAt = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $owned = @()
+    foreach ($configRoot in $ConfigRoots) {
+        $candidate = Join-Path (Join-Path $configRoot 'profiles') $Profile
+        if (-not (Test-Path -LiteralPath $candidate)) { continue }
+        if ($ServerUrl) {
+            $config = Read-PortableJson (Join-Path $candidate 'config.json')
+            $configured = ''
+            if ($config -and $config.server_url) { $configured = [string]$config.server_url }
+            if (-not $configured) { continue }
+            if (-not [string]::Equals($configured.TrimEnd('/'), $ServerUrl.TrimEnd('/'), [StringComparison]::OrdinalIgnoreCase)) { continue }
+        }
+        Write-PortableJson (Join-Path $candidate 'uworkers-portable-profile.json') $marker
+        $owned += $candidate
+    }
+    return $owned
+}
+
 function Get-PortableProfileConfigRoots {
     # The CLI keeps the default profile in ~/.multica when that legacy folder
     # exists, otherwise in ~/.u-workers. Only the package's own profile

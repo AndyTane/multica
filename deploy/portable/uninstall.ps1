@@ -9,8 +9,10 @@
     profile. Data is kept by default so a reinstall can reuse it; pass
     -PurgeData to delete the database, uploads and backups (irreversible).
 
-    The package folder itself is left in place; delete it afterwards if you do
-    not want to reinstall.
+    The profile name is validated before anything is stopped or deleted, and
+    only profile directories this package marked as its own are removed. The
+    package folder itself is left in place; delete it afterwards if you do not
+    want to reinstall.
 #>
 [CmdletBinding()]
 param(
@@ -31,6 +33,14 @@ if (-not $Profile) {
     $report = Read-PortableJson (Join-Path $root 'data\install-report.json')
     if ($report -and $report.profile) { $Profile = [string]$report.profile } else { $Profile = 'portable' }
 }
+
+# Validation and ownership lookup run before the first stop or delete: an
+# unexpected profile name must fail without stopping the server or touching any
+# profile directory. "." and ".." used to escape profiles\ and could delete the
+# whole config root.
+Assert-PortableProfileName $Profile | Out-Null
+$ownedProfiles = @(Get-PortableOwnedProfileDirectories -Profile $Profile -PackageRoot $root)
+
 if (-not $Force) {
     $answer = Read-Host ('Stop U Workers, remove its start-on-login item and browser trust' + $(if ($PurgeData) { ', and DELETE its data' } else { ' (data is kept)' }) + '? [y/N]')
     if ($answer -notmatch '^[yY]') { Write-Host 'Cancelled.'; exit 0 }
@@ -44,15 +54,16 @@ try { Invoke-PortableNativeAction -Root $root -Action 'Stop' | Out-Null } catch 
 if (Remove-PortableStartup) { Write-Host 'Removed the start-on-login item.' }
 if (Remove-PortableBrowserTrust -Root $root) { Write-Host 'Removed the root CA from this user''s certificate store.' }
 
-# Only this package's isolated CLI profile is removed. A profile name that
-# escaped the profiles directory is refused rather than guessed at.
-if ($Profile -and $Profile -notmatch '^[A-Za-z0-9._-]+$') { throw ('Refusing to remove an unexpected profile name: ' + $Profile) }
-foreach ($configRoot in Get-PortableProfileConfigRoots) {
-    $profileDirectory = Join-Path $configRoot ('profiles\' + $Profile)
+# Only this package's own marked profile directory is removed. Unmarked
+# directories, including a same-named profile of another product, are left alone.
+foreach ($profileDirectory in $ownedProfiles) {
     if (Test-Path -LiteralPath $profileDirectory) {
         Remove-Item -LiteralPath $profileDirectory -Recurse -Force
         Write-Host ('Removed CLI profile: ' + $profileDirectory)
     }
+}
+if ($ownedProfiles.Count -eq 0) {
+    Write-Host ('No CLI profile marked as owned by this package was found for ' + $Profile + '; other profiles were left alone.') -ForegroundColor Yellow
 }
 
 if ($PurgeData) {

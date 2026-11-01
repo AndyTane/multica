@@ -453,16 +453,73 @@ function Get-PortableAdoptedDatabaseConfiguration {
     return $oldConfig
 }
 
+function Assert-PortableAdoptionLayout {
+    # Source and target must be two disjoint folders; this runs before the old
+    # deployment is even read so an obviously wrong -AdoptRoot is refused first.
+    param([string]$OldRoot)
+    $target = [IO.Path]::GetFullPath($root).TrimEnd('\')
+    $source = [IO.Path]::GetFullPath($OldRoot).TrimEnd('\')
+    if ([string]::Equals($source, $target, [StringComparison]::OrdinalIgnoreCase)) {
+        throw ('-AdoptRoot points at the new package folder itself (' + $source + '). Extract the package to its own folder and adopt the old deployment into it.')
+    }
+    if ($source.StartsWith($target + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw ('-AdoptRoot is inside the new package folder; copy the old deployment somewhere else first.')
+    }
+    if ($target.StartsWith($source + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw ('The new package folder is inside -AdoptRoot; extract it beside the old deployment, not into it.')
+    }
+}
+
+function Assert-PortableAdoptionPreflight {
+    # Everything that can refuse the adoption runs here, before the old service is
+    # started, stopped or its cluster copied: a precheck failure must leave the old
+    # deployment exactly as it was.
+    param([string]$OldRoot, $OldConfig)
+    $target = [IO.Path]::GetFullPath($root).TrimEnd('\')
+    $source = [IO.Path]::GetFullPath($OldRoot).TrimEnd('\')
+    foreach ($relative in @('deployment.json', 'data\install-report.json', 'data\postgres', 'releases')) {
+        if (Test-Path -LiteralPath (Join-Path $target $relative)) {
+            throw ('The new package folder already contains ' + $relative + '. Adoption must start from a freshly extracted package; extract a clean copy to another folder and run Setup.cmd again. The old deployment was not touched.')
+        }
+    }
+    $oldData = Join-Path $source 'data\postgres'
+    if (-not (Test-Path -LiteralPath (Join-Path $oldData 'PG_VERSION'))) {
+        throw ('No PostgreSQL data directory under ' + $source + '\data\postgres; -AdoptRoot must point at an existing native deployment. The old deployment was not touched.')
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $oldData 'postgresql.conf'))) {
+        throw ('The old PostgreSQL cluster under ' + $oldData + ' has no postgresql.conf; refusing to adopt it. The old deployment was not touched.')
+    }
+    $oldMajor = ((Get-Content -LiteralPath (Join-Path $oldData 'PG_VERSION') -Raw) -replace '\s', '')
+    $packageMajor = Get-PortablePostgresMajorVersion -Root $target
+    if ($oldMajor -ne $packageMajor) {
+        throw ('The old deployment runs PostgreSQL ' + $oldMajor + ', but this package ships PostgreSQL ' + $packageMajor + '. Copying an incompatible cluster would only fail when the new database starts, so nothing was stopped or copied; upgrade the old cluster to PostgreSQL ' + $packageMajor + ' first, or use a matching package.')
+    }
+    $oldPorts = @()
+    foreach ($name in @('DatabasePort', 'ApiPort', 'WebPort')) {
+        $property = $OldConfig.PSObject.Properties[$name]
+        if ($property -and $property.Value) { $oldPorts += [int]$property.Value }
+    }
+    foreach ($port in @($ApiPort, $WebPort, $DatabasePort, $HttpsPort)) {
+        if ($oldPorts -contains $port) { continue }
+        if (-not (Test-PortablePortFree $port)) {
+            throw ('Port ' + $port + ' is already in use by another program; stop it or pass different ports to Setup.cmd. The old deployment was not touched.')
+        }
+    }
+    return [pscustomobject]@{ OldRoot = $source; OldMajor = $oldMajor; PackageMajor = $packageMajor }
+}
+
 function Invoke-PortableAdoption {
     param([string]$OldRoot, [string]$HostName)
-    # The clean-install path stages the bundled runtime (PostgreSQL, node and the
-    # server runner) out of payload before Prepare runs; the adoption path skips
-    # that call, so stage it here or Prepare cannot find runtime\pgsql,
-    # runtime\node and runtime\native-windows.ps1.
-    Invoke-PortableStageRuntime
+    Assert-PortableAdoptionLayout -OldRoot $OldRoot
     $oldConfig = Get-PortableAdoptedDatabaseConfiguration $OldRoot
     $oldRunner = Join-Path $OldRoot 'runtime\native-windows.ps1'
     if (-not (Test-Path -LiteralPath $oldRunner)) { throw ('The deployment under -AdoptRoot has no runtime\native-windows.ps1: ' + $OldRoot) }
+    Write-Step 'Checking the existing deployment before touching it'
+    Assert-PortableAdoptionPreflight -OldRoot $OldRoot -OldConfig $oldConfig | Out-Null
+    # Prepare runs after the old service stops and needs the packaged runtime
+    # (runner, Node, PostgreSQL) in place; stage it first so a missing runtime file
+    # cannot leave the old service down.
+    Invoke-PortableStageRuntime
     Write-Step 'Starting the existing deployment so its data can be backed up'
     $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     # A stopped deployment cannot be dumped; Start is idempotent when it is
@@ -471,56 +528,60 @@ function Invoke-PortableAdoption {
     Write-Step 'Backing up the existing deployment'
     $backup = Invoke-PortableCommand -Executable $shell -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $oldRunner, '-Action', 'Backup', '-Root', $OldRoot)
     if ($backup.ExitCode -ne 0) { throw ('The existing deployment could not be backed up; nothing was changed: ' + $backup.Output.Trim()) }
-    Write-Host ([string]$backup.Output).Trim()
+    $backupLocation = ([string]$backup.Output).Trim()
+    Write-Host $backupLocation
     Write-Step 'Stopping the existing deployment'
     $stop = Invoke-PortableCommand -Executable $shell -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $oldRunner, '-Action', 'Stop', '-Root', $OldRoot)
     if ($stop.ExitCode -ne 0) { throw ('The existing deployment could not be stopped; nothing was changed: ' + $stop.Output.Trim()) }
-    Write-Step 'Copying the existing database cluster and uploads'
-    $oldData = Join-Path $OldRoot 'data\postgres'
-    if (-not (Test-Path -LiteralPath (Join-Path $oldData 'PG_VERSION'))) { throw ('No PostgreSQL data directory under ' + $OldRoot + '\data\postgres.') }
-    New-PortableDirectory (Join-Path $root 'data')
-    $copyResult = Invoke-PortableCommand -Executable 'robocopy.exe' -Arguments @($oldData, (Join-Path $root 'data\postgres'), '/E', '/SJ', '/SL', '/R:1', '/W:1', '/MT:4', '/NP', '/NFL', '/NDL', '/NJH', '/NJS')
-    if ($copyResult.ExitCode -ge 8) { throw ('Copying the existing database failed (robocopy exit ' + $copyResult.ExitCode + ').') }
-    $plainGlobal =Join-Path $root 'data\postgres\postmaster.pid'
-    Remove-Item -LiteralPath $plainGlobal -Force -ErrorAction SilentlyContinue
-    $uploads = Join-Path $OldRoot 'uploads'
-    if (Test-Path -LiteralPath $uploads) {
-        $copyUploads = Invoke-PortableCommand -Executable 'robocopy.exe' -Arguments @($uploads, (Join-Path $root 'uploads'), '/E', '/SJ', '/SL', '/R:1', '/W:1', '/MT:4', '/NP', '/NFL', '/NDL', '/NJH', '/NJS')
-        if ($copyUploads.ExitCode -ge 8) { throw ('Copying the existing uploads failed (robocopy exit ' + $copyUploads.ExitCode + ').') }
+    try {
+        Write-Step 'Copying the existing database cluster and uploads'
+        $oldData = Join-Path $OldRoot 'data\postgres'
+        New-PortableDirectory (Join-Path $root 'data')
+        $copyResult = Invoke-PortableCommand -Executable 'robocopy.exe' -Arguments @($oldData, (Join-Path $root 'data\postgres'), '/E', '/SJ', '/SL', '/R:1', '/W:1', '/MT:4', '/NP', '/NFL', '/NDL', '/NJH', '/NJS')
+        if ($copyResult.ExitCode -ge 8) { throw ('Copying the existing database failed (robocopy exit ' + $copyResult.ExitCode + ').') }
+        $plainGlobal = Join-Path $root 'data\postgres\postmaster.pid'
+        Remove-Item -LiteralPath $plainGlobal -Force -ErrorAction SilentlyContinue
+        $uploads = Join-Path $OldRoot 'uploads'
+        if (Test-Path -LiteralPath $uploads) {
+            $copyUploads = Invoke-PortableCommand -Executable 'robocopy.exe' -Arguments @($uploads, (Join-Path $root 'uploads'), '/E', '/SJ', '/SL', '/R:1', '/W:1', '/MT:4', '/NP', '/NFL', '/NDL', '/NJH', '/NJS')
+            if ($copyUploads.ExitCode -ge 8) { throw ('Copying the existing uploads failed (robocopy exit ' + $copyUploads.ExitCode + ').') }
+        }
+        Write-Step 'Preparing the portable deployment on top of the copied data'
+        Invoke-PortablePrepare -HostName $HostName
+        # Keep the credentials the copied cluster was initialized with, and keep the
+        # existing JWT secret so signed-in sessions survive the move.
+        $config = Get-PortableDeployment $root
+        $config.DatabaseUser = [string]$oldConfig.DatabaseUser
+        $config.DatabasePassword = [string]$oldConfig.DatabasePassword
+        $config.SourceDatabase = [string]$oldConfig.SourceDatabase
+        $config.Database = [string]$oldConfig.Database
+        $config.BackendEnvironment = $oldConfig.BackendEnvironment
+        if ($oldConfig.FrontendEnvironment) { $config.FrontendEnvironment = $oldConfig.FrontendEnvironment }
+        $origin = 'https://' + $HostName + ':' + $HttpsPort
+        $config.BackendEnvironment | Add-Member -NotePropertyName FRONTEND_ORIGIN -NotePropertyValue $origin -Force
+        $config.BackendEnvironment | Add-Member -NotePropertyName MULTICA_APP_URL -NotePropertyValue $origin -Force
+        $config.BackendEnvironment | Add-Member -NotePropertyName CORS_ALLOWED_ORIGINS -NotePropertyValue (Get-PortableCorsOrigins -PublicHost $HostName -HttpsPort $HttpsPort) -Force
+        Write-PortableJson (Join-Path $root 'deployment.json') $config
+        # The copied cluster keeps its own postgresql.conf; pin the loopback listener
+        # and the port this deployment uses (later entries win in PostgreSQL).
+        $postgresConfig = Join-Path $root 'data\postgres\postgresql.conf'
+        $override = [Environment]::NewLine + "listen_addresses = '127.0.0.1'" + [Environment]::NewLine + 'port = ' + $DatabasePort + [Environment]::NewLine
+        [IO.File]::AppendAllText($postgresConfig, $override, (New-Object Text.UTF8Encoding($false)))
+        Invoke-PortableStageRelease
+        Invoke-PortableStartServer
+        $rootCA = Start-PortableHttps -HostName $HostName
+        $serverUrl = 'https://' + $HostName + ':' + $HttpsPort
+        Wait-PortableHttp -Uri ($serverUrl + '/readyz') -RootCAPath $rootCA.Path -TimeoutSec 90 -Description 'the adopted API' | Out-Null
+        $operatorId = Get-PortableOwnerUserId -Email $OperatorEmail
+        $accessToken = New-PortableUserAccessToken -UserId $operatorId -TokenName 'portable-daemon'
+        $ownerRows = @()
+        try { $ownerRows = @(Invoke-PortableSql -Root $root -Sql ('SELECT w.id::text FROM workspace w JOIN member m ON m.workspace_id = w.id WHERE m.user_id = ''' + $operatorId + ''' ORDER BY w.created_at ASC LIMIT 1;') -Database ([string](Get-PortableDeployment $root).Database)) } catch { $ownerRows = @() }
+        $workspaceId = ''
+        if ($ownerRows.Count -gt 0) { $workspaceId = [string]$ownerRows[0] }
+        return [pscustomobject]@{ RootCA = $rootCA; ServerUrl = $serverUrl; WorkspaceId = $workspaceId; AccessToken = $accessToken; UserId = $operatorId; Backup = $backupLocation }
+    } catch {
+        throw ('Adoption failed after the old deployment was stopped. Its backup is at ' + $backupLocation + '; the old deployment folder itself was not changed. Extract a fresh package folder and retry after fixing the cause. Error: ' + $_.Exception.Message)
     }
-    Write-Step 'Preparing the portable deployment on top of the copied data'
-    Invoke-PortablePrepare -HostName $HostName
-    # Keep the credentials the copied cluster was initialized with, and keep the
-    # existing JWT secret so signed-in sessions survive the move.
-    $config = Get-PortableDeployment $root
-    $config.DatabaseUser = [string]$oldConfig.DatabaseUser
-    $config.DatabasePassword = [string]$oldConfig.DatabasePassword
-    $config.SourceDatabase = [string]$oldConfig.SourceDatabase
-    $config.Database = [string]$oldConfig.Database
-    $config.BackendEnvironment = $oldConfig.BackendEnvironment
-    if ($oldConfig.FrontendEnvironment) { $config.FrontendEnvironment = $oldConfig.FrontendEnvironment }
-    $origin = 'https://' + $HostName + ':' + $HttpsPort
-    $config.BackendEnvironment | Add-Member -NotePropertyName FRONTEND_ORIGIN -NotePropertyValue $origin -Force
-    $config.BackendEnvironment | Add-Member -NotePropertyName MULTICA_APP_URL -NotePropertyValue $origin -Force
-    $config.BackendEnvironment | Add-Member -NotePropertyName CORS_ALLOWED_ORIGINS -NotePropertyValue (Get-PortableCorsOrigins -PublicHost $HostName -HttpsPort $HttpsPort) -Force
-    Write-PortableJson (Join-Path $root 'deployment.json') $config
-    # The copied cluster keeps its own postgresql.conf; pin the loopback listener
-    # and the port this deployment uses (later entries win in PostgreSQL).
-    $postgresConfig = Join-Path $root 'data\postgres\postgresql.conf'
-    $override = [Environment]::NewLine + "listen_addresses = '127.0.0.1'" + [Environment]::NewLine + 'port = ' + $DatabasePort + [Environment]::NewLine
-    [IO.File]::AppendAllText($postgresConfig, $override, (New-Object Text.UTF8Encoding($false)))
-    Invoke-PortableStageRelease
-    Invoke-PortableStartServer
-    $rootCA = Start-PortableHttps -HostName $HostName
-    $serverUrl = 'https://' + $HostName + ':' + $HttpsPort
-    Wait-PortableHttp -Uri ($serverUrl + '/readyz') -RootCAPath $rootCA.Path -TimeoutSec 90 -Description 'the adopted API' | Out-Null
-    $operatorId = Get-PortableOwnerUserId -Email $OperatorEmail
-    $accessToken = New-PortableUserAccessToken -UserId $operatorId -TokenName 'portable-daemon'
-    $ownerRows = @()
-    try { $ownerRows = @(Invoke-PortableSql -Root $root -Sql ('SELECT w.id::text FROM workspace w JOIN member m ON m.workspace_id = w.id WHERE m.user_id = ''' + $operatorId + ''' ORDER BY w.created_at ASC LIMIT 1;') -Database ([string](Get-PortableDeployment $root).Database)) } catch { $ownerRows = @() }
-    $workspaceId = ''
-    if ($ownerRows.Count -gt 0) { $workspaceId = [string]$ownerRows[0] }
-    return [pscustomobject]@{ RootCA = $rootCA; ServerUrl = $serverUrl; WorkspaceId = $workspaceId; AccessToken = $accessToken; UserId = $operatorId; Backup = ([string]$backup.Output).Trim() }
 }
 
 # --------------------------------------------------------------------------
@@ -660,6 +721,12 @@ if (-not $NoStartup) {
     $startupPath = Install-PortableStartup -Root $root
     Write-Host ('  startup item: ' + $startupPath)
 }
+
+# Record which CLI profile directory belongs to this package. The uninstaller
+# only deletes profile directories carrying this marker, so an identically named
+# profile of another product is never touched.
+$ownedProfiles = @(Register-PortableProfileOwnership -Profile $Profile -PackageRoot $root -ServerUrl $result.ServerUrl)
+if ($ownedProfiles.Count -gt 0) { Write-Host ('  CLI profile ownership: ' + ($ownedProfiles -join '; ')) }
 
 $report = [ordered]@{
     installedAt = (Get-Date).ToUniversalTime().ToString('o')
