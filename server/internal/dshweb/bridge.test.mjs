@@ -199,7 +199,7 @@ test('new messages and resume work through the event API without any DSH session
   assert.deepEqual(second.filter(frame => frame.type === 'text').map(frame => frame.content), ['reply-2']);
   assert.equal(f.sessions.size, 1);
   assert.equal(fs.existsSync(path.join(f.root, 'data')), false);
-  assert.equal(f.calls.find(call => call.method === 'session/rename').args.title, 'Multica · TEST-1');
+  assert.equal(f.calls.find(call => call.method === 'session/rename').args.title, 'U Workers · TEST-1');
 });
 
 test('the standalone stdio entry returns correlated protocol frames through the event API', async t => {
@@ -527,6 +527,11 @@ test('task CLI keeps credentials out of prompts and removes private files', t =>
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const cli = taskCli({ MULTICA_TASK_ID: 'task-test', MULTICA_TASK_CONFIG_ROOT: root, MULTICA_TOKEN: 'mat_test-secret', OWNER_TOKEN: 'owner-secret' });
   assert.ok(!cli.instructions.includes('mat_test-secret'));
+  // CLAWSTA-95: the per-turn harness note handed to DSH runs names U Workers
+  // and both executable spellings, because the brief's examples use the legacy
+  // one while the current command is u-workers.
+  assert.ok(cli.instructions.includes('U Workers CLI command'));
+  assert.ok(cli.instructions.includes('multica') && cli.instructions.includes('u-workers'));
   const folder = path.join(root, fs.readdirSync(root)[0]);
   const env = JSON.parse(fs.readFileSync(path.join(folder, 'env.json'), 'utf8'));
   assert.equal(env.MULTICA_TOKEN, 'mat_test-secret');
