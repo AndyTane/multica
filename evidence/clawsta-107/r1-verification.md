@@ -100,3 +100,66 @@ Verification: \`deploy/portable/test/verify-package-source.ps1 -Package C:\UWork
 4. The acceptance runs needed a child process with a deduplicated environment on this laptop because the harness session exports both \`NO_PROXY\`/\`no_proxy\` (and HTTP(S)_PROXY pairs); that is a test-machine environment quirk, not a package change — package scripts run under the normal Windows PowerShell 5.1/7 environment. The package's scripts were not changed for it.
 5. R1-1 adoption requires a freshly extracted package folder; a half-prepared folder is refused by design (delete/re-extract before retrying). Backup always exists before that point.
 6. Still no merge/release: PR #17 and #18 stay draft until professional review and CLAWSTA-108 acceptance are complete.
+
+## 2026-11-02 复审后补修（三处边界 + CI 基线归因）
+
+复审基线：PR #17 \`9816168b9\` → \`9a5c1c940\`；PR #18 \`f9f3df490\` →（本轮）\`01f585d2a\` 后接本证据提交。
+
+### R1-1 目标数据边界（关闭）
+
+\`deploy/portable/install.ps1\` 的 \`Assert-PortableAdoptionPreflight\` 在旧部署 Start/Backup/Stop 之前，除原有 \`deployment.json\`/\`data/install-report.json\`/\`data/postgres\`/\`releases\` 外，还拒绝目标目录里已存在的业务内容：\`uploads\`、\`data\`、\`backups\`、\`https\`、\`state\`、\`logs\` 任意非空即拒绝；空目录仍是合法的新解压布局。
+
+证据：
+- \`review107-r1-boundaries.ps1\`（复审附件）：\`R1-1 target with existing uploads rejected: True (expected True)\`。
+- \`adoption.test.ps1\` 新增用例：目标含 \`uploads/sentinel.txt\` 时在 Start/Backup/Stop 之前拒绝，哨兵内容不变、包内 runtime 未被消费；目标含 \`data/leftover.txt\` 同样拒绝；空的 \`uploads\` 目录通过预检。PS 5.1 与 PS 7 均通过。
+
+### R1-2 profile 归属（关闭）
+
+\`portable-common.ps1\`：新增 \`Get-PortableCliConfigRoot\`，按 \`server/internal/brand.ConfigRoot\` 的同一规则确定 CLI 实际使用的唯一配置根（\`~/.u-workers\` 存在 config.json/profiles 时用它，否则已有 \`~/.multica\`，新机用 \`~/.u-workers\`）。\`Register-PortableProfileOwnership\` 只在 \`ConfigRoots\` 的第一个（即实际根）\`profiles/<name>\` 写标记，标记记录 \`configRoot\`；\`Get-PortableOwnedProfileDirectories\` 只扫描该实际根，并要求标记的 \`configRoot\` 与该根一致（上一版无 \`configRoot\` 的旧标记只在实际根内接受，保证升级路径）。\`uninstall.ps1\` 增加 \`-ConfigRoots\` 测试缝，卸载控制流可在临时 HOME 中真实运行。
+
+证据：
+- \`review107-r1-boundaries.ps1\`：两个配置根同名同 URL → \`marked=1, removable=1 (expected only selected root: 1)\`。
+- \`profile-ownership.test.ps1\` 重写：两配置根同名同 URL 时只认领 CLI 实际根（另一个根不被标记）；指向另一根的标记不可删；在临时 HOME 中真实执行 \`uninstall.ps1\`（keep-data 与 \`-PurgeData\` 两种模式）：只删本包实际根中的 profile，其他 profile、另一个根的默认配置/同名 profile 哨兵、包外文件均保持不变；\`-PurgeData\` 仍只清包目录内的 data/uploads/backups 等。PS 5.1 与 PS 7 均通过。
+
+### R1-4 多安装注册项（关闭）
+
+PR #17 \`9a5c1c940\`：每个安装使用独立卸载注册键 \`UWorkersCLI-<sha256(安装目录)[前12位]>\`；卸载只删自己键，旧共享键 \`UWorkersCLI\` 仅当其 InstallLocation 指向被卸载目录时清理。附件失败用例 \`TestReview107R1PreservesOtherRegistration\` 已入库并通过：安装 A、安装 B（均含空格路径）、卸载 A 后 B 的注册项、二进制、PATH 项保持不变。\`go test ./cmd/u-workers-setup -count=1\` 全绿，\`go vet\` 干净。
+
+### PR #17 历史 CI 失败的最小基线归因（补齐）
+
+命令（同一环境、同一 -run 集合）：
+
+\`\`\`
+cd <checkout>/server && go test -run '^(TestEveryConcurrentUpBuildHasCleanup|TestSendCodeAndVerify|TestVerifyCodeNewUserHasNoWorkspace|TestLoadConfig_SkipsMulticaHooks.*|TestGetConfigExposesFrontendFeatureFlags|TestConfigDisablesUpstreamReportingAndBilling)$' ./cmd/migrate ./cmd/server ./internal/daemon ./internal/handler ./internal/handler/configpolicy -count=1
+\`\`\`
+
+基线 \`d572cfea7\`（独立 worktree \`C:\UWorkers\r1-baseline\`）与 head \`01f585d2a\` 结果逐项一致：
+
+| 包/用例 | 基线 d572cfea7 | head 01f585d2a | 归因 |
+| --- | --- | --- | --- |
+| cmd/migrate TestEveryConcurrentUpBuildHasCleanup | FAIL（574/575/579/580 四个并发索引缺少 up 清理） | FAIL（同 4 项） | 基线既有失败；该目录在 \`d572cfea7..HEAD\` 无差异 |
+| cmd/server TestSendCodeAndVerify | FAIL（send-code 500） | FAIL（同） | 本机测试数据库未迁移/无邮件服务，环境性；该目录无差异 |
+| cmd/server TestVerifyCodeNewUserHasNoWorkspace | FAIL（DB 无 code 行） | FAIL（同） | 同上 |
+| internal/handler（TestGetConfigExposesFrontendFeatureFlags 等） | 包初始化失败：\`relation "instance_setting" does not exist\` | 同 | 本机测试数据库未迁移，环境性；该目录无差异 |
+| internal/handler/configpolicy TestConfigDisablesUpstreamReportingAndBilling | panic（DB 为 nil，同一缺表根因） | 同 | 同上；该目录无差异 |
+| internal/daemon TestLoadConfig_SkipsMulticaHooks* 等 | ok（0.665s） | ok（0.475s） | #17 的 CA 加载改动没有回归，两版本均通过 |
+
+diff 证明：\`git diff --stat d572cfea7..HEAD -- server/cmd/migrate server/cmd/server server/internal/handler server/internal/handler/configpolicy\` 为空；\`server/internal/daemon/config.go\`/测试在本批无差异。结论：上述 5 组失败不是本批引入，属于基线/本机数据库环境；daemon 的 config 相关用例在两侧均通过。当前两个 PR head 均无 CI check 记录，不宣称绿色 CI。
+
+### 本轮最终包源码一致性（关闭）
+
+隔离输出：\`C:\UWorkers\r1b-build\UWorkers-Portable-v0.2.0\`（\`build-package.ps1\`，未覆盖任何现用部署）。
+
+- manifest：\`v0.2.0\` / build commit \`01f585d2a\` / buildKit \`true\`；
+- \`payload/source/source.zip\` 与 \`git archive 01f585d2a\` 逐字节一致：SHA-256 \`145CC10C20A6555A55FAE68F290BF87192A37E0C3DA378B0B6BC24DDDE800348\`；
+- 断网下用包内工具链重建安装器成功，重打安装器与包内 CLI 均报告 \`v0.2.0\`；
+- \`verify-package-source.ps1 -Package C:\UWorkers\r1b-build\UWorkers-Portable-v0.2.0 -ExpectedCommit 01f585d2a\` → **PACKAGE SOURCE CONSISTENCY PASSED (14 checks)**。
+
+说明：容器压缩字节不比较；本轮以 manifest 提交、git archive 内容一致及离线重建结果为准。证据提交位于该构建提交之后，只改本文件。
+
+### 本轮回归结果汇总
+
+- PS 5.1：\`portable-common.test.ps1\`、\`adoption.test.ps1\`、\`profile-ownership.test.ps1\` 全过；复审边界夹具与命令包装夹具（\`review107-command.ps1\`，未改动）通过。
+- PS 7：上述三套脚本全过。
+- Go（Windows）：\`go test ./cmd/u-workers-setup ./internal/tlsx ./internal/wintrust -count=1\` 全 ok；\`go test ./cmd/multica -run 'TestReview107|TestConnect' -count=1\` ok；\`go vet ./cmd/multica ./cmd/u-workers-setup\` 干净。
+- 未重跑无关的整套后端测试；未重复 108 台式机部署、未触碰真实数据/防火墙/信任库；两个 PR 保持 draft。
