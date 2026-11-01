@@ -181,6 +181,11 @@ if (-not $GoModCache) {
     $GoModCache = ((& $go env GOMODCACHE) | Out-String).Trim()
 }
 if (-not (Test-Path -LiteralPath $GoModCache)) { throw ('Go module cache not found: ' + $GoModCache) }
+# The CLI and installer builds later in this script shell out to Go without
+# going through the native deployment's environment setup. Point them at the same
+# module cache the build was given, so a machine whose own Go environment is not
+# configured does not try to fetch modules while packaging.
+$env:GOMODCACHE = $GoModCache
 $nodeVersion = ((& $NodeExe --version) | Out-String).Trim()
 $caddy = Find-CaddyExecutable
 $opencode = Find-OpenCodeExecutable
