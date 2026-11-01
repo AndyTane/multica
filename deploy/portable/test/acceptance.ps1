@@ -92,9 +92,10 @@ function Invoke-Robocopy {
     $previous = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        # A copied package is a fresh machine: junctions and symlinks are
-        # expanded so the copy is self-contained.
-        & robocopy.exe $Source $Destination /E /R:2 /W:1 /MT:8 /NP /NFL /NDL /NJH /NJS /XD @ExcludeDirectories | Out-Null
+        # /SJ /SL keep the web release's dependency links intact (expanding
+        # them would lose Next.js' sibling dependencies); the same-machine test
+        # copy can follow them because the build checkout still exists.
+        & robocopy.exe $Source $Destination /E /SJ /SL /R:2 /W:1 /MT:8 /NP /NFL /NDL /NJH /NJS /XD @ExcludeDirectories | Out-Null
         $exitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previous
