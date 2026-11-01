@@ -59,4 +59,9 @@ func CleanupStaleUpdateArtifacts() {
 		exePath = resolved
 	}
 	_ = os.Remove(exePath + oldBinarySuffix)
+	// An update also refreshes an installed sibling executable name; it goes
+	// through the same rename-aside dance, so it can leave its own .old file.
+	if aliasPath := siblingAliasPath(exePath); aliasPath != "" {
+		_ = os.Remove(aliasPath + oldBinarySuffix)
+	}
 }

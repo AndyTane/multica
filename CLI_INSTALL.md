@@ -77,22 +77,26 @@ LATEST=$(curl -sI https://github.com/multica-ai/multica/releases/latest | grep -
 
 # Download and extract
 VERSION="${LATEST#v}"
-curl -sL "https://github.com/multica-ai/multica/releases/download/${LATEST}/multica-cli-${VERSION}-${OS}-${ARCH}.tar.gz" -o /tmp/multica.tar.gz
-tar -xzf /tmp/multica.tar.gz -C /tmp multica
-sudo mv /tmp/multica /usr/local/bin/multica
-rm /tmp/multica.tar.gz
+curl -sL "https://github.com/multica-ai/multica/releases/download/${LATEST}/u-workers-cli-${VERSION}-${OS}-${ARCH}.tar.gz" -o /tmp/u-workers.tar.gz
+tar -xzf /tmp/u-workers.tar.gz -C /tmp u-workers
+sudo mv /tmp/u-workers /usr/local/bin/u-workers
+# The legacy command name keeps working and is installed by both installers:
+sudo ln -sfn /usr/local/bin/u-workers /usr/local/bin/multica
+rm /tmp/u-workers.tar.gz
 ```
+
+Releases older than the rename publish `multica-cli-<version>-<os>-<arch>` with a `multica` binary instead; both names run the same command.
 
 Verify:
 
 ```bash
-multica version
+u-workers version
 ```
 
 **If this fails:**
 - Check that `/usr/local/bin` is in `$PATH`.
-- On Linux, you may need `chmod +x /usr/local/bin/multica`.
-- If `sudo` is not available, install to a user-writable directory: `mv /tmp/multica ~/.local/bin/multica` and ensure `~/.local/bin` is in `$PATH`.
+- On Linux, you may need `chmod +x /usr/local/bin/u-workers`.
+- If `sudo` is not available, install to a user-writable directory: `mv /tmp/u-workers ~/.local/bin/u-workers` (and link `multica` next to it) and ensure `~/.local/bin` is in `$PATH`.
 
 ### Option C: Windows (PowerShell)
 
@@ -102,13 +106,15 @@ Run in PowerShell (no admin required):
 irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
 ```
 
-This downloads the latest Windows binary from GitHub Releases, installs it to `%USERPROFILE%\.multica\bin\`, and adds it to your user PATH.
+This downloads the latest Windows package (`u-workers-cli-<version>-windows-<arch>.zip`) from GitHub Releases, installs `u-workers.exe` to `%USERPROFILE%\.u-workers\bin\`, keeps `multica.exe` alongside it so the old command name still works, and adds the directory to your user PATH.
 
 Verify:
 
 ```powershell
-multica version
+u-workers version
 ```
+
+Older releases publish `multica-cli-<version>-windows-<arch>.zip` instead; both run the same command.
 
 **If this fails:**
 - Restart your terminal so the updated PATH takes effect.

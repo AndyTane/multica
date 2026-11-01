@@ -14,11 +14,15 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-REPO_URL="${MULTICA_REPO_URL:-}"
-REPO_WEB_URL="${MULTICA_REPO_WEB_URL:-}"  # without .git, for GitHub web APIs
-INSTALL_DIR="${MULTICA_INSTALL_DIR:-$HOME/.u-workers/server}"
-BIN_DIR="${MULTICA_BIN_DIR:-$HOME/.u-workers/bin}"
-CLI_BINARY="$BIN_DIR/multica"
+# Every setting accepts the current U_WORKERS_ spelling first and the legacy
+# MULTICA_ spelling second, so an operator can migrate before the old names
+# are retired.
+REPO_URL="${U_WORKERS_REPO_URL:-${MULTICA_REPO_URL:-}}"
+REPO_WEB_URL="${U_WORKERS_REPO_WEB_URL:-${MULTICA_REPO_WEB_URL:-}}"  # without .git, for GitHub web APIs
+INSTALL_DIR="${U_WORKERS_INSTALL_DIR:-${MULTICA_INSTALL_DIR:-$HOME/.u-workers/server}}"
+BIN_DIR="${U_WORKERS_BIN_DIR:-${MULTICA_BIN_DIR:-$HOME/.u-workers/bin}}"
+CLI_BINARY="$BIN_DIR/u-workers"
+LEGACY_CLI_BINARY="$BIN_DIR/multica"
 
 # Host ports Compose reported after `up -d`; set by setup_server and reused by
 # the summary so the health check and the printed URLs cannot diverge.
@@ -109,8 +113,17 @@ detect_os() {
 # ---------------------------------------------------------------------------
 # CLI Installation
 # ---------------------------------------------------------------------------
+link_legacy_cli_command() {
+  # The pre-rename `multica` command stays installed and points at the current
+  # binary, so a self-update of either name moves both to the same release.
+  if ln -sfn "u-workers" "$LEGACY_CLI_BINARY" 2>/dev/null; then
+    return 0
+  fi
+  cp -f "$CLI_BINARY" "$LEGACY_CLI_BINARY"
+}
+
 install_cli_binary() {
-  [ -n "$REPO_WEB_URL" ] || fail "Set MULTICA_REPO_WEB_URL to your release repository before installing."
+  [ -n "$REPO_WEB_URL" ] || fail "Set U_WORKERS_REPO_WEB_URL (or MULTICA_REPO_WEB_URL) to your release repository before installing."
   info "Installing U Workers CLI from GitHub Releases..."
 
   # Get latest release tag
@@ -121,25 +134,42 @@ install_cli_binary() {
   fi
 
   local version="${latest#v}"
-  local url="${REPO_WEB_URL}/releases/download/${latest}/multica-cli-${version}-${OS}-${ARCH}.tar.gz"
   local tmp_dir
   tmp_dir=$(mktemp -d)
 
-  info "Downloading $url ..."
-  if ! curl -fsSL "$url" -o "$tmp_dir/multica.tar.gz"; then
+  # Current download package first; fall back to the pre-rename package names
+  # so an older release tag still installs. Each archive family carries one
+  # executable name, so try both members before giving up on an asset.
+  local asset binary_file=""
+  for asset in \
+    "u-workers-cli-${version}-${OS}-${ARCH}.tar.gz" \
+    "multica-cli-${version}-${OS}-${ARCH}.tar.gz" \
+    "multica_${OS}_${ARCH}.tar.gz"; do
+    local url="${REPO_WEB_URL}/releases/download/${latest}/${asset}"
+    info "Downloading $url ..."
+    curl -fsSL "$url" -o "$tmp_dir/cli.tar.gz" 2>/dev/null || continue
+    if tar -xzf "$tmp_dir/cli.tar.gz" -C "$tmp_dir" u-workers 2>/dev/null; then
+      binary_file="$tmp_dir/u-workers"
+      break
+    fi
+    if tar -xzf "$tmp_dir/cli.tar.gz" -C "$tmp_dir" multica 2>/dev/null; then
+      binary_file="$tmp_dir/multica"
+      break
+    fi
+  done
+  if [ -z "$binary_file" ]; then
     rm -rf "$tmp_dir"
     fail "Failed to download CLI binary."
   fi
 
-  tar -xzf "$tmp_dir/multica.tar.gz" -C "$tmp_dir" multica
-
   local bin_dir="$BIN_DIR"
   mkdir -p "$bin_dir"
-  mv "$tmp_dir/multica" "$CLI_BINARY"
+  mv "$binary_file" "$CLI_BINARY"
   chmod +x "$CLI_BINARY"
+  link_legacy_cli_command
 
   rm -rf "$tmp_dir"
-  ok "U Workers CLI installed to $bin_dir/multica"
+  ok "U Workers CLI installed to $CLI_BINARY (legacy command: $LEGACY_CLI_BINARY)"
 }
 
 get_latest_version() {
@@ -149,8 +179,9 @@ get_latest_version() {
 }
 
 get_selfhost_ref() {
-  if [ -n "${MULTICA_SELFHOST_REF:-}" ]; then
-    printf '%s' "$MULTICA_SELFHOST_REF"
+  local selfhost_ref="${U_WORKERS_SELFHOST_REF:-${MULTICA_SELFHOST_REF:-}}"
+  if [ -n "$selfhost_ref" ]; then
+    printf '%s' "$selfhost_ref"
     return
   fi
 
@@ -265,7 +296,7 @@ After installing Docker, re-run this script with --with-server."
 # Server setup (self-host / --with-server)
 # ---------------------------------------------------------------------------
 setup_server() {
-  [ -n "$REPO_URL" ] || fail "Set MULTICA_REPO_URL to your source repository before provisioning."
+  [ -n "$REPO_URL" ] || fail "Set U_WORKERS_REPO_URL (or MULTICA_REPO_URL) to your source repository before provisioning."
   info "Setting up U Workers server..."
   local server_ref
   server_ref=$(get_selfhost_ref)
@@ -458,15 +489,17 @@ main() {
         echo "  --stop          Stop a self-hosted installation"
         echo ""
         echo "Environment variables:"
-        echo "  MULTICA_REPO_WEB_URL  Your release repository web URL (required for downloads)"
-        echo "  MULTICA_REPO_URL      Your source Git URL (required with --with-server)"
-        echo "  MULTICA_INSTALL_DIR   Self-host server install directory"
+        echo "  U_WORKERS_REPO_WEB_URL  Your release repository web URL (required for downloads)"
+        echo "  U_WORKERS_REPO_URL      Your source Git URL (required with --with-server)"
+        echo "  U_WORKERS_INSTALL_DIR   Self-host server install directory"
         echo "                        (default: \$HOME/.u-workers/server)"
-        echo "  MULTICA_BIN_DIR       Target directory for the CLI binary when"
+        echo "  U_WORKERS_BIN_DIR       Target directory for the CLI binary when"
         echo "                        installing from GitHub Releases"
         echo "                        (default: \$HOME/.u-workers/bin)"
-        echo "  MULTICA_SELFHOST_REF  Git ref to check out for self-host assets"
-        echo "                        (default: latest release tag, falling back to main)"
+        echo "  U_WORKERS_SELFHOST_REF  Git ref to check out for self-host assets"
+        echo "                          (default: latest release tag, falling back to main)"
+        echo ""
+        echo "  The legacy MULTICA_* spellings of these variables are still read."
         echo ""
         echo "After installation, run the installed binary with '--profile u-workers setup self-host' to configure your environment."
         exit 0
@@ -477,9 +510,9 @@ main() {
   done
 
   if [ "$mode" != "stop" ]; then
-    [ -n "$REPO_WEB_URL" ] || fail "Set MULTICA_REPO_WEB_URL to your chosen CLI release source."
+    [ -n "$REPO_WEB_URL" ] || fail "Set U_WORKERS_REPO_WEB_URL (or MULTICA_REPO_WEB_URL) to your chosen CLI release source."
     if [ "$mode" = "with-server" ]; then
-      [ -n "$REPO_URL" ] || fail "Set MULTICA_REPO_URL to your source repository."
+      [ -n "$REPO_URL" ] || fail "Set U_WORKERS_REPO_URL (or MULTICA_REPO_URL) to your source repository."
     fi
   fi
 

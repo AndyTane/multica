@@ -3,9 +3,14 @@ package cli
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/brand"
 )
 
 func TestReleaseAssetCandidates(t *testing.T) {
@@ -17,11 +22,12 @@ func TestReleaseAssetCandidates(t *testing.T) {
 		wantAssets    []string
 	}{
 		{
-			name:          "darwin prefers versioned then legacy candidate",
+			name:          "darwin prefers the current package name, then the pre-rename names",
 			targetVersion: "v1.2.3",
 			goos:          "darwin",
 			goarch:        "arm64",
 			wantAssets: []string{
+				"u-workers-cli-1.2.3-darwin-arm64.tar.gz",
 				"multica-cli-1.2.3-darwin-arm64.tar.gz",
 				"multica_darwin_arm64.tar.gz",
 			},
@@ -32,6 +38,7 @@ func TestReleaseAssetCandidates(t *testing.T) {
 			goos:          "linux",
 			goarch:        "amd64",
 			wantAssets: []string{
+				"u-workers-cli-1.2.3-linux-amd64.tar.gz",
 				"multica-cli-1.2.3-linux-amd64.tar.gz",
 				"multica_linux_amd64.tar.gz",
 			},
@@ -42,6 +49,7 @@ func TestReleaseAssetCandidates(t *testing.T) {
 			goos:          "windows",
 			goarch:        "amd64",
 			wantAssets: []string{
+				"u-workers-cli-1.2.3-windows-amd64.zip",
 				"multica-cli-1.2.3-windows-amd64.zip",
 				"multica_windows_amd64.zip",
 			},
@@ -300,5 +308,133 @@ func TestUpdateDownloadTimeoutOrDefault(t *testing.T) {
 				t.Fatalf("timeout = %s, want %s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFindReleaseAssetPrefersTheCurrentPackageName(t *testing.T) {
+	assets := []GitHubReleaseAsset{
+		{Name: "multica_darwin_amd64.tar.gz", BrowserDownloadURL: "legacy"},
+		{Name: "multica-cli-1.2.3-darwin-amd64.tar.gz", BrowserDownloadURL: "pre-rename"},
+		{Name: "u-workers-cli-1.2.3-darwin-amd64.tar.gz", BrowserDownloadURL: "current"},
+	}
+	got, err := findReleaseAsset(assets, "v1.2.3", "darwin", "amd64")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.BrowserDownloadURL != "current" {
+		t.Fatalf("asset = %q, want the current package name", got.Name)
+	}
+}
+
+func TestReleaseBinaryNames(t *testing.T) {
+	tests := []struct {
+		name    string
+		invoked string
+		goos    string
+		want    []string
+	}{
+		{
+			name:    "current name first on windows",
+			invoked: "u-workers.exe",
+			goos:    "windows",
+			want:    []string{"u-workers.exe", "multica.exe"},
+		},
+		{
+			name:    "legacy name first when invoked as multica",
+			invoked: "multica",
+			goos:    "linux",
+			want:    []string{"multica", "u-workers"},
+		},
+		{
+			name:    "unrecognized invoked name tries both spellings",
+			invoked: "cli.test",
+			goos:    "darwin",
+			want:    []string{"u-workers", "multica"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := releaseBinaryNames(tt.invoked, tt.goos)
+			if len(got) != len(tt.want) {
+				t.Fatalf("releaseBinaryNames(%q, %q) = %v, want %v", tt.invoked, tt.goos, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("candidate[%d] = %q, want %q (all: %v)", i, got[i], tt.want[i], got)
+				}
+			}
+		})
+	}
+}
+
+func TestSiblingAliasPath(t *testing.T) {
+	tests := map[string]string{
+		"/usr/local/bin/u-workers":   "/usr/local/bin/multica",
+		"/usr/local/bin/multica":     "/usr/local/bin/u-workers",
+		"C:/tools/multica.exe":       "C:/tools/u-workers.exe",
+		"C:/tools/u-workers.exe":     "C:/tools/multica.exe",
+		"/usr/local/bin/unrelated":   "",
+		"/usr/local/bin/multica-old": "",
+	}
+	for input, want := range tests {
+		if got := siblingAliasPath(input); got != filepath.FromSlash(want) {
+			t.Errorf("siblingAliasPath(%q) = %q, want %q", input, got, filepath.FromSlash(want))
+		}
+	}
+}
+
+func TestRefreshSiblingAliasRewritesARegularFile(t *testing.T) {
+	dir := t.TempDir()
+	current := filepath.Join(dir, "u-workers")
+	if runtime.GOOS == "windows" {
+		current += ".exe"
+	}
+	alias := siblingAliasPath(current)
+	if alias == "" {
+		t.Fatal("no alias path for the current executable name")
+	}
+	if err := os.WriteFile(current, []byte("old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(alias, []byte("old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshedPath, ok := refreshSiblingAlias(current, []byte("new"))
+	if !ok {
+		t.Fatal("refreshSiblingAlias reported no refresh")
+	}
+	if filepath.Clean(refreshedPath) != filepath.Clean(alias) {
+		t.Fatalf("refreshed %q, want %q", refreshedPath, alias)
+	}
+	data, err := os.ReadFile(alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "new" {
+		t.Fatalf("alias content = %q, want the new binary", data)
+	}
+}
+
+func TestRefreshSiblingAliasSkipsAMissingAlias(t *testing.T) {
+	dir := t.TempDir()
+	current := filepath.Join(dir, brand.LegacyCLICommand)
+	if _, ok := refreshSiblingAlias(current, []byte("new")); ok {
+		t.Fatal("refreshSiblingAlias must not report a refresh when no alias is installed")
+	}
+}
+
+func TestRefreshSiblingAliasSkipsASymlinkedAlias(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, brand.CLICommand)
+	alias := filepath.Join(dir, brand.LegacyCLICommand)
+	if err := os.WriteFile(target, []byte("old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, alias); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+	if _, ok := refreshSiblingAlias(target, []byte("new")); ok {
+		t.Fatal("a symlinked alias follows the replaced target; it must not be overwritten")
 	}
 }
