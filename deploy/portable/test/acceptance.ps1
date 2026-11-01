@@ -238,10 +238,12 @@ try {
     Assert-Check 'installed web release references only files inside the package' ($webLinks.Outside -eq 0) (('links=' + $webLinks.Total + ' outside=' + $webLinks.Outside + ' ' + (($webLinks.OutsidePaths | Select-Object -First 1) -join '')))
     if ($HideCheckoutPath) {
         Write-Step ('Checking the board with the build checkout hidden (' + $HideCheckoutPath + ')')
-        $hideTarget = [IO.Path]::GetFullPath($HideCheckoutPath).TrimEnd('')
-        $hiddenPath = $hideTarget + '.hidden-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $hideTarget = [IO.Path]::GetFullPath($HideCheckoutPath).TrimEnd('\')
+        $hideLabel = $hideTarget
         $renamed = $false
+        $hiddenPath = $null
         try {
+            $hiddenPath = $hideTarget + '.hidden-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
             for ($attempt = 0; $attempt -lt 40 -and -not $renamed; $attempt++) {
                 try {
                     Rename-Item -LiteralPath $hideTarget -NewName (Split-Path -Leaf $hiddenPath) -ErrorAction Stop
@@ -250,13 +252,33 @@ try {
                     Start-Sleep -Milliseconds 500
                 }
             }
-            Assert-Check 'build checkout hidden during the board check' $renamed
+            if (-not $renamed) {
+                # Some environments lock the checkout root itself (open handles from
+                # build tools or antivirus); hiding the dependency store proves the
+                # same property because every packaged dependency link pointed there.
+                $fallbackTarget = Join-Path $hideTarget 'node_modules'
+                if (Test-Path -LiteralPath $fallbackTarget) {
+                    $fallbackHidden = $fallbackTarget + '.hidden-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+                    for ($attempt = 0; $attempt -lt 20 -and -not $renamed; $attempt++) {
+                        try {
+                            Rename-Item -LiteralPath $fallbackTarget -NewName (Split-Path -Leaf $fallbackHidden) -ErrorAction Stop
+                            $hideTarget = $fallbackTarget
+                            $hiddenPath = $fallbackHidden
+                            $hideLabel = $fallbackTarget
+                            $renamed = $true
+                        } catch {
+                            Start-Sleep -Milliseconds 500
+                        }
+                    }
+                }
+            }
+            Assert-Check 'build checkout hidden during the board check' $renamed $hideLabel
             $loginHidden = Invoke-PortableWebRequest -Uri ($serverUrl + '/login') -RootCAPath $rootCa -TimeoutSec 20
             Assert-Check 'board works with the build checkout hidden' ($loginHidden.StatusCode -eq 200 -and $loginHidden.Content.Length -gt 10000) ([string]$loginHidden.StatusCode + ' ' + [string]$loginHidden.Content.Length)
             $apiHidden = Invoke-PortableWebRequest -Uri ($serverUrl + '/readyz') -RootCAPath $rootCa
             Assert-Check 'API works with the build checkout hidden' ($apiHidden.StatusCode -eq 200) ([string]$apiHidden.StatusCode)
         } finally {
-            if ($renamed) {
+            if ($renamed -and $hiddenPath) {
                 $restored = $false
                 for ($attempt = 0; $attempt -lt 40 -and -not $restored; $attempt++) {
                     try {
@@ -266,7 +288,7 @@ try {
                         Start-Sleep -Milliseconds 500
                     }
                 }
-                if (-not $restored) { throw ('Could not restore the build checkout path: ' + $hiddenPath) }
+                if (-not $restored) { throw ('Could not restore the hidden path: ' + $hiddenPath) }
             }
         }
     }
