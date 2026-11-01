@@ -70,13 +70,13 @@ Desktop はワークスペースごとにタブを保存します。たとえば
 
 ## セルフホストインスタンスへの接続
 
-Desktop はデフォルトで U Workers Cloud に接続します。セルフホストインスタンスに接続するには、ホームディレクトリの `.multica` の中に `desktop.json` を作成します:
+Desktop にはサーバーアドレスが組み込まれていません。初回起動の前に、ホームディレクトリの `.u-workers` の中に `desktop.json` を作成します:
 
 | プラットフォーム | パス |
 | --- | --- |
-| macOS | `/Users/<you>/.multica/desktop.json` |
-| Linux | `/home/<you>/.multica/desktop.json` |
-| Windows | `C:\Users\<you>\.multica\desktop.json` |
+| macOS | `/Users/<you>/.u-workers/desktop.json` |
+| Linux | `/home/<you>/.u-workers/desktop.json` |
+| Windows | `C:\Users\<you>\.u-workers\desktop.json` |
 
 これらはデフォルトの場所です。ホームディレクトリを移動またはリダイレクトしている場合は、実際のパスを使ってください。
 
@@ -113,10 +113,8 @@ Desktop はデフォルトで U Workers Cloud に接続します。セルフホ�
 
 保存後に Desktop を再起動します。この設定は起動時に一度だけ読み込まれます。2 つの失敗の現れ方は異なるため、これが切り分けの手がかりになります:
 
-- **ファイルが見つからない**（ディレクトリが違う、またはファイル名が `desktop.json` ではない）: Desktop はデフォルトの Cloud 設定を使い、エラーは表示しません。つまり Desktop が Cloud のアドレスを表示したままで設定エラーも出ない場合、ファイルは Desktop が探している場所にありません。
-- **ファイルは見つかったが無効**（JSON、バージョン、URL のいずれかに問題がある）: Desktop は設定エラーを表示し、自動では Cloud にフォールバックしません。
-
-そのファイルを削除して再起動すれば、デフォルトの Cloud 設定に戻ります。
+- **ファイルが見つからない**（ディレクトリが違う、またはファイル名が `desktop.json` ではない）: Desktop は `desktop.json` が見つからないというエラーを表示し、実際に探したパスと設定例を示します。
+- **ファイルは見つかったが無効**（JSON、バージョン、URL のいずれかに問題がある）: Desktop は対象のファイル名を示して設定エラーを表示します。
 
 <Callout type="warning">
 Desktop が接続できるのは、ブラウザと実行マシンの両方から到達できるアドレスだけです。リモートのセルフホストインスタンスが HTTPS を使っていない、または WebSocket をプロキシしていない場合、Desktop は接続を確立できません。完全な設定は[セルフホストクイックスタート](/self-host-quickstart#3-アクセス方法を選ぶ)を参照してください。

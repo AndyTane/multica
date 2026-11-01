@@ -70,13 +70,13 @@ Desktop 会为每个工作区单独保存标签页。例如，你在工作区 A 
 
 ## 连接自托管实例
 
-Desktop 默认连接 U Workers Cloud。连接自托管实例时，在用户目录的 `.multica` 下创建 `desktop.json`：
+Desktop 不内置任何服务地址。首次启动前，在用户目录的 `.u-workers` 下创建 `desktop.json`：
 
 | 平台 | 路径 |
 | --- | --- |
-| macOS | `/Users/<你>/.multica/desktop.json` |
-| Linux | `/home/<你>/.multica/desktop.json` |
-| Windows | `C:\Users\<你>\.multica\desktop.json` |
+| macOS | `/Users/<你>/.u-workers/desktop.json` |
+| Linux | `/home/<你>/.u-workers/desktop.json` |
+| Windows | `C:\Users\<你>\.u-workers\desktop.json` |
 
 以上是默认位置。用户目录被迁移或重定向过的话，用实际路径。
 
@@ -113,10 +113,8 @@ Desktop 默认连接 U Workers Cloud。连接自托管实例时，在用户目�
 
 保存后重启 Desktop，配置只在启动时读取一次。两种失败的表现不同，据此可以快速区分：
 
-- **文件没找到**（目录不对，或文件名不是 `desktop.json`）：Desktop 使用默认的 Cloud 配置，不报错。所以如果 Desktop 仍然显示 Cloud 地址且没有任何配置错误，说明文件不在 Desktop 查找的位置。
-- **文件找到但无效**（JSON、版本或 URL 有问题）：Desktop 显示配置错误，不会自动回退到 Cloud。
-
-删除该文件并重启即可恢复默认的 Cloud 配置。
+- **文件没找到**（目录不对，或文件名不是 `desktop.json`）：Desktop 提示缺少 `desktop.json`，并给出它实际查找的路径和一份示例配置。
+- **文件找到但无效**（JSON、版本或 URL 有问题）：Desktop 显示配置错误，并指出是哪个文件。
 
 <Callout type="warning">
 Desktop 只能连接浏览器和执行电脑都能访问的地址。远程自托管实例未使用 HTTPS 或未代理 WebSocket 时，Desktop 无法建立连接；完整配置见[自托管快速上手](/self-host-quickstart#3-选择访问方式)。

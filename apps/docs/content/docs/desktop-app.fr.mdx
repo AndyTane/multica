@@ -70,13 +70,13 @@ Les mises à jour sont distribuées par système d'exploitation et par architect
 
 ## Se connecter à une instance auto-hébergée
 
-Desktop se connecte par défaut à U Workers Cloud. Pour vous connecter à une instance auto-hébergée, créez `desktop.json` dans le répertoire `.multica` de votre répertoire personnel :
+Desktop n'intègre aucune adresse de serveur. Avant le premier lancement, créez `desktop.json` dans le répertoire `.u-workers` de votre répertoire personnel :
 
 | Plateforme | Chemin |
 | --- | --- |
-| macOS | `/Users/<you>/.multica/desktop.json` |
-| Linux | `/home/<you>/.multica/desktop.json` |
-| Windows | `C:\Users\<you>\.multica\desktop.json` |
+| macOS | `/Users/<you>/.u-workers/desktop.json` |
+| Linux | `/home/<you>/.u-workers/desktop.json` |
+| Windows | `C:\Users\<you>\.u-workers\desktop.json` |
 
 Ce sont les emplacements par défaut — si votre répertoire personnel a été déplacé ou redirigé, utilisez son chemin réel.
 
@@ -113,10 +113,8 @@ En général, `apiUrl` seul suffit. Ne les définissez explicitement que si la d
 
 Redémarrez Desktop après l'enregistrement — le fichier n'est lu qu'une fois, au démarrage. Les deux modes d'échec se manifestent différemment, ce qui est le moyen le plus rapide de les distinguer :
 
-- **Fichier introuvable** (mauvais répertoire, ou nom de fichier qui n'est pas exactement `desktop.json`) — Desktop utilise la configuration Cloud par défaut et n'affiche aucune erreur. Donc, si Desktop indique toujours une adresse Cloud sans aucune erreur de configuration, le fichier ne se trouve pas là où Desktop le cherche.
-- **Fichier trouvé mais invalide** (JSON, version ou URL) — Desktop affiche une erreur de configuration et ne se rabat pas sur Cloud.
-
-Supprimez le fichier et redémarrez pour revenir à la configuration Cloud par défaut.
+- **Fichier introuvable** (mauvais répertoire, ou nom de fichier qui n'est pas exactement `desktop.json`) — Desktop affiche une erreur « Missing … desktop.json » avec le chemin exact consulté et un exemple de configuration.
+- **Fichier trouvé mais invalide** (JSON, version ou URL) — Desktop affiche une erreur de configuration qui nomme le fichier.
 
 <Callout type="warning">
 Desktop ne peut se connecter qu'à des adresses joignables à la fois depuis le navigateur et depuis la machine d'exécution. Si une instance auto-hébergée distante n'utilise pas HTTPS ou ne fait pas passer le WebSocket par son proxy, Desktop ne peut pas établir de connexion ; consultez le [démarrage rapide en auto-hébergement](/self-host-quickstart#3-choisir-le-mode-daccès) pour la configuration complète.
