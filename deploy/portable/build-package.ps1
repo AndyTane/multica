@@ -234,14 +234,21 @@ if ($ReusePayloadFrom) {
     & (Join-Path $repoRoot 'scripts\build-windows-installer.ps1') -Version $Version -GoExecutable $go | Write-Host
     $installer = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'dist') -Filter ('u-workers-setup-' + $Version + '-windows-amd64.exe') | Select-Object -First 1
     if (-not $installer) { throw 'The installer build produced no file.' }
-    Copy-Item -LiteralPath $installer.FullName -Destination (Join-Path $payload 'installer\u-workers-setup-' + $Version + '-windows-amd64.exe') -Force
-    if (-not $SkipBuildKit) {
-        Write-Step 'Bundling the source snapshot and the offline build kit'
-        $sourceZip = Join-Path $payload 'source\source.zip'
+    Copy-Item -LiteralPath $installer.FullName -Destination (Join-Path $payload ('installer\u-workers-setup-' + $Version + '-windows-amd64.exe')) -Force
+}
+
+if (-not $SkipBuildKit) {
+    Write-Step 'Bundling the source snapshot and the offline build kit'
+    $sourceZip = Join-Path $payload 'source\source.zip'
+    if (-not (Test-Path -LiteralPath $sourceZip)) {
         Invoke-BuildCommand -Executable $git -Arguments @('-C', $repoRoot, 'archive', '--format=zip', ('--output=' + $sourceZip), 'HEAD') | Out-Null
-        $goRoot = ((& $go env GOROOT) | Out-String).Trim()
+    }
+    $goRoot = ((& $go env GOROOT) | Out-String).Trim()
+    if (-not (Test-Path -LiteralPath (Join-Path $packageDir 'tools\go\bin\go.exe'))) {
         Write-Host ('  Go toolchain: ' + $goRoot)
         Copy-BuildTree $goRoot (Join-Path $packageDir 'tools\go')
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $packageDir 'tools\gomodcache'))) {
         Write-Host ('  Go module cache: ' + $GoModCache)
         Copy-BuildTree $GoModCache (Join-Path $packageDir 'tools\gomodcache')
     }
