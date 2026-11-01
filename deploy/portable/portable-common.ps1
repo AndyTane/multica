@@ -209,6 +209,12 @@ function Get-PortableCaddyfile {
     # otherwise folds the following lines into the same element.
     $lines = @(
         '{',
+        # Automatic root-certificate installation makes Caddy block on a Windows
+        # security prompt when it starts from a task or a service context, and it
+        # needs administrator rights the package promises not to use. Trust is
+        # installed explicitly and opt-in instead: Trust-Browser.cmd with its
+        # click-through prompt, or `u-workers connect --root-ca` on a client.
+        '    skip_install_trust',
         '    admin off',
         '    auto_https disable_redirects',
         ('    storage file_system "' + $storage + '"'),
