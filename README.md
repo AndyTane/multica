@@ -158,6 +158,32 @@ Installing and authenticating them: [Install an agent runtime](apps/docs/content
 
 ---
 
+## Connect a second Windows machine
+
+Another Windows PC needs no build step: download the installer → run it → one command connects it to your desktop server and starts the daemon. The LAN deployment's self-signed certificate is trusted without weakening verification.
+
+**1. On the desktop machine, produce two files.**
+
+```powershell
+pwsh -File deploy\windows-https\caddy-windows.ps1 -Action ExportRoot -Root D:\UWorkers\clawsta80\native
+pwsh -File scripts\build-windows-installer.ps1
+```
+
+This yields `root-ca.crt` and `dist\u-workers-setup-<version>-windows-amd64.exe`; copy both to the new machine.
+
+**2. Run the installer on the new machine.** It installs into `%LOCALAPPDATA%\U Workers\bin`, adds that directory to the current user's PATH, and needs no administrator rights. New terminals get both the current `u-workers` command and the legacy `multica` command.
+
+**3. Connect with one command.**
+
+```powershell
+u-workers connect --server-url https://192.168.3.49:13443 --root-ca .\root-ca.crt
+```
+
+It verifies and trusts the internal CA (verification stays on), opens the browser to sign in, starts the daemon, and waits until the machine's runtime is registered on the board.
+
+Full guide and troubleshooting: [Connect a second machine](docs/windows-second-machine.md)
+
+---
 ## Documentation
 
 The documentation site lives in `apps/docs/` (five languages: English, 简体中文, 日本語, 한국어,

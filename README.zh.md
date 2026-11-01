@@ -152,6 +152,32 @@ U Workers 不自带模型。它驱动的是你本来就装好、登录好的那�
 
 ---
 
+## 第二台机器接入（Windows）
+
+另一台 Windows 电脑不需要编译：下载一个安装包 → 双击装好 → 一条命令连上你的台式机服务端并启动守护进程。局域网自签证书不会报错。
+
+**1. 在台式机准备两个文件。**
+
+```powershell
+pwsh -File deploy\windows-https\caddy-windows.ps1 -Action ExportRoot -Root D:\UWorkers\clawsta80\native
+pwsh -File scripts\build-windows-installer.ps1
+```
+
+得到 `root-ca.crt` 和 `dist\u-workers-setup-<version>-windows-amd64.exe`，拷到新机器。
+
+**2. 在新机器上双击安装包。** 装到 `%LOCALAPPDATA%\U Workers\bin`，加入当前用户 PATH，不需要管理员权限。重开终端后 `u-workers` 和旧的 `multica` 命令都能用。
+
+**3. 一条命令连接。**
+
+```powershell
+u-workers connect --server-url https://192.168.3.49:13443 --root-ca .\root-ca.crt
+```
+
+验证并信任内网证书（不关闭校验）、打开浏览器登录、启动守护进程，等到它在看板里注册出这台机器的运行时。
+
+完整说明与排错：[第二台机器接入](docs/windows-second-machine.md)
+
+---
 ## 文档
 
 文档站在 `apps/docs/`，有五种语言（English、简体中文、日本語、한국어、Français），由 Web 应用在
