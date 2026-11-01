@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/multica-ai/multica/server/internal/brand"
+	"github.com/multica-ai/multica/server/internal/envcompat"
 )
 
 // TestCLIConfig_BackwardCompat_OldFileLoadsWithNilBackends verifies that a
@@ -65,7 +68,11 @@ func TestCLIConfig_BackwardCompat_NilBackendsOmittedFromJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(tmp, ".multica", "config.json"))
+	configPath, err := CLIConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +151,11 @@ func TestCLIConfig_OpenClawOverride_PartialFieldsOmitted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(tmp, ".multica", "config.json"))
+	configPath, err := CLIConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +250,11 @@ func TestCLIConfig_ProfileCommandOverrides_OmittedWhenEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(tmp, ".multica", "config.json"))
+	configPath, err := CLIConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,6 +414,9 @@ func TestCLIConfig_TaskRootOverridesOwnerHome(t *testing.T) {
 	}
 }
 
+// A machine that has never run the product resolves the current directory
+// name; see TestCLIConfigRoot_UpgradedInstallKeepsLegacyDirectory for the
+// upgrade path.
 func TestCLIConfig_NoTaskRootKeepsInteractiveHomeResolution(t *testing.T) {
 	home := t.TempDir()
 	redirectTestHome(t, home)
@@ -408,7 +426,7 @@ func TestCLIConfig_NoTaskRootKeepsInteractiveHomeResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CLIConfigPathForProfile: %v", err)
 	}
-	want := filepath.Join(home, ".multica", "profiles", "dev", "config.json")
+	want := filepath.Join(home, brand.ConfigDir, "profiles", "dev", "config.json")
 	if path != want {
 		t.Fatalf("path = %q, want interactive path %q", path, want)
 	}
@@ -468,5 +486,83 @@ func TestCLIConfig_OpenClawCLITimeout_RoundTrip(t *testing.T) {
 	// discovery instead of being pinned to an empty string.
 	if got := loaded.Backends.OpenClaw.BinaryPath; got != "" {
 		t.Errorf("BinaryPath should stay empty, got %q", got)
+	}
+}
+
+func TestCLIConfigRoot_UpgradedInstallKeepsLegacyDirectory(t *testing.T) {
+	home := t.TempDir()
+	redirectTestHome(t, home)
+	t.Setenv(TaskConfigRootEnv, "")
+	legacyDir := filepath.Join(home, brand.LegacyConfigDir)
+	if err := os.MkdirAll(filepath.Join(legacyDir, "profiles"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, profile := range []string{"", "dev"} {
+		wantDir := legacyDir
+		wantConfig := filepath.Join(legacyDir, "config.json")
+		if profile != "" {
+			wantDir = filepath.Join(legacyDir, "profiles", profile)
+			wantConfig = filepath.Join(wantDir, "config.json")
+		}
+		if got, err := ProfileDir(profile); err != nil || got != wantDir {
+			t.Fatalf("ProfileDir(%q) = %q, %v; want %q", profile, got, err, wantDir)
+		}
+		if got, err := CLIConfigPathForProfile(profile); err != nil || got != wantConfig {
+			t.Fatalf("CLIConfigPathForProfile(%q) = %q, %v; want %q", profile, got, err, wantConfig)
+		}
+	}
+
+	// The legacy file is what loads, not a second copy under the new name.
+	if err := SaveCLIConfig(CLIConfig{ServerURL: "https://legacy.example", Token: "mul_legacy"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, brand.ConfigDir)); !os.IsNotExist(err) {
+		t.Fatalf("upgraded install created %q; error = %v", brand.ConfigDir, err)
+	}
+	cfg, err := LoadCLIConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ServerURL != "https://legacy.example" || cfg.Token != "mul_legacy" {
+		t.Fatalf("loaded config = %#v, want the value saved through the legacy directory", cfg)
+	}
+}
+
+func TestCLIConfigRoot_FreshInstallUsesCurrentDirectory(t *testing.T) {
+	home := t.TempDir()
+	redirectTestHome(t, home)
+	t.Setenv(TaskConfigRootEnv, "")
+
+	wantRoot := filepath.Join(home, brand.ConfigDir)
+	if got, err := ProfileDir(""); err != nil || got != wantRoot {
+		t.Fatalf("ProfileDir(\"\") = %q, %v; want %q", got, err, wantRoot)
+	}
+	if got, err := CLIConfigPathForProfile("dev"); err != nil || got != filepath.Join(wantRoot, "profiles", "dev", "config.json") {
+		t.Fatalf("CLIConfigPathForProfile(dev) = %q, %v; want below %q", got, err, wantRoot)
+	}
+	if _, err := os.Stat(filepath.Join(home, brand.LegacyConfigDir)); !os.IsNotExist(err) {
+		t.Fatalf("fresh install created the legacy directory; error = %v", err)
+	}
+}
+
+// The renamed environment variable reaches the same read through the
+// startup bridge, so an operator can switch names before the old one is
+// retired.
+func TestCLIConfigRoot_AcceptsRenamedTaskRootEnv(t *testing.T) {
+	home := t.TempDir()
+	redirectTestHome(t, home)
+	taskRoot := filepath.Join(t.TempDir(), "task-u-workers")
+	t.Setenv("U_WORKERS_TASK_CONFIG_ROOT", taskRoot)
+	envcompat.Bridge()
+	t.Cleanup(func() { _ = os.Unsetenv(TaskConfigRootEnv) })
+
+	got, err := CLIConfigPathForProfile("dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(taskRoot, "profiles", "dev", "config.json")
+	if got != want {
+		t.Fatalf("CLIConfigPathForProfile(dev) = %q, want %q from the renamed env var", got, want)
 	}
 }

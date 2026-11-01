@@ -1,10 +1,10 @@
 // @vitest-environment node
-import { homedir } from "os";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_HEALTH_PORT,
+  cliConfigRoot,
   deriveProfileName,
   healthPortForProfile,
   profileArgs,
@@ -13,10 +13,8 @@ import {
   profileLogPath,
   profilePidPath,
   profileUserIdPath,
+  resolveCliConfigRoot,
 } from "./daemon-profile";
-
-const MULTICA_DIR = join(homedir(), ".multica");
-const DEFAULT_CLI_CONFIG = join(MULTICA_DIR, "config.json");
 
 describe("deriveProfileName", () => {
   it("names the profile after the target host", () => {
@@ -36,9 +34,26 @@ describe("deriveProfileName", () => {
   });
 });
 
+describe("resolveCliConfigRoot", () => {
+  // An upgraded install keeps its legacy directory: renaming a directory that
+  // holds the saved login, profiles, and daemon state would silently sign the
+  // user out.
+  it("keeps an existing legacy config directory", () => {
+    expect(
+      resolveCliConfigRoot("/home/user", (path) => path === join("/home/user", ".multica")),
+    ).toBe(join("/home/user", ".multica"));
+  });
+
+  it("uses the current directory on a machine that never ran the product", () => {
+    expect(resolveCliConfigRoot("/home/user", () => false)).toBe(
+      join("/home/user", ".u-workers"),
+    );
+  });
+});
+
 describe("profile paths", () => {
   it("always resolves under profiles/<name>", () => {
-    const dir = join(MULTICA_DIR, "profiles", "u-workers-desktop-api.example.test");
+    const dir = join(cliConfigRoot(), "profiles", "u-workers-desktop-api.example.test");
     expect(profileDir("u-workers-desktop-api.example.test")).toBe(dir);
     expect(profileConfigPath("u-workers-desktop-api.example.test")).toBe(
       join(dir, "config.json"),
@@ -54,8 +69,9 @@ describe("profile paths", () => {
     );
   });
 
-  // Regression: an unresolved profile used to resolve to ~/.multica, so Desktop
-  // could overwrite server_url and token in the user's own CLI config. #6399.
+  // Regression: an unresolved profile used to resolve to the default profile,
+  // so Desktop could overwrite server_url and token in the user's own CLI
+  // config. #6399.
   it("refuses to build a path for an unresolved profile", () => {
     expect(() => profileDir("")).toThrow(/unresolved/);
     expect(() => profileConfigPath("")).toThrow(/unresolved/);
@@ -66,7 +82,7 @@ describe("profile paths", () => {
 
   it("never yields the default CLI config path for any input", () => {
     for (const name of ["u-workers-desktop-api.example.test", "u-workers-desktop-localhost-8080"]) {
-      expect(profileConfigPath(name)).not.toBe(DEFAULT_CLI_CONFIG);
+      expect(profileConfigPath(name)).not.toBe(join(cliConfigRoot(), "config.json"));
     }
     expect(() => profileConfigPath("")).toThrow();
   });

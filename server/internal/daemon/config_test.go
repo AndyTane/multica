@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 )
@@ -519,7 +520,7 @@ func TestLoadConfig_SkipsMulticaHooksShadowingAgentBinaries(t *testing.T) {
 
 	home := t.TempDir()
 	redirectTestHome(t, home)
-	hooksDir := filepath.Join(home, ".multica", "hooks")
+	hooksDir := filepath.Join(home, brand.ConfigDir, "hooks")
 	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 		t.Fatalf("create hooks dir: %v", err)
 	}
@@ -579,7 +580,7 @@ func TestLoadConfig_SkipsMulticaHooksFromLoginShellFallback(t *testing.T) {
 
 	home := t.TempDir()
 	redirectTestHome(t, home)
-	hooksDir := filepath.Join(home, ".multica", "hooks")
+	hooksDir := filepath.Join(home, brand.ConfigDir, "hooks")
 	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 		t.Fatalf("create hooks dir: %v", err)
 	}
@@ -1856,7 +1857,7 @@ func TestLoadConfig_BackendOverrides_MalformedConfigFileNonFatal(t *testing.T) {
 	redirectTestHome(t, homeDir)
 
 	// Write malformed JSON.
-	cfgDir := filepath.Join(homeDir, ".multica")
+	cfgDir := filepath.Join(homeDir, brand.ConfigDir)
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

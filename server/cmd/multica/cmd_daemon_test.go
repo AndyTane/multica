@@ -17,6 +17,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon"
 )
@@ -833,7 +834,7 @@ func valueColumn(t *testing.T, line string) int {
 
 func mkdirProfile(t *testing.T, home, profile string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Join(home, ".multica", "profiles", profile), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(home, brand.ConfigDir, "profiles", profile), 0o755); err != nil {
 		t.Fatal(err)
 	}
 }

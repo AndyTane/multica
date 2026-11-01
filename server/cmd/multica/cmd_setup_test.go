@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 )
 
@@ -408,7 +409,7 @@ func TestSetupCommandsFailClosedInTaskContext(t *testing.T) {
 	t.Setenv("MULTICA_TASK_ID", "task-test")
 	t.Setenv("MULTICA_TASK_CONFIG_ROOT", filepath.Join(t.TempDir(), "task-multica"))
 
-	ownerPath := filepath.Join(ownerHome, ".multica", "config.json")
+	ownerPath := filepath.Join(ownerHome, brand.ConfigDir, "config.json")
 	if err := os.MkdirAll(filepath.Dir(ownerPath), 0o755); err != nil {
 		t.Fatal(err)
 	}

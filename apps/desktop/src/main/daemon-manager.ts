@@ -267,7 +267,7 @@ async function writeProfileConfig(
  *
  * Returns `null` until the renderer reports its `apiUrl`. There is no profile
  * to act on in that window, and callers must do nothing rather than reach for
- * the user's default CLI profile at `~/.multica/` — neither its files nor its
+ * the user's default CLI profile under the CLI config root — neither its files nor its
  * health port.
  */
 async function resolveActiveProfile(): Promise<ActiveProfile | null> {
@@ -418,7 +418,11 @@ async function fetchHealth(): Promise<DaemonStatus> {
 }
 
 function findCliOnPath(): string | null {
-  const candidates = process.platform === "win32" ? ["multica.exe"] : ["multica"];
+  // Current installs provide u-workers; the legacy multica name still works.
+  const candidates =
+    process.platform === "win32"
+      ? ["u-workers.exe", "multica.exe"]
+      : ["u-workers", "multica"];
   const paths = (process.env["PATH"] ?? "").split(
     process.platform === "win32" ? ";" : ":",
   );

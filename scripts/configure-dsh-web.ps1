@@ -15,7 +15,13 @@ if ($origin.Scheme -ne 'http' -or $origin.Host -notin @('127.0.0.1', 'localhost'
 $AccessLog = (Resolve-Path -LiteralPath $AccessLog).Path
 $CliPath = (Resolve-Path -LiteralPath $CliPath).Path
 $BridgePath = (Resolve-Path -LiteralPath $BridgePath).Path
-$configDirectory = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.multica'
+# Same config-root resolution as the CLI (server/internal/brand.ConfigRoot):
+# an existing legacy ~/.multica wins so an upgraded install finds the bridge
+# config it already wrote; a machine that never ran the product uses
+# ~/.u-workers.
+$userHome = [Environment]::GetFolderPath('UserProfile')
+$legacyConfigDirectory = Join-Path $userHome '.multica'
+$configDirectory = if (Test-Path -LiteralPath $legacyConfigDirectory) { $legacyConfigDirectory } else { Join-Path $userHome '.u-workers' }
 New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
 $configFile = Join-Path $configDirectory 'dsh-web.json'
 @{ origin = $origin.GetLeftPart([UriPartial]::Authority); accessLog = $AccessLog } |

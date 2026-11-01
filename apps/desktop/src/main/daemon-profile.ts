@@ -1,4 +1,9 @@
-import { DESKTOP_PROFILE_PREFIX } from "@multica/core/config/brand";
+import {
+  CONFIG_DIRECTORY,
+  DESKTOP_PROFILE_PREFIX,
+  LEGACY_CONFIG_DIRECTORY,
+} from "@multica/core/config/brand";
+import { existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
@@ -6,10 +11,10 @@ import { join } from "path";
 export const DEFAULT_HEALTH_PORT = 19514;
 
 /**
- * Desktop owns only `~/.multica/profiles/u-workers-desktop-<host>/`. The default profile
- * at `~/.multica/` — config, daemon log, and health port 19514 — belongs to the
- * user's terminal CLI and must never be read, written, probed, or passed to the
- * bundled CLI.
+ * Desktop owns only the dedicated profile directory described below. The
+ * default profile at the CLI config root — config, daemon log, and health port
+ * 19514 — belongs to the user's terminal CLI and must never be read, written,
+ * probed, or passed to the bundled CLI.
  *
  * Callers signal "target API URL not known yet" with `null`, never with an
  * empty name, so there is no value that can quietly resolve to the default
@@ -25,7 +30,7 @@ export function assertResolvedProfile(profile: string): void {
 
 // Desktop owns a dedicated CLI profile named after the target API host, so it
 // never reads or writes the user's hand-configured profiles. Profile dir:
-//   ~/.multica/profiles/u-workers-desktop-<host>/
+//   <cli config root>/profiles/u-workers-desktop-<host>/
 export function deriveProfileName(targetUrl: string): string {
   try {
     const url = new URL(targetUrl);
@@ -48,9 +53,30 @@ export function healthPortForProfile(profile: string): number {
   return DEFAULT_HEALTH_PORT + 1 + (sum % 1000);
 }
 
+/**
+ * The CLI config root, resolved exactly like the Go CLI
+ * (server/internal/brand.ConfigRoot): an existing legacy ~/.multica directory
+ * wins, so an upgraded install keeps its saved login, profiles, and daemon
+ * state; a machine that never ran the product gets ~/.u-workers. Desktop must
+ * agree with the CLI here, or the profile it holds would live somewhere the
+ * bundled CLI never looks.
+ */
+export function resolveCliConfigRoot(
+  home: string,
+  exists: (path: string) => boolean = existsSync,
+): string {
+  const legacy = join(home, LEGACY_CONFIG_DIRECTORY);
+  if (exists(legacy)) return legacy;
+  return join(home, CONFIG_DIRECTORY);
+}
+
+export function cliConfigRoot(): string {
+  return resolveCliConfigRoot(homedir());
+}
+
 export function profileDir(profile: string): string {
   assertResolvedProfile(profile);
-  return join(homedir(), ".multica", "profiles", profile);
+  return join(cliConfigRoot(), "profiles", profile);
 }
 
 export function profileConfigPath(profile: string): string {
@@ -76,7 +102,7 @@ export function profileUserIdPath(profile: string): string {
 /**
  * CLI args selecting the Desktop-owned profile. An unresolved profile must
  * never produce an empty arg list: the bundled CLI would then act on the
- * user's default profile at `~/.multica/config.json`.
+ * user's default profile config under the CLI config root.
  */
 export function profileArgs(profile: string): string[] {
   assertResolvedProfile(profile);
