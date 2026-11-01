@@ -1,52 +1,47 @@
-# Portable package — verification record (CLAWSTA-107, green run)
+# Portable package — verification record (CLAWSTA-107, formal handover build)
 
 Date: 2026-11-02. Machine: laptop `VGHH-XX`, Windows 11 家庭版 10.0.26200, unprivileged user `HuaWei`.
-Repository branch: `clawsta-107-stacked` (stacked on CLAWSTA-104 / PR #17), draft PR #18.
-Package under test: `UWorkers-Portable-v0.2.0` built from the branch on this machine; upgrade rehearsal target `UWorkers-Portable-v0.2.1` (same payload, different version label).
+Branch: `clawsta-107-stacked` (stacked on CLAWSTA-104 / PR #17), draft PR #18.
 
-## Command
+## Deliverables on the laptop
+
+| item | path | size |
+| --- | --- | --- |
+| desktop handover archive (runtime) | `C:\UWorkers\packages\UWorkers-Portable-v0.2.0.zip` | 374,192,717 bytes (357 MiB) |
+| full build folder (incl. offline rebuild toolchain) | `C:\UWorkers\packages\UWorkers-Portable-v0.2.0-full` | 4,053 MB |
+
+The archive was produced from the full build with `deploy/portable/build-package.ps1` (branch commit at build time: `201e8f12b`, package manifest commit `50387aecd`), then the 3.1 GB offline Go toolchain was removed and `manifest.buildKit` set to `false` for the runtime handover. It contains the desktop handover sheet (`操作单-台式机.md`), the old-deployment finder (`Find-OldDeployment.cmd`), the prebuilt installer, the packaged runtime and the full standalone web release with package-local dependency links.
+
+## Acceptance run on the built package: ACCEPTANCE PASSED (43 checks, 451.7 s)
 
 ```powershell
 pwsh -File deploy\portable\test\acceptance.ps1 `
-  -Package D:\UWorkers\clawsta107\dist\UWorkers-Portable-v0.2.0 `
-  -UpgradePackage D:\UWorkers\clawsta107\dist\UWorkers-Portable-v0.2.1 `
+  -Package C:\UWorkers\packages\UWorkers-Portable-v0.2.0-full `
+  -UpgradePackage C:\UWorkers\packages\UWorkers-Portable-v0.2.1 `
   -WorkRoot $env:TEMP\uw-a `
   -HideCheckoutPath <repository checkout>
 ```
 
-The harness copies the package into an isolated folder, points every child process at a dead HTTP proxy (`http://127.0.0.1:9`, dependency downloads disabled), runs `install.ps1` (exactly what `Setup.cmd` calls), and verifies the result. Isolated ports: HTTPS 23443, API 28080, web 23000, PostgreSQL 26433. The package CLI profile is `uworkers-acceptance-server` so the machine's existing Multica CLI state is not used.
+Evidence: `evidence/clawsta-107/acceptance.json`. Isolated folder, dependency downloads disabled (dead HTTP proxy for every child process), no admin rights, isolated ports 23443/28080/23000/26433, package CLI profile kept away from the machine's Multica CLI state.
 
-## Result: ACCEPTANCE PASSED — 42 checks, 384.7 s
+Verified in this run:
 
-Evidence: `evidence/clawsta-107/acceptance.json` (machine-readable, includes every check, package hashes, runtimes, upgrade report).
+- one-script install; install report; PostgreSQL cluster + all migrations inside the package
+- board, sign-in page and API over the generated CA's HTTPS; the same endpoint fails when that CA is not trusted
+- the installed web release references only package files; with the build checkout hidden the board and API keep working (the harness hid the checkout's dependency store, because a build process still held the checkout root; every packaged dependency link pointed there, so this is an equivalent proof)
+- local account + workspace + onboarding + local password sign-in
+- bundled daemon auto-connect with the opencode runtime online; start-on-login item registered
+- the prebuilt installer shipped in the package and runs; **installer rebuilt offline** from the bundled toolchain (20.6 MB)
+- second simulated machine: PAT minted, packaged CLI `connect` exit 0, its daemon/runtime registration confirmed
+- **overlay upgrade on an instance with data**: version changed, verified database backup created, marker issue still readable, row counts 1/1/1 unchanged
+- existing Multica CLI config hash unchanged
 
-### The three requested items
+Cleanup note: the automated cleanup still reported the simulated second-machine daemon releasing its profile folder a moment after the check (same transient as the previous run); that daemon and the profile folder were removed manually afterwards, the work root and startup item were removed by the harness, and ports were free again.
 
-1. **Web dependencies packaged portably, board works with the build checkout hidden.**
-   The standalone Next.js release keeps a pnpm store inside the folder but links a few package directories back into the build checkout. Packaging now expands the store-internal links into real files, renames the store directories to short hashes (Windows path limit), records the two app-level links in `portable-links.json`, and Setup/Upgrade recreate them as **package-local junctions** (no administrator rights needed).
-   Verified: `installed web release references only files inside the package` PASS; the build checkout was renamed away during the run and `board works with the build checkout hidden` PASS, `API works with the build checkout hidden` PASS.
-2. **Offline installer rebuild.** `Build-Installer.cmd` rebuilt `u-workers-setup-v0.2.0-windows-amd64.exe` (20.6 MB) from the bundled Go toolchain, module cache and source snapshot with the dead proxy in place: `installer rebuilt offline from the bundled toolchain` PASS.
-3. **Overlay upgrade on an instance with data.** Marker issue created on v0.2.0 → upgrade to v0.2.1: version changed, backup `backups\native-20261102-005306` created and verified, API ready after restart, marker issue still readable, row counts 1 user / 1 workspace / 1 issue before and after: all PASS.
+## Known limits
 
-### Also verified in the same run
-
-- one-script install completed; report written; clean install; version matches the package
-- PostgreSQL cluster + all migrations inside the package; API ready over HTTPS; private root CA exported; the same endpoint fails when that CA is not trusted (verification is real, not disabled)
-- local operator account created, local password sign-in works, onboarding completed, initial workspace created
-- bundled daemon auto-connected; opencode runtime online (`Opencode (移动专用机)`), plus the machine's other agent CLIs
-- start-on-login item registered in the current user's Startup folder
-- prebuilt `u-workers-setup` shipped in the package and runs
-- second simulated machine: PAT minted, packaged CLI `connect` exited 0, its daemon/runtime registration confirmed
-- the machine's existing Multica CLI config hash unchanged
-
-### Cleanup note
-
-The automated cleanup reported one transient warning: the simulated second-machine daemon was still releasing `~/.multica/profiles/uworkers-acceptance-second` when the harness tried to remove it (the process finished a moment later). After the run the leftover daemon and profile directory were removed manually; the work root, startup item and all test processes are gone and ports 23443/28080/23000/26433 are free again. Multica's own service and config were not touched.
-
-## Known limits (unchanged)
-
-- Install path should be short: Windows still has the 260-character path limit; store directory names are shortened at packaging time and Setup fails with an actionable message if the release cannot be copied completely.
+- The handover archive is the runtime package: it does not contain the offline rebuild toolchain (`tools\go`, `tools\gomodcache`). Rebuilding the installer needs the full build folder on the laptop.
+- Install path should be short: Windows still limits paths to 260 characters; Setup fails with an actionable message when the release cannot be copied completely.
 - Unsinged binaries; SmartScreen warns.
-- Browser root-CA trust requires the one-time Windows confirmation dialog; `-SkipBrowserTrust` / `Trust-Browser.cmd` cover it.
-- A PostgreSQL major-version move is out of scope for the overlay upgrade.
-- `Setup.cmd -AdoptRoot` (take over an existing native deployment after a backup) is implemented but was not rehearsed against a real old deployment on this laptop; that step belongs to the desktop machine.
+- Browser root-CA trust needs the one-time Windows confirmation dialog; `Trust-Browser.cmd` covers it.
+- `Setup.cmd -AdoptRoot` (take over an existing native deployment after a backup) was rehearsed in the overlay-upgrade test but not against the desktop's real CLAWSTA-81 deployment; that is the desktop step, and it backs up before touching anything.
