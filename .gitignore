@@ -36,6 +36,10 @@ server/migrate
 server/daemon
 server/multica
 
+# Windows installer payload staged by scripts/build-windows-installer.ps1
+server/cmd/u-workers-setup/payload/*.exe
+server/cmd/u-workers-setup/payload/*.zip
+
 # Test artifacts
 test-results/
 apps/web/test-results/
