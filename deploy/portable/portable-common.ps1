@@ -309,68 +309,77 @@ function Start-PortableHiddenProcess {
     }
 }
 
+function ConvertTo-PortableCommandToken {
+    # Quote one argument for a generated .cmd file. cmd.exe expands % and treats
+    # characters such as & and | outside quotes, so anything that is not a plain
+    # path/number token is wrapped in double quotes and % is doubled. Trailing
+    # backslashes are doubled so the closing quote is not escaped for the
+    # receiving program.
+    param([string]$Value)
+    if ($Value -match '[\r\n]') { throw 'Refusing to launch a process with a newline in an argument.' }
+    $escaped = $Value -replace '%', '%%'
+    if ($escaped -and $escaped -match '^[A-Za-z0-9_.:/-]+$') { return $escaped }
+    $escaped = $escaped -replace '"', '""'
+    $trailing = [regex]::Match($escaped, '\\+$').Value
+    if ($trailing) { $escaped = $escaped + $trailing }
+    return '"' + $escaped + '"'
+}
+
 function Invoke-PortableCommand {
-    # Capture output through files, not a PowerShell pipeline. A command that
-    # starts a long-lived child (the native supervisor) keeps inherited pipe
-    # handles open, and a pipeline would then block forever after the launcher
-    # itself exited. Waiting only for the started process avoids that.
+    # Runs one command and returns its exit code plus captured stdout and stderr.
     #
-    # The command runs through a small helper script started with
-    # System.Diagnostics.Process rather than Start-Process: Windows PowerShell 5.1
-    # (what Setup.cmd runs on a fresh machine) leaves Start-Process' ExitCode
-    # empty unless -Wait is passed, and -Wait would also wait for long-lived
-    # grandchildren such as the native supervisor or the daemon.
-    param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory)
+    # The command is written into a generated batch file that cmd.exe runs with
+    # both streams redirected straight to files. PowerShell pipelines and
+    # redirections are avoided on purpose: a command that leaves a long-lived
+    # child behind (the native supervisor, the daemon) keeps an inherited pipe
+    # open, so a pipeline would wait forever. The batch file records %ERRORLEVEL%
+    # in its own file afterwards, because Windows PowerShell 5.1 — what Setup.cmd
+    # runs on a fresh machine — leaves Start-Process' ExitCode empty unless
+    # -Wait is passed, and -Wait waits for those same long-lived children.
+    param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory, [int]$TimeoutSec = 3600)
     $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-command-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
     $stdoutPath = Join-Path $temporaryDirectory 'stdout.log'
     $stderrPath = Join-Path $temporaryDirectory 'stderr.log'
     $exitCodePath = Join-Path $temporaryDirectory 'exit-code.txt'
-    $payloadPath = Join-Path $temporaryDirectory 'command.json'
-    $runnerPath = Join-Path $temporaryDirectory 'run-command.ps1'
-    $runnerText = @'
-param([string]$Payload)
-$ErrorActionPreference = 'Continue'
-$info = Get-Content -LiteralPath $Payload -Raw -Encoding UTF8 | ConvertFrom-Json
-foreach ($property in $info.Environment.PSObject.Properties) {
-    [Environment]::SetEnvironmentVariable([string]$property.Name, [string]$property.Value, 'Process')
-}
-if ($info.WorkingDirectory) { Set-Location -LiteralPath ([string]$info.WorkingDirectory) }
-$arguments = @()
-foreach ($argument in @($info.Arguments)) { $arguments += [string]$argument }
-& ([string]$info.Executable) @arguments 1> ([string]$info.Stdout) 2> ([string]$info.Stderr)
-$code = $LASTEXITCODE
-if ($null -eq $code) { $code = 0 }
-[IO.File]::WriteAllText([string]$info.ExitCodeFile, [string]$code, (New-Object Text.UTF8Encoding($false)))
-exit $code
-'@
+    $batchPath = Join-Path $temporaryDirectory 'run-command.cmd'
+    $process = $null
     try {
-        $environmentPayload = [ordered]@{}
+        $lines = New-Object System.Collections.Generic.List[string]
+        $lines.Add('@echo off')
+        $lines.Add('setlocal')
         if ($Environment) {
-            foreach ($key in $Environment.Keys) { $environmentPayload[[string]$key] = [string]$Environment[$key] }
+            foreach ($key in $Environment.Keys) {
+                $name = ([string]$key) -replace '[^A-Za-z0-9_]', ''
+                if (-not $name) { continue }
+                $value = ([string]$Environment[$key]) -replace '%', '%%'
+                $lines.Add('set "' + $name + '=' + $value + '"')
+            }
         }
-        $payload = [ordered]@{
-            Executable = [string]$Executable
-            Arguments = @($Arguments)
-            Environment = $environmentPayload
-            WorkingDirectory = [string]$WorkingDirectory
-            Stdout = $stdoutPath
-            Stderr = $stderrPath
-            ExitCodeFile = $exitCodePath
+        if ($WorkingDirectory) { $lines.Add('cd /d "' + (([string]$WorkingDirectory) -replace '%', '%%') + '"') }
+        $tokens = @()
+        foreach ($argument in @($Arguments)) { $tokens += (ConvertTo-PortableCommandToken ([string]$argument)) }
+        $commandLine = '"' + ([string]$Executable) + '"'
+        if ($tokens.Count -gt 0) { $commandLine += ' ' + ($tokens -join ' ') }
+        $lines.Add($commandLine + ' 1> "' + $stdoutPath + '" 2> "' + $stderrPath + '"')
+        $lines.Add('> "' + $exitCodePath + '" echo %ERRORLEVEL%')
+        $ansi = [Text.Encoding]::GetEncoding([Globalization.CultureInfo]::CurrentCulture.TextInfo.ANSICodePage)
+        [IO.File]::WriteAllLines($batchPath, $lines, $ansi)
+        $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\cmd.exe') -ArgumentList ('/d /c ""' + $batchPath + '""') -WindowStyle Hidden -PassThru
+        $deadline = (Get-Date).AddSeconds($TimeoutSec)
+        while (-not (Test-Path -LiteralPath $exitCodePath)) {
+            if ($process.HasExited) {
+                Start-Sleep -Milliseconds 200
+                break
+            }
+            if ((Get-Date) -gt $deadline) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                break
+            }
+            Start-Sleep -Milliseconds 100
         }
-        $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $payloadPath -Encoding UTF8
-        [IO.File]::WriteAllText($runnerPath, $runnerText, (New-Object Text.UTF8Encoding($false)))
-        $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $startInfo.FileName = $shell
-        $startInfo.Arguments = (ConvertTo-PortableArgumentLine @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $runnerPath, '-Payload', $payloadPath))
-        $startInfo.UseShellExecute = $false
-        $startInfo.CreateNoWindow = $true
-        $startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
-        $process = [System.Diagnostics.Process]::Start($startInfo)
-        $process.WaitForExit()
-        $exitCode = $process.ExitCode
-        if ($null -eq $exitCode -and (Test-Path -LiteralPath $exitCodePath)) {
+        $exitCode = $null
+        if (Test-Path -LiteralPath $exitCodePath) {
             $parsed = 0
             $rawCode = (Get-Content -LiteralPath $exitCodePath -Raw -ErrorAction SilentlyContinue)
             if ($rawCode -and [int]::TryParse(([string]$rawCode).Trim(), [ref]$parsed)) { $exitCode = $parsed }
@@ -381,12 +390,16 @@ exit $code
                 $output += (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)
             }
         }
+        if ($null -eq $exitCode) {
+            $exitCode = 1
+            $output += [Environment]::NewLine + 'The command did not report an exit code.'
+        }
         return [pscustomobject]@{ ExitCode = $exitCode; Output = [string]$output }
     } finally {
+        if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
         Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
-
 function Invoke-PortableSql {
     param($Root, [string]$Sql, [string]$Database = 'postgres', [string]$FieldSeparator = '|')
     $config = Get-PortableDeployment $Root
