@@ -520,7 +520,7 @@ Write-Host ''
 $manifest = Get-PortableManifest $root
 $installedConfig = Read-PortableJson (Join-Path $root 'deployment.json')
 
-$installReportPath = Join-Path $root 'datainstall-report.json'
+$installReportPath = Join-Path $root 'data\install-report.json'
 $resumeInstall = $false
 if ($installedConfig -and -not $AdoptRoot) {
     $installedVersion = [string]$installedConfig.Version
@@ -665,7 +665,7 @@ $report = [ordered]@{
     workspaceId = $result.WorkspaceId
     startOnLogin = $startupPath
     runtimes = @($runtimes | ForEach-Object { [ordered]@{ name = $_.name; provider = $_.provider; status = $_.status; id = $_.id } })
-    backup = $result.Backup
+    backup = $(if ($result.Contains('Backup')) { $result.Backup } else { '' })
     durationSeconds = [math]::Round(((Get-Date) - $startedAt).TotalSeconds, 1)
 }
 $reportPath = Write-PortableInstallReport -Root $root -Report $report
