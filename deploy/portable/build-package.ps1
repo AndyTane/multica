@@ -291,6 +291,15 @@ Get-ChildItem -LiteralPath (Join-Path $portableRoot 'package') -File | ForEach-O
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $packageDir $_.Name) -Force
 }
 
+# A reused payload can carry the previous version's installer filename;
+# rename it to this package's version so the manifest and the checks agree.
+$installerDirectory = Join-Path $payload 'installer'
+$existingInstallers = @(Get-ChildItem -LiteralPath $installerDirectory -Filter '*.exe' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+$expectedInstallerName = 'u-workers-setup-' + $Version + '-windows-amd64.exe'
+if ($existingInstallers.Count -gt 0 -and $existingInstallers[0].Name -ne $expectedInstallerName) {
+    Move-Item -LiteralPath $existingInstallers[0].FullName -Destination (Join-Path $installerDirectory $expectedInstallerName) -Force
+}
+
 Write-Step 'Validating the assembled package'
 $installerPath = Join-Path $payload ('installer\u-workers-setup-' + $Version + '-windows-amd64.exe')
 if (-not (Test-Path -LiteralPath $installerPath)) { throw ('The package is missing the prebuilt installer: ' + $installerPath) }
