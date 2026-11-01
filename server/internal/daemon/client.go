@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/tlsx"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
@@ -124,13 +125,17 @@ type Client struct {
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL:      baseURL,
-		client:       &http.Client{Timeout: 30 * time.Second, Transport: cloneDefaultTransport()},
-		bundleClient: &http.Client{},
+		client:       &http.Client{Timeout: 30 * time.Second, Transport: tlsx.HTTPTransport()},
+		bundleClient: &http.Client{Transport: tlsx.HTTPTransport()},
 		platform:     "daemon",
 		os:           normalizeGOOS(runtime.GOOS),
 	}
 }
 
+// cloneDefaultTransport returns the untouched default transport. Daemon
+// clients use tlsx.HTTPTransport instead so a self-hosted private CA is trusted
+// without weakening verification; this helper is kept for callers that
+// explicitly want no extra roots.
 func cloneDefaultTransport() http.RoundTripper {
 	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
 		return transport.Clone()

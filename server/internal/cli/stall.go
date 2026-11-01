@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/tlsx"
 )
 
 // Transfer-stall detection.
@@ -126,22 +128,19 @@ func (e *StallError) Unwrap() error { return e.Err }
 // stops making progress, and a loose whole-request ceiling behind both.
 func NewStallAwareHTTPClient() *http.Client {
 	idle := StallTimeout()
-	base := &http.Transport{
-		// ProxyFromEnvironment matches http.DefaultTransport. Dropping it
-		// would silently break every user behind a corporate proxy, which is
-		// a population that overlaps heavily with the slow links this change
-		// exists for.
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: idle, KeepAlive: 30 * time.Second}).DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   idle,
-		ExpectContinueTimeout: 1 * time.Second,
-		// Covers the phase the body guard cannot see: connected, request
-		// sent, server never replies.
-		ResponseHeaderTimeout: idle,
-	}
+	// Start from the shared trust-extended transport so a self-hosted private
+	// CA keeps working here too; the fields below then tighten its timeouts.
+	base := tlsx.HTTPTransport()
+	base.Proxy = http.ProxyFromEnvironment
+	base.DialContext = (&net.Dialer{Timeout: idle, KeepAlive: 30 * time.Second}).DialContext
+	base.ForceAttemptHTTP2 = true
+	base.MaxIdleConns = 100
+	base.IdleConnTimeout = 90 * time.Second
+	base.TLSHandshakeTimeout = idle
+	base.ExpectContinueTimeout = 1 * time.Second
+	// Covers the phase the body guard cannot see: connected, request
+	// sent, server never replies.
+	base.ResponseHeaderTimeout = idle
 	return &http.Client{
 		Transport: &stallGuardTransport{base: base, idle: idle},
 		// The wall clock stays, but demoted from primary failure test to

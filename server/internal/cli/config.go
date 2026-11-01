@@ -25,8 +25,19 @@ const (
 
 // CLIConfig holds persistent CLI settings.
 type CLIConfig struct {
-	ServerURL   string `json:"server_url,omitempty"`
-	AppURL      string `json:"app_url,omitempty"`
+	ServerURL string `json:"server_url,omitempty"`
+	AppURL    string `json:"app_url,omitempty"`
+
+	// RootCAFile is the path to the public root CA certificate of a self-hosted
+	// server whose TLS certificate is not publicly trusted (a LAN deployment
+	// with an internal CA). Every outbound HTTPS client of this process — CLI
+	// API calls, the daemon, and the WebSocket dialer — appends it to the system
+	// trust pool; certificate, hostname and expiry verification stay enabled.
+	// Empty means "use the system trust store only".
+	//
+	// Written by `u-workers connect --root-ca`, read at process bootstrap through
+	// internal/tlsx (which also honors U_WORKERS_ROOT_CA_FILE).
+	RootCAFile  string `json:"root_ca_file,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	Token       string `json:"token,omitempty"`
 
@@ -267,6 +278,18 @@ func ProfileDir(profile string) (string, error) {
 		return root, nil
 	}
 	return filepath.Join(root, "profiles", profile), nil
+}
+
+// RootCAFilePath returns the profile-owned copy of the deployment's public
+// root CA certificate. The connect command stores it here so the path survives
+// config edits and profile switches; every HTTPS client reads it through
+// internal/tlsx.
+func RootCAFilePath(profile string) (string, error) {
+	dir, err := ProfileDir(profile)
+	if err != nil {
+		return "", fmt.Errorf("resolve profile dir: %w", err)
+	}
+	return filepath.Join(dir, "trust", "root-ca.pem"), nil
 }
 
 // ConfigRootDir returns the directory that owns CLI profiles, daemon state, and
