@@ -124,13 +124,13 @@ Desktop can only connect to addresses reachable from both the browser and the ex
 
 Two Windows editor defaults silently produce a file Desktop can't use:
 
-- **Notepad appends `.txt`.** Saving as `desktop.json` can produce `desktop.json.txt`, which Desktop treats as not found. Turn on file name extensions in Explorer, or pick *All files* in the save dialog. To see the real filename, run `Get-ChildItem "$env:USERPROFILE\.multica" -Filter "desktop.json*"` in PowerShell — the `Name` column must read exactly `desktop.json`.
+- **Notepad appends `.txt`.** Saving as `desktop.json` can produce `desktop.json.txt`, which Desktop treats as not found. Turn on file name extensions in Explorer, or pick *All files* in the save dialog. To see the real filename, run `Get-ChildItem "$env:USERPROFILE.u-workers" -Filter "desktop.json*"` in PowerShell — the `Name` column must read exactly `desktop.json`.
 - **PowerShell redirection writes UTF-16 or a BOM.** `> desktop.json` and `Out-File` can produce an encoding that fails to parse, which surfaces as a configuration error.
 
 To avoid both, create the file from PowerShell in one step:
 
 ```powershell
-$dir = "$env:USERPROFILE\.multica"
+$dir = "$env:USERPROFILE.u-workers"
 New-Item -ItemType Directory -Force $dir | Out-Null
 $json = @'
 {
