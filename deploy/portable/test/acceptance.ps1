@@ -161,7 +161,9 @@ try {
         # gigabytes of module cache per test run, so the clean copy links it
         # from the package folder instead; the offline rebuild still reads only
         # files inside the package.
-        Invoke-Robocopy $packagePath $serverCopy -ExcludeDirectories @('tools')
+        # Exclude only the package's own top-level tools folder; a bare name
+        # would also exclude same-named folders inside the web dependencies.
+        Invoke-Robocopy $packagePath $serverCopy -ExcludeDirectories @((Join-Path $packagePath 'tools'))
         $sourceTools = Join-Path $packagePath 'tools'
         if (Test-Path -LiteralPath $sourceTools) {
             $linkedTools = Join-Path $serverCopy 'tools'
