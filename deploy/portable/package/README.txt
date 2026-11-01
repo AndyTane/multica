@@ -1,0 +1,50 @@
+U Workers portable server
+=========================
+
+Everything in this folder is the server: PostgreSQL, the API, the web app,
+LAN HTTPS with its own private root certificate, the desktop sign-in account
+and a local opencode runtime. No administrator rights and no internet
+connection are needed.
+
+First run
+---------
+1. Copy this whole folder to a writable place (for example
+   %LOCALAPPDATA%\U Workers Portable).
+2. Double-click Setup.cmd. The first start takes a minute or two.
+3. The browser opens the sign-in page. Use the user name printed by Setup
+   and the password stored in data\local-login.txt.
+
+Everyday
+--------
+  Start.cmd      start the server (also starts automatically at sign-in)
+  Stop.cmd       stop it; data is kept
+  Status.cmd     what is running, which ports, where the root certificate is
+  Upgrade.cmd    upgrade from a newer package; backs up first
+  Uninstall.cmd  remove the service, the start-on-login item and the browser
+                 trust; add -PurgeData to delete the database and uploads
+
+Other machines
+--------------
+1. Copy root-ca.crt (in this folder) to the other Windows machine.
+2. Run the u-workers-setup EXE from payload\installer (or build a fresh one
+   with Build-Installer.cmd).
+3. Run:  u-workers connect --server-url https://<this-machine-LAN-IP>:13443
+        --root-ca .\root-ca.crt
+
+Building the installer from this folder
+---------------------------------------
+No internet needed. Run Build-Installer.cmd; it uses the bundled Go
+toolchain, module cache and source snapshot, and writes the EXE to dist\.
+
+Folder map
+----------
+  payload\release     prebuilt API binaries, migrations and web app
+  payload\bin         u-workers CLI (installed daemon binary)
+  payload\runtime     node.exe, PostgreSQL, Caddy, opencode
+  payload\source      source snapshot used to rebuild the installer
+  payload\installer   the prebuilt u-workers-setup EXE for other machines
+  tools\              Go toolchain and module cache for offline rebuilds
+  data\               database, uploads, logs, backups, install report
+  runtime\            staged server runtime (PostgreSQL, node, runner)
+  releases\           staged releases; upgrade keeps the previous one
+  https\              Caddyfile, private CA data and the public root CA

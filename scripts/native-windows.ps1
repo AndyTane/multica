@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Prepare', 'Build', 'Backup', 'Restore', 'Start', 'Stop', 'Status', 'Run', 'InstallStartup', 'RemoveStartup', 'InstallTask', 'RemoveTask', 'Configure')]
+    [ValidateSet('Prepare', 'Build', 'Stage', 'Backup', 'Restore', 'Start', 'Stop', 'Status', 'Run', 'InstallStartup', 'RemoveStartup', 'InstallTask', 'RemoveTask', 'Configure')]
     [string]$Action = 'Status',
     [string]$Root = (Join-Path $env:LOCALAPPDATA 'Multica\native'),
     [string]$BackupPath,
@@ -16,6 +16,7 @@ param(
     [string]$WebHost,
     [string]$PgArchive,
     [string]$PgArchiveSha256,
+    [string]$ReleaseSource,
     [string]$Version,
     [string]$NodeExe,
     [string]$GoExe,
@@ -172,7 +173,10 @@ function Initialize-NativeCleanDeployment {
         CreatedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
     Write-NativeJson $configFile $config
-    Copy-Item -LiteralPath $script:ScriptFile -Destination (Join-Path $Directory 'runtime\native-windows.ps1') -Force
+    $runnerPath = Join-Path $Directory 'runtime\native-windows.ps1'
+    if ([IO.Path]::GetFullPath($script:ScriptFile) -ne [IO.Path]::GetFullPath($runnerPath)) {
+        Copy-Item -LiteralPath $script:ScriptFile -Destination $runnerPath -Force
+    }
     Write-Host ('Clean native deployment configuration written to ' + $Directory + '; generated secrets stay in deployment.json.')
 }
 
@@ -480,6 +484,26 @@ function Build-NativeDeployment {
     Write-Host "Native release built: $version ($commit)."
 }
 
+function Stage-NativeDeployment {
+    param($Config, [string]$Source)
+    # Stage a release that was built elsewhere (on a build machine) into this
+    # deployment. The portable package ships exactly this: prebuilt binaries and
+    # the standalone web app, so a locked-down machine never needs Go, Node or
+    # pnpm to run the server.
+    if (-not $Source) { throw 'A prebuilt release directory is required: pass -ReleaseSource <dir>.' }
+    $Source = [IO.Path]::GetFullPath($Source)
+    if (-not (Test-Path -LiteralPath (Join-Path $Source 'server.exe'))) { throw ('The prebuilt release does not contain server.exe: ' + $Source) }
+    if (-not (Test-Path -LiteralPath (Join-Path $Source 'web\apps\web\server.js'))) { throw ('The prebuilt release does not contain the standalone web app: ' + $Source) }
+    if (-not (Test-Path -LiteralPath (Join-Path $Source 'migrations'))) { throw ('The prebuilt release does not contain migrations: ' + $Source) }
+    $version = Resolve-NativeBuildVersion $Config
+    $commit = Resolve-NativeBuildCommit $Config
+    $release = Join-Path $Config.Root ('releases\' + $version + '-' + (Get-Date -Format 'yyyyMMddHHmmss'))
+    Copy-NativeDirectory $Source $release
+    $Config.Release = $release
+    Write-NativeJson (Join-Path $Config.Root 'deployment.json') $Config
+    Write-Host "Native release staged: $version ($commit) -> $release"
+}
+
 function Backup-DockerDeployment {
     param($Config)
     $name = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -691,6 +715,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     $config = Read-NativeConfig $Root
     switch ($Action) {
         'Build' { Build-NativeDeployment $config }
+        'Stage' { Stage-NativeDeployment $config $ReleaseSource }
         'Backup' { if ($BackupSource -eq 'Docker') { Backup-DockerDeployment $config } else { Backup-NativeDeployment $config } }
         'Restore' { Restore-NativeDeployment $config $BackupPath $Database }
         'Start' { Start-NativeDeployment $config }
