@@ -372,6 +372,7 @@ function Start-PortableHttps {
     param([string]$HostName)
     Write-Step ('Starting the LAN HTTPS entry on port ' + $HttpsPort)
     Start-PortableCaddy -Root $root -PublicHost $HostName -HttpsPort $HttpsPort -ApiPort $ApiPort -WebPort $WebPort | Out-Null
+    Invoke-PortableTlsHandshake -Uri ('https://localhost:' + $HttpsPort + '/readyz')
     $rootCA = Export-PortableRootCA $root
     Write-Host ('  root CA: ' + $rootCA.Path + '  (SHA-256 ' + $rootCA.Sha256 + ')')
     return $rootCA
@@ -435,8 +436,12 @@ function Invoke-PortableAdoption {
     $oldConfig = Get-PortableAdoptedDatabaseConfiguration $OldRoot
     $oldRunner = Join-Path $OldRoot 'runtime\native-windows.ps1'
     if (-not (Test-Path -LiteralPath $oldRunner)) { throw ('The deployment under -AdoptRoot has no runtime\native-windows.ps1: ' + $OldRoot) }
-    Write-Step 'Backing up the existing deployment'
+    Write-Step 'Starting the existing deployment so its data can be backed up'
     $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    # A stopped deployment cannot be dumped; Start is idempotent when it is
+    # already running, and a failure here is reported by the backup step below.
+    Invoke-PortableCommand -Executable $shell -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $oldRunner, '-Action', 'Start', '-Root', $OldRoot) | Out-Null
+    Write-Step 'Backing up the existing deployment'
     $backup = Invoke-PortableCommand -Executable $shell -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $oldRunner, '-Action', 'Backup', '-Root', $OldRoot)
     if ($backup.ExitCode -ne 0) { throw ('The existing deployment could not be backed up; nothing was changed: ' + $backup.Output.Trim()) }
     Write-Host ([string]$backup.Output).Trim()
@@ -503,19 +508,29 @@ Write-Host ''
 $manifest = Get-PortableManifest $root
 $installedConfig = Read-PortableJson (Join-Path $root 'deployment.json')
 
+$installReportPath = Join-Path $root 'datainstall-report.json'
+$resumeInstall = $false
 if ($installedConfig -and -not $AdoptRoot) {
     $installedVersion = [string]$installedConfig.Version
     if ($manifest.version -ne $installedVersion -and -not $Force) {
         Write-Host ('This folder already runs U Workers ' + $installedVersion + '; the package is ' + $manifest.version + '.') -ForegroundColor Yellow
         Write-Host 'Running the overlay upgrade (backup first, data preserved)...'
         $upgradeScript = Join-Path $root 'upgrade.ps1'
-        & $upgradeScript -PublicHost $PublicHost -HttpsPort $HttpsPort -ApiPort $ApiPort -WebPort $WebPort -DatabasePort $DatabasePort -Profile $Profile -SkipBrowserTrust:$SkipBrowserTrust -SkipDaemon:$SkipDaemon -NoBrowser:$NoBrowser -NoStartup:$NoStartup
+        & $upgradeScript -PublicHost $PublicHost -HttpsPort $HttpsPort -Profile $Profile -SkipBrowserTrust:$SkipBrowserTrust -SkipDaemon:$SkipDaemon -NoBrowser:$NoBrowser -NoStartup:$NoStartup
         exit 0
     }
-    Write-Host 'U Workers is already installed in this folder; starting it.' -ForegroundColor Yellow
-    & (Join-Path $root 'start.ps1') -Profile $Profile
-    Write-Host ('Board: https://' + (Get-PortablePublicHost $PublicHost) + ':' + $HttpsPort + '/')
-    exit 0
+    if (-not (Test-Path -LiteralPath $installReportPath)) {
+        # A previous run configured the deployment but stopped before finishing
+        # (account, HTTPS or daemon). Re-running Setup finishes those steps on the
+        # existing data instead of refusing or creating a second deployment.
+        $resumeInstall = $true
+        Write-Host 'A previous install did not finish; resuming the remaining steps.' -ForegroundColor Yellow
+    } else {
+        Write-Host 'U Workers is already installed in this folder; starting it.' -ForegroundColor Yellow
+        & (Join-Path $root 'start.ps1') -Profile $Profile
+        Write-Host ('Board: https://' + (Get-PortablePublicHost $PublicHost) + ':' + $HttpsPort + '/')
+        exit 0
+    }
 }
 
 if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -529,7 +544,7 @@ foreach ($relative in @('payload\release\server.exe', 'payload\release\web\apps\
 
 $hostName = Get-PortablePublicHost $PublicHost
 Write-Host ('LAN address for other machines: ' + $hostName + ':' + $HttpsPort)
-if (-not $AdoptRoot) {
+if (-not $AdoptRoot -and -not $resumeInstall) {
     foreach ($port in @($ApiPort, $WebPort, $DatabasePort, $HttpsPort)) {
         if (-not (Test-PortablePortFree $port)) { throw ('Port ' + $port + ' is already in use. Close the other program or pass different ports to Setup.cmd.') }
     }
@@ -548,9 +563,11 @@ if ($AdoptRoot) {
         PasswordFile = $null
     }
 } else {
-    Invoke-PortableStageRuntime
-    Invoke-PortablePrepare -HostName $hostName
-    Invoke-PortableStageRelease
+    if (-not $resumeInstall) {
+        Invoke-PortableStageRuntime
+        Invoke-PortablePrepare -HostName $hostName
+        Invoke-PortableStageRelease
+    }
     Invoke-PortableStartServer
     $rootCA = Start-PortableHttps -HostName $hostName
     $serverUrl = 'https://' + $hostName + ':' + $HttpsPort

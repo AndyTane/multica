@@ -29,6 +29,10 @@ try {
     $httpsPort = Get-PortableHttpsPortFromConfig $root
     Invoke-PortableNativeAction -Root $root -Action 'Start' | Out-Null
     Start-PortableCaddy -Root $root -PublicHost $hostName -HttpsPort $httpsPort -ApiPort ([int]$config.ApiPort) -WebPort ([int]$config.WebPort) | Out-Null
+    if (-not (Test-Path -LiteralPath (Get-PortablePublicRootCAPath $root))) {
+        Invoke-PortableTlsHandshake -Uri ('https://localhost:' + $httpsPort + '/readyz')
+        Export-PortableRootCA $root | Out-Null
+    }
     Wait-PortableHttp -Uri ('https://localhost:' + $httpsPort + '/readyz') -RootCAPath (Get-PortablePublicRootCAPath $root) -TimeoutSec 120 -Description 'the API over HTTPS' | Out-Null
     $daemon = Start-PortableDaemon -Root $root -Profile $Profile
     if (-not $Quiet) {

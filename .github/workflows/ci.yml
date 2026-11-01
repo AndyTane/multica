@@ -869,6 +869,16 @@ jobs:
         shell: pwsh
         run: ./scripts/install.ps1.test.ps1
 
+      - name: Test native Windows deployment lifecycle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/native-windows.test.ps1
+
+      - name: Test portable package scripts with Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./deploy/portable/test/portable-common.test.ps1
+
   script-checks:
     needs: changes
     if: ${{ needs.changes.outputs.scripts == 'true' }}

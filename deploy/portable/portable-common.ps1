@@ -477,6 +477,14 @@ function Wait-PortableHttp {
     return $ok
 }
 
+function Invoke-PortableTlsHandshake {
+    # Caddy issues the leaf certificate while serving the first TLS handshake
+    # for a site; a request with the default (untrusted) validation is expected
+    # to fail, but it makes Caddy create the certificate and its CA on disk.
+    param([string]$Uri)
+    try { Invoke-PortableWebRequest -Uri $Uri -TimeoutSec 10 | Out-Null } catch { }
+}
+
 function Export-PortableRootCA {
     param([string]$Root, [int]$TimeoutSec = 60)
     $source = Get-PortableRootCertificatePath $Root
@@ -577,6 +585,7 @@ function Start-PortableCaddy {
     if (Test-PortablePortListening $HttpsPort) { throw ('Port ' + $HttpsPort + ' is already in use; another HTTPS listener is running.') }
     New-PortableDirectory (Join-Path $Root 'state')
     New-PortableDirectory (Join-Path $Root 'logs')
+    New-PortableDirectory (Join-Path $Root 'https')
     $caddyfile = Get-PortableCaddyfilePath $Root
     [IO.File]::WriteAllText($caddyfile, (Get-PortableCaddyfile -Root $Root -PublicHost $PublicHost -HttpsPort $HttpsPort -ApiPort $ApiPort -WebPort $WebPort), (New-Object Text.UTF8Encoding($false)))
     $validation = Invoke-PortableCommand -Executable $caddyExe -Arguments @('validate', '--config', $caddyfile, '--adapter', 'caddyfile')
