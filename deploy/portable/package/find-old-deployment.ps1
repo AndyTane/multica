@@ -34,7 +34,7 @@ if ($candidates.Count -eq 0) {
 } else {
     Write-Host '找到的旧部署目录：' -ForegroundColor Green
     foreach ($path in $candidates) {
-        $config = Get-Content -LiteralPath (Join-Path $path 'deployment.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        $config = Get-Content -LiteralPath (Join-Path $path 'deployment.json') -Raw -Encoding UTF8 -ErrorAction SilentlyContinue | ConvertFrom-Json
         $version = if ($config -and $config.Version) { [string]$config.Version } else { '?' }
         Write-Host ('  ' + $path + '   版本 ' + $version)
     }

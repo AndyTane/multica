@@ -29,10 +29,50 @@ $script:RepoRoot = Split-Path $PSScriptRoot -Parent
 $script:ScriptFile = $PSCommandPath
 
 function Write-NativeJson {
+    # The write is flushed to the physical disk before the rename. The supervisor
+    # rewrites state\processes.json every few seconds, so without the flush an
+    # unclean shutdown could leave a file that exists but reads back as zeroes —
+    # the exact damage that used to abort the next startup.
     param([string]$Path, $Value)
     $text = $Value | ConvertTo-Json -Depth 12
-    [IO.File]::WriteAllText($Path + '.tmp', $text, [Text.UTF8Encoding]::new($false))
-    Move-Item -LiteralPath ($Path + '.tmp') -Destination $Path -Force
+    $temporary = $Path + '.tmp'
+    $bytes = [Text.UTF8Encoding]::new($false).GetBytes($text)
+    $stream = [IO.File]::Open($temporary, [IO.FileMode]::Create, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try {
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush($true)
+    } finally { $stream.Dispose() }
+    Move-Item -LiteralPath $temporary -Destination $Path -Force
+}
+
+function Move-NativeCorruptStateFile {
+    # Keep the damaged file for diagnosis instead of overwriting or deleting it,
+    # and never let the quarantine itself become a startup failure: a rename can
+    # lose to an antivirus or backup handle, and the deployment must still start.
+    param([string]$StateFile)
+    $quarantine = $StateFile + '.corrupt-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
+    try { Move-Item -LiteralPath $StateFile -Destination $quarantine -Force; return $quarantine } catch { }
+    try {
+        Copy-Item -LiteralPath $StateFile -Destination $quarantine -Force
+        Remove-Item -LiteralPath $StateFile -Force
+        return $quarantine
+    } catch { }
+    Write-Warning ('The deployment state file is damaged and could not be moved aside: ' + $StateFile)
+    return $null
+}
+
+function Read-NativeProcessState {
+    # A missing, empty, truncated or zero-filled state file means "no supervisor
+    # recorded", never a startup failure. The supervisor is the only writer and
+    # the file is a cache of what it launched, so the safe reading of an
+    # unreadable one is an empty one — with the evidence preserved next to it.
+    param([string]$StateFile)
+    if (-not (Test-Path -LiteralPath $StateFile)) { return $null }
+    $raw = Get-Content -LiteralPath $StateFile -Raw -Encoding UTF8
+    if ([string]::IsNullOrWhiteSpace($raw)) { [void](Move-NativeCorruptStateFile $StateFile); return $null }
+    try { $state = $raw | ConvertFrom-Json } catch { [void](Move-NativeCorruptStateFile $StateFile); return $null }
+    if ($null -eq $state -or $state -isnot [pscustomobject]) { [void](Move-NativeCorruptStateFile $StateFile); return $null }
+    return $state
 }
 
 function Get-NativeFileHash {
@@ -561,10 +601,8 @@ function Restore-NativeDeployment {
     param($Config, [string]$Source, [string]$Name)
     if (-not $Name -or $Name -notmatch '^[a-z][a-z0-9_]{0,62}$') { throw 'A simple explicit database name is required for restore.' }
     $statePath = Join-Path $Config.Root 'state\processes.json'
-    if (Test-Path -LiteralPath $statePath) {
-        $state = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
-        if (Test-NativeProcessRecord $state.Supervisor) { throw 'Stop the native deployment before restoring database files and uploads.' }
-    }
+    $state = Read-NativeProcessState $statePath
+    if ($state -and (Test-NativeProcessRecord $state.Supervisor)) { throw 'Stop the native deployment before restoring database files and uploads.' }
     if (-not (Test-Path -LiteralPath (Join-Path $Source 'database.dump'))) { throw 'Database backup not found.' }
     $checksums = Get-Content -LiteralPath (Join-Path $Source 'sha256.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($entry in $checksums) {
@@ -660,13 +698,11 @@ function Stop-NativeDeployment {
     $stopPath = Join-Path $Config.Root 'state\stop'
     [IO.File]::WriteAllText($stopPath, 'stop')
     $stateFile = Join-Path $Config.Root 'state\processes.json'
-    if (Test-Path -LiteralPath $stateFile) {
-        $state = Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
-        if (-not (Test-NativeProcessRecord $state.Supervisor)) {
-            Stop-NativeOwnedProcess $state.Backend
-            Stop-NativeOwnedProcess $state.Frontend
-            Remove-Item -LiteralPath $stateFile -Force
-        }
+    $state = Read-NativeProcessState $stateFile
+    if ($state -and -not (Test-NativeProcessRecord $state.Supervisor)) {
+        Stop-NativeOwnedProcess $state.Backend
+        Stop-NativeOwnedProcess $state.Frontend
+        if (Test-Path -LiteralPath $stateFile) { Remove-Item -LiteralPath $stateFile -Force }
     }
     $deadline = (Get-Date).AddSeconds(15)
     while ((Test-Path -LiteralPath $stateFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 300 }
@@ -680,10 +716,8 @@ function Stop-NativeDeployment {
 function Start-NativeDeployment {
     param($Config)
     $stateFile = Join-Path $Config.Root 'state\processes.json'
-    if (Test-Path -LiteralPath $stateFile) {
-        $state = Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
-        if (Test-NativeProcessRecord $state.Supervisor) { Write-Host 'Native supervisor is already running.'; return }
-    }
+    $state = Read-NativeProcessState $stateFile
+    if ($state -and (Test-NativeProcessRecord $state.Supervisor)) { Write-Host 'Native supervisor is already running.'; return }
     if (-not (Test-Path -LiteralPath (Join-Path $Config.Release 'server.exe'))) { throw 'Build a native release first.' }
     foreach ($port in @($Config.ApiPort, $Config.WebPort)) {
         $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $port)
@@ -704,8 +738,8 @@ function Start-NativeDeployment {
             $ready = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $Config.ApiPort + '/readyz') -TimeoutSec 3
             $health = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $Config.ApiPort + '/health') -TimeoutSec 3
             $web = Invoke-WebRequest -Uri ('http://127.0.0.1:' + $Config.WebPort + '/') -UseBasicParsing -TimeoutSec 3
-            $state = Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($ready.status -eq 'ok' -and $web.StatusCode -eq 200 -and $health.pid -eq $state.Backend.Pid -and (Test-NativeProcessRecord $state.Backend) -and (Test-NativeProcessRecord $state.Frontend)) { Write-Host "Native deployment ready: http://localhost:$($Config.WebPort)"; return }
+            $state = Read-NativeProcessState $stateFile
+            if ($state -and $ready.status -eq 'ok' -and $web.StatusCode -eq 200 -and $health.pid -eq $state.Backend.Pid -and (Test-NativeProcessRecord $state.Backend) -and (Test-NativeProcessRecord $state.Frontend)) { Write-Host "Native deployment ready: http://localhost:$($Config.WebPort)"; return }
         } catch { }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
@@ -746,7 +780,9 @@ if ($MyInvocation.InvocationName -ne '.') {
         'InstallTask' { Set-NativeScheduledTask $config $true }
         'RemoveTask' { Set-NativeScheduledTask $config $false }
         'Configure' {
-            if (Test-Path -LiteralPath (Join-Path $Root 'state\processes.json')) { throw 'Stop the native deployment before changing configuration.' }
+            $statePath = Join-Path $Root 'state\processes.json'
+            $state = Read-NativeProcessState $statePath
+            if ($state -and (Test-NativeProcessRecord $state.Supervisor)) { throw 'Stop the native deployment before changing configuration.' }
             if ($ApiPort) { $config.ApiPort = $ApiPort }
             if ($WebPort) { $config.WebPort = $WebPort }
             if ($Database) { $config.Database = $Database }
@@ -757,7 +793,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         }
         'Status' {
             $stateFile = Join-Path $Root 'state\processes.json'
-            $state = if (Test-Path -LiteralPath $stateFile) { Get-Content -LiteralPath $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
+            $state = Read-NativeProcessState $stateFile
             $taskName = Get-NativeScheduledTaskName $config
             [pscustomobject]@{
                 Running = ($state -and (Test-NativeProcessRecord $state.Supervisor)); ApiPort = $config.ApiPort; WebPort = $config.WebPort

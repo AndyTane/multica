@@ -878,6 +878,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: ./deploy/portable/test/portable-common.test.ps1
+
+      - name: Test portable package scripts with PowerShell 7
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./deploy/portable/test/portable-common.test.ps1
+
       - name: Test portable adoption and uninstall safety with Windows PowerShell 5.1
         if: runner.os == 'Windows'
         shell: powershell

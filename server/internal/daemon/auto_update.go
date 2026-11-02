@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/brand"
 )
 
 // detectSelfVersion runs `<path> --version` and returns the version field.
@@ -25,16 +27,23 @@ var detectSelfVersion = func(ctx context.Context, path string) (string, error) {
 	return ParseSelfVersion(string(out)), nil
 }
 
-// ParseSelfVersion pulls the version out of `multica --version` output, whose
+// ParseSelfVersion pulls the version out of `<cli> --version` output, whose
 // first line is rendered by cmd/multica's version template:
 //
-//	multica 0.3.7 (commit: abc1234, built: 2026-07-29T10:00:00Z)
+//	u-workers 0.3.7 (commit: abc1234, built: 2026-07-29T10:00:00Z)
 //	go: go1.26.1, os/arch: darwin/arm64
+//
+// The leading token is the command name the binary was invoked as, which is the
+// new name for current installs and the legacy one for pre-rename installs, so
+// both spellings are accepted. Matching only one of them is exactly the failure
+// this function used to have: the whole line came back as the "version", it
+// never equalled Config.CLIVersion, and the daemon re-execed itself on every
+// check. Anything that doesn't match the template shape is returned trimmed,
+// which compares unequal and is therefore reported rather than silently
+// ignored.
 //
 // The extracted field is exactly what ldflags put in main.version, which is
 // also what lands in Config.CLIVersion — so the two are directly comparable.
-// Anything that doesn't match the template shape is returned trimmed, which
-// compares unequal and is therefore reported rather than silently ignored.
 //
 // Exported solely so cmd/multica can pin that contract from the producing side:
 // this parser and the version template have to agree, and nothing else would
@@ -42,7 +51,7 @@ var detectSelfVersion = func(ctx context.Context, path string) (string, error) {
 func ParseSelfVersion(raw string) string {
 	line, _, _ := strings.Cut(raw, "\n")
 	line = strings.TrimSpace(line)
-	if fields := strings.Fields(line); len(fields) >= 2 && fields[0] == "multica" {
+	if fields := strings.Fields(line); len(fields) >= 2 && brand.IsCLICommandName(fields[0]) {
 		return fields[1]
 	}
 	return line

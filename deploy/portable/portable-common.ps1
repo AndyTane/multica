@@ -33,6 +33,20 @@ function Read-PortableJson {
     return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
 }
 
+function Read-PortableUtf8Text {
+    # Everything this package's own tools write is UTF-8: the CLI is a Go program,
+    # and its JSON carries the device name, which is the Windows computer name and
+    # can be Chinese. Get-Content without -Encoding decodes a file without a BOM
+    # in the ANSI code page on Windows PowerShell 5.1 but as UTF-8 on PowerShell 7,
+    # so the same captured bytes decoded differently per shell. 5.1 mangled them
+    # badly enough to swallow the quote that ends a JSON string, the parse failed,
+    # and a running daemon was reported as stopped. Read those bytes with an
+    # explicit UTF-8 decoder so both shells see the same text.
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return '' }
+    return [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+}
+
 function Get-PortableDeployment {
     param([string]$Root)
     $config = Read-PortableJson (Join-Path $Root $script:PortableDeploymentName)
@@ -189,21 +203,480 @@ function Get-PortablePublicHost {
     return '127.0.0.1'
 }
 
+function Test-PortableLoopbackHost {
+    # True for the names Caddy serves on the loopback interface only.
+    param([string]$HostName)
+    if (-not $HostName) { return $false }
+    if ($HostName -match '^(?i)localhost$') { return $true }
+    $parsed = $null
+    if ([Net.IPAddress]::TryParse($HostName, [ref]$parsed)) { return [Net.IPAddress]::IsLoopback($parsed) }
+    return $false
+}
+
+function Test-PortableElevated {
+    # Used to decide whether the installer may add a firewall rule. The package
+    # installs without administrator rights; only this one rule needs them, and
+    # only when the operator wants LAN access.
+    try {
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    } catch {
+        return $false
+    }
+}
+
+function Test-PortableLocalAddress {
+    # True when this machine currently owns the address. A recorded LAN address
+    # goes stale when DHCP hands out a new one; binding it would make Caddy fail
+    # to start, so the plan falls back to loopback instead.
+    param([string]$Address)
+    $parsed = $null
+    if (-not [Net.IPAddress]::TryParse([string]$Address, [ref]$parsed)) { return $false }
+    if ([Net.IPAddress]::IsLoopback($parsed)) { return $true }
+    $addresses = $null
+    try { $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop) } catch { $addresses = $null }
+    if (-not $addresses) { return $true }
+    foreach ($entry in $addresses) {
+        if ([string]$entry.IPAddress -eq $Address) { return $true }
+    }
+    return $false
+}
+
+function Get-PortableLanSubnet {
+    # The subnet a generated firewall rule should admit: the interface prefix
+    # Windows reports, or /24 when it is missing. Scoping the rule to the LAN
+    # subnet keeps the LAN entry point off every other network the machine joins.
+    param([string]$Address)
+    $parsed = $null
+    if (-not [Net.IPAddress]::TryParse([string]$Address, [ref]$parsed)) { return '' }
+    if ([Net.IPAddress]::IsLoopback($parsed)) { return '' }
+    $prefix = 24
+    try {
+        $entry = Get-NetIPAddress -IPAddress ([string]$Address) -AddressFamily IPv4 -ErrorAction Stop | Select-Object -First 1
+        if ($entry -and [int]$entry.PrefixLength -ge 8 -and [int]$entry.PrefixLength -le 30) { $prefix = [int]$entry.PrefixLength }
+    } catch {
+    }
+    $bytes = $parsed.GetAddressBytes()
+    $network = @()
+    for ($index = 0; $index -lt 4; $index++) {
+        $bits = $prefix - ($index * 8)
+        if ($bits -ge 8) { $network += $bytes[$index] }
+        elseif ($bits -le 0) { $network += 0 }
+        else { $network += ($bytes[$index] -band ((0xFF -shl (8 - $bits)) -band 0xFF)) }
+    }
+    return -join (($network -join '.') + '/' + $prefix)
+}
+
+function Test-PortableFirewallToken {
+    # Matches one value from a firewall filter list ("Any", a single value, a
+    # range such as "13000-13010", or a comma-separated list). An empty filter
+    # means the rule does not constrain this field at all.
+    param([string]$Value, [string]$Token, [string[]]$Aliases)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $true }
+    foreach ($part in ($Value -split ',')) {
+        $item = $part.Trim()
+        if (-not $item) { continue }
+        if ($item -ieq 'Any' -or $item -eq '*') { return $true }
+        if ($item -ieq $Token) { return $true }
+        foreach ($alias in @($Aliases)) {
+            if ($alias -and $item -ieq $alias) { return $true }
+        }
+        $range = [regex]::Match($item, '^([0-9]+)-([0-9]+)$')
+        $parsed = 0
+        if ($range.Success -and [int]::TryParse($Token, [ref]$parsed) -and $parsed -ge [int]$range.Groups[1].Value -and $parsed -le [int]$range.Groups[2].Value) { return $true }
+    }
+    return $false
+}
+
+function Test-PortableFirewallProgramMatch {
+    # Windows identifies a program rule by the executable path, so only a rule for
+    # this installation's caddy.exe covers it. A rule that names no program does
+    # not: the security prompt and the permission are both per program, and the
+    # machine already has dozens of "any program" rules for packaged apps that
+    # must not be mistaken for permission to expose Caddy. A rule left behind for
+    # an old package folder does not count either: that stale path is exactly how
+    # the prompt comes back after a move.
+    param([string]$Program, [string]$ExpectedPath)
+    if ([string]::IsNullOrWhiteSpace($Program)) { return $false }
+    if ($Program -eq '*' -or $Program -ieq 'Any') { return $false }
+    $normalized = $Program
+    try { $normalized = [IO.Path]::GetFullPath($Program) } catch { }
+    $expected = $ExpectedPath
+    try { $expected = [IO.Path]::GetFullPath($ExpectedPath) } catch { }
+    return [string]::Equals($normalized, $expected, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Get-PortableFirewallSnapshot {
+    # Read-only view of the local inbound rules, flattened so the coverage check
+    # is a plain comparison. Reading the policy store needs no administrator
+    # rights, which is what lets a standard user find out that a rule exists.
+    $rules = @(Get-NetFirewallRule -Direction Inbound -PolicyStore ActiveStore -ErrorAction SilentlyContinue)
+    $programs = @{}
+    foreach ($filter in @(Get-NetFirewallApplicationFilter -PolicyStore ActiveStore -ErrorAction SilentlyContinue)) {
+        $programs[[string]$filter.InstanceID] = [string]$filter.Program
+    }
+    $ports = @{}
+    foreach ($filter in @(Get-NetFirewallPortFilter -PolicyStore ActiveStore -ErrorAction SilentlyContinue)) {
+        $ports[[string]$filter.InstanceID] = $filter
+    }
+    $addresses = @{}
+    foreach ($filter in @(Get-NetFirewallAddressFilter -PolicyStore ActiveStore -ErrorAction SilentlyContinue)) {
+        $addresses[[string]$filter.InstanceID] = @($filter.RemoteAddress | ForEach-Object { [string]$_ })
+    }
+    $snapshot = New-Object System.Collections.Generic.List[object]
+    foreach ($rule in $rules) {
+        $portFilter = $ports[[string]$rule.InstanceID]
+        $protocol = ''
+        $localPorts = @()
+        if ($portFilter) {
+            $protocol = [string]$portFilter.Protocol
+            $localPorts = @($portFilter.LocalPort | ForEach-Object { [string]$_ })
+        }
+        $snapshot.Add([pscustomobject]@{
+            DisplayName = [string]$rule.DisplayName
+            Enabled = [string]$rule.Enabled
+            Action = [string]$rule.Action
+            Direction = [string]$rule.Direction
+            Program = [string]$programs[[string]$rule.InstanceID]
+            Protocol = $protocol
+            LocalPort = ($localPorts -join ',')
+            RemoteAddress = (@($addresses[[string]$rule.InstanceID]) -join ',')
+        })
+    }
+    return $snapshot.ToArray()
+}
+
+function ConvertTo-PortableNetworkValue {
+    # Canonical network for "a.b.c.d/prefix" or "a.b.c.d/mask". Returns $null for
+    # anything it does not understand; callers treat that as "unknown", never as
+    # "does not match".
+    param([string]$Text)
+    $value = ([string]$Text).Trim()
+    if (-not $value) { return $null }
+    $parts = $value.Split('/')
+    if ($parts.Count -ne 2) { return $null }
+    $address = $null
+    if (-not [Net.IPAddress]::TryParse($parts[0].Trim(), [ref]$address)) { return $null }
+    $bytes = $address.GetAddressBytes()
+    if ($bytes.Length -ne 4) { return $null }
+    $maskPart = $parts[1].Trim()
+    $prefix = 0
+    if ($maskPart -match '\.') {
+        # Windows stores the remote scope as address/mask. A bare number would be
+        # accepted by IPAddress.TryParse as a 32-bit address ("32" -> 0.0.0.32),
+        # so the prefix form is only used when the part has no dots.
+        $maskAddress = $null
+        if (-not [Net.IPAddress]::TryParse($maskPart, [ref]$maskAddress)) { return $null }
+        $maskBytes = $maskAddress.GetAddressBytes()
+        if ($maskBytes.Length -ne 4) { return $null }
+        $seenZero = $false
+        foreach ($byte in $maskBytes) {
+            for ($bit = 7; $bit -ge 0; $bit--) {
+                if (($byte -band (1 -shl $bit)) -ne 0) {
+                    if ($seenZero) { return $null }
+                    $prefix++
+                } else {
+                    $seenZero = $true
+                }
+            }
+        }
+    } else {
+        $parsedPrefix = 0
+        if (-not [int]::TryParse($maskPart, [ref]$parsedPrefix) -or $parsedPrefix -lt 0 -or $parsedPrefix -gt 32) { return $null }
+        $prefix = $parsedPrefix
+    }
+    $value64 = 0L
+    foreach ($byte in $bytes) { $value64 = ($value64 -shl 8) -bor [long]$byte }
+    $mask64 = 0L
+    for ($index = 0; $index -lt $prefix; $index++) { $mask64 = $mask64 -bor (1L -shl (31 - $index)) }
+    return [pscustomobject]@{ Network = ($value64 -band $mask64); Prefix = $prefix }
+}
+
+function Test-PortableNetworkContainsAddress {
+    # $true/$false, or $null when either side is not a plain IPv4 network.
+    param([string]$Network, [string]$Address)
+    $target = ConvertTo-PortableNetworkValue ($Address + '/32')
+    $range = ConvertTo-PortableNetworkValue $Network
+    if (-not $target -or -not $range) { return $null }
+    $mask64 = 0L
+    for ($index = 0; $index -lt $range.Prefix; $index++) { $mask64 = $mask64 -bor (1L -shl (31 - $index)) }
+    return ((($target.Network -band $mask64) -eq $range.Network))
+}
+
+function Test-PortableFirewallRemoteAddressCovers {
+    # Conservative: $true unless the filter provably excludes the address. An
+    # unknown keyword must not switch LAN access off on a machine where the rule
+    # demonstrably exists; it only has to catch a scope left over from another
+    # network, where the LAN entry point would silently not work.
+    param([string]$Value, [string]$Address)
+    $parsed = $null
+    if (-not [Net.IPAddress]::TryParse([string]$Address, [ref]$parsed)) { return $true }
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $true }
+    foreach ($entry in ($Value -split ',')) {
+        $item = $entry.Trim()
+        if (-not $item) { continue }
+        if ($item -eq '*' -or $item -ieq 'Any' -or $item -ieq 'LocalSubnet') { return $true }
+        $range = [regex]::Match($item, '^([0-9.]+)-([0-9.]+)$')
+        if ($range.Success) {
+            $low = ConvertTo-PortableNetworkValue ($range.Groups[1].Value + '/32')
+            $high = ConvertTo-PortableNetworkValue ($range.Groups[2].Value + '/32')
+            $target = ConvertTo-PortableNetworkValue ($Address + '/32')
+            if (-not $low -or -not $high -or -not $target) { return $true }
+            if ($target.Network -ge $low.Network -and $target.Network -le $high.Network) { return $true }
+            continue
+        }
+        $network = $item
+        if ($network -notmatch '/') { $network = $network + '/32' }
+        $contains = Test-PortableNetworkContainsAddress -Network $network -Address $Address
+        if ($null -eq $contains) { return $true }
+        if ($contains) { return $true }
+    }
+    return $false
+}
+
+function Find-PortableFirewallCoverage {
+    # The rule that admits this exact listen socket, or $null. Covered means an
+    # enabled inbound allow rule for TCP (or any protocol), this port (or any
+    # port), and this caddy.exe path (or any program).
+    param([object[]]$Rules, [string]$ProgramPath, [int]$Port, [string]$Address)
+    foreach ($rule in @($Rules)) {
+        if (-not $rule) { continue }
+        if ([string]$rule.Direction -ne 'Inbound') { continue }
+        if ([string]$rule.Action -ne 'Allow') { continue }
+        if (-not [string]::IsNullOrWhiteSpace([string]$rule.Enabled) -and [string]$rule.Enabled -ne 'True') { continue }
+        if (-not (Test-PortableFirewallToken -Value ([string]$rule.Protocol) -Token 'TCP' -Aliases @('6'))) { continue }
+        if (-not (Test-PortableFirewallToken -Value ([string]$rule.LocalPort) -Token ([string]$Port))) { continue }
+        if (-not (Test-PortableFirewallProgramMatch -Program ([string]$rule.Program) -ExpectedPath $ProgramPath)) { continue }
+        if ($Address -and -not (Test-PortableFirewallRemoteAddressCovers -Value ([string]$rule.RemoteAddress) -Address $Address)) { continue }
+        return $rule
+    }
+    return $null
+}
+
+function Install-PortableFirewallRule {
+    # Adds the program-scoped inbound rule for the LAN HTTPS entry point. The rule
+    # names the installed caddy.exe path, which is what Windows matches, so an
+    # in-place upgrade of the same folder keeps the permission and never asks
+    # again. Without administrator rights nothing is attempted: this returns a
+    # result instead of a prompt.
+    param([string]$ProgramPath, [int]$Port, [string]$RemoteAddress, [string]$DisplayName)
+    $result = [pscustomobject]@{ Added = $false; DisplayName = $DisplayName; Detail = '' }
+    if (-not (Test-PortableElevated)) {
+        $result.Detail = 'adding a firewall rule needs administrator rights'
+        return $result
+    }
+    if (-not (Get-Command New-NetFirewallRule -ErrorAction SilentlyContinue)) {
+        $result.Detail = 'New-NetFirewallRule is not available on this machine'
+        return $result
+    }
+    try {
+        foreach ($existing in @(Get-NetFirewallRule -DisplayName $DisplayName -ErrorAction SilentlyContinue)) {
+            Remove-NetFirewallRule -Name $existing.Name -ErrorAction SilentlyContinue
+        }
+        $arguments = @{
+            DisplayName = $DisplayName
+            Description = 'U Workers portable: allow the LAN HTTPS entry point for this installation only.'
+            Direction = 'Inbound'
+            Action = 'Allow'
+            Program = $ProgramPath
+            Protocol = 'TCP'
+            LocalPort = $Port
+            Profile = 'Any'
+            Enabled = 'True'
+        }
+        if ($RemoteAddress) { $arguments.RemoteAddress = $RemoteAddress }
+        New-NetFirewallRule @arguments | Out-Null
+        $result.Added = $true
+        $result.Detail = 'added'
+    } catch {
+        $result.Detail = $_.Exception.Message
+    }
+    return $result
+}
+
+function Remove-PortableFirewallRule {
+    param([string]$DisplayName)
+    if (-not $DisplayName) { return $false }
+    if (-not (Test-PortableElevated)) { return $false }
+    try {
+        $removed = $false
+        foreach ($existing in @(Get-NetFirewallRule -DisplayName $DisplayName -ErrorAction SilentlyContinue)) {
+            Remove-NetFirewallRule -Name $existing.Name -ErrorAction Stop
+            $removed = $true
+        }
+        return $removed
+    } catch {
+        return $false
+    }
+}
+
+function Resolve-PortableLanPlan {
+    # One decision point for "does this installation listen beyond loopback":
+    # the requested address is exposed only when an inbound firewall rule already
+    # covers this caddy.exe, or when this process may add one. Otherwise the
+    # entry point stays loopback-only and the plan carries the sentence that
+    # tells the operator what that means and how to change it.
+    param(
+        [string]$Root,
+        [string]$RequestedHost,
+        [int]$HttpsPort,
+        [string]$CaddyPath,
+        [switch]$AllowRuleCreation,
+        [object[]]$Rules,
+        [switch]$SkipFirewallProbe
+    )
+    $hostName = [string]$RequestedHost
+    if (-not $hostName) { $hostName = Get-PortablePublicHost }
+    if (-not $CaddyPath -and $Root) {
+        try { $CaddyPath = Get-PortableCaddyPath $Root } catch { $CaddyPath = '' }
+    }
+    $plan = [pscustomobject]@{
+        RequestedHost = $hostName
+        LanHost = '127.0.0.1'
+        Exposed = $false
+        Firewall = 'loopback'
+        FirewallRule = ''
+        RemoteAddress = ''
+        Message = ('LAN access is off: the board is served on this machine at https://localhost:' + $HttpsPort + '/ only.')
+    }
+    if (Test-PortableLoopbackHost $hostName) {
+        return $plan
+    }
+    $parsed = $null
+    if (-not [Net.IPAddress]::TryParse($hostName, [ref]$parsed)) {
+        # A DNS name cannot be bound or covered by an address rule; the package
+        # has always signed the certificate for the address, not the name.
+        $plan.Firewall = 'hostname'
+        $plan.Message = ('LAN access is off: ' + $hostName + ' is not an IPv4 address of this machine, so the board stays on https://localhost:' + $HttpsPort + '/.')
+        return $plan
+    }
+    if (-not (Test-PortableLocalAddress $hostName)) {
+        $plan.Firewall = 'stale-address'
+        $plan.Message = ('LAN access is off: ' + $hostName + ' is not an address of this machine any more (the network changed), so the board stays on https://localhost:' + $HttpsPort + '/ until Setup.cmd or Upgrade.cmd re-issues the certificate for the current address.')
+        return $plan
+    }
+    if (-not $CaddyPath) {
+        $plan.Firewall = 'no-caddy'
+        $plan.Message = ('LAN access is off: the packaged Caddy executable was not found, so the board stays on https://localhost:' + $HttpsPort + '/.')
+        return $plan
+    }
+    $remoteAddress = Get-PortableLanSubnet $hostName
+    $ruleName = 'UWorkers-Portable-HTTPS-' + $HttpsPort
+    $snapshot = @()
+    if ($SkipFirewallProbe) {
+        $snapshot = @($Rules)
+    } else {
+        try { $snapshot = @(Get-PortableFirewallSnapshot) } catch { $snapshot = @() }
+    }
+    $coverage = Find-PortableFirewallCoverage -Rules $snapshot -ProgramPath $CaddyPath -Port $HttpsPort -Address $hostName
+    $firewall = 'existing'
+    if (-not $coverage) {
+        if ($AllowRuleCreation) {
+            $install = Install-PortableFirewallRule -ProgramPath $CaddyPath -Port $HttpsPort -RemoteAddress $remoteAddress -DisplayName $ruleName
+            if ($install.Added) {
+                $coverage = [pscustomobject]@{ DisplayName = [string]$install.DisplayName }
+                $firewall = 'created'
+            } else {
+                $firewall = 'needs-admin'
+                $plan.Message = ('LAN access is off: Windows Firewall has no inbound rule for this installation and one cannot be added here (' + [string]$install.Detail + '). The board works on this machine at https://localhost:' + $HttpsPort + '/. Run Setup.cmd once as an administrator to add the rule, or ask IT for an inbound TCP ' + $HttpsPort + ' rule for ' + $CaddyPath + '.')
+            }
+        } else {
+            $firewall = 'needs-admin'
+            $plan.Message = ('LAN access is off: Windows Firewall has no inbound rule for this installation. The board works on this machine at https://localhost:' + $HttpsPort + '/. Run Setup.cmd once as an administrator to add the rule.')
+        }
+    } else {
+        $plan.FirewallRule = [string]$coverage.DisplayName
+    }
+    if (-not $coverage) { $plan.Firewall = $firewall }
+    if ($coverage) {
+        $plan.Exposed = $true
+        $plan.LanHost = $hostName
+        $plan.Firewall = $firewall
+        $plan.RemoteAddress = $remoteAddress
+        $plan.FirewallRule = [string]$coverage.DisplayName
+        $scope = ''
+        if ($remoteAddress) { $scope = ' from ' + $remoteAddress }
+        $plan.Message = ('LAN entry: https://' + $hostName + ':' + $HttpsPort + '/ (firewall rule "' + $plan.FirewallRule + '" allows TCP ' + $HttpsPort + $scope + ').')
+    }
+    return $plan
+}
+
+function Get-PortableLanReportFields {
+    param($Plan)
+    return [ordered]@{
+        lanRequestedHost = [string]$Plan.RequestedHost
+        lanHost = [string]$Plan.LanHost
+        lanExposed = [bool]$Plan.Exposed
+        lanFirewall = [string]$Plan.Firewall
+        lanFirewallRule = [string]$Plan.FirewallRule
+        lanMessage = [string]$Plan.Message
+    }
+}
+
+function Update-PortableLanReport {
+    # Keeps the install report honest after a later start (for example when an
+    # administrator added the missing rule since the install).
+    param([string]$Root, $Plan)
+    $reportPath = Join-Path $Root 'data\install-report.json'
+    $report = Read-PortableJson $reportPath
+    if (-not $report) { return $null }
+    foreach ($entry in (Get-PortableLanReportFields $Plan).GetEnumerator()) {
+        $report | Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value -Force
+    }
+    Write-PortableJson $reportPath $report
+    return $report
+}
+
+function Get-PortableOptionalProperty {
+    # Reads an optional property without tripping Set-StrictMode: an install
+    # report written by an older package does not carry the LAN fields.
+    param($Object, [string]$Name, $Default = $null)
+    if (-not $Object) { return $Default }
+    $property = $Object.PSObject.Properties[$Name]
+    if (-not $property -or $null -eq $property.Value) { return $Default }
+    return $property.Value
+}
+
+function Get-PortableRequestedLanHostFromConfig {
+    # What the operator asked for, not what was granted: a loopback value means
+    # "this machine only" and must stay that way across restarts.
+    param([string]$Root)
+    $report = Read-PortableJson (Join-Path $Root 'data\install-report.json')
+    $requested = [string](Get-PortableOptionalProperty $report 'lanRequestedHost' '')
+    if ($requested) { return $requested }
+    $served = [string](Get-PortableOptionalProperty $report 'lanHost' '')
+    if ($served) { return $served }
+    return (Get-PortablePublicHost)
+}
+
 function Get-PortableCaddyfile {
     param(
         [string]$Root,
         [string]$PublicHost,
         [int]$HttpsPort,
         [int]$ApiPort,
-        [int]$WebPort
+        [int]$WebPort,
+        [bool]$LanExposed
     )
     # Caddy accepts forward slashes on Windows and this keeps the file free of
     # escape sequences; the storage path keeps the private CA inside the
     # package so moving the folder moves the trust anchor with it.
     $storage = ((Join-Path $Root 'https\data') -replace '\\', '/')
     $hosts = @('localhost', '127.0.0.1')
-    if ($PublicHost -and $PublicHost -ne '127.0.0.1' -and $PublicHost -ne 'localhost') { $hosts += $PublicHost }
+    $loopbackOnly = $true
+    if ($LanExposed -and $PublicHost -and -not (Test-PortableLoopbackHost $PublicHost)) {
+        $hosts += $PublicHost
+        $loopbackOnly = $false
+    }
     $sites = ($hosts | ForEach-Object { 'https://' + $_ + ':' + $HttpsPort }) -join ', '
+    # Never leave the listen address to Caddy's default wildcard. A wildcard
+    # socket is what makes Windows Firewall offer "allow this program" for every
+    # interface and every network profile that comes up; binding the exact
+    # addresses keeps the loopback entry private and limits the LAN entry to the
+    # one address the operator asked for.
+    $binds = @('127.0.0.1')
+    if (-not $loopbackOnly) { $binds += $PublicHost }
     $newLine = [Environment]::NewLine
     # Parenthesise every concatenation inside the array literal: PowerShell
     # otherwise folds the following lines into the same element.
@@ -218,9 +691,17 @@ function Get-PortableCaddyfile {
         '    admin off',
         '    auto_https disable_redirects',
         ('    storage file_system "' + $storage + '"'),
+        # HTTP/3 makes Caddy open a second, UDP listener on the same port. A
+        # TCP-only firewall rule leaves that UDP socket unrecognised, so Windows
+        # Firewall asks for permission on every start, at a machine where nobody
+        # can click it. HTTP/2 over TCP is plenty for a LAN board.
+        '    servers {',
+        '        protocols h1 h2',
+        '    }',
         '}',
         '',
         ($sites + ' {'),
+        ('    bind ' + ($binds -join ' ')),
         '    tls internal',
         '    encode gzip',
         '    @api path /api/* /auth/* /ws /uploads/* /v1/* /health* /readyz /metrics',
@@ -342,7 +823,11 @@ function Invoke-PortableCommand {
     # in its own file afterwards, because Windows PowerShell 5.1 — what Setup.cmd
     # runs on a fresh machine — leaves Start-Process' ExitCode empty unless
     # -Wait is passed, and -Wait waits for those same long-lived children.
-    param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory, [int]$TimeoutSec = 3600)
+    #
+    # -Utf8Output decodes the captured streams as UTF-8. Use it for the package's
+    # own CLI, which always writes UTF-8; tools that write the console code page
+    # (caddy, PostgreSQL, robocopy, the native server script) keep the default.
+    param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory, [int]$TimeoutSec = 3600, [switch]$Utf8Output)
     $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-command-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
     $stdoutPath = Join-Path $temporaryDirectory 'stdout.log'
@@ -393,7 +878,8 @@ function Invoke-PortableCommand {
         $output = ''
         foreach ($path in @($stdoutPath, $stderrPath)) {
             if (Test-Path -LiteralPath $path) {
-                $output += (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)
+                if ($Utf8Output) { $output += (Read-PortableUtf8Text $path) }
+                else { $output += (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue) }
             }
         }
         if ($null -eq $exitCode) {
@@ -481,8 +967,10 @@ function Invoke-PortableWebRequest {
         }
         $statusCode = 0
         if (-not [int]::TryParse(([string]$statusText).Trim(), [ref]$statusCode)) { throw ('HTTPS request returned no status code: ' + $Uri) }
+        # The server answers with UTF-8 JSON (runtime names and other values carry
+        # the device name); read the response body the same way in both shells.
         $content = ''
-        if (Test-Path -LiteralPath $responseFile) { $content = [string](Get-Content -LiteralPath $responseFile -Raw -ErrorAction SilentlyContinue) }
+        if (Test-Path -LiteralPath $responseFile) { $content = [string](Read-PortableUtf8Text $responseFile) }
         return [pscustomobject]@{ StatusCode = $statusCode; Content = $content; Headers = @{} }
     } finally {
         Remove-Item -LiteralPath $workingDirectory -Recurse -Force -ErrorAction SilentlyContinue
@@ -620,7 +1108,7 @@ function Remove-PortableStartup {
 }
 
 function Start-PortableCaddy {
-    param([string]$Root, [string]$PublicHost, [int]$HttpsPort, [int]$ApiPort, [int]$WebPort)
+    param([string]$Root, [string]$PublicHost, [int]$HttpsPort, [int]$ApiPort, [int]$WebPort, [bool]$LanExposed)
     $caddyExe = Get-PortableCaddyPath $Root
     $statePath = Join-Path $Root 'state\caddy.json'
     $existing = Read-PortableJson $statePath
@@ -631,7 +1119,7 @@ function Start-PortableCaddy {
     New-PortableDirectory (Join-Path $Root 'logs')
     New-PortableDirectory (Join-Path $Root 'https')
     $caddyfile = Get-PortableCaddyfilePath $Root
-    [IO.File]::WriteAllText($caddyfile, (Get-PortableCaddyfile -Root $Root -PublicHost $PublicHost -HttpsPort $HttpsPort -ApiPort $ApiPort -WebPort $WebPort), (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($caddyfile, (Get-PortableCaddyfile -Root $Root -PublicHost $PublicHost -HttpsPort $HttpsPort -ApiPort $ApiPort -WebPort $WebPort -LanExposed $LanExposed), (New-Object Text.UTF8Encoding($false)))
     $validation = Invoke-PortableCommand -Executable $caddyExe -Arguments @('validate', '--config', $caddyfile, '--adapter', 'caddyfile')
     if ($validation.ExitCode -ne 0) { throw ('Caddy rejected the generated HTTPS configuration: ' + $validation.Output.Trim()) }
     $record = Start-PortableHiddenProcess -Executable $caddyExe -Arguments @('run', '--config', $caddyfile, '--adapter', 'caddyfile') -WorkingDirectory $Root -LogPath (Get-PortableLogPath $Root 'caddy') -ErrorLogPath (Get-PortableLogPath $Root 'caddy-error')
@@ -665,8 +1153,16 @@ function Invoke-PortableNativeAction {
 }
 
 function Get-PortableCorsOrigins {
+    # A loopback-only installation asks for 127.0.0.1 here and would otherwise
+    # list the same origin twice.
     param([string]$PublicHost, [int]$HttpsPort)
-    return 'https://' + $PublicHost + ':' + $HttpsPort + ',https://localhost:' + $HttpsPort + ',https://127.0.0.1:' + $HttpsPort
+    $origins = New-Object System.Collections.Generic.List[string]
+    foreach ($hostName in @($PublicHost, 'localhost', '127.0.0.1')) {
+        if (-not $hostName) { continue }
+        $origin = 'https://' + $hostName + ':' + $HttpsPort
+        if (-not $origins.Contains($origin)) { $origins.Add($origin) }
+    }
+    return ($origins -join ',')
 }
 
 function Get-PortableCliEnvironment {
@@ -696,9 +1192,11 @@ function Get-PortableCliEnvironment {
 }
 
 function Invoke-PortableCli {
+    # The CLI is a Go program, so its output is always UTF-8 regardless of the
+    # console code page; ask the capture to decode it that way.
     param([string]$Root, [string[]]$Arguments)
     $cli = Get-PortableCliPath $Root
-    $result = Invoke-PortableCommand -Executable $cli -Arguments $Arguments -Environment (Get-PortableCliEnvironment $Root) -WorkingDirectory $Root
+    $result = Invoke-PortableCommand -Executable $cli -Arguments $Arguments -Environment (Get-PortableCliEnvironment $Root) -WorkingDirectory $Root -Utf8Output
     return $result
 }
 
@@ -710,18 +1208,31 @@ function Write-PortableInstallReport {
     return $path
 }
 
+function ConvertFrom-PortableDaemonStatus {
+    # The verdict comes from the reported status field, never the exit code:
+    # `daemon status` exits 0 for a stopped daemon too (it is a query, not a
+    # check), so treating a zero exit as "running" printed a healthy line for a
+    # daemon that was not there and made start.ps1 skip the start that would
+    # have brought it up. "starting" counts as alive: the process exists and the
+    # CLI itself refuses a second start, so starting again would only fail.
+    param([int]$ExitCode, [string]$Output)
+    $text = ([string]$Output).Trim()
+    if ($ExitCode -ne 0) {
+        return [pscustomobject]@{ Running = $false; Output = $text }
+    }
+    $parsed = $null
+    try { $parsed = ($text | ConvertFrom-Json) } catch { $parsed = $null }
+    $alive = [bool]($parsed -and @('running', 'starting') -contains [string]$parsed.status)
+    return [pscustomobject]@{ Running = $alive; Detail = $parsed; Output = $text }
+}
+
 function Get-PortableDaemonStatus {
     param([string]$Root, [string]$Profile)
     $arguments = @()
     if ($Profile) { $arguments += @('--profile', $Profile) }
     $arguments += @('daemon', 'status', '--output', 'json')
     $result = Invoke-PortableCli -Root $Root -Arguments $arguments
-    if ($result.ExitCode -ne 0) {
-        return [pscustomobject]@{ Running = $false; Output = ([string]$result.Output).Trim() }
-    }
-    $parsed = $null
-    try { $parsed = (([string]$result.Output).Trim() | ConvertFrom-Json) } catch { $parsed = $null }
-    return [pscustomobject]@{ Running = $true; Detail = $parsed; Output = ([string]$result.Output).Trim() }
+    return (ConvertFrom-PortableDaemonStatus -ExitCode ([int]$result.ExitCode) -Output $result.Output)
 }
 
 function Start-PortableDaemon {

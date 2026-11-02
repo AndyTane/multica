@@ -25,6 +25,16 @@ Everyday
 
 Other machines
 --------------
+The LAN entry point (https://<this-machine-LAN-IP>:13443) only listens when a
+Windows Firewall inbound rule already covers this installation's caddy.exe, or
+when Setup could add one (that needs administrator rights). Otherwise Setup
+prints "LAN access is off" and Caddy listens on 127.0.0.1 only. That is
+deliberate: the alternative is the Windows Firewall prompt on every start, and
+the person at a standard-user machine cannot answer it. To grant LAN access
+once, run Setup.cmd as an administrator, or ask IT for an inbound TCP 13443
+rule for payload\runtime\caddy\caddy.exe from the LAN subnet. Status.cmd shows
+the current state on its "LAN entry" line.
+
 1. Copy root-ca.crt (in this folder) to the other Windows machine.
 2. Run the u-workers-setup EXE from payload\installer (or build a fresh one
    with Build-Installer.cmd).

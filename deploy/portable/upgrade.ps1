@@ -26,6 +26,7 @@ param(
     [switch]$SkipDaemon,
     [switch]$NoBrowser,
     [switch]$NoStartup,
+    [switch]$NoLanAccess,
     [switch]$Force
 )
 
@@ -79,10 +80,27 @@ if ($newVersion -eq $installedVersion -and -not $Force) {
     exit 0
 }
 
-$hostName = if ($PublicHost) { $PublicHost } else { Get-PortableLanHostFromConfig $root }
 $httpsPort = if ($HttpsPort -gt 0) { $HttpsPort } else { Get-PortableHttpsPortFromConfig $root }
 $apiPort = [int]$installed.ApiPort
 $webPort = [int]$installed.WebPort
+# Same decision as the installer: keep serving the address the installation was
+# set up for, and add the program-scoped firewall rule when this process may.
+$requestedLanHost = '127.0.0.1'
+if (-not $NoLanAccess) {
+    if ($PublicHost) {
+        $requestedLanHost = $PublicHost
+    } else {
+        $configuredHost = Get-PortableLanHostFromConfig $root
+        if ($configuredHost -and -not (Test-PortableLoopbackHost $configuredHost)) {
+            $requestedLanHost = $configuredHost
+        } else {
+            $requestedLanHost = Get-PortablePublicHost
+        }
+    }
+}
+$lanPlan = Resolve-PortableLanPlan -Root $root -RequestedHost $requestedLanHost -HttpsPort $httpsPort -AllowRuleCreation:(-not $NoLanAccess)
+$hostName = [string]$lanPlan.LanHost
+Write-Host ([string]$lanPlan.Message)
 
 Write-Host ''
 Write-Host ('U Workers upgrade: ' + $installedVersion + ' -> ' + $newVersion) -ForegroundColor Green
@@ -135,7 +153,7 @@ if ($stagedRelease) { Restore-PortableWebLinks -WebPath (Join-Path $stagedReleas
 
 Write-Host '==> Starting the new version (database migrations run automatically)'
 Invoke-PortableNativeAction -Root $root -Action 'Start' | Out-Null
-Start-PortableCaddy -Root $root -PublicHost $hostName -HttpsPort $httpsPort -ApiPort $apiPort -WebPort $webPort | Out-Null
+Start-PortableCaddy -Root $root -PublicHost $hostName -HttpsPort $httpsPort -ApiPort $apiPort -WebPort $webPort -LanExposed ([bool]$lanPlan.Exposed) | Out-Null
 $rootCA = Get-PortablePublicRootCAPath $root
 if (-not (Test-Path -LiteralPath $rootCA)) {
     $exported = Export-PortableRootCA $root
@@ -166,6 +184,7 @@ if (-not $SkipBrowserTrust) {
     }
 }
 
+try { Update-PortableLanReport -Root $root -Plan $lanPlan | Out-Null } catch { }
 $report = [ordered]@{
     upgradedAt = (Get-Date).ToUniversalTime().ToString('o')
     fromVersion = $installedVersion
@@ -173,6 +192,9 @@ $report = [ordered]@{
     backup = $backupDirectory.FullName
     boardUrl = $serverUrl
     profile = $Profile
+    lanExposed = [bool]$lanPlan.Exposed
+    lanHost = $hostName
+    lanMessage = [string]$lanPlan.Message
     dataBefore = $before
     dataAfter = $after
 }
@@ -181,7 +203,8 @@ Write-PortableJson $reportPath $report
 
 Write-Host ''
 Write-Host ('U Workers upgraded to ' + $newVersion + '.') -ForegroundColor Green
-Write-Host ('  Board:  ' + $serverUrl + '/')
+Write-Host ('  Board:  https://localhost:' + $httpsPort + '/')
+if ($lanPlan.Exposed) { Write-Host ('  LAN:    ' + $serverUrl + '/') } else { Write-Host ('  LAN:    off - ' + [string]$lanPlan.Message) }
 Write-Host ('  Backup: ' + $backupDirectory.FullName)
 Write-Host ('  Report: ' + $reportPath)
 if (-not $NoBrowser) {

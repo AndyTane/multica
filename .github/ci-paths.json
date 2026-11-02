@@ -113,6 +113,7 @@
     "scripts/install.test.sh",
     "scripts/install.ps1",
     "scripts/install.ps1.test.ps1",
+    "deploy/portable/**",
     ".env.example",
     "docker-compose.selfhost.yml",
     "docker-compose.selfhost.build.yml",

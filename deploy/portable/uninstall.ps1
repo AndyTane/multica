@@ -55,6 +55,21 @@ if (-not $Force) {
 $warnings = @()
 try { Stop-PortableDaemon -Root $root -Profile $Profile | Out-Null } catch { $warnings += $_.Exception.Message }
 try { Stop-PortableCaddy -Root $root | Out-Null } catch { $warnings += $_.Exception.Message }
+
+# The LAN HTTPS rule is only removed when this package created it; a rule an
+# administrator added by hand belongs to them.
+$lanReport = Read-PortableJson (Join-Path $root 'data\install-report.json')
+$lanFirewall = [string](Get-PortableOptionalProperty $lanReport 'lanFirewall' '')
+$lanFirewallRule = [string](Get-PortableOptionalProperty $lanReport 'lanFirewallRule' '')
+if ($lanFirewall -eq 'created' -and $lanFirewallRule) {
+    try {
+        if (Remove-PortableFirewallRule -DisplayName $lanFirewallRule) {
+            Write-Host ('Removed the firewall rule ' + $lanFirewallRule + '.')
+        } elseif (-not (Test-PortableElevated)) {
+            Write-Host ('The firewall rule ' + $lanFirewallRule + ' needs administrator rights to remove; it points at a path that no longer exists after uninstalling, so it is harmless.') -ForegroundColor Yellow
+        }
+    } catch { $warnings += $_.Exception.Message }
+}
 try { Invoke-PortableNativeAction -Root $root -Action 'Stop' | Out-Null } catch { $warnings += $_.Exception.Message }
 
 if (Remove-PortableStartup) { Write-Host 'Removed the start-on-login item.' }

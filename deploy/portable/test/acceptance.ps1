@@ -11,13 +11,19 @@
        process and installs with one script;
     3. verifies the board over HTTPS with the generated private CA, the local
        sign-in, the workspace, and an opencode runtime registered by the bundled
-       daemon;
-    4. rebuilds the installer from the bundled toolchain while still offline;
-    5. simulates a second machine with the packaged CLI plus a separate CLI
+       daemon, plus the listen plan that keeps Caddy off every address no
+       firewall rule covers (the Windows Firewall prompt, which each acceptance
+       run used to trigger from its own temporary caddy.exe path) and off
+       HTTP/3's UDP port;
+    4. simulates an unclean shutdown — stops the stack and zero-fills
+       state\processes.json — and verifies Start recovers, keeps the damaged file,
+       and brings the daemon and its runtime back;
+    5. rebuilds the installer from the bundled toolchain while still offline;
+    6. simulates a second machine with the packaged CLI plus a separate CLI
        profile, joins it with 'connect', and observes a new runtime;
-    6. rehearses an overlay upgrade from a newer package: backup exists, version
+    7. rehearses an overlay upgrade from a newer package: backup exists, version
        changed, and the data written before the upgrade is still there;
-    7. cleans up: stops the service, removes the start-on-login item and the
+    8. cleans up: stops the service, removes the start-on-login item and the
        package CLI profiles, and fails if a process or port is left behind.
 
     It never touches the existing Multica daemon or the existing native
@@ -143,6 +149,8 @@ $multicaConfigBefore = Get-FileSha256 $multicaConfig
 $installLog = Join-Path $workRoot 'install.log'
 $installed = $false
 $cleanupErrors = @()
+# Referenced by the cleanup block even when the run aborts before it is assigned.
+$startupItem = ''
 
 try {
     if ($ResumeExisting) {
@@ -213,6 +221,33 @@ try {
     Assert-Check 'install report says clean install' ([string]$report.mode -eq 'clean') ([string]$report.mode)
     Assert-Check 'install report version matches the package' ([string]$report.version -eq $version) ([string]$report.version)
 
+    # --- LAN listen plan and the generated Caddyfile ------------------------
+    # The desktop deployment showed Caddy's Windows Firewall prompt on every
+    # start. The prompt appears when a program listens beyond loopback without an
+    # inbound allow rule covering it, and Caddy's default wildcard listen plus its
+    # HTTP/3 UDP socket were both uncovered. The package now binds exactly the
+    # addresses a rule covers and turns HTTP/3 off. This acceptance runs as a
+    # standard user, so the plan has to keep the entry point on 127.0.0.1.
+    Write-Step 'Checking the LAN listen plan and the generated Caddyfile'
+    Assert-Check 'install report records the LAN plan' ($null -ne $report.lanExposed -and $null -ne $report.lanHost) ([string]$report.lanHost)
+    Assert-Check 'a loopback public host keeps the installation loopback-only' ((-not [bool]$report.lanExposed) -and ([string]$report.lanHost -eq '127.0.0.1')) ([string]$report.lanExposed + ' ' + [string]$report.lanHost)
+    Assert-Check 'the install report explains the LAN state' ([string]$report.lanMessage -match 'LAN') ([string]$report.lanMessage)
+    $installedCaddyfile = Join-Path $serverCopy 'https\Caddyfile'
+    $caddyfileText = [string](Get-Content -LiteralPath $installedCaddyfile -Raw -Encoding UTF8)
+    Assert-Check 'the installed Caddyfile binds the loopback address explicitly' ($caddyfileText -match 'bind 127\.0\.0\.1') $installedCaddyfile
+    Assert-Check 'the installed Caddyfile never binds a wildcard address' (-not ($caddyfileText -match 'bind 0\.0\.0\.0') -and -not ($caddyfileText -match 'bind ::')) $installedCaddyfile
+    Assert-Check 'the installed Caddyfile disables HTTP/3 so only the TCP listener exists' ($caddyfileText -match 'protocols h1 h2') $installedCaddyfile
+    $tcpListeners = @(Get-NetTCPConnection -LocalPort $HttpsPort -State Listen -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.LocalAddress } | Sort-Object -Unique)
+    Assert-Check 'the HTTPS port listens on 127.0.0.1 only' (($tcpListeners -join ',') -eq '127.0.0.1') ($tcpListeners -join ',')
+    $udpListeners = @(Get-NetUDPEndpoint -LocalPort $HttpsPort -ErrorAction SilentlyContinue)
+    Assert-Check 'the HTTPS port has no UDP listener the TCP rule cannot cover' ($udpListeners.Count -eq 0) (($udpListeners | ForEach-Object { [string]$_.LocalAddress }) -join ',')
+    # This is the case that prompted on Tane's laptop: every run starts
+    # caddy.exe from a fresh temporary path, so a wildcard listen is a brand new
+    # program identity for Windows Firewall and asks for permission again. The
+    # Caddy started here must be that temporary copy and it must be loopback-only.
+    $acceptanceCaddy = @(Get-Process -Name 'caddy' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($serverCopy, [StringComparison]::OrdinalIgnoreCase) })
+    Assert-Check 'the running Caddy is the temporary package copy' ($acceptanceCaddy.Count -ge 1) (($acceptanceCaddy | ForEach-Object { [string]$_.Path }) -join ', ')
+
     # --- board over HTTPS with the private CA ------------------------------
     Write-Step 'Checking the board over HTTPS with the generated root CA'
     . (Join-Path $serverCopy 'portable-common.ps1')
@@ -230,6 +265,48 @@ try {
     $untrustedRejected = $false
     try { Invoke-PortableWebRequest -Uri ($serverUrl + '/readyz') -TimeoutSec 10 | Out-Null } catch { $untrustedRejected = $true }
     Assert-Check 'HTTPS certificate is not publicly trusted (proves the private CA path)' $untrustedRejected
+
+    # HTTP/3 advertises itself in this header; with it gone there is no UDP
+    # socket for Windows Firewall to treat as an unrecognised program.
+    $curlExe = Join-Path $env:SystemRoot 'System32\curl.exe'
+    $headLines = @(& $curlExe -k -s -I --max-time 15 ($serverUrl + '/login'))
+    $altSvc = @($headLines | Where-Object { $_ -match '(?i)^alt-svc:' })
+    Assert-Check 'the HTTPS entry does not advertise HTTP/3' ($altSvc.Count -eq 0) ($altSvc -join '; ')
+
+    # --- what a LAN request does without administrator rights ---------------
+    # This is the case the desktop hit: a LAN address is detected, no firewall
+    # rule covers this installation, and the person at the machine cannot click
+    # "Allow". The plan must refuse the LAN listener instead of prompting, and
+    # still produce a configuration the packaged Caddy accepts.
+    Write-Step 'Checking the LAN plan for a machine without administrator rights'
+    $detectedLanHost = Get-PortablePublicHost
+    $tempCaddy = Get-PortableCaddyPath $serverCopy
+    $liveRules = @()
+    try { $liveRules = @(Get-PortableFirewallSnapshot) } catch { $liveRules = @() }
+    $liveCoverage = Find-PortableFirewallCoverage -Rules $liveRules -ProgramPath $tempCaddy -Port $HttpsPort
+    $liveLanPlan = Resolve-PortableLanPlan -Root $serverCopy -RequestedHost $detectedLanHost -HttpsPort $HttpsPort
+    if (Test-PortableLoopbackHost $detectedLanHost) {
+        Add-Check 'LAN request plan' $true ('skipped: this machine has no LAN address (detected ' + $detectedLanHost + ')')
+    } elseif ($liveCoverage) {
+        Assert-Check 'an existing firewall rule lets a LAN request bind the LAN address' ([bool]$liveLanPlan.Exposed -and [string]$liveLanPlan.LanHost -eq $detectedLanHost) ([string]$liveLanPlan.Firewall + ' ' + [string]$liveLanPlan.LanHost)
+    } else {
+        Assert-Check 'a LAN request without a firewall rule stays loopback-only' ((-not [bool]$liveLanPlan.Exposed) -and ([string]$liveLanPlan.LanHost -eq '127.0.0.1')) ([string]$liveLanPlan.Firewall + ' ' + [string]$liveLanPlan.LanHost)
+        Assert-Check 'a refused LAN request explains that an administrator is needed' ([string]$liveLanPlan.Message -match 'administrator') ([string]$liveLanPlan.Message)
+    }
+    $planCaddyfile = Get-PortableCaddyfile -Root $serverCopy -PublicHost $detectedLanHost -HttpsPort $HttpsPort -ApiPort $ApiPort -WebPort $WebPort -LanExposed ([bool]$liveLanPlan.Exposed)
+    if (-not $liveLanPlan.Exposed -and -not (Test-PortableLoopbackHost $detectedLanHost)) {
+        Assert-Check 'a refused LAN request produces a loopback-only Caddyfile' (-not ($planCaddyfile -match [regex]::Escape($detectedLanHost)) -and $planCaddyfile -match 'bind 127\.0\.0\.1') $detectedLanHost
+    } else {
+        Assert-Check 'a granted LAN request binds the LAN address' ($planCaddyfile -match ('bind 127\.0\.0\.1 ' + [regex]::Escape($detectedLanHost))) $detectedLanHost
+    }
+    $staleLanPlan = Resolve-PortableLanPlan -Root $serverCopy -RequestedHost '203.0.113.17' -HttpsPort $HttpsPort
+    Assert-Check 'a stale recorded LAN address is not bound' ((-not [bool]$staleLanPlan.Exposed) -and ([string]$staleLanPlan.Firewall -eq 'stale-address')) ([string]$staleLanPlan.Firewall + ' ' + [string]$staleLanPlan.Message)
+    $planCaddyfilePath = Join-Path $workRoot 'plan-Caddyfile'
+    [IO.File]::WriteAllText($planCaddyfilePath, $planCaddyfile, (New-Object Text.UTF8Encoding($false)))
+    $planValidateOut = Join-Path $workRoot 'plan-validate.out'
+    $planValidateErr = Join-Path $workRoot 'plan-validate.err'
+    $planValidate = Start-Process -FilePath $tempCaddy -ArgumentList @('validate','--config',$planCaddyfilePath,'--adapter','caddyfile') -RedirectStandardOutput $planValidateOut -RedirectStandardError $planValidateErr -Wait -PassThru -WindowStyle Hidden
+    Assert-Check 'the packaged Caddy accepts the plan configuration' ($planValidate.ExitCode -eq 0) ([string](Get-Content -LiteralPath $planValidateErr -Raw -ErrorAction SilentlyContinue))
 
     # --- portability: the installed web must not reference the build checkout ---
     $deployment = Get-PortableDeployment $serverCopy
@@ -327,11 +404,66 @@ try {
     $opencodeRuntime = @($runtimes | Where-Object { ([string]$_.provider -match 'opencode') -or ([string]$_.name -match 'opencode') })
     Assert-Check 'the bundled opencode runtime is online' ($opencodeRuntime.Count -ge 1) (($runtimes | ForEach-Object { [string]$_.name + '/' + [string]$_.provider }) -join ', ')
     $daemonStatus = Get-PortableDaemonStatus -Root $serverCopy -Profile $ServerProfile
-    Assert-Check 'local daemon reports running' ([bool]$daemonStatus.Running)
+    Assert-Check 'local daemon reports running' ([bool]$daemonStatus.Running) ([string]$daemonStatus.Output)
 
     # --- start on login -----------------------------------------------------
     $startupItem = Get-PortableStartupShortcutPath
     Assert-Check 'start-on-login item registered in the current user Startup folder' (Test-Path -LiteralPath $startupItem) $startupItem
+
+    # --- unclean shutdown: a damaged state file must not block the start ----
+    # The supervisor rewrites state\processes.json every few seconds, so an
+    # unclean shutdown can leave it zero-filled. Start used to abort inside
+    # ConvertFrom-Json before it reached the service — exactly how the desktop
+    # deployment failed to come back after a reboot. This stops the running
+    # stack, damages the file the way the shutdown did, and starts again.
+    Write-Step 'Simulating an unclean shutdown with a damaged state file'
+    $statePath = Join-Path $serverCopy 'state\processes.json'
+    $stopOutput = & (Join-Path $serverCopy 'stop.ps1') -Profile $ServerProfile -Quiet 2>&1 | Out-String
+    $stopExit = $LASTEXITCODE
+    Assert-Check 'stop script completed before the recovery scenario' ($stopExit -eq 0) (($stopOutput -split "\r?\n" | Select-Object -Last 3) -join ' | ')
+    $stoppedDaemon = Get-PortableDaemonStatus -Root $serverCopy -Profile $ServerProfile
+    Assert-Check 'a stopped daemon is reported as stopped' (-not [bool]$stoppedDaemon.Running) ([string]$stoppedDaemon.Output)
+    $damagedLength = 792
+    [IO.File]::WriteAllBytes($statePath, (New-Object byte[] $damagedLength))
+    Assert-Check 'damaged state file staged for the recovery test' ((Get-Item -LiteralPath $statePath).Length -eq $damagedLength) $statePath
+    $startOutput = & (Join-Path $serverCopy 'start.ps1') -Profile $ServerProfile -Quiet 2>&1 | Out-String
+    $startExit = $LASTEXITCODE
+    Assert-Check 'start recovers from a damaged state file' ($startExit -eq 0) (($startOutput -split "\r?\n" | Select-Object -Last 3) -join ' | ')
+    $quarantined = @(Get-ChildItem -LiteralPath (Join-Path $serverCopy 'state') -Filter 'processes.json.corrupt-*' -ErrorAction SilentlyContinue)
+    Assert-Check 'the damaged state file was kept for diagnosis' ($quarantined.Count -ge 1) (($quarantined | ForEach-Object { $_.Name + ' ' + $_.Length + ' bytes' }) -join ', ')
+    $recoveredState = $null
+    try { $recoveredState = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { }
+    Assert-Check 'a fresh state file replaced the damaged one' ($null -ne $recoveredState -and $null -ne $recoveredState.Supervisor)
+    $readyRecovered = Invoke-PortableWebRequest -Uri ($serverUrl + '/readyz') -RootCAPath $rootCa -TimeoutSec 60
+    Assert-Check 'API ready after recovering from the damaged state file' ($readyRecovered.StatusCode -eq 200) ([string]$readyRecovered.StatusCode)
+    $daemonAfterRecovery = Get-PortableDaemonStatus -Root $serverCopy -Profile $ServerProfile
+    Assert-Check 'the local daemon is running again after the recovery' ([bool]$daemonAfterRecovery.Running) ([string]$daemonAfterRecovery.Output)
+    $daemonPid = 0
+    try { $daemonPid = [int]$daemonAfterRecovery.Detail.pid } catch { }
+    Assert-Check 'the reported daemon pid belongs to a live process' ($daemonPid -gt 0 -and $null -ne (Get-Process -Id $daemonPid -ErrorAction SilentlyContinue)) ([string]$daemonPid)
+    $recoveredDeadline = (Get-Date).AddSeconds(150)
+    $recoveredRuntimes = @()
+    while ((Get-Date) -lt $recoveredDeadline) {
+        $runtimeResponse = Invoke-PortableWebRequest -Uri ($serverUrl + '/api/runtimes') -RootCAPath $rootCa -Headers @{ Authorization = 'Bearer ' + [string]$session.token; 'X-Workspace-ID' = $workspaceId }
+        if ($runtimeResponse.StatusCode -eq 200) {
+            $recoveredRuntimes = @(ConvertFrom-PortableResponse $runtimeResponse)
+            if ($recoveredRuntimes.Count -gt 0) { break }
+        }
+        Start-Sleep -Seconds 2
+    }
+    Assert-Check 'the bundled opencode runtime is online again after the recovery' ($recoveredRuntimes.Count -ge 1) (($recoveredRuntimes | ForEach-Object { [string]$_.name + '/' + [string]$_.provider }) -join ', ')
+
+    # A restart rewrites the Caddyfile from the recorded plan; it must not fall
+    # back to the wildcard listen (that is what produced the firewall prompt).
+    $caddyfileAfterRecovery = [string](Get-Content -LiteralPath $installedCaddyfile -Raw -Encoding UTF8)
+    Assert-Check 'the restarted Caddyfile still binds the loopback address' ($caddyfileAfterRecovery -match 'bind 127\.0\.0\.1') $installedCaddyfile
+    $tcpAfterRecovery = @(Get-NetTCPConnection -LocalPort $HttpsPort -State Listen -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.LocalAddress } | Sort-Object -Unique)
+    Assert-Check 'the restarted HTTPS entry listens on 127.0.0.1 only' (($tcpAfterRecovery -join ',') -eq '127.0.0.1') ($tcpAfterRecovery -join ',')
+    $udpAfterRecovery = @(Get-NetUDPEndpoint -LocalPort $HttpsPort -ErrorAction SilentlyContinue)
+    Assert-Check 'the restarted HTTPS entry has no HTTP/3 UDP listener' ($udpAfterRecovery.Count -eq 0) (($udpAfterRecovery | ForEach-Object { [string]$_.LocalAddress }) -join ',')
+    $recoveredReport = Get-Content -LiteralPath (Join-Path $serverCopy 'data\install-report.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-Check 'the restart keeps the recorded loopback plan' ($null -ne $recoveredReport.lanExposed -and (-not [bool]$recoveredReport.lanExposed) -and [string]$recoveredReport.lanRequestedHost) ([string]$recoveredReport.lanRequestedHost + ' -> ' + [string]$recoveredReport.lanHost)
+    $evidence.recovery = [ordered]@{ damagedFileKept = @($quarantined | ForEach-Object { $_.Name }); daemonPid = $daemonPid; runtimes = @($recoveredRuntimes | ForEach-Object { [string]$_.name + '/' + [string]$_.provider }) }
 
     # --- installer artifact + offline rebuild -------------------------------
     Write-Step 'Checking the prebuilt installer and rebuilding it offline'
@@ -461,6 +593,15 @@ try {
         $evidence.durationSeconds = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
         $evidence.offlineSimulation = 'HTTP_PROXY/HTTPS_PROXY/ALL_PROXY pointed at http://127.0.0.1:9 for all child processes'
         $evidence.boardUrl = $serverUrl
+        $evidence.lanPlan = [ordered]@{
+            exposed = [bool]$report.lanExposed
+            host = [string]$report.lanHost
+            requestedHost = [string]$report.lanRequestedHost
+            firewall = [string]$report.lanFirewall
+            message = [string]$report.lanMessage
+            httpsTcpListeners = @($tcpListeners)
+            httpsUdpListeners = @($udpListeners | ForEach-Object { [string]$_.LocalAddress })
+        }
         $evidence.runtimes = @($runtimesAfterSecond | ForEach-Object { [ordered]@{ name = [string]$_.name; provider = [string]$_.provider; status = [string]$_.status } })
         $evidence.os = [ordered]@{ caption = (Get-CimInstance Win32_OperatingSystem).Caption; version = [Environment]::OSVersion.VersionString; user = [Environment]::UserName }
     } catch {
@@ -490,7 +631,7 @@ try {
             try { & (Join-Path $serverCopy 'stop.ps1') -Profile $ServerProfile -Quiet 2>&1 | Out-Null } catch { $cleanupErrors += ('stop: ' + $_.Exception.Message) }
         }
         try {
-            if (Test-Path -LiteralPath $startupItem) { Remove-Item -LiteralPath $startupItem -Force }
+            if ($startupItem -and (Test-Path -LiteralPath $startupItem)) { Remove-Item -LiteralPath $startupItem -Force }
         } catch { $cleanupErrors += ('startup item: ' + $_.Exception.Message) }
         if ($installed) {
             foreach ($profile in @($ServerProfile, $SecondProfile)) {
