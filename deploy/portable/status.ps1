@@ -21,6 +21,7 @@ if (-not $Profile) {
 $config = Get-PortableDeployment $root
 $hostName = Get-PortableLanHostFromConfig $root
 $httpsPort = Get-PortableHttpsPortFromConfig $root
+$report = Read-PortableJson (Join-Path $root 'data\install-report.json')
 
 $serverStatus = $null
 try { $serverStatus = (Invoke-PortableNativeAction -Root $root -Action 'Status' | Out-String).Trim() } catch { $serverStatus = '' }
@@ -36,15 +37,21 @@ try {
 Write-Host ''
 Write-Host 'U Workers portable server' -ForegroundColor Green
 Write-Host ('  version:        ' + [string]$config.Version)
-Write-Host ('  board:          https://' + $hostName + ':' + $httpsPort + '/')
+Write-Host ('  board:          https://localhost:' + $httpsPort + '/')
+if ([bool](Get-PortableOptionalProperty $report 'lanExposed' $false)) {
+    $scope = [string](Get-PortableOptionalProperty $report 'lanFirewall' '')
+    Write-Host ('  LAN entry:      https://' + $hostName + ':' + $httpsPort + '/ (' + $scope + ' firewall rule)')
+} else {
+    Write-Host '  LAN entry:      off - this installation serves this machine only'
+}
 Write-Host ('  API ready:      ' + $apiReady)
 Write-Host ('  HTTPS proxy:    ' + $caddyRunning)
 Write-Host ('  local daemon:   ' + $daemon.Running + ' (profile ' + $Profile + ')')
 Write-Host ('  root CA:        ' + (Get-PortablePublicRootCAPath $root))
 if ($serverStatus) { Write-Host ('  server:         ' + $serverStatus) }
-$report = Read-PortableJson (Join-Path $root 'data\install-report.json')
-if ($report -and $report.runtimes) {
-    $names = @($report.runtimes | ForEach-Object { [string]$_.name + ' (' + [string]$_.provider + ')' })
+$reportedRuntimes = Get-PortableOptionalProperty $report 'runtimes' $null
+if ($reportedRuntimes) {
+    $names = @($reportedRuntimes | ForEach-Object { [string]$_.name + ' (' + [string]$_.provider + ')' })
     Write-Host ('  runtimes seen:  ' + ($names -join ', '))
 }
 Write-Host ''

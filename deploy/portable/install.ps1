@@ -55,6 +55,10 @@
 .PARAMETER NoStartup
     Do not register the current user's start-on-login item.
 
+.PARAMETER NoLanAccess
+    Never listen beyond 127.0.0.1, even when a firewall rule exists or could be
+    added. The board stays reachable on this machine only.
+
 .PARAMETER Force
     Continue even when a deployment already exists in this folder (starts it
     instead of reinstalling).
@@ -79,6 +83,7 @@ param(
     [switch]$SkipDaemon,
     [switch]$NoBrowser,
     [switch]$NoStartup,
+    [switch]$NoLanAccess,
     [switch]$Force
 )
 
@@ -391,9 +396,13 @@ function Invoke-PortableStartServer {
 }
 
 function Start-PortableHttps {
-    param([string]$HostName)
-    Write-Step ('Starting the LAN HTTPS entry on port ' + $HttpsPort)
-    Start-PortableCaddy -Root $root -PublicHost $HostName -HttpsPort $HttpsPort -ApiPort $ApiPort -WebPort $WebPort | Out-Null
+    param([string]$HostName, [bool]$LanExposed)
+    if ($LanExposed) {
+        Write-Step ('Starting the HTTPS entry on port ' + $HttpsPort + ' for this machine and the LAN')
+    } else {
+        Write-Step ('Starting the HTTPS entry on port ' + $HttpsPort + ' on this machine only')
+    }
+    Start-PortableCaddy -Root $root -PublicHost $HostName -HttpsPort $HttpsPort -ApiPort $ApiPort -WebPort $WebPort -LanExposed $LanExposed | Out-Null
     Invoke-PortableTlsHandshake -Uri ('https://localhost:' + $HttpsPort + '/readyz')
     $rootCA = Export-PortableRootCA $root
     Write-Host ('  root CA: ' + $rootCA.Path + '  (SHA-256 ' + $rootCA.Sha256 + ')')
@@ -520,7 +529,7 @@ function Assert-PortableAdoptionPreflight {
 }
 
 function Invoke-PortableAdoption {
-    param([string]$OldRoot, [string]$HostName)
+    param([string]$OldRoot, [string]$HostName, [bool]$LanExposed)
     Assert-PortableAdoptionLayout -OldRoot $OldRoot
     $oldConfig = Get-PortableAdoptedDatabaseConfiguration $OldRoot
     $oldRunner = Join-Path $OldRoot 'runtime\native-windows.ps1'
@@ -580,7 +589,7 @@ function Invoke-PortableAdoption {
         [IO.File]::AppendAllText($postgresConfig, $override, (New-Object Text.UTF8Encoding($false)))
         Invoke-PortableStageRelease
         Invoke-PortableStartServer
-        $rootCA = Start-PortableHttps -HostName $HostName
+        $rootCA = Start-PortableHttps -HostName $HostName -LanExposed $LanExposed
         $serverUrl = 'https://' + $HostName + ':' + $HttpsPort
         Wait-PortableHttp -Uri ($serverUrl + '/readyz') -RootCAPath $rootCA.Path -TimeoutSec 90 -Description 'the adopted API' | Out-Null
         $operatorId = Get-PortableOwnerUserId -Email $OperatorEmail
@@ -645,8 +654,13 @@ if (-not $resumeInstall) {
     }
 }
 
-$hostName = Get-PortablePublicHost $PublicHost
-Write-Host ('LAN address for other machines: ' + $hostName + ':' + $HttpsPort)
+# Decide the LAN entry point before anything is installed: this one plan drives
+# the certificate, the listen addresses, the CORS origins and the report, so the
+# four can never disagree about whether this machine serves the LAN.
+$requestedLanHost = if ($NoLanAccess) { '127.0.0.1' } else { Get-PortablePublicHost $PublicHost }
+$lanPlan = Resolve-PortableLanPlan -Root $root -RequestedHost $requestedLanHost -HttpsPort $HttpsPort -AllowRuleCreation:(-not $NoLanAccess)
+$hostName = [string]$lanPlan.LanHost
+Write-Host ([string]$lanPlan.Message)
 if (-not $AdoptRoot -and -not $resumeInstall) {
     foreach ($port in @($ApiPort, $WebPort, $DatabasePort, $HttpsPort)) {
         if (-not (Test-PortablePortFree $port)) { throw ('Port ' + $port + ' is already in use. Close the other program or pass different ports to Setup.cmd.') }
@@ -655,7 +669,7 @@ if (-not $AdoptRoot -and -not $resumeInstall) {
 
 $result = $null
 if ($AdoptRoot) {
-    $adopted = Invoke-PortableAdoption -OldRoot ([IO.Path]::GetFullPath($AdoptRoot)) -HostName $hostName
+    $adopted = Invoke-PortableAdoption -OldRoot ([IO.Path]::GetFullPath($AdoptRoot)) -HostName $hostName -LanExposed ([bool]$lanPlan.Exposed)
     $result = [ordered]@{
         ServerUrl = $adopted.ServerUrl
         RootCA = $adopted.RootCA
@@ -680,7 +694,7 @@ if ($AdoptRoot) {
         }
     }
     Invoke-PortableStartServer
-    $rootCA = Start-PortableHttps -HostName $hostName
+    $rootCA = Start-PortableHttps -HostName $hostName -LanExposed ([bool]$lanPlan.Exposed)
     $serverUrl = 'https://' + $hostName + ':' + $HttpsPort
     Write-Step 'Checking the board over HTTPS'
     Wait-PortableHttp -Uri ($serverUrl + '/login') -RootCAPath $rootCA.Path -TimeoutSec 90 -Description 'the sign-in page' | Out-Null
@@ -746,6 +760,11 @@ $report = [ordered]@{
     mode = $result.Mode
     boardUrl = $result.ServerUrl
     lanHost = $hostName
+    lanRequestedHost = $requestedLanHost
+    lanExposed = [bool]$lanPlan.Exposed
+    lanFirewall = [string]$lanPlan.Firewall
+    lanFirewallRule = [string]$lanPlan.FirewallRule
+    lanMessage = [string]$lanPlan.Message
     httpsPort = $HttpsPort
     apiPort = $ApiPort
     webPort = $WebPort
@@ -770,7 +789,11 @@ Write-PortableInstallReport -Root $root -Report $report | Out-Null
 Write-Host ''
 Write-Host 'U Workers is ready.' -ForegroundColor Green
 Write-Host ('  Board (this machine):   https://localhost:' + $HttpsPort + '/')
-Write-Host ('  Board (other machines): ' + $result.ServerUrl + '/')
+if ($lanPlan.Exposed) {
+    Write-Host ('  Board (other machines): ' + $result.ServerUrl + '/')
+} else {
+    Write-Host '  Board (other machines): not listening - this installation serves this machine only.'
+}
 if ($result.Contains('Username') -and $result.Username) {
     Write-Host ('  Sign-in: ' + $result.Username + '  (password in ' + $result.PasswordFile + ')')
 } elseif ($result.Mode -eq 'adopted') {
