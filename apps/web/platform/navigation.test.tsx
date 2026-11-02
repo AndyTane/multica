@@ -24,6 +24,7 @@ vi.mock("next/navigation", () => ({
 
 import { WebNavigationProvider } from "./navigation";
 import { useNavigation, type NavigationAdapter } from "@multica/views/navigation";
+import { configStore } from "@multica/core/config";
 
 function navigate(path: string) {
   window.dispatchEvent(
@@ -47,6 +48,33 @@ function renderAdapter(): () => NavigationAdapter {
 
 beforeEach(() => {
   router.push.mockReset();
+  configStore.getState().setPublicAppUrl();
+});
+
+describe("WebNavigationProvider share address", () => {
+  const path = "/join?code=existing%2Bcode&next=%2Facme#member";
+
+  it("prefers the deployed frontend while preserving the complete path", () => {
+    configStore.getState().setPublicAppUrl("https://work.example.test:14443");
+    expect(renderAdapter()().getShareableUrl!(path)).toBe(`https://work.example.test:14443${path}`);
+  });
+
+  it("keeps browser origin for an old server and never uses daemon URLs", () => {
+    configStore.getState().setDaemonConfig({ daemonAppUrl: "https://daemon.example.test" });
+    expect(renderAdapter()().getShareableUrl!(path)).toBe(`${window.location.origin}${path}`);
+    configStore.getState().setDaemonConfig({});
+  });
+
+  it("updates rendered links and an already captured callback after config loads", () => {
+    const adapter = renderAdapter();
+    const copy = adapter().getShareableUrl!;
+    expect(copy(path)).toBe(`${window.location.origin}${path}`);
+    act(() => configStore.getState().setPublicAppUrl("http://work.example.test:8080"));
+    expect(adapter().getShareableUrl!(path)).toBe(`http://work.example.test:8080${path}`);
+    expect(copy(path)).toBe(`http://work.example.test:8080${path}`);
+    act(() => configStore.getState().setPublicAppUrl("http://127.0.0.1:3000"));
+    expect(copy(path)).toBe(`${window.location.origin}${path}`);
+  });
 });
 
 describe("WebNavigationProvider internal link bridge", () => {

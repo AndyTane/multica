@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizePublicAppUrl } from "../config/public-app-url";
 import { normalizeDshWebUrl } from "../issues/dsh-session";
 import { normalizeIssueStatusCategory } from "../issues/config/status";
 import type {
@@ -740,6 +741,8 @@ export const EMPTY_ISSUE_PROPERTIES_RESPONSE: IssuePropertiesResponse = {
 };
 
 export interface AppConfigResponse {
+  /** Optional runtime frontend origin for browser sharing, independent of daemon setup. */
+  public_app_url?: string;
   cdn_domain: string;
   // True when the CDN domain serves private content via time-bounded signed
   // URLs (CloudFront signing) — raw storage URLs on that domain are NOT
@@ -1034,6 +1037,7 @@ export const EMPTY_REFRESH_SESSION_RESPONSE: RefreshSessionResponse = {
 };
 
 export const AppConfigSchema = z.object({
+  public_app_url: z.unknown().transform(normalizePublicAppUrl),
   cdn_domain: z.string().default(""),
   cdn_signed: BooleanWithDefaultSchema(false),
   allow_signup: BooleanWithDefaultSchema(true),
@@ -1060,6 +1064,7 @@ export const AppConfigSchema = z.object({
 }).loose();
 
 export const EMPTY_APP_CONFIG: AppConfigResponse = {
+  public_app_url: "",
   cdn_domain: "",
   cdn_signed: false,
   allow_signup: true,

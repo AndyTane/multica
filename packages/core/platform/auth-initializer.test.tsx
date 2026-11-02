@@ -18,6 +18,7 @@ import {
   __clearDraftCleanupRegistryForTest,
 } from "../drafts/cleanup-registry";
 import { AuthInitializer } from "./auth-initializer";
+import { configStore } from "../config";
 
 const logger = vi.hoisted(() => ({
   debug: vi.fn(),
@@ -113,6 +114,7 @@ function renderInitializer({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  configStore.getState().setPublicAppUrl();
   __clearDraftCleanupRegistryForTest();
 });
 
@@ -121,6 +123,14 @@ afterEach(() => {
 });
 
 describe("AuthInitializer recovery", () => {
+  it("applies the runtime public frontend and clears it for an older server", async () => {
+    const first = renderInitializer({ api: makeApi({ getConfig: vi.fn().mockResolvedValue({ public_app_url: "https://work.example.test:14443" }) }) });
+    await waitFor(() => expect(configStore.getState().publicAppUrl).toBe("https://work.example.test:14443"));
+    first.unmount();
+    renderInitializer({ api: makeApi() });
+    await waitFor(() => expect(configStore.getState().publicAppUrl).toBe(""));
+  });
+
   it("keeps the token and recovers on the online event after a network failure", async () => {
     const storage = makeStorage({ multica_token: "token-1" });
     const getMe = vi

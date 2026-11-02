@@ -7,6 +7,7 @@ import {
   type NavigationAdapter,
 } from "@multica/views/navigation";
 import { canGoBackInApp } from "./in-app-history";
+import { configStore, useConfigStore } from "@multica/core/config";
 
 /**
  * Web half of the `multica:navigate` bridge — the event shared content
@@ -68,6 +69,8 @@ function NavigationProviderInner({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // Rerender visible share URLs when runtime config arrives after this page.
+  useConfigStore((state) => state.publicAppUrl);
   const hash = useSyncExternalStore(
     subscribeToHash,
     () => window.location.hash,
@@ -85,7 +88,9 @@ function NavigationProviderInner({
     searchParams: new URLSearchParams(searchParams.toString()),
     hash,
     getShareableUrl: (path: string) =>
-      typeof window === "undefined" ? path : window.location.origin + path,
+      typeof window === "undefined"
+        ? path
+        : (configStore.getState().publicAppUrl || window.location.origin) + path,
     // router.prefetch is a no-op in dev mode by Next.js design; in production
     // it warms the RSC payload + route chunk so the next push() commits with
     // no network round-trip. Safe to call repeatedly — Next dedupes internally.

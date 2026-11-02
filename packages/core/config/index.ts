@@ -1,8 +1,11 @@
 export * from "./brand";
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
+import { normalizePublicAppUrl } from "./public-app-url";
 
 interface ConfigState {
+  publicAppUrl: string;
+  setPublicAppUrl: (url?: string) => void;
   cdnDomain: string;
   // True when cdnDomain serves private content via time-bounded signed URLs
   // (CloudFront signing enabled server-side). Renderers must not treat a raw
@@ -80,6 +83,8 @@ interface ConfigState {
 }
 
 export const configStore = createStore<ConfigState>((set) => ({
+  publicAppUrl: "",
+  setPublicAppUrl: (url) => set({ publicAppUrl: normalizePublicAppUrl(url) }),
   cdnDomain: "",
   cdnSigned: false,
   allowSignup: true,
