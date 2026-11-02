@@ -35,7 +35,7 @@ Whichever you choose, treat the credentials reachable from that environment as c
 
 These are real, but they are conveniences and blast-radius reduction — not a security boundary against a run that actively tries to escape:
 
-- **Per-run working directory.** Each run gets its own workdir under `~/multica_workspaces/`, so concurrent runs do not collide on the same checkout.
+- **Per-run working directory.** Each run gets its own workdir under `~/u-workers-workspaces/`, so concurrent runs do not collide on the same checkout.
 - **Per-run agent state.** Codex runs get a run-scoped `CODEX_HOME` holding config, sessions, and skills, so per-run settings do not pollute your `~/.codex/`.
 - **Run-scoped API tokens.** The `MULTICA_TOKEN` handed to a run is bound to that agent and that run by the server, so a run cannot act as you or as another agent through the U Workers API.
 

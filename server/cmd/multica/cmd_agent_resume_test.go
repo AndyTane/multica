@@ -177,7 +177,7 @@ func TestAgentResumePrintAndActiveConversationGate(t *testing.T) {
 		t.Fatalf("print result: %d %d %s", pages, lookups, output.String())
 	}
 	active = true
-	if err := runAgentResume(cmd, []string{task.AgentID, task.ID}); err == nil || !strings.Contains(cli.FormatError(err, false), "active Multica run") {
+	if err := runAgentResume(cmd, []string{task.AgentID, task.ID}); err == nil || !strings.Contains(cli.FormatError(err, false), "active U Workers run") {
 		t.Fatalf("active conversation must have visible guidance: %v", err)
 	}
 	if lookups != 1 {

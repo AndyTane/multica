@@ -173,7 +173,7 @@ func TestCheckoutIdentityUserConfigAndCoauthor(t *testing.T) {
 			t.Fatalf("conditional user/author identity = %q", got)
 		}
 		body := gitIdentityCommand(t, "-C", result.Path, "log", "-1", "--format=%B")
-		if strings.Contains(body, "Co-authored-by: multica-agent <github@multica.ai>") != enabled {
+		if strings.Contains(body, "Co-authored-by: U Workers Agent <agent@u-workers.invalid>") != enabled {
 			t.Fatalf("coauthor enabled=%v, commit body: %s", enabled, body)
 		}
 	}

@@ -38,8 +38,8 @@ For remote browser login use --callback-host or the SSH tunnel hint.`,
 
 func init() {
 	for _, cmd := range []*cobra.Command{setupCmd, setupSelfHostCmd} {
-		cmd.Flags().String("server-url", "", "Backend server URL (env: MULTICA_SERVER_URL)")
-		cmd.Flags().String("app-url", "", "Frontend app URL (env: MULTICA_APP_URL)")
+		cmd.Flags().String("server-url", "", "Backend server URL (env: U_WORKERS_SERVER_URL, legacy MULTICA_SERVER_URL)")
+		cmd.Flags().String("app-url", "", "Frontend app URL (env: U_WORKERS_APP_URL, legacy MULTICA_APP_URL)")
 		cmd.Flags().Int("port", 8080, "Backend port when no server is configured")
 		cmd.Flags().Int("frontend-port", 3000, "Frontend port when no app is configured")
 		cmd.Flags().String(callbackHostFlag, "", callbackHostFlagHelp)
@@ -160,7 +160,7 @@ func runSetupSelfHost(cmd *cobra.Command, args []string) error {
 	if !reachable {
 		fmt.Fprintf(os.Stderr, "\n⚠ Server at %s is not reachable.\n", serverURL)
 		fmt.Fprintln(os.Stderr, "  Your existing configuration was left unchanged.")
-		fmt.Fprintln(os.Stderr, "  Verify the URL, then re-run 'multica setup self-host' once it's reachable.")
+		fmt.Fprintln(os.Stderr, "  Verify the URL, then re-run '"+cliName+" setup self-host' once it's reachable.")
 		return nil
 	}
 
@@ -220,7 +220,7 @@ func dispatchDaemonAfterSetup(
 			if activeTasks == 1 {
 				taskLabel = "task"
 			}
-			restartCmd := "multica daemon restart"
+			restartCmd := cliName + " daemon restart"
 			if profile := resolveProfile(cmd); profile != "" {
 				restartCmd += " --profile " + profile
 			}
@@ -274,7 +274,7 @@ func persistSelfHostConfigIfReachable(serverURL, appURL, profile string, probe f
 }
 
 // resolveSelfHostServerURL picks the backend URL for `setup self-host`: the
-// --server-url flag wins, then the MULTICA_SERVER_URL env var (consistent with
+// --server-url flag wins, then the U_WORKERS_SERVER_URL env var (consistent with
 // the rest of the CLI and the env var documented on the root flag), then an
 // already-configured server_url from the existing config, then the localhost
 // default built from --port. userProvided is true when the URL came from the

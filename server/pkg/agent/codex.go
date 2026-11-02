@@ -1522,7 +1522,7 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 		_, err := c.request(runCtx, "initialize", map[string]any{
 			"clientInfo": map[string]any{
 				"name":    "multica-agent-sdk",
-				"title":   "Multica Agent SDK",
+				"title":   "U Workers Agent SDK",
 				"version": "0.2.0",
 			},
 			"capabilities": map[string]any{

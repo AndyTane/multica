@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 	lumberjack "gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon"
 	logger_pkg "github.com/multica-ai/multica/server/internal/logger"
@@ -81,7 +82,7 @@ var daemonDiskUsageCmd = &cobra.Command{
 		"`desktop-<host>` root — and prints a per-root breakdown with a combined grand total. In that mode --top\n" +
 		"applies within each root and --workspaces-root is not allowed.\n\n" +
 		"Bytes are split into total and the artifact-cleanable subset (node_modules, .next, .turbo by default,\n" +
-		"overridable via MULTICA_GC_ARTIFACT_PATTERNS) so the report stays in sync with what the GC reclaims.\n" +
+		"overridable via U_WORKERS_GC_ARTIFACT_PATTERNS) so the report stays in sync with what the GC reclaims.\n" +
 		"A .git directory counts toward the total but never toward the artifact subset — the GC frees it only\n" +
 		"when it removes the whole run directory. Symlinks are never followed.\n\n" +
 		"The STATUS column shows the current status of the issue each directory belongs to, which requires\n" +
@@ -94,20 +95,20 @@ var daemonDiskUsageCmd = &cobra.Command{
 func init() {
 	f := daemonStartCmd.Flags()
 	f.Bool("foreground", false, "Run in the foreground instead of background")
-	f.String("daemon-id", "", "Unique daemon identifier (env: MULTICA_DAEMON_ID)")
-	f.String("device-name", "", "Human-readable device name (env: MULTICA_DAEMON_DEVICE_NAME)")
-	f.String("runtime-name", "", "Runtime display name (env: MULTICA_AGENT_RUNTIME_NAME)")
-	f.String("workspaces-root", "", "Base directory for run workspaces (env: MULTICA_WORKSPACES_ROOT)")
-	f.Duration("poll-interval", 0, "Run poll interval (env: MULTICA_DAEMON_POLL_INTERVAL)")
-	f.Duration("ws-claim-poll-interval", 0, "Healthy WebSocket claim safety-poll upper bound (env: MULTICA_DAEMON_WS_CLAIM_POLL_INTERVAL)")
-	f.Duration("heartbeat-interval", 0, "Heartbeat interval (env: MULTICA_DAEMON_HEARTBEAT_INTERVAL)")
-	f.Duration("agent-timeout", 0, "Absolute per-run wall-clock cap; 0 = no cap, rely on the watchdogs (env: MULTICA_AGENT_TIMEOUT)")
-	f.Duration("codex-semantic-inactivity-timeout", 0, "Codex semantic inactivity timeout (env: MULTICA_CODEX_SEMANTIC_INACTIVITY_TIMEOUT)")
-	f.Duration("codex-handshake-timeout", 0, "Codex app-server startup RPC timeout (env: MULTICA_CODEX_HANDSHAKE_TIMEOUT)")
-	f.Int("max-concurrent-tasks", 0, "Maximum concurrent runs (env: MULTICA_DAEMON_MAX_CONCURRENT_TASKS)")
-	f.Bool("no-auto-update", false, "Disable periodic CLI self-update (env: MULTICA_DAEMON_AUTO_UPDATE=false)")
-	f.Duration("auto-update-interval", 0, "How often to poll GitHub for a newer release (env: MULTICA_DAEMON_AUTO_UPDATE_INTERVAL)")
-	f.Bool("no-auto-reload", false, "Disable restarting when the multica binary on disk changes version (env: MULTICA_DAEMON_AUTO_RELOAD=false)")
+	f.String("daemon-id", "", "Unique daemon identifier (env: U_WORKERS_DAEMON_ID)")
+	f.String("device-name", "", "Human-readable device name (env: U_WORKERS_DAEMON_DEVICE_NAME)")
+	f.String("runtime-name", "", "Runtime display name (env: U_WORKERS_AGENT_RUNTIME_NAME)")
+	f.String("workspaces-root", "", "Base directory for run workspaces (env: U_WORKERS_WORKSPACES_ROOT)")
+	f.Duration("poll-interval", 0, "Run poll interval (env: U_WORKERS_DAEMON_POLL_INTERVAL)")
+	f.Duration("ws-claim-poll-interval", 0, "Healthy WebSocket claim safety-poll upper bound (env: U_WORKERS_DAEMON_WS_CLAIM_POLL_INTERVAL)")
+	f.Duration("heartbeat-interval", 0, "Heartbeat interval (env: U_WORKERS_DAEMON_HEARTBEAT_INTERVAL)")
+	f.Duration("agent-timeout", 0, "Absolute per-run wall-clock cap; 0 = no cap, rely on the watchdogs (env: U_WORKERS_AGENT_TIMEOUT)")
+	f.Duration("codex-semantic-inactivity-timeout", 0, "Codex semantic inactivity timeout (env: U_WORKERS_CODEX_SEMANTIC_INACTIVITY_TIMEOUT)")
+	f.Duration("codex-handshake-timeout", 0, "Codex app-server startup RPC timeout (env: U_WORKERS_CODEX_HANDSHAKE_TIMEOUT)")
+	f.Int("max-concurrent-tasks", 0, "Maximum concurrent runs (env: U_WORKERS_DAEMON_MAX_CONCURRENT_TASKS)")
+	f.Bool("no-auto-update", false, "Disable periodic CLI self-update (env: U_WORKERS_DAEMON_AUTO_UPDATE=false)")
+	f.Duration("auto-update-interval", 0, "How often to poll GitHub for a newer release (env: U_WORKERS_DAEMON_AUTO_UPDATE_INTERVAL)")
+	f.Bool("no-auto-reload", false, "Disable restarting when the CLI binary on disk changes version (env: U_WORKERS_DAEMON_AUTO_RELOAD=false)")
 
 	daemonLogsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
 	daemonLogsCmd.Flags().IntP("lines", "n", 50, "Number of lines to show")
@@ -117,20 +118,20 @@ func init() {
 	// restart shares all the same flags as start
 	rf := daemonRestartCmd.Flags()
 	rf.Bool("foreground", false, "Run in the foreground instead of background")
-	rf.String("daemon-id", "", "Unique daemon identifier (env: MULTICA_DAEMON_ID)")
-	rf.String("device-name", "", "Human-readable device name (env: MULTICA_DAEMON_DEVICE_NAME)")
-	rf.String("runtime-name", "", "Runtime display name (env: MULTICA_AGENT_RUNTIME_NAME)")
-	rf.String("workspaces-root", "", "Base directory for run workspaces (env: MULTICA_WORKSPACES_ROOT)")
-	rf.Duration("poll-interval", 0, "Run poll interval (env: MULTICA_DAEMON_POLL_INTERVAL)")
-	rf.Duration("ws-claim-poll-interval", 0, "Healthy WebSocket claim safety-poll upper bound (env: MULTICA_DAEMON_WS_CLAIM_POLL_INTERVAL)")
-	rf.Duration("heartbeat-interval", 0, "Heartbeat interval (env: MULTICA_DAEMON_HEARTBEAT_INTERVAL)")
-	rf.Duration("agent-timeout", 0, "Absolute per-run wall-clock cap; 0 = no cap, rely on the watchdogs (env: MULTICA_AGENT_TIMEOUT)")
-	rf.Duration("codex-semantic-inactivity-timeout", 0, "Codex semantic inactivity timeout (env: MULTICA_CODEX_SEMANTIC_INACTIVITY_TIMEOUT)")
-	rf.Duration("codex-handshake-timeout", 0, "Codex app-server startup RPC timeout (env: MULTICA_CODEX_HANDSHAKE_TIMEOUT)")
-	rf.Int("max-concurrent-tasks", 0, "Maximum concurrent runs (env: MULTICA_DAEMON_MAX_CONCURRENT_TASKS)")
-	rf.Bool("no-auto-update", false, "Disable periodic CLI self-update (env: MULTICA_DAEMON_AUTO_UPDATE=false)")
-	rf.Duration("auto-update-interval", 0, "How often to poll GitHub for a newer release (env: MULTICA_DAEMON_AUTO_UPDATE_INTERVAL)")
-	rf.Bool("no-auto-reload", false, "Disable restarting when the multica binary on disk changes version (env: MULTICA_DAEMON_AUTO_RELOAD=false)")
+	rf.String("daemon-id", "", "Unique daemon identifier (env: U_WORKERS_DAEMON_ID)")
+	rf.String("device-name", "", "Human-readable device name (env: U_WORKERS_DAEMON_DEVICE_NAME)")
+	rf.String("runtime-name", "", "Runtime display name (env: U_WORKERS_AGENT_RUNTIME_NAME)")
+	rf.String("workspaces-root", "", "Base directory for run workspaces (env: U_WORKERS_WORKSPACES_ROOT)")
+	rf.Duration("poll-interval", 0, "Run poll interval (env: U_WORKERS_DAEMON_POLL_INTERVAL)")
+	rf.Duration("ws-claim-poll-interval", 0, "Healthy WebSocket claim safety-poll upper bound (env: U_WORKERS_DAEMON_WS_CLAIM_POLL_INTERVAL)")
+	rf.Duration("heartbeat-interval", 0, "Heartbeat interval (env: U_WORKERS_DAEMON_HEARTBEAT_INTERVAL)")
+	rf.Duration("agent-timeout", 0, "Absolute per-run wall-clock cap; 0 = no cap, rely on the watchdogs (env: U_WORKERS_AGENT_TIMEOUT)")
+	rf.Duration("codex-semantic-inactivity-timeout", 0, "Codex semantic inactivity timeout (env: U_WORKERS_CODEX_SEMANTIC_INACTIVITY_TIMEOUT)")
+	rf.Duration("codex-handshake-timeout", 0, "Codex app-server startup RPC timeout (env: U_WORKERS_CODEX_HANDSHAKE_TIMEOUT)")
+	rf.Int("max-concurrent-tasks", 0, "Maximum concurrent runs (env: U_WORKERS_DAEMON_MAX_CONCURRENT_TASKS)")
+	rf.Bool("no-auto-update", false, "Disable periodic CLI self-update (env: U_WORKERS_DAEMON_AUTO_UPDATE=false)")
+	rf.Duration("auto-update-interval", 0, "How often to poll GitHub for a newer release (env: U_WORKERS_DAEMON_AUTO_UPDATE_INTERVAL)")
+	rf.Bool("no-auto-reload", false, "Disable restarting when the CLI binary on disk changes version (env: U_WORKERS_DAEMON_AUTO_RELOAD=false)")
 
 	df := daemonDiskUsageCmd.Flags()
 	df.Bool("by-workspace", false, "Aggregate output by workspace instead of by run")
@@ -532,9 +533,9 @@ func requireDaemonAuth(profile string) error {
 		return fmt.Errorf("load CLI config: %w", err)
 	}
 	if cfg.Token == "" {
-		loginHint := "multica login"
+		loginHint := cliName + " login"
 		if profile != "" {
-			loginHint = fmt.Sprintf("multica login --profile %s", profile)
+			loginHint = fmt.Sprintf(cliName+" login --profile %s", profile)
 		}
 		return fmt.Errorf("you are not logged in. Run '%s' first, then start the daemon", loginHint)
 	}
@@ -716,7 +717,7 @@ func runDaemonBackground(cmd *cobra.Command) error {
 
 // resolveDaemonServerURL resolves the server URL the daemon will talk to,
 // in the same precedence order the foreground daemon uses: --server-url flag,
-// MULTICA_SERVER_URL env, then the stored CLI config for the profile.
+// U_WORKERS_SERVER_URL env, then the stored CLI config for the profile.
 func resolveDaemonServerURL(cmd *cobra.Command, profile string) string {
 	serverURL := cli.FlagOrEnv(cmd, "server-url", "MULTICA_SERVER_URL", "")
 	if serverURL == "" {
@@ -751,7 +752,7 @@ func daemonStartupFailureError(logs daemonStartupLogs, waitErr error, profile, s
 	crashLines := readLogTailSince(logs.errLogPath, logs.errLogOffset, 40)
 	joined := strings.Join(append(append([]string{}, lines...), crashLines...), "\n")
 
-	loginHint := "multica login"
+	loginHint := cliName + " login"
 	if profile != "" {
 		loginHint += " --profile " + profile
 	}
@@ -760,16 +761,16 @@ func daemonStartupFailureError(logs daemonStartupLogs, waitErr error, profile, s
 	case strings.Contains(joined, "auth token rejected") ||
 		strings.Contains(joined, "returned 401") ||
 		strings.Contains(joined, "not authenticated"):
-		return fmt.Errorf("daemon failed to start: the server rejected your login token (it may have expired or been revoked).\nRun '%s' to sign in again, then rerun 'multica daemon start'.\nFull log: %s", loginHint, logs.logPath)
+		return fmt.Errorf("daemon failed to start: the server rejected your login token (it may have expired or been revoked).\nRun '%s' to sign in again, then rerun '"+cliName+" daemon start'.\nFull log: %s", loginHint, logs.logPath)
 	case strings.Contains(joined, "connection refused") ||
 		strings.Contains(joined, "no such host") ||
 		strings.Contains(joined, "i/o timeout") ||
 		strings.Contains(joined, "network is unreachable"):
-		target := "the Multica server"
+		target := "the " + brand.DisplayName + " server"
 		if serverURL != "" {
 			target += " at " + serverURL
 		}
-		return fmt.Errorf("daemon failed to start: cannot reach %s.\nMake sure the server is running and reachable, then rerun 'multica daemon start'.\nFull log: %s", target, logs.logPath)
+		return fmt.Errorf("daemon failed to start: cannot reach %s.\nMake sure the server is running and reachable, then rerun '"+cliName+" daemon start'.\nFull log: %s", target, logs.logPath)
 	}
 
 	var b strings.Builder
@@ -1188,7 +1189,7 @@ func requireDaemonRestartPreflight(cmd *cobra.Command, profile string) error {
 		return fmt.Errorf("refusing to restart: invalid server URL %q: %w", rawURL, err)
 	}
 
-	loginHint := "multica login"
+	loginHint := cliName + " login"
 	if profile != "" {
 		loginHint += " --profile " + profile
 	}
@@ -1199,11 +1200,11 @@ func requireDaemonRestartPreflight(cmd *cobra.Command, profile string) error {
 		var httpErr *cli.HTTPError
 		if errors.As(err, &httpErr) {
 			if httpErr.StatusCode == http.StatusUnauthorized {
-				return fmt.Errorf("refusing to restart: the server rejected your login token (it may have expired or been revoked); the running daemon was left untouched.\nRun '%s' to sign in again, then rerun 'multica daemon restart'", loginHint)
+				return fmt.Errorf("refusing to restart: the server rejected your login token (it may have expired or been revoked); the running daemon was left untouched.\nRun '%s' to sign in again, then rerun '"+cliName+" daemon restart'", loginHint)
 			}
 			return fmt.Errorf("refusing to restart: preflight check against %s failed (%w); the running daemon was left untouched", baseURL, err)
 		}
-		return fmt.Errorf("refusing to restart: cannot reach the Multica server at %s (%w); the running daemon was left untouched.\nMake sure the server is running and reachable, then rerun 'multica daemon restart'", baseURL, err)
+		return fmt.Errorf("refusing to restart: cannot reach the U Workers server at %s (%w); the running daemon was left untouched.\nMake sure the server is running and reachable, then rerun '"+cliName+" daemon restart'", baseURL, err)
 	}
 	return nil
 }
@@ -1467,7 +1468,7 @@ func daemonStatusHealthPort(cmd *cobra.Command) (int, error) {
 // newer daemon naming a manager this CLI predates is still worth showing.
 func describeDaemonManager(launchedBy string) string {
 	if launchedBy == "desktop" {
-		return "Multica Desktop app (start and stop it from the app)"
+		return "U Workers Desktop app (start and stop it from the app)"
 	}
 	return launchedBy
 }
@@ -2116,7 +2117,7 @@ func printRepoCacheLine(w io.Writer, report daemon.DiskUsageReport) {
 	if report.RepoCacheCount == 0 && report.RepoCacheSizeBytes == 0 {
 		return
 	}
-	fmt.Fprintf(w, "Repo cache (.repos): %s across %d repo(s), not included above. Evicted once a repo is unused for MULTICA_GC_REPO_TTL and no longer attached to a workspace.\n",
+	fmt.Fprintf(w, "Repo cache (.repos): %s across %d repo(s), not included above. Evicted once a repo is unused for U_WORKERS_GC_REPO_TTL and no longer attached to a workspace.\n",
 		formatBytes(report.RepoCacheSizeBytes), report.RepoCacheCount)
 }
 
@@ -2183,7 +2184,7 @@ func printDiskUsageOtherRootsHint(w io.Writer, report daemon.DiskUsageReport, pr
 		fmt.Fprintf(w, "  %s  # %s (%d run%s)\n",
 			s.Command, s.Root, s.TaskCount, pluralS(s.TaskCount))
 	}
-	fmt.Fprintln(w, "Run 'multica daemon disk-usage --all-profiles' for a combined total across all roots.")
+	fmt.Fprintln(w, "Run '"+cliName+" daemon disk-usage --all-profiles' for a combined total across all roots.")
 }
 
 type diskUsageProfileSuggestion struct {
@@ -2200,7 +2201,7 @@ func diskUsageProfileSuggestions(currentProfile, currentRoot string) []diskUsage
 			if taskCount := countDiskUsageTaskDirs(root); taskCount > 0 {
 				out = append(out, diskUsageProfileSuggestion{
 					Profile:   "",
-					Command:   "multica daemon disk-usage",
+					Command:   cliName + " daemon disk-usage",
 					Root:      root,
 					TaskCount: taskCount,
 				})

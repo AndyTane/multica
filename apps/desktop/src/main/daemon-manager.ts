@@ -936,7 +936,7 @@ async function startDaemon(
   recoveryProfile?: ActiveProfile,
 ): Promise<{ success: boolean; error?: string }> {
   const bin = await resolveCliBinary();
-  if (!bin) return { success: false, error: "multica CLI is not installed" };
+  if (!bin) return { success: false, error: "U Workers CLI is not installed" };
 
   const active = await ensureActiveProfile();
   if (!active) {
@@ -1037,7 +1037,7 @@ async function stopDaemon(): Promise<{ success: boolean; error?: string }> {
   if (await lifecycleBlockedByForeignDaemon()) return { success: true };
 
   const bin = await resolveCliBinary();
-  if (!bin) return { success: false, error: "multica CLI is not installed" };
+  if (!bin) return { success: false, error: "U Workers CLI is not installed" };
 
   const active = await ensureActiveProfile();
   if (!active) return { success: true };

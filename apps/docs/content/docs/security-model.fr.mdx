@@ -35,7 +35,7 @@ Quel que soit votre choix, considérez les identifiants accessibles depuis cet e
 
 Ces mécanismes sont réels, mais ils relèvent du confort et de la limitation des dégâts — ils ne constituent pas une frontière de sécurité face à une exécution qui tente activement de s'échapper :
 
-- **Répertoire de travail par exécution.** Chaque exécution obtient son propre répertoire de travail sous `~/multica_workspaces/`, de sorte que des exécutions simultanées n'entrent pas en collision sur la même copie locale.
+- **Répertoire de travail par exécution.** Chaque exécution obtient son propre répertoire de travail sous `~/u-workers-workspaces/`, de sorte que des exécutions simultanées n'entrent pas en collision sur la même copie locale.
 - **État d'agent par exécution.** Les exécutions Codex reçoivent un `CODEX_HOME` propre à l'exécution, contenant la configuration, les sessions et les skills, afin que les paramètres propres à une exécution ne polluent pas votre `~/.codex/`.
 - **Jetons d'API limités à l'exécution.** Le `MULTICA_TOKEN` transmis à une exécution est lié par le serveur à cet agent et à cette exécution : une exécution ne peut donc pas agir en votre nom ni au nom d'un autre agent via l'API U Workers.
 

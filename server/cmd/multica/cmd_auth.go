@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/multica-ai/multica/server/internal/auth"
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 )
 
@@ -43,7 +44,7 @@ func validateLoginTokenPrefix(token string) error {
 
 var authCmd = &cobra.Command{
 	Use:   "auth",
-	Short: "Authenticate multica with Multica",
+	Short: "Authenticate with " + brand.DisplayName,
 }
 
 var authStatusCmd = &cobra.Command{
@@ -97,7 +98,7 @@ func resolveAppURL(cmd *cobra.Command) string {
 	if err == nil && cfg.AppURL != "" {
 		return strings.TrimRight(cfg.AppURL, "/")
 	}
-	fmt.Fprintln(os.Stderr, "No app URL configured. Run 'multica setup' first.")
+	fmt.Fprintln(os.Stderr, "No app URL configured. Run '"+cliName+" setup' first.")
 	os.Exit(1)
 	return "" // unreachable
 }
@@ -331,7 +332,7 @@ func runAuthLoginBrowser(cmd *cobra.Command) error {
 		"expires_in_days": expiresInDays,
 	}, &patResp)
 	if err != nil {
-		return cli.WithUserMessageUnlessNetwork("Sign-in did not complete: the server could not issue an access token for the CLI. Run `multica login` again.", err)
+		return cli.WithUserMessageUnlessNetwork("Sign-in did not complete: the server could not issue an access token for the CLI. Run `"+cliName+" login` again.", err)
 	}
 
 	// Verify the PAT works.
@@ -341,7 +342,7 @@ func runAuthLoginBrowser(cmd *cobra.Command) error {
 		Email string `json:"email"`
 	}
 	if err := patClient.GetJSON(ctx, "/api/me", &me); err != nil {
-		return cli.WithUserMessageUnlessNetwork("Sign-in did not complete: the server did not accept the new credential. Run `multica login` again.", err)
+		return cli.WithUserMessageUnlessNetwork("Sign-in did not complete: the server did not accept the new credential. Run `"+cliName+" login` again.", err)
 	}
 
 	// Save to config. Reset workspace data on every login — the user or
@@ -447,7 +448,7 @@ func runAuthLoginToken(cmd *cobra.Command, providedToken string) error {
 		Email string `json:"email"`
 	}
 	if err := client.GetJSON(ctx, "/api/me", &me); err != nil {
-		return cli.WithUserMessageUnlessNetwork("Could not sign in with that token — make sure it is valid and not expired, then run `multica login --token <token>` again.", err)
+		return cli.WithUserMessageUnlessNetwork("Could not sign in with that token — make sure it is valid and not expired, then run `"+cliName+" login --token <token>` again.", err)
 	}
 
 	profile := resolveProfile(cmd)
@@ -475,7 +476,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 	serverURL := resolveServerURL(cmd)
 
 	if token == "" {
-		fmt.Fprintln(os.Stderr, "Not authenticated. Run 'multica login' to authenticate.")
+		fmt.Fprintln(os.Stderr, "Not authenticated. Run '"+cliName+" login' to authenticate.")
 		return nil
 	}
 
@@ -489,7 +490,7 @@ func runAuthStatus(cmd *cobra.Command, _ []string) error {
 		Email string `json:"email"`
 	}
 	if err := client.GetJSON(ctx, "/api/me", &me); err != nil {
-		fmt.Fprintf(os.Stderr, "Token is invalid or expired: %v\nRun 'multica login' to re-authenticate.\n", err)
+		fmt.Fprintf(os.Stderr, "Token is invalid or expired: %v\nRun '"+cliName+" login' to re-authenticate.\n", err)
 		return nil
 	}
 
@@ -511,7 +512,7 @@ const callbackSuccessHTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Multica — Authenticated</title>
+<title>U Workers — Authenticated</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   @media (prefers-color-scheme: dark) {

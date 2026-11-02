@@ -274,7 +274,7 @@ func newAPIClient(cmd *cobra.Command) (*cli.APIClient, error) {
 	serverURL := resolveServerURL(cmd)
 	workspaceID := resolveWorkspaceID(cmd)
 	if serverURL == "" {
-		return nil, fmt.Errorf("server URL not set: use --server-url flag, MULTICA_SERVER_URL env, or 'multica config set server_url <url>'")
+		return nil, fmt.Errorf("server URL not set: use --server-url flag, U_WORKERS_SERVER_URL env, or '%s config set server_url <url>'", cliName)
 	}
 
 	client := cli.NewAPIClient(serverURL, workspaceID, token)
@@ -336,14 +336,14 @@ func resolveServerURL(cmd *cobra.Command) string {
 }
 
 func missingServerConfigMessage() string {
-	return fmt.Sprintf("No server configured. Run 'multica setup' first%s.", daemonPortOnlyContextHint())
+	return fmt.Sprintf("No server configured. Run '"+cliName+" setup' first%s.", daemonPortOnlyContextHint())
 }
 
 func resolveHumanServerURL(cmd *cobra.Command) string {
 	if val := tryResolveHumanServerURL(cmd); val != "" {
 		return val
 	}
-	fmt.Fprintln(os.Stderr, "No server configured. Run 'multica setup' first.")
+	fmt.Fprintln(os.Stderr, "No server configured. Run '"+cliName+" setup' first.")
 	os.Exit(1)
 	return "" // unreachable
 }
@@ -412,9 +412,9 @@ func requireTaskLocalConfigRoot() error {
 		// is as stuck as one hitting the others, and "which command did you
 		// happen to run first" must not decide whether the error is actionable.
 		if markerPath := leftoverDaemonTaskMarkerPath(); markerPath != "" {
-			return fmt.Errorf("daemon-managed task requires a task-local Multica config root in %s%s", cli.TaskConfigRootEnv, leftoverMarkerSuffix(markerPath))
+			return fmt.Errorf("daemon-managed task requires a task-local U Workers config root in %s%s", cli.TaskConfigRootEnv, leftoverMarkerSuffix(markerPath))
 		}
-		return fmt.Errorf("daemon-managed task requires a task-local Multica config root in %s%s", cli.TaskConfigRootEnv, daemonPortOnlyContextHint())
+		return fmt.Errorf("daemon-managed task requires a task-local U Workers config root in %s%s", cli.TaskConfigRootEnv, daemonPortOnlyContextHint())
 	}
 	return nil
 }
@@ -502,7 +502,7 @@ func requireWorkspaceID(cmd *cobra.Command) (string, error) {
 		if inDaemonManagedExecutionContext() {
 			return "", fmt.Errorf("workspace_id is required: MULTICA_WORKSPACE_ID must be set by the daemon in agent execution context (no fallback to user config)")
 		}
-		return "", fmt.Errorf("workspace_id is required: use --workspace-id flag, set MULTICA_WORKSPACE_ID env, or run 'multica config set workspace_id <id>'")
+		return "", fmt.Errorf("workspace_id is required: use --workspace-id flag, set U_WORKERS_WORKSPACE_ID env, or run '%s config set workspace_id <id>'", cliName)
 	}
 	return id, nil
 }

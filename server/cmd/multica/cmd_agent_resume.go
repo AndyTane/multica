@@ -20,7 +20,7 @@ import (
 var agentResumeCmd = &cobra.Command{
 	Use:   "resume <agent-id> <task-id>",
 	Short: "Continue a finished run in the original Claude or Codex CLI",
-	Long:  "Continue a finished run on the computer that executed it. Checks the session and local directories before opening the original CLI. The manual conversation is not a new Multica run and is not automatically delivered to the issue.",
+	Long:  "Continue a finished run on the computer that executed it. Checks the session and local directories before opening the original CLI. The manual conversation is not a new U Workers run and is not automatically delivered to the issue.",
 	Args:  exactArgs(2), RunE: runAgentResume,
 }
 
@@ -159,7 +159,7 @@ func loadResumeTask(ctx context.Context, client *cli.APIClient, agentID, taskID 
 		return resumeTask{}, resumeError("Run not found in authorized history.")
 	}
 	if !terminalResumeStatus(target.Status) {
-		return resumeTask{}, resumeError("Wait for the Multica run to finish before resuming.")
+		return resumeTask{}, resumeError("Wait for the U Workers run to finish before resuming.")
 	}
 	var snapshot []resumeTask
 	if err := client.GetJSON(ctx, "/api/agent-task-snapshot", &snapshot); err != nil {
@@ -169,7 +169,7 @@ func loadResumeTask(ctx context.Context, client *cli.APIClient, agentID, taskID 
 		if other.AgentID == target.AgentID && !terminalResumeStatus(other.Status) && (other.SessionID != "" && other.SessionID == target.SessionID ||
 			target.IssueID != "" && other.IssueID == target.IssueID ||
 			target.ChatSessionID != "" && other.ChatSessionID == target.ChatSessionID) {
-			return resumeTask{}, resumeError("This conversation has an active Multica run; wait for it to finish.")
+			return resumeTask{}, resumeError("This conversation has an active U Workers run; wait for it to finish.")
 		}
 	}
 	return *target, nil
