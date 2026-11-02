@@ -208,6 +208,9 @@ func daemonHTTPClientCapabilities() string {
 
 func daemonCommonCapabilities() []string {
 	return []string{
+		protocol.DaemonCapabilityQuickCreateV1,
+		protocol.DaemonCapabilityQuickCreateFieldsV1,
+		protocol.DaemonCapabilityChatProjectContextV1,
 		protocol.DaemonCapabilitySkillBundlesV1,
 		protocol.DaemonCapabilityCoalescedCommentsV1,
 		protocol.DaemonCapabilityExecutionManifestV1,

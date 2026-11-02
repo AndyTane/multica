@@ -2845,7 +2845,8 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Daemon CLI version gate. The agent-side prompt + create-flow rely on
+	// Prefer explicit daemon capabilities; older daemons use the CLI version
+	// policy. The agent-side prompt + create-flow rely on
 	// behaviors introduced in MinQuickCreateCLIVersion (URL attachment
 	// handling, quick-create attachment binding, no-retry on partial failure).
 	// Older daemons either double-create issues on partial CLI failures, drop
@@ -2861,6 +2862,7 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 	if priority != "" || dueDate != "" {
 		if status, payload := h.checkQuickCreateDaemonVersionAtLeast(
 			r.Context(), obsmetrics.RuntimeLookupSourceIssue, agent.RuntimeID, agentpkg.MinQuickCreateFieldsCLIVersion,
+			protocol.DaemonCapabilityQuickCreateFieldsV1,
 		); status != 0 {
 			writeJSON(w, status, payload)
 			return
@@ -2954,8 +2956,9 @@ func (h *Handler) isRuntimeOnline(ctx context.Context, runtimeID pgtype.UUID) bo
 	return rt.Status == "online"
 }
 
-// checkQuickCreateDaemonVersion enforces MinQuickCreateCLIVersion against the
-// CLI version the daemon reported at registration time (stored on the runtime
+// checkQuickCreateDaemonVersion checks explicit quick-create support, falling
+// back to MinQuickCreateCLIVersion against the CLI version reported by the
+// daemon at registration time (stored on the runtime
 // row's metadata.cli_version). Returns (0, nil) when the version is
 // acceptable, otherwise (status, payload) ready to hand to writeJSON.
 //
@@ -2969,10 +2972,10 @@ func (h *Handler) isRuntimeOnline(ctx context.Context, runtimeID pgtype.UUID) bo
 //	  "runtime_id":      "<uuid>"
 //	}
 func (h *Handler) checkQuickCreateDaemonVersion(ctx context.Context, source string, runtimeID pgtype.UUID) (int, map[string]any) {
-	return h.checkQuickCreateDaemonVersionAtLeast(ctx, source, runtimeID, agentpkg.MinQuickCreateCLIVersion)
+	return h.checkQuickCreateDaemonVersionAtLeast(ctx, source, runtimeID, agentpkg.MinQuickCreateCLIVersion, protocol.DaemonCapabilityQuickCreateV1)
 }
 
-func (h *Handler) checkQuickCreateDaemonVersionAtLeast(ctx context.Context, source string, runtimeID pgtype.UUID, minimum string) (int, map[string]any) {
+func (h *Handler) checkQuickCreateDaemonVersionAtLeast(ctx context.Context, source string, runtimeID pgtype.UUID, minimum, capability string) (int, map[string]any) {
 	rt, err := h.getAgentRuntime(ctx, source, runtimeID)
 	if err != nil {
 		// Runtime row vanished between the online check and here — treat
@@ -2983,7 +2986,7 @@ func (h *Handler) checkQuickCreateDaemonVersionAtLeast(ctx context.Context, sour
 		}
 	}
 	current := readRuntimeCLIVersion(rt.Metadata)
-	switch err := agentpkg.CheckMinCLIVersionFor(current, minimum); {
+	switch err := checkQuickCreateRuntimeVersion(rt.Metadata, minimum, capability); {
 	case err == nil:
 		return 0, nil
 	case errors.Is(err, agentpkg.ErrCLIVersionMissing), errors.Is(err, agentpkg.ErrCLIVersionTooOld):
