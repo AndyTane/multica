@@ -1,0 +1,53 @@
+{
+  "recordedAt": "2026-11-02T15:37:12.001Z",
+  "localOrigin": "https://127.0.0.1:14439",
+  "publicOrigin": "https://r3-share.test:14439",
+  "mapping": "Existing isolated deployment; Chromium DNS maps test public hostname to loopback with browser-only proxy bypass. No OS network/trust changes.",
+  "checks": [
+    {
+      "label": "local entry starts with an authenticated session"
+    },
+    {
+      "label": "runtime public frontend differs from local entry",
+      "localOrigin": "https://127.0.0.1:14439",
+      "publicOrigin": "https://r3-share.test:14439"
+    },
+    {
+      "label": "Ctrl-clicking the real task keeps the local origin",
+      "finalUrl": "https://127.0.0.1:14439/uworkers/issues/01a19c74-b7d1-7722-a29f-1efa496a355e"
+    },
+    {
+      "label": "new tab retains the same account without another login"
+    },
+    {
+      "label": "new tab renders the selected task content"
+    },
+    {
+      "label": "Ctrl-click creates no login request"
+    },
+    {
+      "label": "task action new-tab adapter also keeps the local origin"
+    },
+    {
+      "label": "explicit new-tab action retains task content and the same account"
+    },
+    {
+      "label": "search copies a public task link while the page stays local"
+    },
+    {
+      "label": "copying does not navigate the authenticated page"
+    },
+    {
+      "label": "member share copy still uses public frontend from the local page"
+    },
+    {
+      "label": "copy retains an existing invite code and join path"
+    },
+    {
+      "label": "navigation and copying do not create, consume or alter share links"
+    },
+    {
+      "label": "all new-tab and copy checks need no additional login"
+    }
+  ]
+}

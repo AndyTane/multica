@@ -167,7 +167,7 @@ try {
 - "成员 → 待接受邀请" 中撤销：作废该条**邮箱邀请**，不会移除已经通过分享链接加入的成员。
 - "成员 → 分享链接 → 撤销链接"：阻止其他账号继续使用该**工作区分享链接**，已加入成员仍保留权限。需要取消某人的工作区访问时，在成员列表执行 "从工作区移除"。
 
-原版 `775029717` 的浏览器步骤和持久化结果见 [R1 验证记录](../evidence/clawsta-118/r1/verification.md)；本 PR 的安装授权、v0.2.1 主机命令及加入修复见 [R2 验证记录](../evidence/clawsta-118/r2/verification.md)；双入口复制及加入见 [R3 验证记录](../evidence/clawsta-118/r3/verification.md)。公司部署的实际邀请记录需要在该部署中另行确认。
+原版 `775029717` 的浏览器步骤和持久化结果见 [R1 验证记录](../evidence/clawsta-118/r1/verification.md)；本 PR 的安装授权、v0.2.1 主机命令及加入修复见 [R2 验证记录](../evidence/clawsta-118/r2/verification.md)；双入口复制及加入见 [R3 验证记录](../evidence/clawsta-118/r3/verification.md)；本机新标签保持登录及对外复制分离见 [R4 验证记录](../evidence/clawsta-118/r4/verification.md)。公司部署的实际邀请记录需要在该部署中另行确认。
 
 ## 升级
 
