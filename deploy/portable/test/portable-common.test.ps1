@@ -221,6 +221,59 @@ try {
     Assert-PortableTest ((Get-PortableLanSubnet '203.0.113.17') -eq '203.0.113.0/24') 'The firewall rule must be scoped to the interface subnet.'
 
 
+    # --- captured output is UTF-8: non-ASCII device name --------------------
+    # The status document includes the device name, which is the Windows computer
+    # name and can be Chinese. Windows PowerShell 5.1 read Invoke-PortableCommand's
+    # captured stdout file in the ANSI code page, which mangled those bytes badly
+    # enough to swallow the quote that ends a JSON string: ConvertFrom-Json failed
+    # and a running daemon was reported as stopped. Push the exact bytes the CLI
+    # writes through the real capture path, then judge them the way the daemon
+    # status does.
+    $deviceName = -join @([char]0x79FB, [char]0x52A8, [char]0x4E13, [char]0x7528, [char]0x673A)
+    $statusWriter = Join-Path $testRoot 'write-status.ps1'
+    $statusDocument = Join-Path $testRoot 'status-payload.json'
+    $writer = @'
+$payloadPath = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'status-payload.json'
+$bytes = [IO.File]::ReadAllBytes($payloadPath)
+$stdout = [Console]::OpenStandardOutput()
+$stdout.Write($bytes, 0, $bytes.Length)
+$stdout.Flush()
+exit 0
+'@
+    [IO.File]::WriteAllText($statusWriter, $writer, (New-Object Text.UTF8Encoding($false)))
+    $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    function Write-FakeStatus {
+        param([string]$Status)
+        $json = '{"status":"' + $Status + '","pid":4242,"device_name":"' + $deviceName + '"}'
+        [IO.File]::WriteAllText($statusDocument, $json, (New-Object Text.UTF8Encoding($false)))
+    }
+    function Read-CapturedStatus {
+        $capture = Invoke-PortableCommand -Executable $windowsPowerShell -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $statusWriter) -Utf8Output
+        return (ConvertFrom-PortableDaemonStatus -ExitCode ([int]$capture.ExitCode) -Output $capture.Output)
+    }
+    Write-FakeStatus 'running'
+    $utf8Running = Read-CapturedStatus
+    Assert-PortableTest ([bool]$utf8Running.Running) 'A running daemon with a non-ASCII device name must be reported as running.'
+    Assert-PortableTest ([string]$utf8Running.Detail.device_name -eq $deviceName) 'The captured device name must decode as the UTF-8 bytes the CLI wrote.'
+    Write-FakeStatus 'starting'
+    Assert-PortableTest ([bool](Read-CapturedStatus).Running) 'A starting daemon with a non-ASCII device name must count as alive.'
+    Write-FakeStatus 'stopped'
+    $utf8Stopped = Read-CapturedStatus
+    Assert-PortableTest (-not $utf8Stopped.Running) 'A stopped status document must be reported as stopped.'
+    Assert-PortableTest ([string]$utf8Stopped.Detail.device_name -eq $deviceName) 'A stopped status document must parse instead of reading as unparseable output.'
+
+    # The wrapper itself must ask for UTF-8, or the daemon status path silently
+    # goes back to the shell's default decoding.
+    $script:captureAskedUtf8 = $false
+    function Invoke-PortableCommand {
+        param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory, [int]$TimeoutSec = 3600, [switch]$Utf8Output)
+        $script:captureAskedUtf8 = [bool]$Utf8Output
+        return [pscustomobject]@{ ExitCode = 0; Output = '{"status":"running"}' }
+    }
+    function Get-PortableCliPath { param([string]$Root) return 'u-workers.exe' }
+    Invoke-PortableCli -Root $testRoot -Arguments @('daemon', 'status', '--output', 'json') | Out-Null
+    Assert-PortableTest $script:captureAskedUtf8 'Invoke-PortableCli must capture the CLI output as UTF-8.'
+
     # --- daemon status and start ------------------------------------------
     # `daemon status --output json` exits 0 for a stopped daemon too, so the
     # verdict has to come from the reported status field. Trusting the exit code

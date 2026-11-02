@@ -122,7 +122,9 @@ function Invoke-PortablePasswordInput {
         foreach ($name in @('local-auth.out.log', 'local-auth.err.log')) {
             $path = Join-Path $stateDirectory $name
             if (Test-Path -LiteralPath $path) {
-                $output += (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)
+                # local-auth is the same Go CLI: its output is UTF-8, and it can
+                # name a non-ASCII operator account.
+                $output += (Read-PortableUtf8Text $path)
                 Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
             }
         }

@@ -151,8 +151,10 @@ pwsh -File deploy\portable\build-package.ps1 -Version v0.2.4 -PostgresDirectory 
 ### 验收（开发/发布前跑）
 
 `@powershell
-# 单元测试
+# 单元测试：两个 shell 都要跑。开机自启走系统自带的 5.1，而 5.1 和 7 的默认
+# 文本编码不同；脚本必须两边结果一致。
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\portable\test\portable-common.test.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File deploy\portable\test\portable-common.test.ps1
 
 # 完整验收：干净目录 + 断网 + 全新安装 + 运行时上线 + 离线重打安装包 + 升级演练 + 模拟第二台机器接入
 pwsh -File deploy\portable\test\acceptance.ps1 -Package D:\UWorkers\packages\UWorkers-Portable-v0.2.4 -WorkRoot D:\UWorkers\acceptance

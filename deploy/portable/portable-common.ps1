@@ -33,6 +33,20 @@ function Read-PortableJson {
     return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
 }
 
+function Read-PortableUtf8Text {
+    # Everything this package's own tools write is UTF-8: the CLI is a Go program,
+    # and its JSON carries the device name, which is the Windows computer name and
+    # can be Chinese. Get-Content without -Encoding decodes a file without a BOM
+    # in the ANSI code page on Windows PowerShell 5.1 but as UTF-8 on PowerShell 7,
+    # so the same captured bytes decoded differently per shell. 5.1 mangled them
+    # badly enough to swallow the quote that ends a JSON string, the parse failed,
+    # and a running daemon was reported as stopped. Read those bytes with an
+    # explicit UTF-8 decoder so both shells see the same text.
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return '' }
+    return [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+}
+
 function Get-PortableDeployment {
     param([string]$Root)
     $config = Read-PortableJson (Join-Path $Root $script:PortableDeploymentName)
@@ -809,7 +823,11 @@ function Invoke-PortableCommand {
     # in its own file afterwards, because Windows PowerShell 5.1 — what Setup.cmd
     # runs on a fresh machine — leaves Start-Process' ExitCode empty unless
     # -Wait is passed, and -Wait waits for those same long-lived children.
-    param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory, [int]$TimeoutSec = 3600)
+    #
+    # -Utf8Output decodes the captured streams as UTF-8. Use it for the package's
+    # own CLI, which always writes UTF-8; tools that write the console code page
+    # (caddy, PostgreSQL, robocopy, the native server script) keep the default.
+    param([string]$Executable, [string[]]$Arguments, [hashtable]$Environment, [string]$WorkingDirectory, [int]$TimeoutSec = 3600, [switch]$Utf8Output)
     $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-command-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
     $stdoutPath = Join-Path $temporaryDirectory 'stdout.log'
@@ -860,7 +878,8 @@ function Invoke-PortableCommand {
         $output = ''
         foreach ($path in @($stdoutPath, $stderrPath)) {
             if (Test-Path -LiteralPath $path) {
-                $output += (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)
+                if ($Utf8Output) { $output += (Read-PortableUtf8Text $path) }
+                else { $output += (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue) }
             }
         }
         if ($null -eq $exitCode) {
@@ -948,8 +967,10 @@ function Invoke-PortableWebRequest {
         }
         $statusCode = 0
         if (-not [int]::TryParse(([string]$statusText).Trim(), [ref]$statusCode)) { throw ('HTTPS request returned no status code: ' + $Uri) }
+        # The server answers with UTF-8 JSON (runtime names and other values carry
+        # the device name); read the response body the same way in both shells.
         $content = ''
-        if (Test-Path -LiteralPath $responseFile) { $content = [string](Get-Content -LiteralPath $responseFile -Raw -ErrorAction SilentlyContinue) }
+        if (Test-Path -LiteralPath $responseFile) { $content = [string](Read-PortableUtf8Text $responseFile) }
         return [pscustomobject]@{ StatusCode = $statusCode; Content = $content; Headers = @{} }
     } finally {
         Remove-Item -LiteralPath $workingDirectory -Recurse -Force -ErrorAction SilentlyContinue
@@ -1171,9 +1192,11 @@ function Get-PortableCliEnvironment {
 }
 
 function Invoke-PortableCli {
+    # The CLI is a Go program, so its output is always UTF-8 regardless of the
+    # console code page; ask the capture to decode it that way.
     param([string]$Root, [string[]]$Arguments)
     $cli = Get-PortableCliPath $Root
-    $result = Invoke-PortableCommand -Executable $cli -Arguments $Arguments -Environment (Get-PortableCliEnvironment $Root) -WorkingDirectory $Root
+    $result = Invoke-PortableCommand -Executable $cli -Arguments $Arguments -Environment (Get-PortableCliEnvironment $Root) -WorkingDirectory $Root -Utf8Output
     return $result
 }
 
@@ -1185,25 +1208,31 @@ function Write-PortableInstallReport {
     return $path
 }
 
-function Get-PortableDaemonStatus {
+function ConvertFrom-PortableDaemonStatus {
     # The verdict comes from the reported status field, never the exit code:
     # `daemon status` exits 0 for a stopped daemon too (it is a query, not a
     # check), so treating a zero exit as "running" printed a healthy line for a
     # daemon that was not there and made start.ps1 skip the start that would
     # have brought it up. "starting" counts as alive: the process exists and the
     # CLI itself refuses a second start, so starting again would only fail.
+    param([int]$ExitCode, [string]$Output)
+    $text = ([string]$Output).Trim()
+    if ($ExitCode -ne 0) {
+        return [pscustomobject]@{ Running = $false; Output = $text }
+    }
+    $parsed = $null
+    try { $parsed = ($text | ConvertFrom-Json) } catch { $parsed = $null }
+    $alive = [bool]($parsed -and @('running', 'starting') -contains [string]$parsed.status)
+    return [pscustomobject]@{ Running = $alive; Detail = $parsed; Output = $text }
+}
+
+function Get-PortableDaemonStatus {
     param([string]$Root, [string]$Profile)
     $arguments = @()
     if ($Profile) { $arguments += @('--profile', $Profile) }
     $arguments += @('daemon', 'status', '--output', 'json')
     $result = Invoke-PortableCli -Root $Root -Arguments $arguments
-    if ($result.ExitCode -ne 0) {
-        return [pscustomobject]@{ Running = $false; Output = ([string]$result.Output).Trim() }
-    }
-    $parsed = $null
-    try { $parsed = (([string]$result.Output).Trim() | ConvertFrom-Json) } catch { $parsed = $null }
-    $alive = [bool]($parsed -and @('running', 'starting') -contains [string]$parsed.status)
-    return [pscustomobject]@{ Running = $alive; Detail = $parsed; Output = ([string]$result.Output).Trim() }
+    return (ConvertFrom-PortableDaemonStatus -ExitCode ([int]$result.ExitCode) -Output $result.Output)
 }
 
 function Start-PortableDaemon {
