@@ -88,7 +88,51 @@ u-workers connect --server-url https://192.168.3.49:13443 --root-ca .\root-ca.cr
 | 账号邀请链接 | **实例管理员**，"设置 → 用户与注册" | 同事自行设置登录名和密码；单次使用，默认 24 小时有效。不会自动加入工作区。 |
 | 工作区分享链接 | 该工作区的 `owner` / `admin`，"设置 → 成员 → 分享链接" | 已登录的同事加入指定工作区；可选成员角色和有效期，默认 7 天。不会创建可登录账号。 |
 
-**先确认实例管理员。** 这是管理整台服务账号的权限，与某个工作区的 `owner` / `admin` 不同。v0.2.1 对应源码的便携安装流程不会自动给默认 `admin` 账号授予实例管理员权限；看不到 "用户与注册" 时，需要先由主机负责人确认并完成实例管理员初始化。仅有工作区权限时，不能完成下面的账号邀请步骤，也不能用工作区分享链接代替。
+**先确认实例管理员。** 这是管理整台服务账号的权限，与某个工作区的 `owner` / `admin` 不同。已发布的 v0.2.1 不会自动给默认 `admin` 授予这项权限；看不到 "用户与注册" 时，按下一节在部署主机初始化。工作区分享链接不能代替账号邀请。
+
+本 PR 修复后，干净安装会仅为**本次新建的操作员**初始化实例管理员。已存在的同名 / 同邮箱账号、重跑 Setup、升级及接管部署都保留原权限；之前撤销的实例权限不会自动恢复。若初次授权中断，后续恢复也走下面的显式操作。此权限与成员页的 "分享链接" 标签无关：工作区 `owner` / `admin` 应能看到该标签。公司页面缺标签仍需截图及包版本对照。
+
+### 已安装 v0.2.1：在部署主机初始化实例管理员
+
+由主机负责人决定把默认操作员设为实例管理员，在**安装目录**打开普通 PowerShell。服务须已通过 `Start.cmd` 启动。下面只使用包内工具，不编译、不手写 SQL，不改密码或注册开关。
+
+先读取安装时记录的身份，检查包内工具；只显示身份字段，不显示整个配置或密码文件。把第一行路径换成实际安装位置：
+
+```powershell
+$packageRoot = (Resolve-Path 'D:\UWorkers\Portable').Path
+$configPath = Join-Path $packageRoot 'deployment.json'
+$config = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$identity = Get-Content -LiteralPath (Join-Path $packageRoot 'data\local-login.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$tool = Join-Path ([string]$config.Release) 'local-auth.exe'
+if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) { throw '找不到当前部署的 local-auth.exe，请检查安装目录。' }
+$operatorId = [guid]::Parse([string]$identity.user_id).ToString()
+[pscustomobject]@{ Username = $identity.username; Email = $identity.email; UserId = $operatorId } | Format-List
+```
+
+确认这是要授权的操作员。下面用本机保存的登录信息读取当前账号，与记录的 UUID、邮箱核对后才授权；密码和临时会话只在内存使用。如果密码已改、安装身份记录缺失或核对失败，停止此步骤，由主机负责人核实账号，不能改用猜测的 UUID。`DATABASE_URL` 仅在当前代码块内清空，避免工具连接到其他数据库，结束时还原：
+
+```powershell
+$previousDatabaseUrl = [Environment]::GetEnvironmentVariable('DATABASE_URL', 'Process')
+try {
+    [Environment]::SetEnvironmentVariable('DATABASE_URL', $null, 'Process')
+    & $tool list --deployment-config $configPath
+    if ($LASTEXITCODE -ne 0) { throw '账号列表读取失败，未授权。' }
+    $credentialLines = @(Get-Content -LiteralPath (Join-Path $packageRoot 'data\local-login.txt') -Encoding UTF8)
+    if ($credentialLines.Count -lt 2 -or $credentialLines[0].Trim() -ne $identity.username) { throw '本机登录记录不一致，未授权。' }
+    $localApi = 'http://127.0.0.1:' + [int]$config.ApiPort
+    $body = @{ username = $credentialLines[0].Trim(); password = $credentialLines[1].Trim() } | ConvertTo-Json -Compress
+    $session = Invoke-RestMethod -Uri ($localApi + '/auth/password') -Method Post -ContentType 'application/json' -Body $body
+    $current = Invoke-RestMethod -Uri ($localApi + '/api/me') -Headers @{ Authorization = ('Bearer ' + $session.token) }
+    if ($current.id -ne $operatorId -or $current.email -ne $identity.email) { throw '当前登录身份与安装记录不一致，未授权。' }
+    & $tool grant-admin --user-id $operatorId --deployment-config $configPath
+    if ($LASTEXITCODE -ne 0) { throw '实例管理员初始化失败，请保留错误信息排查。' }
+} finally {
+    $credentialLines = $null; $body = $null; $session = $null
+    [Environment]::SetEnvironmentVariable('DATABASE_URL', $previousDatabaseUrl, 'Process')
+}
+```
+
+成功时工具显示 `Instance administrator granted for ...`，重复显式执行显示 `already granted`，不会额外创建账号。退出网页账号并重新登录，打开 "设置 → 用户与注册"，再执行下文。此步骤是负责人主动授权；普通 Setup 重跑和升级不会执行它。不要使用固定操作者身份的 `bootstrap-host` 替代核对。
 
 ### 管理员准备两种链接
 
@@ -102,7 +146,7 @@ u-workers connect --server-url https://192.168.3.49:13443 --root-ca .\root-ca.cr
 
 1. 在自己的浏览器打开**账号邀请链接**，填写 "显示名"、"登录名"、"密码"、"确认密码"，点击 "设置密码并进入"。密码至少 12 个字符，以后用登录名和密码登录。
 2. 新账号设置完成后会进入上手引导。此时在**同一浏览器**打开管理员发来的**工作区分享链接**，无需先创建个人工作区，也无需连接自己的运行时。
-3. 加入页目前显示英文。核对工作区名称和 `Member` 角色后，点击 **Join Workspace**。如果显示 **Log In to Join**，先登录，再重新打开工作区分享链接。**如果加入后又回到上手引导，刷新当前页即可进入刚加入的工作区**：本基线存在加入后页面账号状态未及时同步的问题，不必再创建工作区。
+3. 加入页目前显示英文。核对工作区名称和 `Member` 角色后，点击 **Join Workspace**。如果显示 **Log In to Join**，先登录，再重新打开工作区分享链接。本 PR 修复后会先同步账号和工作区再进入看板；若显示成员关系已保存但同步失败，点击 **Retry sync**，不会重复加入。**仍使用 v0.2.1 时，如果加入后又回到上手引导，刷新当前页即可进入刚加入的工作区**，不必再创建工作区。
 4. 进入目标工作区的任务看板后刷新一次，确认仍可访问。只持有工作区分享链接、尚无本实例账号的人，需要先取得账号邀请，不能越过关闭的注册。
 
 账号邀请链接用过一次即失效；未使用但过期时，请实例管理员重新生成。仅输入相同邮箱不会证明邮箱所有权，也不能把 "用相同邮箱注册后自动接受邮箱邀请" 当作通用加入方式。
@@ -119,7 +163,7 @@ u-workers connect --server-url https://192.168.3.49:13443 --root-ca .\root-ca.cr
 - "成员 → 待接受邀请" 中撤销：作废该条**邮箱邀请**，不会移除已经通过分享链接加入的成员。
 - "成员 → 分享链接 → 撤销链接"：阻止其他账号继续使用该**工作区分享链接**，已加入成员仍保留权限。需要取消某人的工作区访问时，在成员列表执行 "从工作区移除"。
 
-本节基于 `775029717` 的隔离环境验证，浏览器步骤、后端持久化结果及权限前提见 [R1 验证记录](../evidence/clawsta-118/r1/verification.md)。公司部署的实际邀请记录需要在该部署中另行确认。
+原版 `775029717` 的浏览器步骤和持久化结果见 [R1 验证记录](../evidence/clawsta-118/r1/verification.md)；本 PR 的安装授权、v0.2.1 主机命令及加入修复见 [R2 验证记录](../evidence/clawsta-118/r2/verification.md)。公司部署的实际邀请记录需要在该部署中另行确认。
 
 ## 升级
 
@@ -199,6 +243,8 @@ pwsh -File deploy\portable\build-package.ps1 -Version v0.2.4 -PostgresDirectory 
 # 文本编码不同；脚本必须两边结果一致。
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\portable\test\portable-common.test.ps1
 pwsh -NoProfile -ExecutionPolicy Bypass -File deploy\portable\test\portable-common.test.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deploy\portable\test\account-initialization.test.ps1
+pwsh -NoProfile -ExecutionPolicy Bypass -File deploy\portable\test\account-initialization.test.ps1
 
 # 完整验收：干净目录 + 断网 + 全新安装 + 运行时上线 + 离线重打安装包 + 升级演练 + 模拟第二台机器接入
 pwsh -File deploy\portable\test\acceptance.ps1 -Package D:\UWorkers\packages\UWorkers-Portable-v0.2.4 -WorkRoot D:\UWorkers\acceptance

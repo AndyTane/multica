@@ -1,0 +1,84 @@
+{
+  "recordedAt": "2026-11-02T13:32:23.143Z",
+  "checks": [
+    {
+      "label": "test operator locale set"
+    },
+    {
+      "label": "default operator sees Users and registration after re-login"
+    },
+    {
+      "label": "fixture task created in target workspace"
+    },
+    {
+      "label": "ordinary member share link"
+    },
+    {
+      "label": "account invitation created through browser"
+    },
+    {
+      "label": "colleague activates account in browser"
+    },
+    {
+      "label": "colleague starts with no workspace and no instance administration"
+    },
+    {
+      "label": "target task visible without onboarding redirect or reload",
+      "scenario": "direct"
+    },
+    {
+      "label": "one join request including synchronization retry"
+    },
+    {
+      "label": "joined board survives reload"
+    },
+    {
+      "label": "one persisted ordinary membership and completed onboarding",
+      "role": "member",
+      "is_instance_admin": false,
+      "onboarded": true,
+      "memberships": 1
+    },
+    {
+      "label": "existing member returns to the invited workspace"
+    },
+    {
+      "label": "account invitation created through browser"
+    },
+    {
+      "label": "colleague activates account in browser"
+    },
+    {
+      "label": "colleague starts with no workspace and no instance administration"
+    },
+    {
+      "label": "sync failure retains joined page and explains saved membership"
+    },
+    {
+      "label": "membership is persisted before retry"
+    },
+    {
+      "label": "target task visible without onboarding redirect or reload",
+      "scenario": "retry"
+    },
+    {
+      "label": "one join request including synchronization retry"
+    },
+    {
+      "label": "joined board survives reload"
+    },
+    {
+      "label": "one persisted ordinary membership and completed onboarding",
+      "role": "member",
+      "is_instance_admin": false,
+      "onboarded": true,
+      "memberships": 1
+    },
+    {
+      "label": "existing member returns to the invited workspace"
+    },
+    {
+      "label": "open registration remains disabled"
+    }
+  ]
+}
