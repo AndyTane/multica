@@ -21,6 +21,7 @@ CLAWSTA-117：按新用户路径走一遍部署（便携包解压 → Setup → 
 | 网络错误「无法访问 Multica 服务器」 | Multica | U Workers | 用户直读 |
 | CLI 登录成功页标题 | Multica | U Workers | 浏览器标签可见 |
 | Desktop「multica CLI is not installed」 | multica | U Workers CLI | 用户直读 |
+| 用户目录下的任务工作区 `~/multica_workspaces` | multica | 新装默认 `~/u-workers-workspaces`；已有旧目录的机器继续用旧目录 | 用户目录可见；老机器上运行中的任务和可恢复会话路径不能断 |
 | 运行时报错（claude/codex/grok/opencode/reasonix/zeroclaw/codebuddy） | Multica | U Workers | 会显示在任务结果里 |
 | DSH profile 提示、agent_ready 引导 | Multica runtime profile | U Workers runtime profile | 运行时页可见 |
 | Agent 提交 trailer `multica-agent <github@multica.ai>` | 上游账号 | `U Workers Agent <agent@u-workers.invalid>` | 提交会被归到上游 GitHub 账号 |

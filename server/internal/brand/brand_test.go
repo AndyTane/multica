@@ -29,6 +29,7 @@ func TestEveryRenameHasDistinctSpellings(t *testing.T) {
 		"cli command":        {CLICommand, LegacyCLICommand},
 		"env prefix":         {EnvPrefix, LegacyEnvPrefix},
 		"config directory":   {ConfigDir, LegacyConfigDir},
+		"workspaces dir":     {WorkspacesDir, LegacyWorkspacesDir},
 		"auth cookie":        {AuthCookie, LegacyAuthCookie},
 		"csrf cookie":        {CSRFCookie, LegacyCSRFCookie},
 		"session csrf":       {SessionCSRFCookie, LegacySessionCSRFCookie},
@@ -90,6 +91,37 @@ func TestConfigRootPrefersAnExistingLegacyDirectory(t *testing.T) {
 	want := filepath.Join(home, ConfigDir)
 	if got != want {
 		t.Fatalf("ConfigRoot() = %q, want %q on a machine without legacy state", got, want)
+	}
+}
+
+func TestWorkspacesRootKeepsAnExistingLegacyDirectory(t *testing.T) {
+	home := filepath.Join("home", "user")
+	cases := []struct {
+		name, profile string
+		existing      []string
+		want          string
+	}{
+		{"fresh machine", "", nil, "u-workers-workspaces"},
+		{"fresh machine, named profile", "dev", nil, "u-workers-workspaces-dev"},
+		{"upgrade keeps legacy root", "", []string{"multica_workspaces"}, "multica_workspaces"},
+		{"upgrade keeps legacy profile root", "dev", []string{"multica_workspaces_dev"}, "multica_workspaces_dev"},
+		{"current root wins over legacy", "", []string{"multica_workspaces", "u-workers-workspaces"}, "u-workers-workspaces"},
+		{"other profile's legacy root is ignored", "dev", []string{"multica_workspaces"}, "u-workers-workspaces-dev"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			exists := func(path string) bool {
+				for _, dir := range tc.existing {
+					if path == filepath.Join(home, dir) {
+						return true
+					}
+				}
+				return false
+			}
+			if got, want := WorkspacesRoot(home, tc.profile, exists), filepath.Join(home, tc.want); got != want {
+				t.Fatalf("WorkspacesRoot() = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

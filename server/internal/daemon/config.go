@@ -16,6 +16,7 @@ import (
 
 	"github.com/mattn/go-shellwords"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 	"github.com/multica-ai/multica/server/internal/tlsx"
@@ -113,7 +114,7 @@ type Config struct {
 	LaunchedBy                     string                // "desktop" when spawned by the Electron app, empty for standalone
 	Profile                        string                // profile name (empty = default)
 	Agents                         map[string]AgentEntry // keyed by provider: claude, codebuddy, codex, copilot, opencode, codearts, deveco, openclaw, hermes, pi, cursor, kimi, reasonix, dsh, kiro, antigravity, qoder, qoderclicn, traecli, grok, qwen, qwenpaw, mcode, dim, zeroclaw (plus built-in runtime identities from agent.BuiltinRuntimes, e.g. omp)
-	WorkspacesRoot                 string                // base path for execution envs (default: ~/multica_workspaces)
+	WorkspacesRoot                 string                // base path for execution envs (default: brand.WorkspacesRoot)
 	KeepEnvAfterTask               bool                  // preserve env after task for debugging
 	HealthPort                     int                   // local HTTP port for health checks (default: 19514)
 	MaxConcurrentTasks             int                   // max tasks running in parallel (default: 20)
@@ -540,7 +541,7 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		runtimeName = overrides.RuntimeName
 	}
 
-	// Workspaces root: override > env > default (~/multica_workspaces or ~/multica_workspaces_<profile>)
+	// Workspaces root: override > env > default (brand.WorkspacesRoot)
 	workspacesRoot, err := ResolveWorkspacesRoot(profile, overrides.WorkspacesRoot)
 	if err != nil {
 		return Config{}, err
@@ -759,8 +760,8 @@ const TaskWorkspacesRootEnv = "MULTICA_TASK_WORKSPACES_ROOT"
 
 // ResolveWorkspacesRoot returns the absolute path that the daemon and CLI
 // should treat as the workspaces root. Resolution order: explicit override >
-// MULTICA_WORKSPACES_ROOT env > default ($HOME/multica_workspaces, or
-// $HOME/multica_workspaces_<profile> for a named profile). Read-only callers
+// MULTICA_WORKSPACES_ROOT env > default (brand.WorkspacesRoot: $HOME/u-workers-workspaces[-<profile>],
+// or the pre-rename $HOME/multica_workspaces[_<profile>] when only that exists). Read-only callers
 // (e.g. `multica daemon disk-usage`) use this directly so they pick the same
 // directory the running daemon would have picked. Inside a managed task use
 // TaskWorkspacesRootEnv instead — see resolveDiskUsageRoot.
@@ -772,13 +773,12 @@ func ResolveWorkspacesRoot(profile, override string) (string, error) {
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", fmt.Errorf("resolve home directory: %w (set MULTICA_WORKSPACES_ROOT to override)", err)
+			return "", fmt.Errorf("resolve home directory: %w (set U_WORKERS_WORKSPACES_ROOT to override)", err)
 		}
-		if profile != "" {
-			root = filepath.Join(home, "multica_workspaces_"+profile)
-		} else {
-			root = filepath.Join(home, "multica_workspaces")
-		}
+		root = brand.WorkspacesRoot(home, profile, func(path string) bool {
+			_, err := os.Stat(path)
+			return err == nil
+		})
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {

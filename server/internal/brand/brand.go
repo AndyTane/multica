@@ -40,6 +40,13 @@ const (
 	// Existing installs keep resolving to it so an upgrade never loses state.
 	LegacyConfigDir = ".multica"
 
+	// WorkspacesDir is the default per-user directory holding run workdirs. A
+	// named daemon profile appends "-<profile>".
+	WorkspacesDir = "u-workers-workspaces"
+	// LegacyWorkspacesDir is the default workdir root used before the rename;
+	// a named profile appended "_<profile>".
+	LegacyWorkspacesDir = "multica_workspaces"
+
 	// AuthCookie carries the session token.
 	AuthCookie = "u_workers_auth"
 	// LegacyAuthCookie is the session token cookie issued before the rename.
@@ -136,6 +143,27 @@ func ConfigRoot(home string, exists func(path string) bool) string {
 	}
 	legacy := filepath.Join(home, LegacyConfigDir)
 	if exists(legacy) {
+		return legacy
+	}
+	return current
+}
+
+// WorkspacesRoot returns the default workdir root under home for a daemon
+// profile ("" for the default profile). The current directory wins once it
+// exists; otherwise an existing pre-rename directory keeps being used so
+// running tasks, resumable sessions and disk-usage reports keep their paths;
+// a machine that has neither gets the current name.
+func WorkspacesRoot(home, profile string, exists func(path string) bool) string {
+	name, legacyName := WorkspacesDir, LegacyWorkspacesDir
+	if profile != "" {
+		name += "-" + profile
+		legacyName += "_" + profile
+	}
+	current := filepath.Join(home, name)
+	if exists(current) {
+		return current
+	}
+	if legacy := filepath.Join(home, legacyName); exists(legacy) {
 		return legacy
 	}
 	return current
