@@ -161,10 +161,12 @@ function Get-PortableIdentity {
     param([string]$Email, [string]$DisplayName)
     $sql = @'
 BEGIN;
+CREATE TEMP TABLE portable_operator_result (user_id uuid, created boolean) ON COMMIT DROP;
 DO $do$
 DECLARE
   existing_id uuid;
   existing_name text;
+  newly_created boolean := false;
 BEGIN
   SELECT id, name INTO existing_id, existing_name FROM "user" WHERE lower(email) = lower('__EMAIL__');
   IF existing_id IS NOT NULL THEN
@@ -173,17 +175,29 @@ BEGIN
     END IF;
   ELSE
     INSERT INTO "user" (name, email) VALUES ('__NAME__', '__EMAIL__') RETURNING id INTO existing_id;
+    newly_created := true;
   END IF;
+  INSERT INTO portable_operator_result VALUES (existing_id, newly_created);
 END
 $do$;
+SELECT user_id::text || '|' || created::text FROM portable_operator_result;
 COMMIT;
-SELECT id::text FROM "user" WHERE lower(email) = lower('__EMAIL__');
 '@
     $sql = $sql.Replace('__EMAIL__', $Email).Replace('__NAME__', $DisplayName)
     $rows = Invoke-PortableSqlFile $sql ([string](Get-PortableDeployment $root).Database)
-    $identityRows = @($rows | Where-Object { $_ -match '^[0-9a-fA-F-]{36}$' })
-    if ($identityRows.Count -eq 0) { throw 'Could not create or find the local operator account.' }
-    return [string]$identityRows[$identityRows.Count - 1]
+    $identityRows = @($rows | Where-Object { $_ -match '^[0-9a-fA-F-]{36}\|(true|false)$' })
+    if ($identityRows.Count -ne 1) { throw 'Could not confirm the local operator identity and creation result.' }
+    $parts = ([string]$identityRows[0]).Split('|')
+    return [pscustomobject]@{ UserId = $parts[0]; Created = ($parts[1] -eq 'true') }
+}
+
+function Initialize-PortableInstanceAdmin {
+    param([string]$UserId)
+    $tool = Join-Path ([string](Get-PortableDeployment $root).Release) 'local-auth.exe'
+    if (-not (Test-Path -LiteralPath $tool)) { throw ('local-auth.exe is missing from the staged release: ' + $tool) }
+    # Scope the connection to this installation, regardless of the host shell.
+    $result = Invoke-PortableCommand -Executable $tool -Arguments @('grant-admin', '--user-id', $UserId, '--deployment-config', (Join-Path $root 'deployment.json')) -Environment @{ DATABASE_URL = '' } -Utf8Output
+    if ($result.ExitCode -ne 0) { throw ('Could not initialize instance administrator: ' + ([string]$result.Output).Trim()) }
 }
 
 function Get-PortableSavedCredential {
@@ -416,7 +430,11 @@ function Install-PortableAccount {
     Write-Step 'Creating the local operator account and the daemon token'
     $serverUrl = 'https://' + $HostName + ':' + $HttpsPort
     $email = 'admin@uworkers.local'
-    $identity = Get-PortableIdentity -Email $email -DisplayName 'Admin'
+    $operatorIdentity = Get-PortableIdentity -Email $email -DisplayName 'Admin'
+    $identity = $operatorIdentity.UserId
+    # Existing accounts may have deliberately lost this permission. Neither a
+    # resumed Setup nor an existing owner is authority to restore it.
+    if ($operatorIdentity.Created) { Initialize-PortableInstanceAdmin -UserId $identity }
     $saved = Get-PortableSavedCredential
     if (-not $saved) {
         $saved = [pscustomobject]@{ Username = 'admin'; Password = (New-PortablePassword 24) }
