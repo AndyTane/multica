@@ -250,7 +250,14 @@ if ($ReusePayloadFrom) {
     Write-Step 'Building the u-workers CLI for the package'
     $env:CGO_ENABLED = '0'
     try {
-        Invoke-BuildCommand -Executable $go -Arguments @('build', '-trimpath', '-ldflags', ('-s -w -X main.version=' + $Version), '-o', (Join-Path $payload 'bin\u-workers.exe'), './cmd/multica') -WorkingDirectory (Join-Path $repoRoot 'server') | Out-Null
+        # Stamp commit and build time as well as the version. Only the version
+        # feeds the daemon's reload comparison, but `u-workers --version` is what
+        # an operator and the daemon logs quote when something looks wrong, and
+        # "commit: unknown, built: unknown" there is what made a brand-name parse
+        # mismatch look like an unstamped-binary problem.
+        $cliBuildDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        $cliLinkFlags = '-s -w -X main.version=' + $Version + ' -X main.commit=' + $commit + ' -X main.date=' + $cliBuildDate
+        Invoke-BuildCommand -Executable $go -Arguments @('build', '-trimpath', '-ldflags', $cliLinkFlags, '-o', (Join-Path $payload 'bin\u-workers.exe'), './cmd/multica') -WorkingDirectory (Join-Path $repoRoot 'server') | Out-Null
     } finally {
         Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue
     }
