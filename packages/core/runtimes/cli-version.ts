@@ -1,10 +1,13 @@
 /**
- * Frontend mirror of the server's MinQuickCreateCLIVersion gate. The
- * agent-create flow (Quick Create modal) requires the daemon's bundled
- * multica CLI to be at least this version — older daemons either
+ * Frontend mirror of the server's quick-create capability/version gate. The
+ * agent-create flow (Quick Create modal) requires explicit support or a
+ * bundled CLI at this upstream version — older daemons either
  * double-create issues on partial CLI failures, drop quick-create attachment
  * bindings, or mishandle pasted screenshot URLs (see PR #1851 / MUL-1496).
  *
+ * Explicit capability declarations take precedence over these upstream version
+ * floors so forks can keep their own release numbering. Undeclared features
+ * still use the existing version policy for older daemons.
  * Both the frontend pre-validation in the modal and the server's
  * `/api/issues/quick-create` handler enforce this; the server is the
  * authoritative trust boundary, the frontend just lets us tell the user
@@ -13,13 +16,18 @@
 export const MIN_QUICK_CREATE_CLI_VERSION = "0.2.21";
 export const MIN_QUICK_CREATE_FIELDS_CLI_VERSION = "0.4.3";
 
+// Mirrors server/pkg/protocol/messages.go; each feature is advertised separately.
+export const QUICK_CREATE_CAPABILITY = "quick-create-v1";
+export const QUICK_CREATE_FIELDS_CAPABILITY = "quick-create-fields-v1";
+export const CHAT_PROJECT_CONTEXT_CAPABILITY = "chat-project-context-v1";
+
 export type CliVersionState = "ok" | "too_old" | "missing";
 
 export interface CliVersionCheck {
   state: CliVersionState;
   /** What the daemon reported, or empty if missing/unparsable. */
   current: string;
-  /** The hard minimum we gate on. */
+  /** The upstream minimum used when no explicit capability is advertised. */
   min: string;
 }
 
@@ -46,29 +54,45 @@ function lessThan(a: [number, number, number], b: [number, number, number]) {
 }
 
 /**
- * Check a daemon-reported CLI version string against the minimum. Returns
+ * Check a daemon's explicit support or its reported CLI version. Returns
  * `"missing"` for empty/unparsable input (fail closed — same policy as the
  * server) and `"too_old"` for a parsable version below the threshold.
  * Dev-built daemons (git-describe shape) are always OK — the version string
  * itself is the shared signal, so frontend and server agree by construction.
  */
-export function checkQuickCreateCliVersion(detected: string | undefined | null): CliVersionCheck {
-  return checkCliVersion(detected, MIN_QUICK_CREATE_CLI_VERSION);
+export function checkQuickCreateCliVersion(
+  detected: string | undefined | null,
+  capabilities?: unknown,
+): CliVersionCheck {
+  return checkCliVersion(
+    detected,
+    MIN_QUICK_CREATE_CLI_VERSION,
+    capabilities,
+    QUICK_CREATE_CAPABILITY,
+  );
 }
 
 /** Capability gate for explicit quick-create priority and due-date fields. */
 export function checkQuickCreateFieldsCliVersion(
   detected: string | undefined | null,
+  capabilities?: unknown,
 ): CliVersionCheck {
-  return checkCliVersion(detected, MIN_QUICK_CREATE_FIELDS_CLI_VERSION);
+  return checkCliVersion(
+    detected,
+    MIN_QUICK_CREATE_FIELDS_CLI_VERSION,
+    capabilities,
+    QUICK_CREATE_FIELDS_CAPABILITY,
+  );
 }
 
 function checkCliVersion(
   detected: string | undefined | null,
   minimum: string,
+  capabilities: unknown,
+  capability: string,
 ): CliVersionCheck {
   const current = (detected ?? "").trim();
-  if (DEV_DESCRIBE_RE.test(current)) {
+  if (advertisesCapability(capabilities, capability) || DEV_DESCRIBE_RE.test(current)) {
     return { state: "ok", current, min: minimum };
   }
   const parsed = current ? parseSemver(current) : null;
@@ -103,20 +127,30 @@ export const MIN_CHAT_PROJECT_CONTEXT_CLI_VERSION = "0.4.10";
 
 /**
  * Whether a daemon-reported CLI version is new enough to inject a chat
- * session's project description into the run brief. Missing / unparsable /
- * below-minimum are `false`; dev-built daemons (git-describe shape) always pass.
+ * session's project description into the run brief. Explicit support passes;
+ * otherwise missing / unparsable / below-minimum are `false`, and dev-built
+ * daemons (git-describe shape) retain the existing exemption.
  */
-export function chatProjectContextSupported(detected: string | undefined | null): boolean {
-  return meetsMinCliVersion(detected, MIN_CHAT_PROJECT_CONTEXT_CLI_VERSION);
+export function chatProjectContextSupported(
+  detected: string | undefined | null,
+  capabilities?: unknown,
+): boolean {
+  return (
+    checkCliVersion(
+      detected,
+      MIN_CHAT_PROJECT_CONTEXT_CLI_VERSION,
+      capabilities,
+      CHAT_PROJECT_CONTEXT_CAPABILITY,
+    ).state === "ok"
+  );
 }
 
-function meetsMinCliVersion(detected: string | undefined | null, minimum: string): boolean {
-  const current = (detected ?? "").trim();
-  if (!current) return false;
-  if (DEV_DESCRIBE_RE.test(current)) return true;
-  const parsed = parseSemver(current);
-  if (!parsed) return false;
-  return !lessThan(parsed, parseSemver(minimum)!);
+function advertisesCapability(capabilities: unknown, capability: string): boolean {
+  return (
+    Array.isArray(capabilities) &&
+    capabilities.every((value) => typeof value === "string") &&
+    capabilities.includes(capability)
+  );
 }
 
 /**

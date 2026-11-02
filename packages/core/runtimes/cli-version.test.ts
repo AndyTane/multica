@@ -1,11 +1,40 @@
+// @vitest-environment node
 import { describe, it, expect } from "vitest";
 import {
   chatProjectContextSupported,
   checkQuickCreateCliVersion,
   checkQuickCreateFieldsCliVersion,
   MIN_CHAT_PROJECT_CONTEXT_CLI_VERSION,
+  QUICK_CREATE_CAPABILITY,
+  QUICK_CREATE_FIELDS_CAPABILITY,
+  CHAT_PROJECT_CONTEXT_CAPABILITY,
   runtimeAdvertisesLocalWorktree,
 } from "./cli-version";
+
+describe("daemon feature capabilities (CLAWSTA-116)", () => {
+  it.each([
+    { name: "basic", check: checkQuickCreateCliVersion, capability: QUICK_CREATE_CAPABILITY },
+    { name: "fields", check: checkQuickCreateFieldsCliVersion, capability: QUICK_CREATE_FIELDS_CAPABILITY },
+  ])("accepts a fork release with the required $name capability", ({ check, capability }) => {
+    expect(check("v0.2.1", [capability]).state).toBe("ok");
+    expect(check("", [capability]).state).toBe("ok");
+    expect(check("v0.2.1").state).toBe("too_old");
+    for (const caps of [null, capability, {}, ["unrelated-v1"], [capability, 42]]) {
+      expect(check("v0.2.1", caps).state).toBe("too_old");
+    }
+  });
+
+  it("does not mistake basic quick-create support for explicit field support", () => {
+    expect(checkQuickCreateFieldsCliVersion("v0.2.1", [QUICK_CREATE_CAPABILITY]).state).toBe("too_old");
+    expect(checkQuickCreateCliVersion("v0.2.1", [QUICK_CREATE_FIELDS_CAPABILITY]).state).toBe("too_old");
+  });
+
+  it("recognises chat context independently of the fork release number", () => {
+    expect(chatProjectContextSupported("v0.2.1", [CHAT_PROJECT_CONTEXT_CAPABILITY])).toBe(true);
+    expect(chatProjectContextSupported("v0.2.1", [QUICK_CREATE_CAPABILITY])).toBe(false);
+    expect(chatProjectContextSupported("v0.2.1")).toBe(false);
+  });
+});
 
 describe("checkQuickCreateCliVersion", () => {
   it("returns ok for a tagged release at or above the minimum", () => {

@@ -821,7 +821,10 @@ func (h *Handler) prepareAgentCommentSubIssue(w http.ResponseWriter, r *http.Req
 		dueDate = parsed.Time.Format("2006-01-02")
 	}
 	if priority != "" || dueDate != "" {
-		if status, payload := h.checkQuickCreateDaemonVersionAtLeast(r.Context(), obsmetrics.RuntimeLookupSourceSourceContext, agent.RuntimeID, agentpkg.MinQuickCreateFieldsCLIVersion); status != 0 {
+		if status, payload := h.checkQuickCreateDaemonVersionAtLeast(
+			r.Context(), obsmetrics.RuntimeLookupSourceSourceContext, agent.RuntimeID,
+			agentpkg.MinQuickCreateFieldsCLIVersion, protocol.DaemonCapabilityQuickCreateFieldsV1,
+		); status != 0 {
 			writeJSON(w, status, payload)
 			return nil, errSourceContextResponseWritten
 		}

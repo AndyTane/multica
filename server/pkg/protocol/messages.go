@@ -3,6 +3,15 @@ package protocol
 import "encoding/json"
 
 const (
+	// DaemonCapabilityQuickCreateV1 covers attachment URL/binding handling and
+	// no-retry issue creation, independently of upstream or fork release numbers.
+	DaemonCapabilityQuickCreateV1 = "quick-create-v1"
+	// DaemonCapabilityQuickCreateFieldsV1 carries explicit priority/due-date fields.
+	DaemonCapabilityQuickCreateFieldsV1 = "quick-create-fields-v1"
+	// DaemonCapabilityChatProjectContextV1 renders project descriptions/resources
+	// into chat run briefs.
+	DaemonCapabilityChatProjectContextV1 = "chat-project-context-v1"
+
 	DaemonCapabilitySkillBundlesV1      = "skill-bundles-v1"
 	DaemonCapabilityCoalescedCommentsV1 = "coalesced-comments-v1"
 	DaemonCapabilityExecutionManifestV1 = "execution-manifest-v1"

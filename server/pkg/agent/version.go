@@ -42,7 +42,9 @@ var MinVersions = map[string]string{
 // binding, no-retry semantics on `multica issue create` failure — see PR
 // #1851); older daemons would either double-create issues or mishandle pasted
 // screenshot URLs. Treated as a hard requirement: missing / unparsable / below
-// this threshold all fail closed.
+// this threshold all fail closed when the daemon does not advertise the
+// corresponding explicit feature capability. Fork release numbers need not
+// follow these upstream floors.
 const MinQuickCreateCLIVersion = "0.2.21"
 
 // MinQuickCreateFieldsCLIVersion is the first daemon release that carries

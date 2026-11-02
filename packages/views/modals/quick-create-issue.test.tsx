@@ -1163,6 +1163,32 @@ describe("AgentCreatePanel", () => {
   // runtime at all; the server's version gate (which reads the row by id,
   // regardless of role) stays the trust boundary.
   describe("version pre-check with an unlisted runtime (#7633)", () => {
+    it.each([
+      { name: "basic creation", capabilities: ["quick-create-v1"], data: undefined },
+      {
+        name: "priority and due date",
+        capabilities: ["quick-create-v1", "quick-create-fields-v1"],
+        data: { priority: "urgent", due_date: "2026-08-01" },
+      },
+    ])("allows a fork daemon with advertised support for $name (CLAWSTA-116)", async ({ capabilities, data }) => {
+      const user = userEvent.setup();
+      mockRuntimesData.list = [{
+        id: "runtime-1",
+        metadata: { cli_version: "v0.2.1", capabilities },
+      }];
+      renderPanel({ onClose: vi.fn(), isExpanded: false, setIsExpanded: vi.fn(), data });
+
+      expect(screen.queryByText(/Create with agent needs ≥/i)).not.toBeInTheDocument();
+      const create = screen.getByRole("button", { name: /^Create$/i });
+      expect(create).not.toBeDisabled();
+      await user.click(create);
+
+      await waitFor(() => expect(mockQuickCreateIssue).toHaveBeenCalledTimes(1));
+      if (data) {
+        expect(mockQuickCreateIssue).toHaveBeenCalledWith(expect.objectContaining(data));
+      }
+    });
+
     it("does not block Create when the selected agent's runtime is not in the visible list", async () => {
       const user = userEvent.setup();
       // Member view: the agent's runtime-1 is a private machine they don't own,

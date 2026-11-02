@@ -74,4 +74,15 @@ describe("useChatProjectContextSupport", () => {
 
     await waitFor(() => expect(result.current).toBe(false));
   });
+
+  it("recognises a fork daemon's project context capability", async () => {
+    vi.mocked(api.listRuntimes).mockResolvedValue([{
+      ...runtimeRow("v0.2.1"),
+      metadata: { cli_version: "v0.2.1", capabilities: ["chat-project-context-v1"] },
+    }] as never);
+
+    const { result } = renderSupport({ runtime_id: "runtime-1" });
+
+    await waitFor(() => expect(result.current).toBe(true));
+  });
 });

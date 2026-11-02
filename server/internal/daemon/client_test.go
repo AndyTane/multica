@@ -36,6 +36,9 @@ func TestClient_IdentityHeaders_PostJSON(t *testing.T) {
 			capabilities[strings.TrimSpace(capability)] = true
 		}
 		for _, want := range []string{
+			protocol.DaemonCapabilityQuickCreateV1,
+			protocol.DaemonCapabilityQuickCreateFieldsV1,
+			protocol.DaemonCapabilityChatProjectContextV1,
 			protocol.DaemonCapabilitySkillBundlesV1,
 			protocol.DaemonCapabilityCoalescedCommentsV1,
 			// The worktree gate is decided entirely from this header: if the
@@ -100,6 +103,19 @@ func TestClient_IdentityHeaders_GetJSON(t *testing.T) {
 	var out map[string]any
 	if err := c.getJSON(context.Background(), "/api/daemon/test", &out); err != nil {
 		t.Fatalf("getJSON: %v", err)
+	}
+}
+
+func TestDaemonFeatureCapabilitiesWebSocket(t *testing.T) {
+	capabilities := "," + daemonClientCapabilities() + ","
+	for _, capability := range []string{
+		protocol.DaemonCapabilityQuickCreateV1,
+		protocol.DaemonCapabilityQuickCreateFieldsV1,
+		protocol.DaemonCapabilityChatProjectContextV1,
+	} {
+		if !strings.Contains(capabilities, ","+capability+",") {
+			t.Errorf("WebSocket handshake missing feature capability %q", capability)
+		}
 	}
 }
 
