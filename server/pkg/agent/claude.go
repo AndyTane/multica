@@ -242,6 +242,20 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		unreadableAssistantCount := 0
 		controlErrors := make(chan error, 1)
 		var controlWrites sync.WaitGroup
+		var controlMu sync.Mutex
+		pendingControls := 0
+		closeRequested := false
+		closeAfterControls := func() {
+			if supplements != nil {
+				supplements.end()
+			}
+			controlMu.Lock()
+			defer controlMu.Unlock()
+			closeRequested = true
+			if pendingControls == 0 {
+				closeStdin()
+			}
+		}
 		phase := "task"
 		warmAttempted := false
 		sawCompactBoundary := false
@@ -373,7 +387,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 							terminalReasonError = "context compaction before the task failed; retry without starting a new session"
 						}
 						phase = "done"
-						closeStdin()
+						closeAfterControls()
 						continue
 					}
 					trySend(msgCh, contextCompactionStatus(ContextCompactionCompleted))
@@ -386,7 +400,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 					} else {
 						usage = addCompactionUsage(usage, maintenanceUsage)
 						phase = "done"
-						closeStdin()
+						closeAfterControls()
 					}
 				}
 				continue
@@ -456,7 +470,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 					trySend(msgCh, Message{Type: MessageLog, Level: "info", Content: fmt.Sprintf("Compacting context after the task (%d tokens; timeout %s).", latestContext, maintenance.timeout)})
 					writeNextInput("/compact")
 				} else {
-					closeStdin()
+					closeAfterControls()
 					if resultIsError || terminalReasonError != "" {
 						stopAfterErrorResultOnce.Do(func() { go stopAfterErrorResult() })
 					}
@@ -474,9 +488,20 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 				if supplements != nil {
 					reply, _ = supplements.prepareHook(msg)
 				}
+				controlMu.Lock()
+				pendingControls++
+				controlMu.Unlock()
 				controlWrites.Add(1)
 				go func(msg claudeSDKMessage, reply func(io.Writer) error) {
 					defer controlWrites.Done()
+					defer func() {
+						controlMu.Lock()
+						defer controlMu.Unlock()
+						pendingControls--
+						if closeRequested && pendingControls == 0 {
+							closeStdin()
+						}
+					}()
 					if reply == nil {
 						b.handleControlRequest(msg, inputWriter)
 						return
