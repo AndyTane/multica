@@ -9,20 +9,22 @@ import { Card, CardContent } from "@multica/ui/components/ui/card";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { useAuthStore } from "@multica/core/auth";
 import { workspaceKeys } from "@multica/core/workspace/queries";
-import type { ShareLinkInfo, Workspace } from "@multica/core/types";
+import type { ShareLinkInfo } from "@multica/core/types";
 
 function JoinInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
   const user = useAuthStore((s) => s.user);
+  const refreshMe = useAuthStore((s) => s.refreshMe);
   const queryClient = useQueryClient();
 
   const [info, setInfo] = useState<ShareLinkInfo | null>(null);
   const [infoError, setInfoError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-  const [joined, setJoined] = useState(false);
+  const [joinedWorkspace, setJoinedWorkspace] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState(false);
 
   // Load the share-link preview once. No auth needed: this endpoint only
   // exposes the workspace name/slug and the inviter.
@@ -45,7 +47,28 @@ function JoinInner() {
     };
   }, [code]);
 
-  const handleJoin = () => {
+  const syncAndEnter = async (workspace: string) => {
+    setJoining(true);
+    setSyncError(false);
+    try {
+      // The join also completes onboarding on the server. Publish that account
+      // state before the workspace layout evaluates its onboarding guard.
+      await Promise.all([
+        refreshMe(),
+        api.listWorkspaces().then((list) => {
+          queryClient.setQueryData(workspaceKeys.list(), list);
+        }),
+      ]);
+      router.push(`/${workspace}/issues`);
+    } catch {
+      // Membership is already saved; retry only these reads, never the join.
+      setSyncError(true);
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleJoin = async () => {
     if (!code) return;
     if (!user) {
       // Not logged in: send them to login, then return here to join.
@@ -54,61 +77,52 @@ function JoinInner() {
     }
     setJoining(true);
     setJoinError(null);
-    api
-      .joinByShareLink(code)
-      .then(async (result) => {
-        setJoined(true);
-        const list = await api.listWorkspaces().catch(() => [] as Workspace[]);
-        queryClient.setQueryData(workspaceKeys.list(), list);
-        setTimeout(() => {
-          router.push(`/${result.workspace_slug || result.workspace_id}/issues`);
-        }, 1200);
-      })
-      .catch(async (e) => {
-        const code = errorCode(e);
-        const msg = e instanceof Error ? e.message : "";
-        if (msg.includes("already a member")) {
-          // Already joined: go straight to the workspace this invite points at
-          // rather than the account's first workspace.
-          if (info?.workspace_slug) {
-            router.push(`/${info.workspace_slug}/issues`);
-            return;
-          }
-          try {
-            const workspaces = await api.listWorkspaces();
-            queryClient.setQueryData(workspaceKeys.list(), workspaces as any);
-            const first = workspaces[0];
-            if (first) {
-              router.push(`/${first.slug}/issues`);
-              return;
-            }
-          } catch {
-            // Fall through to the home redirect below.
-          }
-          router.push("/");
-          return;
-        }
+    let workspace: string;
+    try {
+      const result = await api.joinByShareLink(code);
+      workspace = result.workspace_slug || result.workspace_id;
+    } catch (e) {
+      const code = errorCode(e);
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("already a member") && info?.workspace_slug) {
+        workspace = info.workspace_slug;
+      } else {
         setJoining(false);
         if (code === "seat_capacity_full") {
           setJoinError("All purchased member seats are in use. Ask a workspace admin to add a seat before trying again.");
-          return;
-        }
-        if (code === "seat_capacity_unavailable") {
+        } else if (code === "seat_capacity_unavailable") {
           setJoinError("Member capacity could not be verified. Please try again.");
-          return;
+        } else {
+          setJoinError(msg || "Failed to join the workspace. The link may have expired.");
         }
-        setJoinError(msg || "Failed to join the workspace. The link may have expired.");
-      });
+        return;
+      }
+    }
+    setJoinedWorkspace(workspace);
+    await syncAndEnter(workspace);
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardContent className="space-y-4 pt-6">
-          {joined ? (
+          {joinedWorkspace ? (
             <>
               <h1 className="text-title-lg font-semibold text-center">Joined!</h1>
-              <p className="text-center text-muted-foreground">Redirecting to your workspace...</p>
+              {syncError ? (
+                <>
+                  <p role="alert" className="text-center text-body text-destructive">
+                    Your membership is saved, but your account could not be synced. Retry to enter the workspace.
+                  </p>
+                  <div className="flex justify-center">
+                    <Button onClick={() => syncAndEnter(joinedWorkspace)} disabled={joining} aria-busy={joining}>
+                      Retry sync
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p role="status" className="text-center text-muted-foreground">Redirecting to your workspace...</p>
+              )}
             </>
           ) : infoError ? (
             <>
@@ -147,7 +161,7 @@ function JoinInner() {
                 <p className="text-center text-body text-destructive">{joinError}</p>
               )}
               <div className="flex justify-center gap-2 pt-2">
-                <Button onClick={handleJoin} disabled={joining}>
+                <Button onClick={handleJoin} disabled={joining} aria-busy={joining}>
                   {joining ? "Joining..." : user ? "Join Workspace" : "Log In to Join"}
                 </Button>
               </div>
