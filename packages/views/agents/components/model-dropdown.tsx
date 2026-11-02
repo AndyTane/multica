@@ -38,12 +38,21 @@ export function ModelDropdown({
   value,
   onChange,
   disabled,
+  workspaceSlug,
 }: {
   runtimeId: string | null;
   runtimeOnline: boolean;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  /**
+   * Target workspace for model discovery, for surfaces that render before the
+   * app enters that workspace's route and therefore have no ambient
+   * X-Workspace-Slug to send (onboarding, new-workspace flow). Inside a
+   * workspace route leave it undefined: the ambient header already says which
+   * workspace the request is for.
+   */
+  workspaceSlug?: string;
 }) {
   const { t } = useT("agents");
   const queryClient = useQueryClient();
@@ -51,7 +60,7 @@ export function ModelDropdown({
   const [search, setSearch] = useState("");
 
   const modelsQuery = useQuery(
-    runtimeModelsOptions(runtimeOnline ? runtimeId : null),
+    runtimeModelsOptions(runtimeOnline ? runtimeId : null, workspaceSlug),
   );
 
   const supported = modelsQuery.data?.supported ?? true;
@@ -113,10 +122,12 @@ export function ModelDropdown({
 
   const refresh = () => {
     if (!runtimeId || !runtimeOnline) return;
-    void refreshRuntimeModels(queryClient, runtimeId).catch(() => {
-      // React Query owns the error state rendered below. Swallow the returned
-      // promise rejection so a failed manual refresh is not also unhandled.
-    });
+    void refreshRuntimeModels(queryClient, runtimeId, workspaceSlug).catch(
+      () => {
+        // React Query owns the error state rendered below. Swallow the returned
+        // promise rejection so a failed manual refresh is not also unhandled.
+      },
+    );
   };
 
   const triggerLabel =

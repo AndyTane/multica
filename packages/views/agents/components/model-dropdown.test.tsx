@@ -32,13 +32,17 @@ const CODEX_MODELS: RuntimeModelsResult = {
 // daemon's reported error text, so a failure is modelled as a throwing queryFn.
 let discovery: () => Promise<RuntimeModelsResult> = async () => CODEX_MODELS;
 const mockRefreshRuntimeModels = vi.hoisted(() => vi.fn());
+const mockRuntimeModelsOptions = vi.hoisted(() => vi.fn());
 
 vi.mock("@multica/core/runtimes", () => ({
-  runtimeModelsOptions: (runtimeId: string | null) => ({
-    enabled: Boolean(runtimeId),
-    queryKey: ["runtime-models", runtimeId, discoveryKey],
-    queryFn: () => discovery(),
-  }),
+  runtimeModelsOptions: (runtimeId: string | null, workspaceSlug?: string) => {
+    mockRuntimeModelsOptions(runtimeId, workspaceSlug);
+    return {
+      enabled: Boolean(runtimeId),
+      queryKey: ["runtime-models", runtimeId, workspaceSlug, discoveryKey],
+      queryFn: () => discovery(),
+    };
+  },
   refreshRuntimeModels: (...args: unknown[]) =>
     mockRefreshRuntimeModels(...args),
 }));
@@ -46,7 +50,7 @@ vi.mock("@multica/core/runtimes", () => ({
 // Bumped per test so React Query cannot serve a previous case's cached result.
 let discoveryKey = 0;
 
-function renderDropdown() {
+function renderDropdown(props: { workspaceSlug?: string } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -59,6 +63,7 @@ function renderDropdown() {
           runtimeOnline
           value=""
           onChange={onChange}
+          workspaceSlug={props.workspaceSlug}
         />
       </QueryClientProvider>
     </I18nProvider>,
@@ -83,6 +88,7 @@ describe("ModelDropdown", () => {
     cleanup();
     discovery = async () => CODEX_MODELS;
     mockRefreshRuntimeModels.mockReset();
+    mockRuntimeModelsOptions.mockReset();
     discoveryKey += 1;
   });
 
@@ -113,6 +119,34 @@ describe("ModelDropdown", () => {
     expect(mockRefreshRuntimeModels).toHaveBeenCalledWith(
       expect.any(QueryClient),
       "rt-codex",
+      undefined,
+    );
+  });
+
+  // Onboarding renders this picker before the app has entered the new
+  // workspace's route, so the target workspace has to be named explicitly —
+  // otherwise discovery is rejected with "workspace_id or workspace_slug is
+  // required". Both the query and the manual refresh have to carry it.
+  it("forwards the workspace slug to the model query and its refresh", async () => {
+    const { container } = renderDropdown({
+      workspaceSlug: "proxima-centauri",
+    });
+
+    expect(mockRuntimeModelsOptions).toHaveBeenCalledWith(
+      "rt-codex",
+      "proxima-centauri",
+    );
+
+    openDropdown(container);
+    await screen.findByText("GPT-5.6 Sol");
+    fireEvent.click(
+      screen.getByRole("button", { name: enAgents.pickers.model_refresh }),
+    );
+
+    expect(mockRefreshRuntimeModels).toHaveBeenCalledWith(
+      expect.any(QueryClient),
+      "rt-codex",
+      "proxima-centauri",
     );
   });
 

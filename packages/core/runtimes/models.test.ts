@@ -17,10 +17,13 @@ vi.mock("../api", () => ({
   api: {
     initiateListModels: (
       runtimeId: string,
-      options?: { force?: boolean },
+      options?: { force?: boolean; workspaceSlug?: string },
     ) => initiateListModels(runtimeId, options),
-    getListModelsResult: (runtimeId: string, requestId: string) =>
-      getListModelsResult(runtimeId, requestId),
+    getListModelsResult: (
+      runtimeId: string,
+      requestId: string,
+      workspaceSlug?: string,
+    ) => getListModelsResult(runtimeId, requestId, workspaceSlug),
   },
 }));
 
@@ -143,7 +146,11 @@ describe("resolveRuntimeModels", () => {
     expect(result.models).toEqual(catalog);
     expect(result.supported).toBe(true);
     expect(getListModelsResult).toHaveBeenCalledTimes(2);
-    expect(getListModelsResult).toHaveBeenLastCalledWith("rt-1", "req-1");
+    expect(getListModelsResult).toHaveBeenLastCalledWith(
+      "rt-1",
+      "req-1",
+      undefined,
+    );
   });
 
   // MUL-6606 review: the client budget has to cover the server's pending AND
@@ -384,5 +391,51 @@ describe("runtimeModelsOptions", () => {
     // data, not after a gap.
     expect(emissions[0]?.ids).toEqual(catalog.map((m) => m.id));
     expect(initiateListModels).toHaveBeenCalledTimes(2);
+  });
+});
+
+// The onboarding runtime step runs before the app enters the new workspace's
+// route, so no ambient X-Workspace-Slug exists yet. The target has to travel
+// with every request in the discovery — including each poll, which is its own
+// workspace-gated call.
+describe("explicit workspace targeting", () => {
+  it("forwards the slug to the initiating request and every poll", async () => {
+    initiateListModels.mockResolvedValue(request({ status: "pending" }));
+    getListModelsResult.mockResolvedValue(
+      request({ status: "completed", models: catalog }),
+    );
+
+    await resolveRuntimeModels("rt-1", { workspaceSlug: "proxima-centauri" });
+
+    expect(initiateListModels).toHaveBeenCalledWith("rt-1", {
+      workspaceSlug: "proxima-centauri",
+    });
+    expect(getListModelsResult).toHaveBeenCalledWith(
+      "rt-1",
+      "req-1",
+      "proxima-centauri",
+    );
+  });
+
+  it("carries the slug through the query options and the forced refresh", async () => {
+    initiateListModels.mockResolvedValue(
+      request({ status: "completed", models: catalog }),
+    );
+    const options = runtimeModelsOptions("rt-1", "proxima-centauri");
+    await (options.queryFn as () => Promise<unknown>)();
+    expect(initiateListModels).toHaveBeenCalledWith("rt-1", {
+      workspaceSlug: "proxima-centauri",
+    });
+
+    initiateListModels.mockClear();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    await refreshRuntimeModels(client, "rt-1", "proxima-centauri");
+    expect(initiateListModels).toHaveBeenCalledWith("rt-1", {
+      force: true,
+      workspaceSlug: "proxima-centauri",
+    });
+    client.clear();
   });
 });
