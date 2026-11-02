@@ -12,12 +12,15 @@
     3. verifies the board over HTTPS with the generated private CA, the local
        sign-in, the workspace, and an opencode runtime registered by the bundled
        daemon;
-    4. rebuilds the installer from the bundled toolchain while still offline;
-    5. simulates a second machine with the packaged CLI plus a separate CLI
+    4. simulates an unclean shutdown — stops the stack and zero-fills
+       state\processes.json — and verifies Start recovers, keeps the damaged file,
+       and brings the daemon and its runtime back;
+    5. rebuilds the installer from the bundled toolchain while still offline;
+    6. simulates a second machine with the packaged CLI plus a separate CLI
        profile, joins it with 'connect', and observes a new runtime;
-    6. rehearses an overlay upgrade from a newer package: backup exists, version
+    7. rehearses an overlay upgrade from a newer package: backup exists, version
        changed, and the data written before the upgrade is still there;
-    7. cleans up: stops the service, removes the start-on-login item and the
+    8. cleans up: stops the service, removes the start-on-login item and the
        package CLI profiles, and fails if a process or port is left behind.
 
     It never touches the existing Multica daemon or the existing native
@@ -332,6 +335,50 @@ try {
     # --- start on login -----------------------------------------------------
     $startupItem = Get-PortableStartupShortcutPath
     Assert-Check 'start-on-login item registered in the current user Startup folder' (Test-Path -LiteralPath $startupItem) $startupItem
+
+    # --- unclean shutdown: a damaged state file must not block the start ----
+    # The supervisor rewrites state\processes.json every few seconds, so an
+    # unclean shutdown can leave it zero-filled. Start used to abort inside
+    # ConvertFrom-Json before it reached the service — exactly how the desktop
+    # deployment failed to come back after a reboot. This stops the running
+    # stack, damages the file the way the shutdown did, and starts again.
+    Write-Step 'Simulating an unclean shutdown with a damaged state file'
+    $statePath = Join-Path $serverCopy 'state\processes.json'
+    $stopOutput = & (Join-Path $serverCopy 'stop.ps1') -Profile $ServerProfile -Quiet 2>&1 | Out-String
+    $stopExit = $LASTEXITCODE
+    Assert-Check 'stop script completed before the recovery scenario' ($stopExit -eq 0) (($stopOutput -split "\r?\n" | Select-Object -Last 3) -join ' | ')
+    $stoppedDaemon = Get-PortableDaemonStatus -Root $serverCopy -Profile $ServerProfile
+    Assert-Check 'a stopped daemon is reported as stopped' (-not [bool]$stoppedDaemon.Running) ([string]$stoppedDaemon.Output)
+    $damagedLength = 792
+    [IO.File]::WriteAllBytes($statePath, (New-Object byte[] $damagedLength))
+    Assert-Check 'damaged state file staged for the recovery test' ((Get-Item -LiteralPath $statePath).Length -eq $damagedLength) $statePath
+    $startOutput = & (Join-Path $serverCopy 'start.ps1') -Profile $ServerProfile -Quiet 2>&1 | Out-String
+    $startExit = $LASTEXITCODE
+    Assert-Check 'start recovers from a damaged state file' ($startExit -eq 0) (($startOutput -split "\r?\n" | Select-Object -Last 3) -join ' | ')
+    $quarantined = @(Get-ChildItem -LiteralPath (Join-Path $serverCopy 'state') -Filter 'processes.json.corrupt-*' -ErrorAction SilentlyContinue)
+    Assert-Check 'the damaged state file was kept for diagnosis' ($quarantined.Count -ge 1) (($quarantined | ForEach-Object { $_.Name + ' ' + $_.Length + ' bytes' }) -join ', ')
+    $recoveredState = $null
+    try { $recoveredState = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { }
+    Assert-Check 'a fresh state file replaced the damaged one' ($null -ne $recoveredState -and $null -ne $recoveredState.Supervisor)
+    $readyRecovered = Invoke-PortableWebRequest -Uri ($serverUrl + '/readyz') -RootCAPath $rootCa -TimeoutSec 60
+    Assert-Check 'API ready after recovering from the damaged state file' ($readyRecovered.StatusCode -eq 200) ([string]$readyRecovered.StatusCode)
+    $daemonAfterRecovery = Get-PortableDaemonStatus -Root $serverCopy -Profile $ServerProfile
+    Assert-Check 'the local daemon is running again after the recovery' ([bool]$daemonAfterRecovery.Running) ([string]$daemonAfterRecovery.Output)
+    $daemonPid = 0
+    try { $daemonPid = [int]$daemonAfterRecovery.Detail.pid } catch { }
+    Assert-Check 'the reported daemon pid belongs to a live process' ($daemonPid -gt 0 -and $null -ne (Get-Process -Id $daemonPid -ErrorAction SilentlyContinue)) ([string]$daemonPid)
+    $recoveredDeadline = (Get-Date).AddSeconds(150)
+    $recoveredRuntimes = @()
+    while ((Get-Date) -lt $recoveredDeadline) {
+        $runtimeResponse = Invoke-PortableWebRequest -Uri ($serverUrl + '/api/runtimes') -RootCAPath $rootCa -Headers @{ Authorization = 'Bearer ' + [string]$session.token; 'X-Workspace-ID' = $workspaceId }
+        if ($runtimeResponse.StatusCode -eq 200) {
+            $recoveredRuntimes = @(ConvertFrom-PortableResponse $runtimeResponse)
+            if ($recoveredRuntimes.Count -gt 0) { break }
+        }
+        Start-Sleep -Seconds 2
+    }
+    Assert-Check 'the bundled opencode runtime is online again after the recovery' ($recoveredRuntimes.Count -ge 1) (($recoveredRuntimes | ForEach-Object { [string]$_.name + '/' + [string]$_.provider }) -join ', ')
+    $evidence.recovery = [ordered]@{ damagedFileKept = @($quarantined | ForEach-Object { $_.Name }); daemonPid = $daemonPid; runtimes = @($recoveredRuntimes | ForEach-Object { [string]$_.name + '/' + [string]$_.provider }) }
 
     # --- installer artifact + offline rebuild -------------------------------
     Write-Step 'Checking the prebuilt installer and rebuilding it offline'
