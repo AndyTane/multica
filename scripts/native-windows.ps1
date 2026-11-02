@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Prepare', 'Build', 'Backup', 'Restore', 'Start', 'Stop', 'Status', 'Run', 'InstallStartup', 'RemoveStartup', 'InstallTask', 'RemoveTask', 'Configure')]
+    [ValidateSet('Prepare', 'Build', 'Stage', 'Backup', 'Restore', 'Start', 'Stop', 'Status', 'Run', 'InstallStartup', 'RemoveStartup', 'InstallTask', 'RemoveTask', 'Configure')]
     [string]$Action = 'Status',
     [string]$Root = (Join-Path $env:LOCALAPPDATA 'Multica\native'),
     [string]$BackupPath,
@@ -16,6 +16,7 @@ param(
     [string]$WebHost,
     [string]$PgArchive,
     [string]$PgArchiveSha256,
+    [string]$ReleaseSource,
     [string]$Version,
     [string]$NodeExe,
     [string]$GoExe,
@@ -32,6 +33,22 @@ function Write-NativeJson {
     $text = $Value | ConvertTo-Json -Depth 12
     [IO.File]::WriteAllText($Path + '.tmp', $text, [Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath ($Path + '.tmp') -Destination $Path -Force
+}
+
+function Get-NativeFileHash {
+    # Compute SHA-256 without module cmdlets: the lifecycle script also runs
+    # from a child Windows PowerShell whose module autoloading may be limited.
+    param([string]$Path)
+    $stream = $null
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [IO.File]::OpenRead($Path)
+        $bytes = $sha.ComputeHash($stream)
+        return ((($bytes | ForEach-Object { $_.ToString('x2') }) -join '')).ToUpperInvariant()
+    } finally {
+        if ($stream) { $stream.Dispose() }
+        $sha.Dispose()
+    }
 }
 
 function Read-NativeConfig {
@@ -109,7 +126,7 @@ function Expand-NativePostgresArchive {
     param([string]$RuntimeDirectory, [string]$Archive, [string]$Sha256)
     if (-not $Archive -or -not (Test-Path -LiteralPath $Archive)) { throw 'A PostgreSQL Windows binaries archive is required for a clean deployment; download it from the EDB binary archive page.' }
     if (-not $Sha256) { throw 'A SHA-256 checksum is required to verify the PostgreSQL archive.' }
-    $hash = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
+    $hash = Get-NativeFileHash $Archive
     if ($hash -ne $Sha256.Trim().ToUpperInvariant()) { throw 'The PostgreSQL archive does not match the provided SHA-256 checksum.' }
     New-Item -ItemType Directory -Path $RuntimeDirectory -Force | Out-Null
     $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
@@ -172,7 +189,10 @@ function Initialize-NativeCleanDeployment {
         CreatedAt = (Get-Date).ToUniversalTime().ToString('o')
     }
     Write-NativeJson $configFile $config
-    Copy-Item -LiteralPath $script:ScriptFile -Destination (Join-Path $Directory 'runtime\native-windows.ps1') -Force
+    $runnerPath = Join-Path $Directory 'runtime\native-windows.ps1'
+    if ([IO.Path]::GetFullPath($script:ScriptFile) -ne [IO.Path]::GetFullPath($runnerPath)) {
+        Copy-Item -LiteralPath $script:ScriptFile -Destination $runnerPath -Force
+    }
     Write-Host ('Clean native deployment configuration written to ' + $Directory + '; generated secrets stay in deployment.json.')
 }
 
@@ -480,6 +500,26 @@ function Build-NativeDeployment {
     Write-Host "Native release built: $version ($commit)."
 }
 
+function Stage-NativeDeployment {
+    param($Config, [string]$Source)
+    # Stage a release that was built elsewhere (on a build machine) into this
+    # deployment. The portable package ships exactly this: prebuilt binaries and
+    # the standalone web app, so a locked-down machine never needs Go, Node or
+    # pnpm to run the server.
+    if (-not $Source) { throw 'A prebuilt release directory is required: pass -ReleaseSource <dir>.' }
+    $Source = [IO.Path]::GetFullPath($Source)
+    if (-not (Test-Path -LiteralPath (Join-Path $Source 'server.exe'))) { throw ('The prebuilt release does not contain server.exe: ' + $Source) }
+    if (-not (Test-Path -LiteralPath (Join-Path $Source 'web\apps\web\server.js'))) { throw ('The prebuilt release does not contain the standalone web app: ' + $Source) }
+    if (-not (Test-Path -LiteralPath (Join-Path $Source 'migrations'))) { throw ('The prebuilt release does not contain migrations: ' + $Source) }
+    $version = Resolve-NativeBuildVersion $Config
+    $commit = Resolve-NativeBuildCommit $Config
+    $release = Join-Path $Config.Root ('releases\' + $version + '-' + (Get-Date -Format 'yyyyMMddHHmmss'))
+    Copy-NativeDirectory $Source $release
+    $Config.Release = $release
+    Write-NativeJson (Join-Path $Config.Root 'deployment.json') $Config
+    Write-Host "Native release staged: $version ($commit) -> $release"
+}
+
 function Backup-DockerDeployment {
     param($Config)
     $name = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -494,7 +534,9 @@ function Backup-DockerDeployment {
     Invoke-NativeCommand 'tar.exe' @('-czf', (Join-Path $destination 'uploads.tar.gz'), '-C', $uploadSnapshot, '.')
     Copy-Item -LiteralPath (Join-Path $Config.Root 'deployment.json') -Destination (Join-Path $destination 'deployment.json')
     Invoke-NativeCommand 'docker.exe' @('exec', 'multica-postgres-1', 'rm', '-f', $remoteDump)
-    Get-ChildItem -LiteralPath $destination -File | Get-FileHash -Algorithm SHA256 | Select-Object @{n='File';e={[IO.Path]::GetFileName($_.Path)}}, Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'sha256.json') -Encoding UTF8
+    $hashEntries = @()
+    Get-ChildItem -LiteralPath $destination -File | ForEach-Object { $hashEntries += [pscustomobject]@{ File = $_.Name; Hash = (Get-NativeFileHash $_.FullName) } }
+    $hashEntries | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'sha256.json') -Encoding UTF8
     Write-Host "Backup complete: $destination"
 }
 
@@ -509,7 +551,9 @@ function Backup-NativeDeployment {
     } finally { $env:PGPASSWORD = $savedPassword }
     Invoke-NativeCommand 'tar.exe' @('-czf', (Join-Path $destination 'uploads.tar.gz'), '-C', (Join-Path $Config.Root 'uploads'), '.')
     Copy-Item -LiteralPath (Join-Path $Config.Root 'deployment.json') -Destination (Join-Path $destination 'deployment.json')
-    Get-ChildItem -LiteralPath $destination -File | Get-FileHash -Algorithm SHA256 | Select-Object @{n='File';e={[IO.Path]::GetFileName($_.Path)}}, Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'sha256.json') -Encoding UTF8
+    $hashEntries = @()
+    Get-ChildItem -LiteralPath $destination -File | ForEach-Object { $hashEntries += [pscustomobject]@{ File = $_.Name; Hash = (Get-NativeFileHash $_.FullName) } }
+    $hashEntries | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $destination 'sha256.json') -Encoding UTF8
     Write-Host "Native backup complete: $destination"
 }
 
@@ -525,7 +569,7 @@ function Restore-NativeDeployment {
     $checksums = Get-Content -LiteralPath (Join-Path $Source 'sha256.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($entry in $checksums) {
         if ($entry.File -notin @('database.dump', 'uploads.tar.gz', 'deployment.json')) { throw 'Unexpected file in backup checksum manifest.' }
-        if ((Get-FileHash -LiteralPath (Join-Path $Source $entry.File) -Algorithm SHA256).Hash -ne $entry.Hash) { throw "Backup checksum mismatch: $($entry.File)." }
+        if ((Get-NativeFileHash (Join-Path $Source $entry.File)) -ne $entry.Hash) { throw "Backup checksum mismatch: $($entry.File)." }
     }
     Start-NativePostgres $Config
     $existing = @(Invoke-NativeSql $Config ("SELECT datname FROM pg_database WHERE datname='$Name';"))
@@ -691,6 +735,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     $config = Read-NativeConfig $Root
     switch ($Action) {
         'Build' { Build-NativeDeployment $config }
+        'Stage' { Stage-NativeDeployment $config $ReleaseSource }
         'Backup' { if ($BackupSource -eq 'Docker') { Backup-DockerDeployment $config } else { Backup-NativeDeployment $config } }
         'Restore' { Restore-NativeDeployment $config $BackupPath $Database }
         'Start' { Start-NativeDeployment $config }

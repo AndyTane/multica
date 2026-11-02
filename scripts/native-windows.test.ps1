@@ -184,7 +184,27 @@ try {
     try { Resolve-NativeBuildVersion ([pscustomobject]@{ Repo = (Join-Path $testRoot 'no-git-checkout'); Version = ''; Commit = '' }) } catch { $rejected = $_.Exception.Message -like '*Tagged source version required*' }
     Assert-NativeTest $rejected 'A tagless checkout without an explicit version must fail with an actionable error.'
 
-    Write-Host 'PASS: native Windows configuration, environment isolation, process ownership, state, clean-deploy, persistence-task, and build-stamp tests.'
+    # Prebuilt release staging: the portable package ships binaries built on a
+    # build machine and must never need Go or Node on the target machine.
+    $stageRoot = Join-Path $testRoot 'stage-deploy'
+    Initialize-NativeCleanDeployment -Directory $stageRoot -Database 'multica_stage' -DatabasePort 16434 -ApiPort 18083 -WebPort 13003 -Version 'v0.2.0' -PgArchive $cleanArchive -PgArchiveSha256 $archiveHash -NodeExe $shell
+    $stageConfig = Read-NativeConfig $stageRoot
+    $stageSource = Join-Path $testRoot 'prebuilt-release'
+    New-Item -ItemType Directory -Path (Join-Path $stageSource 'web\apps\web'), (Join-Path $stageSource 'migrations') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $stageSource 'server.exe'), 'server')
+    [IO.File]::WriteAllText((Join-Path $stageSource 'web\apps\web\server.js'), 'web')
+    [IO.File]::WriteAllText((Join-Path $stageSource 'migrations\001_init.up.sql'), 'select 1;')
+    Stage-NativeDeployment $stageConfig $stageSource
+    $stagedConfig = Read-NativeConfig $stageRoot
+    Assert-NativeTest ($stagedConfig.Release -and (Test-Path -LiteralPath (Join-Path $stagedConfig.Release 'server.exe'))) 'Stage must publish a prebuilt release and record it in deployment.json.'
+    Assert-NativeTest (Test-Path -LiteralPath (Join-Path $stagedConfig.Release 'web\apps\web\server.js')) 'Stage must copy the standalone web app.'
+    Assert-NativeTest (Test-Path -LiteralPath (Join-Path $stagedConfig.Release 'migrations\001_init.up.sql')) 'Stage must copy the migrations the supervisor runs.'
+    Assert-NativeTest ((Get-Content -LiteralPath (Join-Path $stagedConfig.Release 'server.exe') -Raw).Trim() -eq 'server') 'Stage must copy the prebuilt server binary unchanged.'
+    $rejected = $false
+    try { Stage-NativeDeployment $stagedConfig (Join-Path $testRoot 'missing-release') } catch { $rejected = $_.Exception.Message -like '*server.exe*' }
+    Assert-NativeTest $rejected 'Stage must refuse a directory that is not a prebuilt release.'
+
+    Write-Host 'PASS: native Windows configuration, environment isolation, process ownership, state, clean-deploy, prebuilt staging, persistence-task, and build-stamp tests.'
 } finally {
     $resolvedRoot = [IO.Path]::GetFullPath($testRoot)
     $expectedParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
