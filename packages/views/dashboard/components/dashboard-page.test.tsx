@@ -283,6 +283,7 @@ function DashboardHarness({ initialSearch = "" }: { initialSearch?: string }) {
       searchParams: new URLSearchParams(search),
       hash: "",
       getShareableUrl: (path: string) => `https://example.test${path}`,
+      getExternalShareUrl: (path: string) => `https://example.test${path}`,
     }),
     [search],
   );

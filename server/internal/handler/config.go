@@ -10,7 +10,10 @@ import (
 )
 
 type AppConfig struct {
-	CdnDomain string `json:"cdn_domain"`
+	// PublicAppURL is the validated, non-loopback frontend origin for sharing.
+	// Older clients ignore it; absent means use the browser's current origin.
+	PublicAppURL string `json:"public_app_url,omitempty"`
+	CdnDomain    string `json:"cdn_domain"`
 	// CdnSigned tells clients that the CDN domain above serves PRIVATE
 	// content through time-bounded signed URLs (CloudFront signing is
 	// enabled). When true, a raw storage URL on the CDN domain is NOT
@@ -116,6 +119,7 @@ type AppConfig struct {
 // to anonymous callers — never user- or tenant-scoped data.
 func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	config := AppConfig{
+		PublicAppURL: publicFrontendOrigin(),
 		// A property of this build, not of the deployment: if this code is
 		// running, the save gate is running with it.
 		LocalWorktreeSupported:             true,

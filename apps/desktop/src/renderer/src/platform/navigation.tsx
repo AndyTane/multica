@@ -251,6 +251,7 @@ export function DesktopNavigationProvider({
         store.openTab(path, title ?? "", { activate: opts?.activate });
       },
       getShareableUrl: (path: string) => `${appUrl}${path}`,
+      getExternalShareUrl: (path: string) => `${appUrl}${path}`,
     }),
     [appUrl, location],
   );

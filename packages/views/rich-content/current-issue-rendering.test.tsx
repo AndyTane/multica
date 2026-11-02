@@ -120,6 +120,7 @@ function adapter(): NavigationAdapter {
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (path) => `${APP_ORIGIN}${path}`,
+    getExternalShareUrl: (path) => `${APP_ORIGIN}${path}`,
   };
 }
 

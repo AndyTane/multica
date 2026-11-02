@@ -39,6 +39,7 @@ function wrapper({ children }: { children: ReactNode }) {
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (p: string) => `https://app.multica.com${p}`,
+    getExternalShareUrl: (p: string) => `https://app.multica.com${p}`,
   };
   return <NavigationProvider value={adapter}>{children}</NavigationProvider>;
 }
@@ -142,6 +143,7 @@ describe("IssueDetailRoute with an identifier that names no issue", () => {
             searchParams: new URLSearchParams(),
             hash: "",
             getShareableUrl: (p: string) => `https://app.multica.com${p}`,
+            getExternalShareUrl: (p: string) => `https://app.multica.com${p}`,
           }}
         >
           <IssueDetailRoute routeId="ZZZ-134" />
@@ -164,6 +166,7 @@ describe("IssueDetailRoute with an identifier that names no issue", () => {
             searchParams: new URLSearchParams(),
             hash: "",
             getShareableUrl: (p: string) => `https://app.multica.com${p}`,
+            getExternalShareUrl: (p: string) => `https://app.multica.com${p}`,
           }}
         >
           <IssueDetailRoute routeId="ZZZ-134" />

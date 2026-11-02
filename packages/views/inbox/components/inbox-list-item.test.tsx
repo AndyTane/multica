@@ -112,6 +112,7 @@ function makeAdapter(
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (p) => p,
+    getExternalShareUrl: (p) => p,
     ...overrides,
   };
 }

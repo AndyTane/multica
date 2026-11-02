@@ -66,6 +66,7 @@ function makeAdapter(overrides: Partial<NavigationAdapter> = {}): NavigationAdap
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (p) => `https://app.example${p}`,
+    getExternalShareUrl: (p) => `https://app.example${p}`,
     ...overrides,
   };
 }

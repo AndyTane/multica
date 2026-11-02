@@ -93,6 +93,7 @@ const navigationMocks = vi.hoisted(() => ({
   push: vi.fn(),
   openInNewTab: vi.fn(),
   getShareableUrl: vi.fn((path: string) => `https://app.example${path}`),
+  getExternalShareUrl: vi.fn((path: string) => `https://app.example${path}`),
 }));
 const navigationState = vi.hoisted(() => ({ hasOpenInNewTab: true }));
 
@@ -112,6 +113,7 @@ vi.mock("../../navigation", async () => {
         ? navigationMocks.openInNewTab
         : undefined,
       getShareableUrl: navigationMocks.getShareableUrl,
+      getExternalShareUrl: navigationMocks.getShareableUrl,
       pathname: "/",
     }),
     // Mirrors the real hook's adapter semantics against the mocks above.

@@ -7,7 +7,7 @@
  * answer it with a router push, or those links silently do nothing.
  */
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 const router = vi.hoisted(() => ({
   push: vi.fn(),
@@ -23,7 +23,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { WebNavigationProvider } from "./navigation";
-import { useNavigation, type NavigationAdapter } from "@multica/views/navigation";
+import { useAppOrigins, useNavigation, useRowLink, type NavigationAdapter } from "@multica/views/navigation";
+import { configStore } from "@multica/core/config";
 
 function navigate(path: string) {
   window.dispatchEvent(
@@ -35,7 +36,9 @@ function renderAdapter(): () => NavigationAdapter {
   let adapter: NavigationAdapter | null = null;
   function Probe() {
     adapter = useNavigation();
-    return null;
+    const rowLink = useRowLink();
+    const origins = useAppOrigins();
+    return <div role="row" data-origins={JSON.stringify(origins)} {...rowLink("/acme/issues/MUL-1")}>Task</div>;
   }
   render(
     <WebNavigationProvider>
@@ -47,6 +50,46 @@ function renderAdapter(): () => NavigationAdapter {
 
 beforeEach(() => {
   router.push.mockReset();
+  configStore.getState().setPublicAppUrl();
+});
+
+describe("WebNavigationProvider share address", () => {
+  const path = "/join?code=existing%2Bcode&next=%2Facme#member";
+
+  it("prefers the deployed frontend while preserving the complete path", () => {
+    configStore.getState().setPublicAppUrl("https://work.example.test:14443");
+    const adapter = renderAdapter()();
+    expect(adapter.getExternalShareUrl(path)).toBe(`https://work.example.test:14443${path}`);
+    expect(adapter.getShareableUrl(path)).toBe(`${window.location.origin}${path}`);
+  });
+
+  it("keeps browser origin for an old server and never uses daemon URLs", () => {
+    configStore.getState().setDaemonConfig({ daemonAppUrl: "https://daemon.example.test" });
+    expect(renderAdapter()().getExternalShareUrl(path)).toBe(`${window.location.origin}${path}`);
+    configStore.getState().setDaemonConfig({});
+  });
+
+  it("updates rendered links and an already captured callback after config loads", () => {
+    const adapter = renderAdapter();
+    const copy = adapter().getExternalShareUrl;
+    expect(copy(path)).toBe(`${window.location.origin}${path}`);
+    act(() => configStore.getState().setPublicAppUrl("http://work.example.test:8080"));
+    expect(adapter().getExternalShareUrl(path)).toBe(`http://work.example.test:8080${path}`);
+    expect(copy(path)).toBe(`http://work.example.test:8080${path}`);
+    expect(screen.getByRole("row")).toHaveAttribute("data-origins", JSON.stringify([window.location.origin, "http://work.example.test:8080"]));
+    expect(adapter().getShareableUrl(path)).toBe(`${window.location.origin}${path}`);
+    act(() => configStore.getState().setPublicAppUrl("http://127.0.0.1:3000"));
+    expect(copy(path)).toBe(`${window.location.origin}${path}`);
+  });
+
+  it("keeps a real row's middle-click on the current origin with a different public origin", () => {
+    configStore.getState().setPublicAppUrl("https://work.example.test:14443");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    renderAdapter();
+    fireEvent(screen.getByRole("row"), new MouseEvent("auxclick", { bubbles: true, button: 1, cancelable: true }));
+    expect(open).toHaveBeenCalledWith(`${window.location.origin}/acme/issues/MUL-1`, "_blank", "noopener,noreferrer");
+    open.mockRestore();
+  });
 });
 
 describe("WebNavigationProvider internal link bridge", () => {

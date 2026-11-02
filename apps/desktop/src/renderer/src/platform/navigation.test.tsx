@@ -301,6 +301,9 @@ describe("current location", () => {
     expect(adapter.getShareableUrl(currentPath(adapter))).toBe(
       "https://app.example/acme/issues/MUL-1#comment-c1",
     );
+    expect(adapter.getExternalShareUrl(currentPath(adapter))).toBe(
+      "https://app.example/acme/issues/MUL-1#comment-c1",
+    );
   });
 });
 

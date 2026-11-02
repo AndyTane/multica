@@ -204,6 +204,7 @@ describe("InstructionsTab conversation-starters deep link", () => {
     searchParams: new URLSearchParams(search),
     hash: "",
     getShareableUrl: (path: string) => `https://app.test${path}`,
+    getExternalShareUrl: (path: string) => `https://app.test${path}`,
   });
 
   function renderWithSearch(search: string) {

@@ -20,6 +20,7 @@ const navigationStub: NavigationAdapter = {
   searchParams: new URLSearchParams(),
   hash: "",
   getShareableUrl: (path: string) => path,
+  getExternalShareUrl: (path: string) => path,
 };
 
 const TEST_RESOURCES = { en: { common: enCommon, agents: enAgents } };

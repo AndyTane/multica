@@ -34,7 +34,7 @@ vi.mock("../navigation", () => ({
   useNavigation: () => ({ push: vi.fn(), openInNewTab: vi.fn() }),
   useOptionalNavigation: () => ({ push: vi.fn(), openInNewTab: vi.fn() }),
   resolveClickIntent: () => "push",
-  useAppOrigin: () => APP_ORIGIN,
+  useAppOrigins: () => ["http://localhost:3000", APP_ORIGIN],
   AppLink: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),
@@ -82,8 +82,8 @@ function renderContent(content: string) {
 }
 
 describe("RichContent link routing", () => {
-  it("routes a link to this deployment into the app instead of the browser", () => {
-    renderContent(`[MUL-1](${APP_ORIGIN}/acme/issues/MUL-1)`);
+  it.each(["http://localhost:3000", APP_ORIGIN])("routes a link from either entry into the app: %s", (origin) => {
+    renderContent(`[MUL-1](${origin}/acme/issues/MUL-1)`);
 
     screen.getByText("MUL-1").click();
 

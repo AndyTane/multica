@@ -1,5 +1,5 @@
 import { useSyncExternalStore, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { configStore } from "@multica/core/config";
@@ -79,6 +79,8 @@ vi.mock("../../navigation", () => ({
     const go = (href: string) => url.set(href.split("?")[1] ?? "");
     return {
       pathname: "/acme/settings",
+      getShareableUrl: (path: string) => `http://localhost:3000${path}`,
+      getExternalShareUrl: (path: string) => `https://public.example:14443${path}`,
       searchParams: new URLSearchParams(search),
       push: go,
       replace: go,
@@ -128,6 +130,20 @@ beforeEach(() => {
 });
 
 describe("MembersTab", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("copies the public share URL even when navigation uses a local entry", async () => {
+    data.shareLinks = [{ id: "link-1", code: "existing-code", role: "member", created_at: "2026-01-01T00:00:00Z", expires_at: null, max_uses: null, use_count: 0 }];
+    url.set("tab=members&section=links");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    vi.stubGlobal("isSecureContext", true);
+    renderWithI18n(<MembersTab />);
+    const expected = "https://public.example:14443/join?code=existing-code";
+    expect(screen.getByTitle(expected)).toHaveTextContent(expected);
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expected));
+  });
   it("lists members with their role and marks the current user", () => {
     renderWithI18n(<MembersTab />);
 

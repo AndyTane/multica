@@ -114,6 +114,8 @@ export function IssueWindowNavigationProvider({
       },
       getShareableUrl: (path) =>
         runtimeConfig.ok ? `${runtimeConfig.config.appUrl}${path}` : path,
+      getExternalShareUrl: (path) =>
+        runtimeConfig.ok ? `${runtimeConfig.config.appUrl}${path}` : path,
     };
   }, [
     location.pathname,

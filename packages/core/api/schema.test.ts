@@ -901,6 +901,21 @@ describe("ApiClient schema fallback", () => {
   });
 
   describe("getConfig", () => {
+    it("parses the public frontend independently from daemon config", async () => {
+      stubFetchJson({ public_app_url: "https://work.example.test:14443/" });
+      const config = await new ApiClient("https://api.example.test").getConfig();
+      expect(config.public_app_url).toBe("https://work.example.test:14443");
+    });
+
+    it.each([undefined, 123, {}, "not a URL", "http://localhost:3000", "https://user:secret@work.example.test"])(
+      "ignores missing/malformed public frontend %j without losing other config", async (value) => {
+        stubFetchJson({ public_app_url: value, allow_signup: false });
+        const config = await new ApiClient("https://api.example.test").getConfig();
+        expect(config.public_app_url).toBe("");
+        expect(config.allow_signup).toBe(false);
+      },
+    );
+
     it("drops malformed daemon setup URLs instead of throwing", async () => {
       stubFetchJson({
         cdn_domain: "cdn.example.com",

@@ -21,6 +21,7 @@ vi.mock("../../navigation", () => ({
     push: vi.fn(),
     pathname: "/acme/issues",
     getShareableUrl: (p: string) => `https://app.example${p}`,
+    getExternalShareUrl: (p: string) => `https://app.example${p}`,
   }),
 }));
 

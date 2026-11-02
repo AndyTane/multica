@@ -326,7 +326,7 @@ export function SearchCommand() {
       })),
     [tNav],
   );
-  const { pathname, getShareableUrl } = useNavigation();
+  const { pathname, getExternalShareUrl } = useNavigation();
   const intentNavigate = useIntentNavigate();
   const open = useSearchStore((s) => s.open);
   const setOpen = useSearchStore((s) => s.setOpen);
@@ -438,7 +438,7 @@ export function SearchCommand() {
           icon: Link2,
           keywords: ["copy", "link", "share", "url", identifier.toLowerCase()],
           onSelect: () => {
-            void copyText(getShareableUrl(pathname)).then((ok) => {
+            void copyText(getExternalShareUrl(pathname)).then((ok) => {
               if (ok) toast.success(t(($) => $.toast.link_copied));
             });
             setOpen(false);
@@ -536,7 +536,7 @@ export function SearchCommand() {
     );
 
     return items;
-  }, [currentIssue, currentIssueId, getShareableUrl, pathname, queryClient, setOpen, setTheme, theme, t]);
+  }, [currentIssue, currentIssueId, getExternalShareUrl, pathname, queryClient, setOpen, setTheme, theme, t]);
 
   const filteredCommands = useMemo(() => {
     const q = query.trim().toLowerCase();

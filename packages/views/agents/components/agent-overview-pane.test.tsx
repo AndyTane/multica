@@ -163,6 +163,7 @@ function renderPane(
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (path) => path,
+    getExternalShareUrl: (path) => path,
   };
   return render(
     <I18nProvider locale="en" resources={TEST_RESOURCES}>

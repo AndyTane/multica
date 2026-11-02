@@ -43,7 +43,7 @@ vi.mock("../navigation", () => ({
   useNavigation: () => ({ push: vi.fn(), openInNewTab: vi.fn() }),
   useOptionalNavigation: () => ({ push: vi.fn(), openInNewTab: vi.fn() }),
   resolveClickIntent: () => "push",
-  useAppOrigin: () => null,
+  useAppOrigins: () => [],
 }));
 
 vi.mock("../issues/components/issue-mention-card", () => ({

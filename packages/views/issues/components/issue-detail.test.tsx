@@ -127,6 +127,7 @@ vi.mock("../../navigation", () => ({
     push: vi.fn(),
     pathname: "/issues/issue-1",
     getShareableUrl: (p: string) => `https://app.multica.com${p}`,
+    getExternalShareUrl: (p: string) => `https://app.multica.com${p}`,
   }),
   useBackOrReplace: () => vi.fn(),
   NavigationProvider: ({ children }: { children: React.ReactNode }) => children,

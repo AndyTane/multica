@@ -13,6 +13,7 @@ function makeAdapter(overrides: Partial<NavigationAdapter> = {}): NavigationAdap
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (p) => p,
+    getExternalShareUrl: (p) => p,
     ...overrides,
   };
 }
@@ -33,6 +34,7 @@ describe("AppLink", () => {
     const adapter = makeAdapter({
       openInNewTab: vi.fn(),
       getShareableUrl: (path) => `https://app.example${path}`,
+      getExternalShareUrl: (path) => `https://app.example${path}`,
     });
 
     renderLink(adapter, { href: "/acme/issues/MUL-7" });
@@ -46,6 +48,7 @@ describe("AppLink", () => {
   it("keeps web anchors route-relative for SSR and native browser navigation", () => {
     const adapter = makeAdapter({
       getShareableUrl: (path) => `https://app.example${path}`,
+      getExternalShareUrl: (path) => `https://app.example${path}`,
     });
 
     renderLink(adapter, { href: "/acme/issues/MUL-7" });

@@ -108,7 +108,8 @@ vi.mock("../../../navigation", () => ({
     hash: "",
     back: vi.fn(),
     replace: vi.fn(),
-    getShareableUrl: (p: string) => `https://app.multica.com${p}`,
+    getShareableUrl: (p: string) => `http://localhost:3000${p}`,
+    getExternalShareUrl: (p: string) => `https://app.multica.com${p}`,
   }),
 }));
 
@@ -281,6 +282,14 @@ describe("useIssueActions", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       "https://app.multica.com/test/issues/TES-1",
     );
+  });
+
+  it("opens a task at the current entry while copying uses the public entry", () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const { result } = renderHook(() => useIssueActions(mockIssue), { wrapper });
+    act(() => result.current.openInNewTab());
+    expect(open).toHaveBeenCalledWith("http://localhost:3000/test/issues/TES-1", "_blank", "noopener,noreferrer");
+    open.mockRestore();
   });
 
   it("copyLink falls back to the UUID when the issue has no identifier", async () => {

@@ -216,6 +216,7 @@ function renderPage(search: string, { strict = false } = {}) {
     searchParams: new URLSearchParams(search),
     hash: "",
     getShareableUrl: (path) => path,
+    getExternalShareUrl: (path) => path,
   };
   // A fresh element per render — reusing one element object lets React bail
   // out of re-rendering, which would make the rerender-based tests vacuous.

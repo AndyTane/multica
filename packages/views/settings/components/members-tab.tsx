@@ -93,15 +93,15 @@ const ROLE_ICONS: Record<MemberRole, typeof Crown> = {
 };
 
 // Builds the shareable URL for a share-link invite. Prefers the navigation
-// adapter's getShareableUrl (works on desktop where window.location.origin is
+// adapter's getExternalShareUrl (works on desktop where window.location.origin is
 // not the public web origin), falling back to the browser origin on web.
 function buildShareLinkUrl(
   navigation: ReturnType<typeof useOptionalNavigation>,
   code: string,
 ): string {
   const joinPath = `/join?code=${code}`;
-  if (navigation?.getShareableUrl) {
-    return navigation.getShareableUrl(joinPath);
+  if (navigation?.getExternalShareUrl) {
+    return navigation.getExternalShareUrl(joinPath);
   }
   return `${typeof window !== "undefined" ? window.location.origin : ""}${joinPath}`;
 }

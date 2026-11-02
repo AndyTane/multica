@@ -58,6 +58,7 @@ vi.mock("../../navigation", () => ({
     searchParams: searchParamsRef.current,
     hash: "",
     getShareableUrl: (p: string) => `https://app.example${p}`,
+    getExternalShareUrl: (p: string) => `https://app.example${p}`,
   }),
 }));
 

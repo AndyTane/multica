@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/handler"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 )
 
@@ -21,7 +22,7 @@ func TestConfigDisablesUpstreamReportingAndBilling(t *testing.T) {
 	t.Setenv("GOOGLE_CLIENT_ID", "user-configured-client")
 	t.Setenv("MULTICA_DAEMON_SERVER_URL", "https://user-api.example")
 	t.Setenv("MULTICA_APP_URL", "https://user-app.example")
-	h := &handler.Handler{FeatureFlags: featureflag.NewService(featureflag.NewEnvProvider("FF_"))}
+	h := &handler.Handler{Queries: db.New(noSettingsDB{}), FeatureFlags: featureflag.NewService(featureflag.NewEnvProvider("FF_"))}
 	for _, disabled := range []string{"", "false", "0", "true", "1"} {
 		t.Run(disabled, func(t *testing.T) {
 			t.Setenv("ANALYTICS_DISABLED", disabled)

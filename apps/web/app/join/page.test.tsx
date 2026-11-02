@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
@@ -26,6 +26,7 @@ const {
   mockGetShareLinkInfo,
   mockJoinByShareLink,
   mockListWorkspaces,
+  mockRefreshMe,
   mockPush,
   searchParamsState,
   authStateRef,
@@ -33,12 +34,14 @@ const {
   mockGetShareLinkInfo: vi.fn(),
   mockJoinByShareLink: vi.fn(),
   mockListWorkspaces: vi.fn(),
+  mockRefreshMe: vi.fn(),
   mockPush: vi.fn(),
   searchParamsState: { params: new URLSearchParams() },
   authStateRef: {
     state: {
       user: null as null | { id: string; email: string },
       isLoading: false,
+      refreshMe: () => mockRefreshMe(),
     },
   },
 }));
@@ -92,6 +95,7 @@ describe("JoinPage", () => {
     authStateRef.state.isLoading = false;
     mockGetShareLinkInfo.mockResolvedValue(TEST_INFO);
     mockListWorkspaces.mockResolvedValue([]);
+    mockRefreshMe.mockResolvedValue(undefined);
   });
 
   it("shows the workspace preview without joining", async () => {
@@ -185,7 +189,7 @@ describe("JoinPage", () => {
     );
   });
 
-  it("redirects to the first workspace when already a member", async () => {
+  it("refreshes identity before entering the invite workspace for an existing member", async () => {
     const user = userEvent.setup();
     authStateRef.state.user = { id: "u1", email: "a@b.com" };
     mockJoinByShareLink.mockRejectedValue(
@@ -201,6 +205,54 @@ describe("JoinPage", () => {
       await screen.findByRole("button", { name: "Join Workspace" }),
     );
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/acme/issues"));
+    expect(mockRefreshMe).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for both identity and workspace synchronization before navigation", async () => {
+    authStateRef.state.user = { id: "u1", email: "a@b.com" };
+    mockJoinByShareLink.mockResolvedValue({ workspace_id: "ws1", workspace_slug: "acme" });
+    let finishIdentity!: () => void;
+    let finishWorkspaces!: (value: unknown[]) => void;
+    mockRefreshMe.mockReturnValue(new Promise<void>((resolve) => { finishIdentity = resolve; }));
+    mockListWorkspaces.mockReturnValue(new Promise<unknown[]>((resolve) => { finishWorkspaces = resolve; }));
+    render(<JoinPage />, { wrapper: createWrapper() });
+    await userEvent.click(await screen.findByRole("button", { name: "Join Workspace" }));
+    await waitFor(() => expect(mockRefreshMe).toHaveBeenCalledTimes(1));
+    expect(mockPush).not.toHaveBeenCalled();
+    await act(async () => finishIdentity());
+    expect(mockPush).not.toHaveBeenCalled();
+    finishWorkspaces([{ id: "ws1", slug: "acme" }]);
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/acme/issues"));
+  });
+
+  it.each(["identity", "workspaces"])("retries %s synchronization without joining twice", async (failure) => {
+    authStateRef.state.user = { id: "u1", email: "a@b.com" };
+    mockJoinByShareLink.mockResolvedValue({ workspace_id: "ws1", workspace_slug: "acme" });
+    const failingRequest = failure === "identity" ? mockRefreshMe : mockListWorkspaces;
+    failingRequest.mockRejectedValueOnce(new Error("temporarily offline"));
+    render(<JoinPage />, { wrapper: createWrapper() });
+    await userEvent.click(await screen.findByRole("button", { name: "Join Workspace" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your membership is saved");
+    expect(mockPush).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Retry sync" }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/acme/issues"));
+    expect(mockJoinByShareLink).toHaveBeenCalledTimes(1);
+    expect(mockRefreshMe).toHaveBeenCalledTimes(2);
+    expect(mockListWorkspaces).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the existing member's invite target when synchronization needs retry", async () => {
+    authStateRef.state.user = { id: "u1", email: "a@b.com" };
+    mockJoinByShareLink.mockRejectedValue(new Error("you are already a member of this workspace"));
+    mockListWorkspaces.mockResolvedValue([{ id: "ws0", slug: "other" }]);
+    mockRefreshMe.mockRejectedValueOnce(new Error("temporarily offline"));
+    render(<JoinPage />, { wrapper: createWrapper() });
+    await userEvent.click(await screen.findByRole("button", { name: "Join Workspace" }));
+    await screen.findByRole("alert");
+    await userEvent.click(screen.getByRole("button", { name: "Retry sync" }));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/acme/issues"));
+    expect(mockJoinByShareLink).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalledWith("/other/issues");
   });
 
   it("shows an error when join fails for another reason", async () => {

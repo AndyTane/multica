@@ -51,7 +51,7 @@ import {
 } from "@multica/ui/markdown";
 import {
   resolveClickIntent,
-  useAppOrigin,
+  useAppOrigins,
   useOptionalNavigation,
 } from "../navigation";
 import { IssueMentionCard } from "../issues/components/issue-mention-card";
@@ -197,7 +197,7 @@ function unfurlableEntityLink(
   href: string,
   children: ReactNode,
   currentSlug: string | null,
-  appOrigin: string | null,
+  appOrigin: readonly string[],
 ): WorkspaceEntityRef | null {
   if (childrenToLabel(children) !== href) return null;
   const entity = parseWorkspaceEntityLink(href, appOrigin);
@@ -208,7 +208,7 @@ function unfurlableEntityLink(
 
 function RichLink({ href, children }: { href?: string; children?: ReactNode }) {
   const slug = useWorkspaceSlug();
-  const appOrigin = useAppOrigin();
+  const appOrigin = useAppOrigins();
   // Platform probe only: `openInNewTab` present means desktop, where native
   // anchor behavior is a dead end and every click must be intercepted. Absent
   // (web), modified clicks are left to the browser — the only way to get a

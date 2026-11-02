@@ -104,6 +104,7 @@ vi.mock("../../../navigation", () => ({
     replace: vi.fn(),
     ...(navState.hasOpenInNewTab ? { openInNewTab: openInNewTabMock } : {}),
     getShareableUrl: getShareableUrlMock,
+    getExternalShareUrl: getShareableUrlMock,
   }),
 }));
 

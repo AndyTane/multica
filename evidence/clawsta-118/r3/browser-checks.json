@@ -1,0 +1,52 @@
+{
+  "recordedAt": "2026-11-02T14:49:11.400Z",
+  "localOrigin": "https://127.0.0.1:14439",
+  "publicOrigin": "https://r3-share.test:14439",
+  "mapping": "Chromium host-resolver-rules maps r3-share.test to 127.0.0.1; browser-only proxy bypass for this hostname and loopback; no OS hosts/proxy change; TLS trust bypass in test context only",
+  "checks": [
+    {
+      "label": "runtime config advertises the alternate frontend",
+      "publicAppUrl": "https://r3-share.test:14439"
+    },
+    {
+      "label": "existing R2 share link is available"
+    },
+    {
+      "label": "local page copies the configured public origin"
+    },
+    {
+      "label": "existing invitation code and join path are preserved"
+    },
+    {
+      "label": "public and local pages copy exactly the same existing URL"
+    },
+    {
+      "label": "colleague account invitation created without opening registration"
+    },
+    {
+      "label": "colleague activates account via copied account URL"
+    },
+    {
+      "label": "copied public URL opens the join page"
+    },
+    {
+      "label": "new colleague reaches the target board with one join request"
+    },
+    {
+      "label": "one ordinary membership persisted in the intended workspace",
+      "role": "member",
+      "is_instance_admin": false,
+      "onboarded": true,
+      "memberships": 1
+    },
+    {
+      "label": "joined target survives reload"
+    },
+    {
+      "label": "copying creates no invitation and preserves policy; join increments use count once"
+    },
+    {
+      "label": "open registration remains disabled"
+    }
+  ]
+}

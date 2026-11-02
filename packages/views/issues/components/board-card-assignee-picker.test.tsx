@@ -103,6 +103,7 @@ const navigation: NavigationAdapter = {
   searchParams: new URLSearchParams(),
   hash: "",
   getShareableUrl: (path) => `https://app.example${path}`,
+  getExternalShareUrl: (path) => `https://app.example${path}`,
 };
 
 const actions: IssueSurfaceActions = {
