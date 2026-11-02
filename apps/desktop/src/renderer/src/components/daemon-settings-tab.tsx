@@ -128,8 +128,8 @@ export function DaemonSettingsTab() {
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <p className="min-w-0 text-body text-muted-foreground">
             {t(($) => $.desktop.daemon.external_description_before)}{" "}
-            <code className="font-mono text-caption">multica daemon start</code> /{" "}
-            <code className="font-mono text-caption">multica daemon stop</code>
+            <code className="font-mono text-caption">u-workers daemon start</code> /{" "}
+            <code className="font-mono text-caption">u-workers daemon stop</code>
             {t(($) => $.desktop.daemon.external_description_after)}
           </p>
         </div>

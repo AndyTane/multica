@@ -38,8 +38,9 @@ const wsEventState = vi.hoisted(() => ({
   handler: null as ((payload: unknown) => void) | null,
 }));
 
-const WINDOWS_CMD =
-  "pwsh -File scripts/build-local-cli.ps1";
+// The build carries the server's release version; v-less reports get the prefix.
+const WINDOWS_CMD = `pwsh -File scripts/build-local-cli.ps1 -Version v0.2.0
+$env:Path = "$PWD\\server\\bin;$env:Path"`;
 
 vi.mock("@multica/core/realtime", () => ({
   useWSEvent: (_event: string, handler: (payload: unknown) => void) => {
@@ -58,6 +59,7 @@ function resetConfigStore() {
     googleClientId: "",
     daemonServerUrl: "",
     daemonAppUrl: "",
+    serverVersion: "0.2.0",
     workspaceCreationDisabled: false,
   });
 }
@@ -89,14 +91,19 @@ describe("ConnectRemoteDialog", () => {
   it("requires explicit service addresses when unconfigured", () => {
     const { baseElement } = renderDialog();
 
-    expect(baseElement).toHaveTextContent("u-workers connect");
-    expect(baseElement).toHaveTextContent("u-workers connect");
+    expect(baseElement).toHaveTextContent(
+      "u-workers connect --server-url <SERVER_URL> --app-url <APP_URL>",
+    );
     expect(baseElement).toHaveTextContent(
       "u-workers config set server_url <SERVER_URL>",
     );
     expect(baseElement).toHaveTextContent(
       "u-workers config set app_url <APP_URL>",
     );
+    expect(baseElement).toHaveTextContent("u-workers daemon status");
+    expect(baseElement).toHaveTextContent("u-workers daemon logs -f");
+    // `./cmd/multica` is the Go package path, not a command users type.
+    expect(baseElement).not.toHaveTextContent(/(^|\s)multica\s/);
   });
 
   it("uses self-host daemon URLs from runtime config", () => {

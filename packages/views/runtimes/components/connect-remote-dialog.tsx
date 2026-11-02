@@ -31,6 +31,7 @@ import {
   UI_MOTION_DURATION,
 } from "@multica/ui/lib/motion";
 import { cn } from "@multica/ui/lib/utils";
+import { CLI_COMMAND } from "../../common/cli-command";
 import { CliInstallCommand } from "../../common/cli-install-command";
 import { useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
@@ -51,21 +52,21 @@ function daemonCommands(serverUrl: string | undefined, appUrl: string | undefine
   if (normalizedServerUrl) {
     return {
       setupCmd: normalizedAppUrl
-        ? `u-workers connect --server-url ${normalizedServerUrl} --app-url ${normalizedAppUrl}`
-        : `u-workers connect --server-url ${normalizedServerUrl}`,
-      tokenCmd: `u-workers config set server_url ${normalizedServerUrl}
-u-workers config set app_url ${normalizedAppUrl}
-u-workers login --token <YOUR_TOKEN>
-u-workers daemon start`,
+        ? `${CLI_COMMAND} connect --server-url ${normalizedServerUrl} --app-url ${normalizedAppUrl}`
+        : `${CLI_COMMAND} connect --server-url ${normalizedServerUrl}`,
+      tokenCmd: `${CLI_COMMAND} config set server_url ${normalizedServerUrl}
+${CLI_COMMAND} config set app_url ${normalizedAppUrl}
+${CLI_COMMAND} login --token <YOUR_TOKEN>
+${CLI_COMMAND} daemon start`,
     };
   }
 
   return {
-    setupCmd: "u-workers connect --server-url <SERVER_URL> --app-url <APP_URL>",
-    tokenCmd: `u-workers config set server_url <SERVER_URL>
-u-workers config set app_url <APP_URL>
-u-workers login --token <YOUR_TOKEN>
-u-workers daemon start`,
+    setupCmd: `${CLI_COMMAND} connect --server-url <SERVER_URL> --app-url <APP_URL>`,
+    tokenCmd: `${CLI_COMMAND} config set server_url <SERVER_URL>
+${CLI_COMMAND} config set app_url <APP_URL>
+${CLI_COMMAND} login --token <YOUR_TOKEN>
+${CLI_COMMAND} daemon start`,
   };
 }
 
@@ -79,8 +80,8 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
   const newRuntimeIdRef = useRef<string | null>(null);
 
   // `u-workers connect` is one blocking command that handles certificate trust,
-  // config, login and daemon start; the dialog passively listens for the resulting
-  // `daemon:register` WS event and auto-advances to success.
+  // config, login and daemon start; the dialog passively listens for the
+  // resulting `daemon:register` WS event and auto-advances to success.
   const handleDaemonRegister = useCallback(
     (payload: unknown) => {
       if (step !== "instructions") return;
@@ -208,7 +209,7 @@ function CommandRow({ cmd, copyAria }: { cmd: string; copyAria: string }) {
       />
       <code
         className={cn(
-          "min-w-0 flex-1 break-all whitespace-pre-wrap tabular-nums",
+          "min-w-0 flex-1 break-words whitespace-pre-wrap tabular-nums",
           CODE_LIGATURE_CLASS,
         )}
       >
@@ -263,22 +264,27 @@ function InstructionsStep({ onClose }: { onClose: () => void }) {
           {/* Step 1 owns the platform switch: the install command differs by
               OS, so the user picks instead of us guessing. Step 2's
               `u-workers connect` is platform-independent. */}
-          <CommandStep n={1} label={t(($) => $.connect.step1_label)}>
-            <CliInstallCommand
-              labels={{
-                group: t(($) => $.connect.platform_group),
-                macosLinux: t(($) => $.connect.platform_macos_linux),
-                windows: t(($) => $.connect.platform_windows),
-              }}
-            >
-              {(cmd) => (
-                <CommandRow
-                  cmd={cmd}
-                  copyAria={t(($) => $.connect.copy_aria)}
-                />
-              )}
-            </CliInstallCommand>
-          </CommandStep>
+          <div>
+            <CommandStep n={1} label={t(($) => $.connect.step1_label)}>
+              <CliInstallCommand
+                labels={{
+                  group: t(($) => $.connect.platform_group),
+                  macosLinux: t(($) => $.connect.platform_macos_linux),
+                  windows: t(($) => $.connect.platform_windows),
+                }}
+              >
+                {(cmd) => (
+                  <CommandRow
+                    cmd={cmd}
+                    copyAria={t(($) => $.connect.copy_aria)}
+                  />
+                )}
+              </CliInstallCommand>
+            </CommandStep>
+            <p className="mt-1.5 text-micro leading-[1.55] text-muted-foreground">
+              {t(($) => $.connect.step1_hint)}
+            </p>
+          </div>
 
           <div>
             <CommandStep n={2} label={t(($) => $.connect.step2_label)}>
@@ -343,7 +349,7 @@ function TroubleshootingDetails({ tokenCmd }: { tokenCmd: string }) {
                 CODE_LIGATURE_CLASS,
               )}
             >
-              {"u-workers daemon status"}
+              {`${CLI_COMMAND} daemon status`}
             </code>
           </li>
           <li className="flex items-center gap-1.5">
@@ -355,7 +361,7 @@ function TroubleshootingDetails({ tokenCmd }: { tokenCmd: string }) {
                 CODE_LIGATURE_CLASS,
               )}
             >
-              {"u-workers daemon logs -f"}
+              {`${CLI_COMMAND} daemon logs -f`}
             </code>
           </li>
         </ul>
