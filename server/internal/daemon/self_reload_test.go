@@ -50,6 +50,19 @@ func stubSelfVersion(t *testing.T, version string, err error) *atomic.Int32 {
 	return &calls
 }
 
+// stubSelfVersionOutput makes the `--version` probe return raw output and runs
+// it through the real parser, so a test covers the template → parser contract the
+// way the daemon does at runtime instead of handing the parser a pre-digested
+// version string.
+func stubSelfVersionOutput(t *testing.T, raw string) {
+	t.Helper()
+	orig := detectSelfVersion
+	t.Cleanup(func() { detectSelfVersion = orig })
+	detectSelfVersion = func(context.Context, string) (string, error) {
+		return ParseSelfVersion(raw), nil
+	}
+}
+
 // TestTrySelfReload_RestartsWhenOnDiskVersionDiffers is the core of MUL-3269:
 // an in-place upgrade leaves the executable path valid, so nothing in the
 // existing self-heal notices it and the daemon serves the version it booted
@@ -365,6 +378,18 @@ func TestParseSelfVersion(t *testing.T) {
 			want: "v0.3.7-42-gabcdef0-dirty",
 		},
 		{
+			// The current command name. A portable package installs the CLI as
+			// u-workers.exe, so this is the shape every packaged daemon reads.
+			name: "release build under the current command name",
+			raw:  "u-workers v0.2.0 (commit: unknown, built: unknown)\ngo: go1.26.9, os/arch: windows/amd64\n",
+			want: "v0.2.0",
+		},
+		{
+			name: "dev build under the current command name",
+			raw:  "u-workers v0.3.7-42-gabcdef0-dirty (commit: abcdef0, built: unknown)\n",
+			want: "v0.3.7-42-gabcdef0-dirty",
+		},
+		{
 			// Unrecognized shape is reported as-is rather than swallowed: it
 			// compares unequal, which surfaces as a reload instead of silence.
 			name: "unexpected shape falls back to the first line",
@@ -383,6 +408,41 @@ func TestParseSelfVersion(t *testing.T) {
 				t.Fatalf("ParseSelfVersion(%q) = %q, want %q", tc.raw, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestTrySelfReload_DoesNotRestartForABrandedBinary reproduces the reload loop
+// seen on the portable desktop deployment. The package installs the CLI as
+// u-workers.exe, so its --version line starts with the current command name;
+// the parser only recognized the legacy one, handed back the whole line as the
+// on-disk "version", and nothing it could ever read equalled the running
+// version. The successor process read the same line, so it re-execed itself
+// every check, forever.
+func TestTrySelfReload_DoesNotRestartForABrandedBinary(t *testing.T) {
+	d, restartCalls := newSelfReloadTestDaemon(t, "v0.2.0")
+	stubSelfVersionOutput(t, "u-workers v0.2.0 (commit: unknown, built: unknown)\ngo: go1.26.9, os/arch: windows/amd64\n")
+
+	d.trySelfReload(context.Background())
+
+	if restartCalls.Load() != 0 {
+		t.Fatalf("triggerRestart fired %d times for an unchanged version behind the current command name, want 0", restartCalls.Load())
+	}
+	if got := d.reloadPending(); got != "" {
+		t.Fatalf("reload pending reason = %q, want empty when the on-disk version matches", got)
+	}
+}
+
+// TestTrySelfReload_RestartsForABrandedBinaryOnARealUpgrade keeps the other
+// direction honest: accepting the current command name must not turn the
+// version comparison into a no-op for binaries that print it.
+func TestTrySelfReload_RestartsForABrandedBinaryOnARealUpgrade(t *testing.T) {
+	d, restartCalls := newSelfReloadTestDaemon(t, "v0.2.0")
+	stubSelfVersionOutput(t, "u-workers v0.2.1 (commit: 0123abc, built: 2026-11-02T00:00:00Z)\n")
+
+	d.trySelfReload(context.Background())
+
+	if restartCalls.Load() != 1 {
+		t.Fatalf("triggerRestart fired %d times for a real version change behind the current command name, want 1", restartCalls.Load())
 	}
 }
 

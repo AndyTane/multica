@@ -867,23 +867,40 @@ func writeDiskUsageFile(t *testing.T, path string) {
 // The daemon's auto-reload check runs `<binary> --version` and parses the result
 // back into a version string it compares against its own compile-time version
 // (MUL-3269). That only works while cobra's version template keeps rendering
-// "multica <version> ..." as its first line — a reasonable-looking edit here
-// would leave the daemon reading a version that never matches, restarting on
-// every check, and nothing else in the suite would notice.
+// "<command name> <version> ..." as its first line — a reasonable-looking edit
+// here would leave the daemon reading a version that never matches, restarting
+// on every check, and nothing else in the suite would notice.
+//
+// Every command name the binary answers to is rendered, because the template's
+// leading token comes from argv[0] and a test binary never has the name a real
+// install uses: checking only the legacy spelling let the current name diverge
+// unnoticed while every packaged deployment re-execed itself on each check.
 func TestVersionTemplateMatchesDaemonProbe(t *testing.T) {
-	tmpl, err := template.New("version").Parse(rootCmd.VersionTemplate())
-	if err != nil {
-		t.Fatalf("parse version template: %v", err)
-	}
-	var rendered bytes.Buffer
-	if err := tmpl.Execute(&rendered, rootCmd); err != nil {
-		t.Fatalf("render version template: %v", err)
-	}
+	original := cliName
+	t.Cleanup(func() {
+		cliName = original
+		rootCmd.SetVersionTemplate(cliName + " {{.Version}}\n")
+	})
+	for _, name := range []string{brand.CLICommand, brand.LegacyCLICommand} {
+		t.Run(name, func(t *testing.T) {
+			cliName = name
+			rootCmd.SetVersionTemplate(cliName + " {{.Version}}\n")
 
-	if got := daemon.ParseSelfVersion(rendered.String()); got != version {
-		t.Fatalf("daemon.ParseSelfVersion(%q) = %q, want the build version %q — "+
-			"the --version template and the auto-reload probe have diverged",
-			rendered.String(), got, version)
+			tmpl, err := template.New("version").Parse(rootCmd.VersionTemplate())
+			if err != nil {
+				t.Fatalf("parse version template: %v", err)
+			}
+			var rendered bytes.Buffer
+			if err := tmpl.Execute(&rendered, rootCmd); err != nil {
+				t.Fatalf("render version template: %v", err)
+			}
+
+			if got := daemon.ParseSelfVersion(rendered.String()); got != version {
+				t.Fatalf("daemon.ParseSelfVersion(%q) = %q, want the build version %q — "+
+					"the --version template and the auto-reload probe have diverged",
+					rendered.String(), got, version)
+			}
+		})
 	}
 }
 
