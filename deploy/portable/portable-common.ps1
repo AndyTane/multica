@@ -212,6 +212,23 @@ function Test-PortableElevated {
     }
 }
 
+function Test-PortableLocalAddress {
+    # True when this machine currently owns the address. A recorded LAN address
+    # goes stale when DHCP hands out a new one; binding it would make Caddy fail
+    # to start, so the plan falls back to loopback instead.
+    param([string]$Address)
+    $parsed = $null
+    if (-not [Net.IPAddress]::TryParse([string]$Address, [ref]$parsed)) { return $false }
+    if ([Net.IPAddress]::IsLoopback($parsed)) { return $true }
+    $addresses = $null
+    try { $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop) } catch { $addresses = $null }
+    if (-not $addresses) { return $true }
+    foreach ($entry in $addresses) {
+        if ([string]$entry.IPAddress -eq $Address) { return $true }
+    }
+    return $false
+}
+
 function Get-PortableLanSubnet {
     # The subnet a generated firewall rule should admit: the interface prefix
     # Windows reports, or /24 when it is missing. Scoping the rule to the LAN
@@ -518,6 +535,11 @@ function Resolve-PortableLanPlan {
         # has always signed the certificate for the address, not the name.
         $plan.Firewall = 'hostname'
         $plan.Message = ('LAN access is off: ' + $hostName + ' is not an IPv4 address of this machine, so the board stays on https://localhost:' + $HttpsPort + '/.')
+        return $plan
+    }
+    if (-not (Test-PortableLocalAddress $hostName)) {
+        $plan.Firewall = 'stale-address'
+        $plan.Message = ('LAN access is off: ' + $hostName + ' is not an address of this machine any more (the network changed), so the board stays on https://localhost:' + $HttpsPort + '/ until Setup.cmd or Upgrade.cmd re-issues the certificate for the current address.')
         return $plan
     }
     if (-not $CaddyPath) {

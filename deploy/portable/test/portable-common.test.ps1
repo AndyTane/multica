@@ -113,6 +113,12 @@ try {
     # listen addresses and the Caddyfile from that coverage, so an installation
     # without administrator rights never produces the prompt at all.
     $caddyPath = 'D:\Apps\U Workers Portable\payload\runtime\caddy\caddy.exe'
+    Assert-PortableTest (Test-PortableLocalAddress '127.0.0.1') 'Loopback is always a local address.'
+    Assert-PortableTest (-not (Test-PortableLocalAddress '203.0.113.17')) 'A TEST-NET address is not an address of this machine.'
+    Assert-PortableTest (Test-PortableLocalAddress (Get-PortablePublicHost)) 'The detected LAN address must be a local address.'
+    # The plan math below is about firewall coverage, not about this test machine's
+    # interfaces, so the address check is held true for it.
+    function Test-PortableLocalAddress { return $true }
     function New-TestFirewallRule {
         param(
             [string]$DisplayName = 'test-rule',
@@ -195,6 +201,14 @@ try {
 
     $hostnamePlan = Resolve-PortableLanPlan -RequestedHost 'board.example' -HttpsPort 13443 -CaddyPath $caddyPath -SkipFirewallProbe -Rules @($programRule)
     Assert-PortableTest (-not $hostnamePlan.Exposed -and $hostnamePlan.Firewall -eq 'hostname') 'A DNS name cannot be bound to a rule-covered address; it must stay loopback.'
+
+    # A recorded address that DHCP moved away from must not be bound: Caddy would
+    # fail to start. The plan falls back to loopback and says why.
+    function Test-PortableLocalAddress { return $false }
+    $stalePlan = Resolve-PortableLanPlan -RequestedHost '192.168.3.49' -HttpsPort 13443 -CaddyPath $caddyPath -SkipFirewallProbe -Rules @($programRule)
+    Assert-PortableTest (-not $stalePlan.Exposed -and $stalePlan.Firewall -eq 'stale-address') 'A stale LAN address must not be exposed.'
+    Assert-PortableTest ($stalePlan.Message -match '192\.168\.3\.49') 'The stale-address message must name the address that no longer exists.'
+    function Test-PortableLocalAddress { return $true }
 
     # LAN report round-trip: what the operator asked for survives a restart even
     # when the grant was refused.

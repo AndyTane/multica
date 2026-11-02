@@ -292,6 +292,8 @@ try {
     } else {
         Assert-Check 'a granted LAN request binds the LAN address' ($planCaddyfile -match ('bind 127\.0\.0\.1 ' + [regex]::Escape($detectedLanHost))) $detectedLanHost
     }
+    $staleLanPlan = Resolve-PortableLanPlan -Root $serverCopy -RequestedHost '203.0.113.17' -HttpsPort $HttpsPort
+    Assert-Check 'a stale recorded LAN address is not bound' ((-not [bool]$staleLanPlan.Exposed) -and ([string]$staleLanPlan.Firewall -eq 'stale-address')) ([string]$staleLanPlan.Firewall + ' ' + [string]$staleLanPlan.Message)
     $planCaddyfilePath = Join-Path $workRoot 'plan-Caddyfile'
     [IO.File]::WriteAllText($planCaddyfilePath, $planCaddyfile, (New-Object Text.UTF8Encoding($false)))
     $planValidateOut = Join-Path $workRoot 'plan-validate.out'
