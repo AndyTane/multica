@@ -10,7 +10,7 @@ import { useOptionalNavigation } from "./context";
  *
  * Derived from the adapter's `getShareableUrl` rather than a separate adapter
  * field: "the public URL of this app" is already implemented per platform there
- * (web: the current origin, desktop: the connected environment's app URL), and a
+ * (web: configured frontend or current origin; desktop: connected app URL), and a
  * second copy of the same fact is a copy that can drift.
  *
  * Used to tell an in-app destination written as an absolute URL
