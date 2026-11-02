@@ -79,6 +79,46 @@ try {
     try { Restore-NativeDeployment $config $testRoot 'valid_restore_name' } catch { $rejected = $_.Exception.Message -like 'Stop the native deployment*' }
     Assert-NativeTest $rejected 'Restore must not overwrite uploads used by a running native deployment.'
     Remove-Item -LiteralPath $liveState -Force
+
+    # --- damaged state file recovery --------------------------------------
+    # An unclean shutdown can leave state\processes.json zero-filled. The next
+    # Start must read that as "no supervisor recorded" and keep the damaged file
+    # for diagnosis; treating it as a fatal parse error is what aborted the
+    # boot-time startup on the desktop deployment.
+    $stateDirectory = Join-Path $testRoot 'state'
+    $corruptState = Join-Path $stateDirectory 'processes.json'
+    $countCorrupt = { @(Get-ChildItem -LiteralPath $stateDirectory -Filter 'processes.json.corrupt-*').Count }
+    Assert-NativeTest ($null -eq (Read-NativeProcessState (Join-Path $stateDirectory 'missing.json'))) 'A missing state file must read as no state.'
+    [IO.File]::WriteAllBytes($corruptState, (New-Object byte[] 792))
+    Assert-NativeTest ($null -eq (Read-NativeProcessState $corruptState)) 'A zero-filled state file must read as no state instead of failing.'
+    Assert-NativeTest (-not (Test-Path -LiteralPath $corruptState)) 'A zero-filled state file must be moved aside so the next write starts clean.'
+    $kept = @(Get-ChildItem -LiteralPath $stateDirectory -Filter 'processes.json.corrupt-*')
+    Assert-NativeTest ($kept.Count -eq 1 -and $kept[0].Length -eq 792) 'A damaged state file must be kept byte-for-byte for diagnosis.'
+    [IO.File]::WriteAllText($corruptState, '{"Supervisor":', (New-Object Text.UTF8Encoding($false)))
+    Assert-NativeTest ($null -eq (Read-NativeProcessState $corruptState)) 'A truncated state file must read as no state instead of failing.'
+    [IO.File]::WriteAllText($corruptState, 'null', (New-Object Text.UTF8Encoding($false)))
+    Assert-NativeTest ($null -eq (Read-NativeProcessState $corruptState)) 'A JSON document that is not an object must read as no state.'
+    [IO.File]::WriteAllText($corruptState, '', (New-Object Text.UTF8Encoding($false)))
+    Assert-NativeTest ($null -eq (Read-NativeProcessState $corruptState)) 'An empty state file must read as no state.'
+    Assert-NativeTest ((& $countCorrupt) -eq 4) 'Every damaged state file must be kept for diagnosis.'
+    Write-NativeJson $corruptState @{ Supervisor = (Get-NativeProcessRecord (Get-Process -Id $PID)); Backend = $null; Frontend = $null }
+    $loadedState = Read-NativeProcessState $corruptState
+    Assert-NativeTest ($loadedState -and (Test-NativeProcessRecord $loadedState.Supervisor)) 'A valid state file must still be read back unchanged.'
+    Assert-NativeTest (-not (Test-Path -LiteralPath ($corruptState + '.tmp'))) 'State writes must not leave a temporary file behind.'
+
+    # Start must recover exactly like an absent state file: continue to the
+    # release check instead of aborting inside ConvertFrom-Json.
+    [IO.File]::WriteAllBytes($corruptState, (New-Object byte[] 792))
+    $startConfig = [pscustomobject]@{ Root = $testRoot; ApiPort = 28991; WebPort = 28992; Release = (Join-Path $testRoot 'missing-release') }
+    $rejected = $false
+    try { Start-NativeDeployment $startConfig } catch { $rejected = $_.Exception.Message -like '*Build a native release first*' }
+    Assert-NativeTest $rejected 'Start must treat a damaged state file as no supervisor and carry on instead of failing to parse it.'
+    Assert-NativeTest ((& $countCorrupt) -eq 5) 'Start must keep the damaged state file it recovered from.'
+    Write-NativeJson $corruptState @{ Supervisor = (Get-NativeProcessRecord (Get-Process -Id $PID)); Backend = $null; Frontend = $null }
+    Start-NativeDeployment $startConfig
+    Assert-NativeTest (Test-Path -LiteralPath $corruptState) 'A recorded live supervisor must still short-circuit the start and leave the state file alone.'
+    Remove-Item -LiteralPath $corruptState -Force
+
     $traceSource = Join-Path $testRoot 'trace'
     $dependency = Join-Path $testRoot 'dependency'
     New-Item -ItemType Directory -Path $traceSource, $dependency | Out-Null
