@@ -395,7 +395,7 @@ try {
     $opencodeRuntime = @($runtimes | Where-Object { ([string]$_.provider -match 'opencode') -or ([string]$_.name -match 'opencode') })
     Assert-Check 'the bundled opencode runtime is online' ($opencodeRuntime.Count -ge 1) (($runtimes | ForEach-Object { [string]$_.name + '/' + [string]$_.provider }) -join ', ')
     $daemonStatus = Get-PortableDaemonStatus -Root $serverCopy -Profile $ServerProfile
-    Assert-Check 'local daemon reports running' ([bool]$daemonStatus.Running)
+    Assert-Check 'local daemon reports running' ([bool]$daemonStatus.Running) ([string]$daemonStatus.Output)
 
     # --- start on login -----------------------------------------------------
     $startupItem = Get-PortableStartupShortcutPath
@@ -622,7 +622,7 @@ try {
             try { & (Join-Path $serverCopy 'stop.ps1') -Profile $ServerProfile -Quiet 2>&1 | Out-Null } catch { $cleanupErrors += ('stop: ' + $_.Exception.Message) }
         }
         try {
-            if (Test-Path -LiteralPath $startupItem) { Remove-Item -LiteralPath $startupItem -Force }
+            if ($startupItem -and (Test-Path -LiteralPath $startupItem)) { Remove-Item -LiteralPath $startupItem -Force }
         } catch { $cleanupErrors += ('startup item: ' + $_.Exception.Message) }
         if ($installed) {
             foreach ($profile in @($ServerProfile, $SecondProfile)) {
