@@ -95,6 +95,34 @@ try {
     Assert-PortableTest ((Get-PortableHttpsPortFromConfig -Root $testRoot) -eq 14443) 'The HTTPS port must come from the install report.'
     Assert-PortableTest (($null -ne (Get-PortableProfileConfigRoots))) 'Profile config roots must always be a list.'
 
+    # --- daemon status and start ------------------------------------------
+    # `daemon status --output json` exits 0 for a stopped daemon too, so the
+    # verdict has to come from the reported status field. Trusting the exit code
+    # is what made Start.cmd print "Local agent daemon: running" while no daemon
+    # was running, and skipped the start that would have brought it up.
+    $script:cliCalls = New-Object System.Collections.Generic.List[string]
+    $script:cliStatusExit = 0
+    $script:cliStatusOutput = '{"status":"stopped"}'
+    function Invoke-PortableCli {
+        param([string]$Root, [string[]]$Arguments)
+        $script:cliCalls.Add(($Arguments -join ' '))
+        if (($Arguments -join ' ') -match 'daemon start') { $script:cliStatusOutput = '{"status":"running","pid":4242}' }
+        return [pscustomobject]@{ ExitCode = $script:cliStatusExit; Output = $script:cliStatusOutput }
+    }
+    $stopped = Get-PortableDaemonStatus -Root $testRoot -Profile 'acceptance'
+    Assert-PortableTest (-not $stopped.Running) 'A status document that says stopped must not be reported as running.'
+    $started = Start-PortableDaemon -Root $testRoot -Profile 'acceptance'
+    Assert-PortableTest ([bool]$started.Running) 'Starting a stopped daemon must be verified by the next status read.'
+    Assert-PortableTest (@($script:cliCalls | Where-Object { $_ -match 'daemon start' }).Count -eq 1) 'A daemon reported stopped must actually be started.'
+    $script:cliStatusOutput = '{"status":"starting","pid":4242}'
+    Assert-PortableTest ([bool](Get-PortableDaemonStatus -Root $testRoot -Profile 'acceptance').Running) 'A starting daemon must not be started a second time.'
+    $script:cliStatusExit = 1
+    $script:cliStatusOutput = 'unknown profile'
+    Assert-PortableTest (-not (Get-PortableDaemonStatus -Root $testRoot -Profile 'acceptance').Running) 'A failed status command must not be reported as running.'
+    $script:cliStatusExit = 0
+    $script:cliStatusOutput = ''
+    Assert-PortableTest (-not (Get-PortableDaemonStatus -Root $testRoot -Profile 'acceptance').Running) 'Unparseable status output must not be reported as running.'
+
     # --- password generator ----------------------------------------------
     $password = New-PortablePassword -Length 24
     Assert-PortableTest ($password.Length -eq 24) 'Generated passwords must honour the requested length.'

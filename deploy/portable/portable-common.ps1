@@ -711,6 +711,12 @@ function Write-PortableInstallReport {
 }
 
 function Get-PortableDaemonStatus {
+    # The verdict comes from the reported status field, never the exit code:
+    # `daemon status` exits 0 for a stopped daemon too (it is a query, not a
+    # check), so treating a zero exit as "running" printed a healthy line for a
+    # daemon that was not there and made start.ps1 skip the start that would
+    # have brought it up. "starting" counts as alive: the process exists and the
+    # CLI itself refuses a second start, so starting again would only fail.
     param([string]$Root, [string]$Profile)
     $arguments = @()
     if ($Profile) { $arguments += @('--profile', $Profile) }
@@ -721,7 +727,8 @@ function Get-PortableDaemonStatus {
     }
     $parsed = $null
     try { $parsed = (([string]$result.Output).Trim() | ConvertFrom-Json) } catch { $parsed = $null }
-    return [pscustomobject]@{ Running = $true; Detail = $parsed; Output = ([string]$result.Output).Trim() }
+    $alive = [bool]($parsed -and @('running', 'starting') -contains [string]$parsed.status)
+    return [pscustomobject]@{ Running = $alive; Detail = $parsed; Output = ([string]$result.Output).Trim() }
 }
 
 function Start-PortableDaemon {
