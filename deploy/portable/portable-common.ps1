@@ -260,12 +260,15 @@ function Test-PortableFirewallToken {
 
 function Test-PortableFirewallProgramMatch {
     # Windows identifies a program rule by the executable path, so only a rule for
-    # this installation's caddy.exe (or a rule that names no program) keeps the
-    # security prompt away. A rule left behind for an old package folder does not
-    # count: that stale path is exactly how the prompt comes back after a move.
+    # this installation's caddy.exe covers it. A rule that names no program does
+    # not: the security prompt and the permission are both per program, and the
+    # machine already has dozens of "any program" rules for packaged apps that
+    # must not be mistaken for permission to expose Caddy. A rule left behind for
+    # an old package folder does not count either: that stale path is exactly how
+    # the prompt comes back after a move.
     param([string]$Program, [string]$ExpectedPath)
-    if ([string]::IsNullOrWhiteSpace($Program)) { return $true }
-    if ($Program -eq '*' -or $Program -ieq 'Any') { return $true }
+    if ([string]::IsNullOrWhiteSpace($Program)) { return $false }
+    if ($Program -eq '*' -or $Program -ieq 'Any') { return $false }
     $normalized = $Program
     try { $normalized = [IO.Path]::GetFullPath($Program) } catch { }
     $expected = $ExpectedPath

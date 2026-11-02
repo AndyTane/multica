@@ -142,7 +142,7 @@ try {
     $rangeRule = New-TestFirewallRule -Program $caddyPath -LocalPort '13440-13450'
     Assert-PortableTest ($null -ne (Find-PortableFirewallCoverage -Rules @($rangeRule) -ProgramPath $caddyPath -Port 13443)) 'A port range must cover a port inside it.'
     $anyProgramRule = New-TestFirewallRule -Program ''
-    Assert-PortableTest ($null -ne (Find-PortableFirewallCoverage -Rules @($anyProgramRule) -ProgramPath $caddyPath -Port 13443)) 'A port-only rule covers the listener too.'
+    Assert-PortableTest ($null -eq (Find-PortableFirewallCoverage -Rules @($anyProgramRule) -ProgramPath $caddyPath -Port 13443)) 'A rule that names no program must not count: the prompt and the permission are per program, and Windows ships dozens of "any program" packaged-app rules.'
 
     # The rule has to admit the LAN address, or the LAN entry point would be
     # advertised while the firewall drops the traffic (a leftover scope from an

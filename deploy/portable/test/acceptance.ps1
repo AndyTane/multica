@@ -148,6 +148,8 @@ $multicaConfigBefore = Get-FileSha256 $multicaConfig
 $installLog = Join-Path $workRoot 'install.log'
 $installed = $false
 $cleanupErrors = @()
+# Referenced by the cleanup block even when the run aborts before it is assigned.
+$startupItem = ''
 
 try {
     if ($ResumeExisting) {
