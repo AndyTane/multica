@@ -2436,23 +2436,23 @@ func builtinProbeNeedsConfirmation(verdict builtinProbeVerdict) bool {
 // builtinProbeMissingProfile drop. It names the repair because nothing else in
 // the daemon's output would: the CLI itself is installed, resolvable and
 // answers `--version`, so "not installed" is true only of the profile.
-const dshMissingProfileReason = "the Multica runtime profile is not installed; add the Multica DSH runtime bundle to the `multica` profile with `dsh plugin`, or set MULTICA_DSH_PROFILE_BUNDLE so the daemon installs it"
+const dshMissingProfileReason = "the U Workers runtime profile is not installed; add the U Workers DSH runtime bundle to the `multica` profile with `dsh plugin`, or set U_WORKERS_DSH_PROFILE_BUNDLE so the daemon installs it"
 
 // dshProfileInstallStartedReason replaces it when the operator configured a
 // bundle for the daemon to install (MULTICA_DSH_PROFILE_BUNDLE), so /health
 // separates "wait for the install" from "nothing is going to happen".
-const dshProfileInstallStartedReason = "the Multica runtime profile is not installed; installing the configured bundle now and re-probing when it finishes"
+const dshProfileInstallStartedReason = "the U Workers runtime profile is not installed; installing the configured bundle now and re-probing when it finishes"
 
 // dshInstallGaveUpReason replaces the "installing now" detail once the
 // automatic install has stopped without producing a profile. It says the
 // attempt happened and ended, because a reader who saw the earlier "installing"
 // reason needs to know which of the two states they are looking at.
-const dshInstallGaveUpReason = "the Multica runtime profile is not installed; the automatic install failed, so it has to be installed by hand"
+const dshInstallGaveUpReason = "the U Workers runtime profile is not installed; the automatic install failed, so it has to be installed by hand"
 
 // dshIncompatibleProfileReason is the /health reason for a profile that answers
 // with a protocol this daemon does not drive. It names both sides because
 // either can be the stale one.
-const dshIncompatibleProfileReason = "the Multica runtime profile answers with a protocol version this daemon does not drive; update the profile bundle or the daemon"
+const dshIncompatibleProfileReason = "the U Workers runtime profile answers with a protocol version this daemon does not drive; update the profile bundle or the daemon"
 
 // dshProbeFailedReason is the transient reason: the probe did not answer with a
 // probe frame at all — a timeout, a failed exec, or unparseable output. It is
@@ -2630,7 +2630,7 @@ probeLoop:
 			continue
 		}
 		// DSH is the one built-in whose binary being present, and runnable, and
-		// new enough still does not make it usable: the Multica runtime profile
+		// new enough still does not make it usable: the U Workers runtime profile
 		// supplies the --stdio protocol the backend drives, so a `dsh` without
 		// it resolves, answers `--version`, clears the minimum, and then cannot
 		// run a single task. Checked here rather than in probeAgentCLIs so the
@@ -2644,7 +2644,7 @@ probeLoop:
 		// weak a proxy for the second: on Windows the CLI is a .cmd shim that
 		// LookPath happily resolves and that exits 9009 — cmd.exe's "command
 		// not found" — when what it forwards to is missing. Probing the profile
-		// first reported that machine as "the Multica runtime profile is not
+		// first reported that machine as "the U Workers runtime profile is not
 		// installed", which is a repair for a problem it did not have, and with
 		// a bundle configured would have started installing into a DSH that
 		// cannot execute. A CLI that cannot answer `--version` is not one this
@@ -2662,7 +2662,7 @@ probeLoop:
 			switch probeDshMulticaProfile(ctx, resolved.Path) {
 			case dshProbeOK:
 			case dshProbeMissingProfile:
-				d.logger.Warn("skip registering runtime: DSH Multica runtime profile is not installed",
+				d.logger.Warn("skip registering runtime: DSH U Workers runtime profile is not installed",
 					"name", name, "path", resolved.Path)
 				reason := dshMissingProfileReason
 				if d.startDshProfileProvision(resolved.Path) {
@@ -2670,7 +2670,7 @@ probeLoop:
 				}
 				return "", reason, builtinProbeMissingProfile
 			case dshProbeIncompatible:
-				d.logger.Warn("skip registering runtime: DSH Multica runtime profile speaks another protocol",
+				d.logger.Warn("skip registering runtime: DSH U Workers runtime profile speaks another protocol",
 					"name", name, "path", resolved.Path)
 				return "", dshIncompatibleProfileReason, builtinProbeIncompatibleProfile
 			default:
@@ -5023,7 +5023,7 @@ func (d *Daemon) handleUpdate(ctx context.Context, runtimeID string, update *Pen
 		d.logger.Info("refusing CLI self-update: daemon is managed by Desktop", "runtime_id", runtimeID, "update_id", update.ID)
 		d.reportUpdateResult(ctx, runtimeID, update.ID, map[string]any{
 			"status": "failed",
-			"error":  "CLI is managed by Multica Desktop — update the Desktop app to upgrade the CLI",
+			"error":  "CLI is managed by U Workers Desktop — update the Desktop app to upgrade the CLI",
 		})
 		return
 	}

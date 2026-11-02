@@ -1070,7 +1070,7 @@ func (c *Cache) createOrUpdateIsolatedCheckoutContext(ctx context.Context, bareP
 		}
 	}
 	if _, err := os.Stat(checkoutPath); err == nil {
-		return nil, fmt.Errorf("checkout path already exists and is not a Multica isolated checkout: %s", checkoutPath)
+		return nil, fmt.Errorf("checkout path already exists and is not a U Workers isolated checkout: %s", checkoutPath)
 	} else if !os.IsNotExist(err) {
 		return nil, fmt.Errorf("stat checkout path: %w", err)
 	}
@@ -1785,7 +1785,7 @@ const multicaHookMarker = "# multica:prepare-commit-msg:co-authored-by"
 // prepareCommitMsgHook keep recognizing every previously-shipped variant.
 var daemonInstalledHookSignatures = []string{
 	multicaHookMarker,
-	"# Installed by the Multica daemon.",
+	"# Installed by the U Workers daemon.",
 }
 
 // coAuthoredByStateFile records the workspace's current Co-authored-by setting
@@ -2036,8 +2036,8 @@ fi
 	}
 	return `#!/bin/sh
 # multica:prepare-commit-msg:co-authored-by
-# Multica: add Co-authored-by trailer for the Multica Agent.
-# Installed by the Multica daemon. Do not edit — it will be overwritten.
+# U Workers: add Co-authored-by trailer for the U Workers Agent.
+# Installed by the U Workers daemon. Do not edit — it will be overwritten.
 
 COMMIT_MSG_FILE="$1"
 COMMIT_SOURCE="$2"
@@ -2047,7 +2047,7 @@ case "$COMMIT_SOURCE" in
   merge|squash) exit 0 ;;
 esac
 
-` + gate + `TRAILER="Co-authored-by: multica-agent <github@multica.ai>"
+` + gate + `TRAILER="Co-authored-by: U Workers Agent <agent@u-workers.invalid>"
 
 # Don't add if already present.
 if grep -qF "$TRAILER" "$COMMIT_MSG_FILE"; then

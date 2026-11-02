@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 )
 
@@ -31,7 +32,7 @@ func tryResolveAppURL(cmd *cobra.Command) string {
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate and set up workspaces",
-	Long:  "Log in to Multica, then automatically discover and watch all your workspaces.",
+	Long:  "Log in to " + brand.DisplayName + ", then automatically discover and watch all your workspaces.",
 	// Up to one positional is accepted so `--token mul_...` / `--token mcn_...`
 	// (space form) can recover the token in runAuthLogin even though pflag
 	// won't bind it.
@@ -75,11 +76,11 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	// Auto-discover and watch all workspaces.
 	if err := autoWatchWorkspaces(cmd); err != nil {
 		fmt.Fprintf(os.Stderr, "\nCould not auto-configure workspaces: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Run 'multica workspace list' and 'multica workspace watch <id>' to set up manually.\n")
+		fmt.Fprintf(os.Stderr, "Run '%s workspace list' and '%s workspace watch <id>' to set up manually.\n", cliName, cliName)
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "\n→ Run 'multica daemon start' to start your local agent runtime.\n")
+	fmt.Fprintf(os.Stderr, "\n→ Run '%s daemon start' to start your local agent runtime.\n", cliName)
 	return nil
 }
 
@@ -142,7 +143,7 @@ func autoWatchWorkspaces(cmd *cobra.Command) error {
 		fmt.Fprintf(os.Stderr, "%s%s (%s)\n", marker, ws.Name, ws.ID)
 	}
 	if len(workspaces) > 1 {
-		fmt.Fprintln(os.Stderr, "\nUse 'multica workspace switch <id|slug>' to change the default workspace.")
+		fmt.Fprintln(os.Stderr, "\nUse '"+cliName+" workspace switch <id|slug>' to change the default workspace.")
 	}
 
 	return nil
@@ -159,7 +160,7 @@ func waitForWorkspaceCreation(cmd *cobra.Command, client *cli.APIClient) ([]stru
 		// No app URL available (e.g. token login without prior setup).
 		// Can't open the browser — tell the user to create a workspace manually.
 		fmt.Fprintln(os.Stderr, "\nNo workspaces found.")
-		fmt.Fprintln(os.Stderr, "Create a workspace in the web dashboard, then run 'multica login' again.")
+		fmt.Fprintln(os.Stderr, "Create a workspace in the web dashboard, then run '"+cliName+" login' again.")
 		return nil, nil
 	}
 

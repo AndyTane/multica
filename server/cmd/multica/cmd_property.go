@@ -476,7 +476,7 @@ func (d *memberDirectory) load(ctx context.Context, client *cli.APIClient) ([]ma
 		return d.members, nil
 	}
 	if client.WorkspaceID == "" {
-		return nil, fmt.Errorf("workspace ID is required to resolve members; use --workspace-id or set MULTICA_WORKSPACE_ID")
+		return nil, fmt.Errorf("workspace ID is required to resolve members; use --workspace-id or set U_WORKERS_WORKSPACE_ID")
 	}
 	var members []map[string]any
 	if err := getAssigneeJSON(ctx, client, "/api/workspaces/"+client.WorkspaceID+"/members", &members); err != nil {
