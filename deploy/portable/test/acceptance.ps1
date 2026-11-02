@@ -12,8 +12,9 @@
     3. verifies the board over HTTPS with the generated private CA, the local
        sign-in, the workspace, and an opencode runtime registered by the bundled
        daemon, plus the listen plan that keeps Caddy off every address no
-       firewall rule covers (the Windows Firewall prompt Tane saw on the
-       desktop) and off HTTP/3's UDP port;
+       firewall rule covers (the Windows Firewall prompt, which each acceptance
+       run used to trigger from its own temporary caddy.exe path) and off
+       HTTP/3's UDP port;
     4. simulates an unclean shutdown — stops the stack and zero-fills
        state\processes.json — and verifies Start recovers, keeps the damaged file,
        and brings the daemon and its runtime back;
@@ -240,6 +241,12 @@ try {
     Assert-Check 'the HTTPS port listens on 127.0.0.1 only' (($tcpListeners -join ',') -eq '127.0.0.1') ($tcpListeners -join ',')
     $udpListeners = @(Get-NetUDPEndpoint -LocalPort $HttpsPort -ErrorAction SilentlyContinue)
     Assert-Check 'the HTTPS port has no UDP listener the TCP rule cannot cover' ($udpListeners.Count -eq 0) (($udpListeners | ForEach-Object { [string]$_.LocalAddress }) -join ',')
+    # This is the case that prompted on Tane's laptop: every run starts
+    # caddy.exe from a fresh temporary path, so a wildcard listen is a brand new
+    # program identity for Windows Firewall and asks for permission again. The
+    # Caddy started here must be that temporary copy and it must be loopback-only.
+    $acceptanceCaddy = @(Get-Process -Name 'caddy' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($serverCopy, [StringComparison]::OrdinalIgnoreCase) })
+    Assert-Check 'the running Caddy is the temporary package copy' ($acceptanceCaddy.Count -ge 1) (($acceptanceCaddy | ForEach-Object { [string]$_.Path }) -join ', ')
 
     # --- board over HTTPS with the private CA ------------------------------
     Write-Step 'Checking the board over HTTPS with the generated root CA'

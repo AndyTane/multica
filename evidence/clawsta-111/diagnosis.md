@@ -128,6 +128,50 @@ name (this laptop's name is Chinese), which makes the daemon status check report
 stopped; that predates this change and does not affect ASCII device names such
 as the desktop's. Not fixed here.
 
+## The prompt on the laptop was produced by the tests themselves
+
+Tane clarified after the first report that the prompt appears on the **laptop**
+(移动专用机), not the desktop. Reading only the laptop's firewall policy store
+explains it: it has **22 inbound allow rules named `caddy.exe`, for 11 distinct
+program paths**, none of them an installation:
+
+```
+C:\Users\HuaWei\AppData\Local\Temp\uworkers-acceptance\server\payload\runtime\caddy\caddy.exe
+C:\Users\HuaWei\AppData\Local\Temp\uw-a\server\payload\runtime\caddy\caddy.exe
+C:\UWorkers\r1-adopt\old-native\payload\runtime\caddy\caddy.exe
+C:\UWorkers\r1-adopt\new-package\payload\runtime\caddy\caddy.exe
+C:\UWorkers\packages\UWorkers-Portable-v0.2.0-full\payload\runtime\caddy\caddy.exe
+D:\UWorkers\uworkers-109-accept\server\payload\runtime\caddy\caddy.exe
+D:\UWorkers\uworkers-110-accept\server\payload\runtime\caddy\caddy.exe
+C:\Users\HuaWei\multica_workspaces\agent-guanc-...\clawsta-77-...\workdir\p2\caddy\caddy.exe
+C:\Users\HuaWei\multica_workspaces\agent-guanc-...\clawsta-77-...\workdir\p5-staging-candidate\caddy.exe
+C:\Users\HuaWei\multica_workspaces\agent-guanc-...\clawsta-77-...\workdir\p5-staging-candidate\bin\caddy.exe
+C:\Users\HuaWei\multica_workspaces\agent-guanc-...\clawsta-111-...\workdir\caddytest\caddy.exe
+```
+
+Every one of those is a test or deployment-rehearsal path. Windows Firewall
+creates such a rule (one per profile) when the "allow this program" prompt is
+accepted for a program path. A new acceptance work root is a new path, so each
+run was a new program identity and the old rules never applied: the prompt
+returned on the next run, and the rule left behind pointed at a folder that had
+since been deleted. That is the laptop's "always pops up" cycle.
+
+The `caddytest` entry comes from the local listener verification done for this
+task (it deliberately bound the LAN address once to prove the LAN-mode
+configuration); it is the same mechanism, caught in the act.
+
+With the fix, the acceptance run starts Caddy from its temporary copy with
+`bind 127.0.0.1` and HTTP/3 off. The run keeps these assertions:
+
+- `the running Caddy is the temporary package copy` — the process really is the
+  run-scoped path that would be a new program identity;
+- `the HTTPS port listens on 127.0.0.1 only`, `the HTTPS port has no UDP listener
+  the TCP rule cannot cover`, `the HTTPS entry does not advertise HTTP/3`.
+
+A loopback-only listen does not raise the firewall prompt, so the path changing
+between runs no longer matters. No rule for `D:\UWorkers\uworkers-111-accept\...`
+was created by the fixed acceptance runs, unlike the 109/110 runs above.
+
 ## Findings outside this task
 
 - `Get-PortablePublicHost` picked `198.18.0.1` on this laptop: it is the TUN
