@@ -40,6 +40,7 @@ function makeAdapter(overrides: Partial<NavigationAdapter> = {}): NavigationAdap
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (path) => path,
+    getExternalShareUrl: (path) => path,
     ...overrides,
   };
 }

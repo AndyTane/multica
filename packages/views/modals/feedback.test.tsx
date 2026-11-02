@@ -5,7 +5,7 @@ import { forwardRef, useImperativeHandle, useRef } from "react";
 let storedDraftMessage = "saved draft";
 let liveEditorMarkdown = "";
 const feedbackMocks = vi.hoisted(() => ({
-  getShareableUrl: vi.fn((path: string) => `https://app.example${path}`),
+  getExternalShareUrl: vi.fn((path: string) => `https://app.example${path}`),
   mutateAsync: vi.fn(),
   // The fragment the adapter reports for the page the modal is opened from.
   hash: { current: "" },
@@ -65,7 +65,8 @@ vi.mock("../navigation", async (importOriginal) => ({
     pathname: "/test-workspace/projects/project-1",
     searchParams: new URLSearchParams("view=board"),
     hash: feedbackMocks.hash.current,
-    getShareableUrl: feedbackMocks.getShareableUrl,
+    getShareableUrl: (path: string) => `http://localhost:3000${path}`,
+    getExternalShareUrl: feedbackMocks.getExternalShareUrl,
   }),
 }));
 vi.mock("@multica/core/hooks/use-file-upload", () => ({
@@ -147,7 +148,7 @@ describe("FeedbackModal", () => {
   beforeEach(() => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     feedbackMocks.mutateAsync.mockReset().mockResolvedValue(undefined);
-    feedbackMocks.getShareableUrl.mockClear();
+    feedbackMocks.getExternalShareUrl.mockClear();
     feedbackMocks.hash.current = "";
   });
 
@@ -197,7 +198,7 @@ describe("FeedbackModal", () => {
     fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
 
     await waitFor(() => {
-      expect(feedbackMocks.getShareableUrl).toHaveBeenCalledWith(
+      expect(feedbackMocks.getExternalShareUrl).toHaveBeenCalledWith(
         "/test-workspace/projects/project-1?view=board",
       );
       expect(feedbackMocks.mutateAsync).toHaveBeenCalledWith(

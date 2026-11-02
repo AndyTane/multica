@@ -94,6 +94,7 @@ function adapter(): NavigationAdapter {
     // The real platform adapters return an absolute URL; useAppOrigin derives
     // the deployment origin from it, and without that nothing is "in-app".
     getShareableUrl: (p) => `${APP_ORIGIN}${p}`,
+    getExternalShareUrl: (p) => `${APP_ORIGIN}${p}`,
   };
 }
 

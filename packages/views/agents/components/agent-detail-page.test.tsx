@@ -197,6 +197,7 @@ function renderPage() {
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (path) => path,
+    getExternalShareUrl: (path) => path,
   };
   const view = render(
     <I18nProvider locale="en" resources={TEST_RESOURCES}>

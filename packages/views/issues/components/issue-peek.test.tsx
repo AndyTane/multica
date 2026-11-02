@@ -51,6 +51,7 @@ const navigation: NavigationAdapter = {
   searchParams: new URLSearchParams(),
   hash: "",
   getShareableUrl: (path) => `https://app.example${path}`,
+  getExternalShareUrl: (path) => `https://app.example${path}`,
 };
 
 const COLUMNS: IssuePeekColumns = [["i-1", "i-2", "i-3"], ["i-4"]];

@@ -15,6 +15,7 @@ function makeAdapter(
     searchParams: new URLSearchParams(),
     hash: "",
     getShareableUrl: (p) => p,
+    getExternalShareUrl: (p) => p,
     ...overrides,
   };
 }
@@ -112,6 +113,7 @@ describe("useRowLink", () => {
     const adapter = makeAdapter({
       push,
       getShareableUrl: (p) => `https://app.example${p}`,
+      getExternalShareUrl: (p) => `https://app.example${p}`,
     });
 
     renderProbe(adapter);
@@ -158,6 +160,7 @@ describe("useRowLink", () => {
     const adapter = makeAdapter({
       push,
       getShareableUrl: (p) => `https://app.example${p}`,
+      getExternalShareUrl: (p) => `https://app.example${p}`,
     });
 
     renderProbe(adapter);

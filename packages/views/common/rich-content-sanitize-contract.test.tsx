@@ -56,7 +56,7 @@ vi.mock("../navigation", () => ({
   useNavigation: () => ({ push: vi.fn(), openInNewTab: vi.fn() }),
   useOptionalNavigation: () => ({ push: vi.fn(), openInNewTab: vi.fn() }),
   resolveClickIntent: () => "push",
-  useAppOrigin: () => null,
+  useAppOrigins: () => [],
   AppLink: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),

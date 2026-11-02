@@ -88,6 +88,8 @@ function NavigationProviderInner({
     searchParams: new URLSearchParams(searchParams.toString()),
     hash,
     getShareableUrl: (path: string) =>
+      typeof window === "undefined" ? path : window.location.origin + path,
+    getExternalShareUrl: (path: string) =>
       typeof window === "undefined"
         ? path
         : (configStore.getState().publicAppUrl || window.location.origin) + path,

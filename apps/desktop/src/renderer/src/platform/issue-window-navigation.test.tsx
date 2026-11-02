@@ -149,5 +149,15 @@ describe("IssueWindowNavigationProvider current location", () => {
     expect(adapter.getShareableUrl(currentPath(adapter))).toBe(
       `${APP_URL}/acme/issues/MUL-1#comment-c1`,
     );
+    expect(adapter.getExternalShareUrl(currentPath(adapter))).toBe(
+      `${APP_URL}/acme/issues/MUL-1#comment-c1`,
+    );
+  });
+
+  it("keeps both URL methods relative before runtime config is available", () => {
+    Object.assign(window.desktopAPI, { runtimeConfig: { ok: false } });
+    const adapter = renderAdapter("/acme/issues/MUL-1#comment-c1")();
+    expect(adapter.getShareableUrl(currentPath(adapter))).toBe("/acme/issues/MUL-1#comment-c1");
+    expect(adapter.getExternalShareUrl(currentPath(adapter))).toBe("/acme/issues/MUL-1#comment-c1");
   });
 });

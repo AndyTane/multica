@@ -65,6 +65,7 @@ vi.mock("../../navigation", () => ({
     push: () => {},
     openInNewTab: () => {},
     getShareableUrl: (path: string) => `https://app.example${path}`,
+    getExternalShareUrl: (path: string) => `https://app.example${path}`,
     pathname: "/",
   }),
   resolveClickIntent: () => "push",

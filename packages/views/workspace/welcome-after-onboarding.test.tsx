@@ -71,6 +71,7 @@ const navigationAdapter: NavigationAdapter = {
   searchParams: new URLSearchParams(),
   hash: "",
   getShareableUrl: (path: string) => `https://test.local${path}`,
+  getExternalShareUrl: (path: string) => `https://test.local${path}`,
 };
 
 function TestProviders({ children }: { children: ReactNode }) {

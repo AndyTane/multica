@@ -24,7 +24,7 @@ import {
   instanceUsersOptions,
   registrationSettingsOptions,
 } from "@multica/core/instance-admin/queries";
-import { useAppOrigin } from "../../navigation";
+import { useOptionalNavigation } from "../../navigation";
 import { useAccountErrorText, useLocale, useT } from "../../i18n";
 import { DeleteInstanceUserDialog } from "./delete-instance-user-dialog";
 import {
@@ -57,7 +57,7 @@ export function InstanceUsersTab() {
   const { t: tErrors } = useT("errors");
   const errorText = useAccountErrorText();
   const locale = useLocale();
-  const origin = useAppOrigin();
+  const navigation = useOptionalNavigation();
   const qc = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.is_instance_admin === true;
@@ -84,9 +84,9 @@ export function InstanceUsersTab() {
   }, []);
 
   const inviteLink = useMemo(() => {
-    if (!invite?.token || !origin) return null;
-    return `${origin.replace(/\/$/, "")}/register#token=${invite.token}`;
-  }, [invite, origin]);
+    if (!invite?.token || !navigation) return null;
+    return navigation.getExternalShareUrl(`/register#token=${invite.token}`);
+  }, [invite, navigation]);
 
   const formatDate = useCallback(
     (value: string) => {

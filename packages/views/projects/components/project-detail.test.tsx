@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   role: "admin",
   copyText: vi.fn(),
   deleteProject: vi.fn(),
-  getShareableUrl: vi.fn((path: string) => `https://app.example${path}`),
+  getExternalShareUrl: vi.fn((path: string) => `https://app.example${path}`),
   push: vi.fn(),
   recordVisit: vi.fn(),
   toastSuccess: vi.fn(),
@@ -283,7 +283,8 @@ function renderProjectDetail() {
     pathname: "/test-workspace/projects/project-1",
     searchParams: new URLSearchParams(),
     hash: "",
-    getShareableUrl: mocks.getShareableUrl,
+    getShareableUrl: (path: string) => `http://localhost:3000${path}`,
+    getExternalShareUrl: mocks.getExternalShareUrl,
   };
 
   renderWithI18n(
@@ -297,7 +298,7 @@ beforeEach(() => {
   mocks.role = "admin";
   mocks.copyText.mockReset().mockResolvedValue(true);
   mocks.deleteProject.mockReset();
-  mocks.getShareableUrl.mockClear();
+  mocks.getExternalShareUrl.mockClear();
   mocks.push.mockReset();
   mocks.recordVisit.mockReset();
   mocks.toastSuccess.mockReset();
@@ -310,7 +311,7 @@ describe("ProjectDetail sharing", () => {
 
     await user.click(screen.getByRole("button", { name: "Copy link" }));
 
-    expect(mocks.getShareableUrl).toHaveBeenCalledWith(
+    expect(mocks.getExternalShareUrl).toHaveBeenCalledWith(
       "/test-workspace/projects/project-1",
     );
     expect(mocks.copyText).toHaveBeenCalledWith(

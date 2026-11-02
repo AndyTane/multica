@@ -130,10 +130,8 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
   // back to a real browser tab via the shareable URL.
   const openInNewTab = useCallback(() => {
     if (!issueId) return;
-    // Identifier form, same as copyLink: on web this becomes a real browser
-    // tab at the shareable URL, so it is a link the user sees and may copy out
-    // of the address bar. Opening on the UUID would also make the route
-    // immediately rewrite the fresh tab's URL.
+    // Keep the identifier visible, as in copyLink, but open on the current
+    // entry to retain its session. A UUID route immediately rewrites the URL.
     const path = paths.issueDetail(issueIdentifier || issueId);
     if (navigation.openInNewTab) {
       navigation.openInNewTab(path, issueIdentifier ?? undefined, {
@@ -162,7 +160,7 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
     // Share the identifier form (`/{ws}/issues/MUL-123`): a pasted link should
     // say which issue it points at. The UUID form stays valid, so links copied
     // before this still resolve.
-    const url = navigation.getShareableUrl(paths.issueDetail(issueIdentifier || issueId));
+    const url = navigation.getExternalShareUrl(paths.issueDetail(issueIdentifier || issueId));
     if (await copyText(url)) {
       toast.success(t(($) => $.detail.link_copied));
     } else {
@@ -175,7 +173,7 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
   // memoized comment card, so depending on it would re-render all of them on
   // any unrelated page update. Identifier form for the same reason as `copyLink`.
   const issueShareUrl = issueId
-    ? navigation.getShareableUrl(paths.issueDetail(issueIdentifier || issueId))
+    ? navigation.getExternalShareUrl(paths.issueDetail(issueIdentifier || issueId))
     : null;
   const copyCommentLink = useCallback(async (commentId: string) => {
     if (!issueShareUrl) return;

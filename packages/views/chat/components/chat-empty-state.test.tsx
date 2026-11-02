@@ -30,6 +30,7 @@ const adapter = (): NavigationAdapter => ({
   searchParams: new URLSearchParams(),
   hash: "",
   getShareableUrl: (path: string) => `https://app.test${path}`,
+  getExternalShareUrl: (path: string) => `https://app.test${path}`,
 });
 
 function renderEmptyState(value: Agent, customizeHref: string | null = null) {

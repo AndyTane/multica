@@ -28,8 +28,10 @@ export interface NavigationAdapter {
     title?: string,
     opts?: { activate?: boolean },
   ) => void;
-  /** Return a shareable URL for a path. Web: origin + path. Desktop: public web URL of the connected environment. */
+  /** URL for navigation/new tabs. Web keeps the logged-in browser origin; desktop uses the connected app URL. */
   getShareableUrl: (path: string) => string;
+  /** URL copied or attached for others. Web prefers the configured public frontend; desktop uses the connected app URL. */
+  getExternalShareUrl: (path: string) => string;
   /**
    * Optional: warm up route assets / RSC payload for a path. Web wires this
    * to `router.prefetch`; desktop leaves it undefined because react-router

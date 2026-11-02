@@ -29,6 +29,7 @@ vi.mock("../../navigation", () => ({
     hash: "",
     openInNewTab: vi.fn(),
     getShareableUrl: (p: string) => `https://app.example${p}`,
+    getExternalShareUrl: (p: string) => `https://app.example${p}`,
   }),
 }));
 

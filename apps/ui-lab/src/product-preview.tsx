@@ -88,6 +88,7 @@ export function ProductPreview({
       replace: navigate,
       back: () => setPath("/ui-lab/issues"),
       getShareableUrl: (value) => `${location.origin}${value}`,
+      getExternalShareUrl: (value) => `${location.origin}${value}`,
     };
   }, [path, t]);
   const issueId = path.split("/")[3];

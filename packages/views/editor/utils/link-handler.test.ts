@@ -28,6 +28,23 @@ afterEach(() => {
 });
 
 describe("toInternalAppPath", () => {
+  const origins = ["http://localhost:3000", APP_ORIGIN];
+  it.each(origins)("accepts either exact frontend origin: %s", (origin) => {
+    expect(toInternalAppPath(`${origin}/acme/issues/MUL-1?x=1#c`, origins)).toBe("/acme/issues/MUL-1?x=1#c");
+    expect(parseWorkspaceEntityLink(`${origin}/acme/issues/MUL-1`, origins)).toEqual({ kind: "issue", id: "MUL-1", slug: "acme" });
+    openLink(`${origin}/acme/issues/MUL-1`, "acme", origins, "background-tab");
+    expect(navigatedPaths()).toEqual(["/acme/issues/MUL-1"]);
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(["https://external.example", "https://app.multica.ai.evil.example", "http://localhost:3001"])("keeps a different origin external: %s", (origin) => {
+    const href = `${origin}/acme/issues/MUL-1`;
+    expect(toInternalAppPath(href, origins)).toBeNull();
+    expect(parseWorkspaceEntityLink(href, origins)).toBeNull();
+    openLink(href, "acme", origins);
+    expect(navigatedPaths()).toEqual([]);
+    expect(openSpy).toHaveBeenCalledWith(href, "_blank", "noopener,noreferrer");
+  });
   it("returns the path (with search and hash) for a URL on the app origin", () => {
     expect(
       toInternalAppPath(`${APP_ORIGIN}/acme/issues/MUL-1?tab=a#c`, APP_ORIGIN),

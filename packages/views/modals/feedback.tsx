@@ -118,7 +118,7 @@ export function FeedbackModal({
           ? window.location.href
           : undefined;
       const currentUrl = navigation
-        ? navigation.getShareableUrl(currentPath(navigation))
+        ? navigation.getExternalShareUrl(currentPath(navigation))
         : browserUrl;
       await mutation.mutateAsync({
         message: latest,

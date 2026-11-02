@@ -9,6 +9,23 @@ import { isGlobalPath, isReservedSlug } from "@multica/core/paths";
 import { isIssueIdentifier } from "@multica/ui/markdown";
 import type { LinkClickIntent } from "../../navigation/click-intent";
 
+/** Accept the historical single origin and the current/public origin pair. */
+export type AppOrigins = string | readonly string[] | null;
+
+function originList(origins?: AppOrigins): readonly string[] {
+  return typeof origins === "string" ? [origins] : (origins ?? []);
+}
+
+function matchesAppOrigin(target: URL, origins?: AppOrigins): boolean {
+  return originList(origins).some((origin) => {
+    try {
+      return target.origin === new URL(origin).origin;
+    } catch {
+      return false;
+    }
+  });
+}
+
 /**
  * Top-level workspace-scoped routes. Used to detect "/{route}/..." paths that
  * were authored without a workspace slug — we prepend the current slug so they
@@ -66,24 +83,21 @@ function isWorkspaceScopedPath(pathname: string): boolean {
  * the desktop app hands it to the system browser instead of opening a tab
  * (MUL-5208).
  *
- * `appOrigin` is the deployment's public app URL, which only the platform layer
- * knows (web: the current origin; desktop: the connected environment's app URL).
- * See `useAppOrigin()`.
+ * `appOrigin` accepts both the current and public frontend origins provided by
+ * `useAppOrigins()`, or a single origin from an existing caller.
  */
 export function toInternalAppPath(
   href: string,
-  appOrigin?: string | null,
+  appOrigin?: AppOrigins,
 ): string | null {
   if (!appOrigin) return null;
   let target: URL;
-  let app: URL;
   try {
     target = new URL(href);
-    app = new URL(appOrigin);
   } catch {
     return null;
   }
-  if (target.origin !== app.origin) return null;
+  if (!matchesAppOrigin(target, appOrigin)) return null;
   // Opaque origins (file:, data:) compare equal to each other; only real web
   // origins identify the app.
   if (target.protocol !== "http:" && target.protocol !== "https:") return null;
@@ -168,9 +182,10 @@ const RELATIVE_BASE = "https://link.invalid";
  */
 function toSameOriginPath(
   href: string,
-  appOrigin?: string | null,
+  appOrigin?: AppOrigins,
 ): string | null {
-  const base = appOrigin || RELATIVE_BASE;
+  const origins = originList(appOrigin);
+  const base = origins[0] || RELATIVE_BASE;
   let target: URL;
   let expected: URL;
   try {
@@ -181,7 +196,7 @@ function toSameOriginPath(
   }
   // Opaque origins (`javascript:`, `data:`) stringify to "null" and can never
   // equal a real one, so they fall out here too.
-  if (target.origin !== expected.origin) return null;
+  if (target.origin !== expected.origin && !matchesAppOrigin(target, appOrigin)) return null;
   return `${target.pathname}${target.search}${target.hash}`;
 }
 
@@ -196,7 +211,7 @@ function toSameOriginPath(
  */
 export function parseWorkspaceEntityLink(
   href: string,
-  appOrigin?: string | null,
+  appOrigin?: AppOrigins,
 ): WorkspaceEntityRef | null {
   const path = toSameOriginPath(href, appOrigin);
   if (!path) return null;
@@ -255,7 +270,7 @@ export function parseWorkspaceEntityLink(
 export function openLink(
   href: string,
   currentSlug?: string | null,
-  appOrigin?: string | null,
+  appOrigin?: AppOrigins,
   intent: LinkClickIntent = "push",
 ): void {
   const internalPath = href.startsWith("/")

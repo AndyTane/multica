@@ -12,7 +12,10 @@ const navigation = vi.hoisted(() => ({
   origin: "https://app.example",
 }));
 vi.mock("../../navigation", () => ({
-  useAppOrigin: () => navigation.origin,
+  useOptionalNavigation: () => ({
+    getExternalShareUrl: (path: string) => `${navigation.origin}${path}`,
+    getShareableUrl: (path: string) => `http://localhost:3000${path}`,
+  }),
   useNavigation: () => ({ push: navigation.push, replace: navigation.replace }),
 }));
 

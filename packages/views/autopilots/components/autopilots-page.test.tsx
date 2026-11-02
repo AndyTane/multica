@@ -31,6 +31,7 @@ function Harness() {
         replace: setPath,
         back: () => {},
         getShareableUrl: (v) => v,
+        getExternalShareUrl: (v) => v,
       }}
     >
       <AutopilotsPage />

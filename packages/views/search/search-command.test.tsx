@@ -294,6 +294,7 @@ vi.mock("../navigation/context", () => {
     push: mockPush,
     pathname: mockPathname.current,
     getShareableUrl: mockGetShareableUrl,
+    getExternalShareUrl: (path: string) => `https://public.example${path}`,
   });
   return {
     useNavigation: adapter,
@@ -642,8 +643,8 @@ describe("SearchCommand", () => {
     );
     await user.click(linkItem);
 
-    expect(mockGetShareableUrl).toHaveBeenCalledWith("/ws-test/issues/issue-1");
-    expect(mockClipboardWrite).toHaveBeenCalledWith("https://app.multica//ws-test/issues/issue-1");
+    expect(mockGetShareableUrl).not.toHaveBeenCalled();
+    expect(mockClipboardWrite).toHaveBeenCalledWith("https://public.example/ws-test/issues/issue-1");
     expect(mockToastSuccess).toHaveBeenCalledWith("Link copied");
 
     // Reopen palette and test identifier copy

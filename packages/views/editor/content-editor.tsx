@@ -66,7 +66,7 @@ import {
 import { configStore } from "@multica/core/config";
 import { preprocessMarkdown } from "./utils/preprocess";
 import { repairEmptyListItems } from "./utils/repair-list-items";
-import { resolveClickIntent, useAppOrigin } from "../navigation";
+import { resolveClickIntent, useAppOrigins } from "../navigation";
 import { openLink, isMentionHref } from "./utils/link-handler";
 import { EditorBubbleMenu } from "./bubble-menu";
 import { posFromAnchor, type TextAnchor } from "./text-anchor";
@@ -496,7 +496,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     // Same reasoning for this deployment's app origin: it tells openLink which
     // absolute URLs address this app and must route in-app instead of opening
     // the system browser.
-    const appOrigin = useAppOrigin();
+    const appOrigin = useAppOrigins();
     const appOriginRef = useRef(appOrigin);
     appOriginRef.current = appOrigin;
 

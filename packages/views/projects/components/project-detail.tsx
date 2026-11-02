@@ -508,7 +508,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
                 />
                 <DropdownMenuContent align="end" className="w-auto">
                   <DropdownMenuItem onClick={() => {
-                    void copyText(router.getShareableUrl(currentPath(router))).then((ok) => {
+                    void copyText(router.getExternalShareUrl(currentPath(router))).then((ok) => {
                       if (ok) toast.success(t(($) => $.detail.toast_link_copied));
                     });
                   }}>
