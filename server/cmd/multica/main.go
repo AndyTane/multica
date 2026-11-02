@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 	"github.com/multica-ai/multica/server/internal/envcompat"
+	"github.com/multica-ai/multica/server/internal/tlsx"
 )
 
 var (
@@ -75,6 +77,7 @@ func init() {
 	userCmd.GroupID = groupAdditional
 	loginCmd.GroupID = groupAdditional
 	setupCmd.GroupID = groupAdditional
+	connectCmd.GroupID = groupAdditional
 	attachmentCmd.GroupID = groupAdditional
 	configCmd.GroupID = groupAdditional
 	updateCmd.GroupID = groupAdditional
@@ -97,12 +100,44 @@ func init() {
 	rootCmd.AddCommand(userCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(setupCmd)
+	rootCmd.AddCommand(connectCmd)
 	rootCmd.AddCommand(attachmentCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(versionCmd)
 
 	initHelp(rootCmd)
+
+	// Every command that talks to a self-hosted server needs the private root CA
+	// persisted by `connect --root-ca`; load it once here instead of in each
+	// HTTP client constructor.
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		bootstrapClientTrust(cmd)
+		return nil
+	}
+}
+
+// bootstrapClientTrust makes a self-hosted server's private root CA available to
+// every client this process creates. An explicitly exported U_WORKERS_ROOT_CA_FILE
+// / MULTICA_ROOT_CA_FILE wins over the value persisted in the profile config.
+//
+// A broken CA file is reported but never fatal here: the commands that write the
+// config (including `config set root_ca_file ""`, the documented way out) must
+// still run. Commands that depend on the trust anchor fail loudly on their own
+// when the TLS handshake cannot be verified.
+func bootstrapClientTrust(cmd *cobra.Command) {
+	if tlsx.EnvPath() == "" {
+		cfg, err := cli.LoadCLIConfigForProfile(resolveProfile(cmd))
+		if err == nil && strings.TrimSpace(cfg.RootCAFile) != "" {
+			if setErr := os.Setenv(tlsx.RootCAEnv, cfg.RootCAFile); setErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not apply root CA configuration: %v\n", setErr)
+				return
+			}
+		}
+	}
+	if err := tlsx.InstallFromEnv(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\nrun 'config set root_ca_file \"\"' to clear the configured certificate, then 'connect --root-ca <path>' again.\n", err)
+	}
 }
 
 func main() {

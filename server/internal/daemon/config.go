@@ -18,6 +18,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
+	"github.com/multica-ai/multica/server/internal/tlsx"
 	"github.com/multica-ai/multica/server/pkg/agent"
 )
 
@@ -245,6 +246,17 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		slog.Warn("could not load CLI config for backend overrides; proceeding without",
 			"profile", overrides.Profile, "err", err)
 	} else {
+		// Private root CA of a self-hosted server whose TLS certificate is not
+		// publicly trusted. `u-workers connect --root-ca` persisted the path in
+		// the CLI config; export it through the same variable the CLI uses so
+		// every client in this daemon process (HTTP API, WebSocket dialer, bundle
+		// downloads) appends it to the system trust pool. An explicitly exported
+		// variable wins, matching the env-over-config precedence used here.
+		if rootCA := strings.TrimSpace(cliCfg.RootCAFile); rootCA != "" && tlsx.EnvPath() == "" {
+			if err := os.Setenv(tlsx.RootCAEnv, rootCA); err != nil {
+				return Config{}, fmt.Errorf("apply root CA configuration: %w", err)
+			}
+		}
 		if oc := openclawOverrideFrom(cliCfg); oc != nil {
 			applyOpenclawOverride(oc)
 		}
@@ -610,6 +622,14 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	autoReloadEnabled := boolFromEnv("MULTICA_DAEMON_AUTO_RELOAD", true)
 	if overrides.DisableAutoReload {
 		autoReloadEnabled = false
+	}
+
+	// Load the private root CA (if one is configured for this profile) before
+	// any client dials the server. A malformed or missing CA file fails startup
+	// with the file named instead of surfacing as an opaque TLS handshake error
+	// on the first API call.
+	if err := tlsx.InstallFromEnv(); err != nil {
+		return Config{}, err
 	}
 
 	return Config{

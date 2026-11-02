@@ -46,9 +46,14 @@ function normalizeCommandURL(url: string | undefined) {
 function daemonCommands(serverUrl: string | undefined, appUrl: string | undefined) {
   const normalizedServerUrl = normalizeCommandURL(serverUrl);
   const normalizedAppUrl = normalizeCommandURL(appUrl);
-  if (normalizedServerUrl && normalizedAppUrl) {
+  // One command replaces the old setup + login + daemon-start sequence: it also
+  // verifies and trusts a self-hosted deployment's private root CA when the
+  // machine is on the same LAN (see docs/windows-second-machine.md).
+  if (normalizedServerUrl) {
     return {
-      setupCmd: `${CLI_COMMAND} setup self-host --server-url ${normalizedServerUrl} --app-url ${normalizedAppUrl}`,
+      setupCmd: normalizedAppUrl
+        ? `${CLI_COMMAND} connect --server-url ${normalizedServerUrl} --app-url ${normalizedAppUrl}`
+        : `${CLI_COMMAND} connect --server-url ${normalizedServerUrl}`,
       tokenCmd: `${CLI_COMMAND} config set server_url ${normalizedServerUrl}
 ${CLI_COMMAND} config set app_url ${normalizedAppUrl}
 ${CLI_COMMAND} login --token <YOUR_TOKEN>
@@ -57,7 +62,7 @@ ${CLI_COMMAND} daemon start`,
   }
 
   return {
-    setupCmd: `${CLI_COMMAND} setup self-host --server-url <SERVER_URL> --app-url <APP_URL>`,
+    setupCmd: `${CLI_COMMAND} connect --server-url <SERVER_URL> --app-url <APP_URL>`,
     tokenCmd: `${CLI_COMMAND} config set server_url <SERVER_URL>
 ${CLI_COMMAND} config set app_url <APP_URL>
 ${CLI_COMMAND} login --token <YOUR_TOKEN>
@@ -74,9 +79,9 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
   const shouldReduceMotion = useReducedMotion() ?? false;
   const newRuntimeIdRef = useRef<string | null>(null);
 
-  // `u-workers setup` is one blocking command that handles config + login
-  // + daemon start; the dialog passively listens for the resulting
-  // `daemon:register` WS event and auto-advances to success.
+  // `u-workers connect` is one blocking command that handles certificate trust,
+  // config, login and daemon start; the dialog passively listens for the
+  // resulting `daemon:register` WS event and auto-advances to success.
   const handleDaemonRegister = useCallback(
     (payload: unknown) => {
       if (step !== "instructions") return;
@@ -258,7 +263,7 @@ function InstructionsStep({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           {/* Step 1 owns the platform switch: the install command differs by
               OS, so the user picks instead of us guessing. Step 2's
-              `u-workers setup` is platform-independent. */}
+              `u-workers connect` is platform-independent. */}
           <div>
             <CommandStep n={1} label={t(($) => $.connect.step1_label)}>
               <CliInstallCommand

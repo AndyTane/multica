@@ -92,7 +92,7 @@ describe("ConnectRemoteDialog", () => {
     const { baseElement } = renderDialog();
 
     expect(baseElement).toHaveTextContent(
-      "u-workers setup self-host --server-url <SERVER_URL> --app-url <APP_URL>",
+      "u-workers connect --server-url <SERVER_URL> --app-url <APP_URL>",
     );
     expect(baseElement).toHaveTextContent(
       "u-workers config set server_url <SERVER_URL>",
@@ -113,7 +113,7 @@ describe("ConnectRemoteDialog", () => {
     });
 
     expect(baseElement).toHaveTextContent(
-      "u-workers setup self-host --server-url https://api.example.com --app-url https://app.example.com",
+      "u-workers connect --server-url https://api.example.com --app-url https://app.example.com",
     );
     expect(baseElement).toHaveTextContent(
       "u-workers config set server_url https://api.example.com",
@@ -143,7 +143,7 @@ describe("ConnectRemoteDialog", () => {
   it("transitions from setup instructions to the connected state", async () => {
     const { baseElement } = renderDialog();
 
-    expect(baseElement).toHaveTextContent("u-workers setup");
+    expect(baseElement).toHaveTextContent("u-workers connect");
     act(() => {
       wsEventState.handler?.({ runtime_id: "rt-test" });
     });
@@ -154,6 +154,6 @@ describe("ConnectRemoteDialog", () => {
         screen.getByRole("button", { name: "Create an agent" }),
       ).toBeInTheDocument();
     });
-    expect(baseElement).not.toHaveTextContent("u-workers setup");
+    expect(baseElement).not.toHaveTextContent("u-workers connect");
   });
 });

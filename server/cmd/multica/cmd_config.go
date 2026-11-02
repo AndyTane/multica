@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/multica-ai/multica/server/internal/cli"
+	"github.com/multica-ai/multica/server/internal/tlsx"
 )
 
 var configCmd = &cobra.Command{
@@ -31,6 +32,7 @@ var configShowCmd = &cobra.Command{
 var configSetSupportedKeys = []string{
 	"server_url",
 	"app_url",
+	"root_ca_file",
 	"workspace_id",
 	"device_name",
 	"runtime_name",
@@ -51,7 +53,7 @@ var configSetCmd = &cobra.Command{
 	Use:   "set <key> <value>",
 	Short: "Set a CLI configuration value",
 	Long: "Supported keys: " +
-		"server_url, app_url, workspace_id, " +
+		"server_url, app_url, root_ca_file, workspace_id, " +
 		"device_name, runtime_name, workspaces_root, max_concurrent_tasks, poll_interval, ws_claim_poll_interval, " +
 		"heartbeat_interval, agent_timeout, " +
 		"codex_semantic_inactivity_timeout, codex_handshake_timeout, " +
@@ -97,6 +99,7 @@ func runConfigShow(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "server_url:", valueOrDefault(cfg.ServerURL, "(not set)"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "app_url:", valueOrDefault(cfg.AppURL, "(not set)"))
+	fmt.Fprintf(os.Stdout, "%-34s %s\n", "root_ca_file:", valueOrDefault(cfg.RootCAFile, "(not set)"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "workspace_id:", valueOrDefault(cfg.WorkspaceID, "(not set)"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "device_name:", valueOrDefault(cfg.DeviceName, "(not set)"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "runtime_name:", valueOrDefault(cfg.RuntimeName, "(not set)"))
@@ -158,6 +161,28 @@ func applyConfigSet(cfg *cli.CLIConfig, key, value string) error {
 		cfg.ServerURL = value
 	case "app_url":
 		cfg.AppURL = value
+	case "root_ca_file":
+		// Path to a self-hosted server's public root CA certificate. Setting it
+		// makes every CLI/daemon HTTPS client trust that CA in addition to the
+		// system store; an empty value clears the override. Validate the file
+		// here so a typo fails at write time instead of on the next API call.
+		value = strings.TrimSpace(value)
+		if value == "" {
+			cfg.RootCAFile = ""
+			return nil
+		}
+		abs, err := filepath.Abs(value)
+		if err != nil {
+			return fmt.Errorf("resolve root_ca_file: %w", err)
+		}
+		data, err := os.ReadFile(abs)
+		if err != nil {
+			return fmt.Errorf("root_ca_file: %w", err)
+		}
+		if _, err := tlsx.ParseCertificates(data); err != nil {
+			return fmt.Errorf("root_ca_file must contain a PEM or DER certificate: %w", err)
+		}
+		cfg.RootCAFile = abs
 	case "workspace_id":
 		cfg.WorkspaceID = value
 	case "device_name":

@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/tlsx"
 )
 
 // HeaderValue returns the first non-empty value among names. Callers pass the
@@ -207,7 +209,10 @@ func NewAPIClient(baseURL, workspaceID, token string) *APIClient {
 		BaseURL:     strings.TrimRight(baseURL, "/"),
 		WorkspaceID: workspaceID,
 		Token:       token,
-		HTTPClient:  &http.Client{Timeout: httpTimeout()},
+		// The transport is a clone of the default one with an explicitly
+		// configured private root CA appended (self-hosted LAN deployments).
+		// With no CA configured it behaves exactly like DefaultTransport.
+		HTTPClient: &http.Client{Timeout: httpTimeout(), Transport: tlsx.HTTPTransport()},
 	}
 }
 

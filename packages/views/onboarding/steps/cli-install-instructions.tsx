@@ -81,7 +81,9 @@ export function CliInstallInstructions() {
   const { t } = useT("onboarding");
   const server = useConfigStore((s) => s.daemonServerUrl) || "<SERVER_URL>";
   const app = useConfigStore((s) => s.daemonAppUrl) || "<APP_URL>";
-  const SETUP_CMD = `${CLI_COMMAND} setup self-host --server-url ${server} --app-url ${app}`;
+  // One command: trusts a self-hosted deployment's private root CA when given
+  // one, saves the addresses, signs in, and starts the daemon.
+  const SETUP_CMD = `${CLI_COMMAND} connect --server-url ${server} --app-url ${app}`;
   return (
     <Card className="w-full">
       <CardContent className="space-y-4 pt-4">

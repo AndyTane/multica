@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/multica-ai/multica/server/internal/tlsx"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
@@ -127,9 +129,12 @@ func (d *Daemon) runTaskWakeupConnection(ctx context.Context, runtimeIDs []strin
 	// before consulting Proxy, so HTTPS_PROXY applies to this dial. With no
 	// proxy variables set, ProxyFromEnvironment returns nil and the connection
 	// is direct, exactly as before.
+	// TLSClientConfig carries the explicitly configured private root CA of a
+	// self-hosted deployment (nil = default TLS config, verification unchanged).
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 		Proxy:            http.ProxyFromEnvironment,
+		TLSClientConfig:  tlsx.TLSConfig(),
 	}
 	conn, _, err := dialer.DialContext(ctx, wsURL, headers)
 	if err != nil {

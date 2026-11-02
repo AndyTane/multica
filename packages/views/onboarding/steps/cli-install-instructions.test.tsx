@@ -29,6 +29,6 @@ describe("CliInstallInstructions", () => {
     await user.click(screen.getByRole("tab", { name: "Windows" }));
 
     expect(screen.getByText(WINDOWS_CMD, MULTILINE)).toBeInTheDocument();
-    expect(screen.getByText("u-workers setup self-host --server-url <SERVER_URL> --app-url <APP_URL>")).toBeInTheDocument();
+    expect(screen.getByText("u-workers connect --server-url <SERVER_URL> --app-url <APP_URL>")).toBeInTheDocument();
   });
 });
