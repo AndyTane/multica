@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { getDefaultNormalizer, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { I18nProvider } from "@multica/core/i18n/react";
@@ -8,8 +8,12 @@ import { CliInstallInstructions } from "./cli-install-instructions";
 
 const TEST_RESOURCES = { en: { common: enCommon, onboarding: enOnboarding } };
 
-const WINDOWS_CMD =
-  "pwsh -File scripts/build-local-cli.ps1";
+// Dev servers report no version, so the build version stays a placeholder.
+const WINDOWS_CMD = `pwsh -File scripts/build-local-cli.ps1 -Version <SERVER_VERSION>
+$env:Path = "$PWD\\server\\bin;$env:Path"`;
+
+// The build command spans two lines; match it as written, not collapsed.
+const MULTILINE = { normalizer: getDefaultNormalizer({ collapseWhitespace: false }) };
 
 describe("CliInstallInstructions", () => {
   // The switch itself is covered in common/cli-install-command.test.tsx; this
@@ -24,7 +28,7 @@ describe("CliInstallInstructions", () => {
 
     await user.click(screen.getByRole("tab", { name: "Windows" }));
 
-    expect(screen.getByText(WINDOWS_CMD)).toBeInTheDocument();
+    expect(screen.getByText(WINDOWS_CMD, MULTILINE)).toBeInTheDocument();
     expect(screen.getByText("u-workers connect --server-url <SERVER_URL> --app-url <APP_URL>")).toBeInTheDocument();
   });
 });

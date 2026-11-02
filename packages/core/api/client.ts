@@ -2844,15 +2844,24 @@ export class ApiClient {
   // than cast: an unparseable body degrades to an explicit "failed" record that
   // shows the discovery error and keeps manual model entry usable, instead of a
   // fabricated empty catalog or an endless spinner (MUL-5444).
+  //
+  // `workspaceSlug` is the explicit-targeting escape hatch, same as
+  // `listRuntimes`: these routes sit behind RequireWorkspaceMember and resolve
+  // the workspace from X-Workspace-Slug before any query param, so a flow that
+  // has not entered the workspace's route yet (onboarding, new workspace) must
+  // name it here or the server answers "workspace_id or workspace_slug is
+  // required". Callers already inside a workspace route omit it and keep the
+  // ambient header.
   async initiateListModels(
     runtimeId: string,
-    options: { force?: boolean } = {},
+    options: { force?: boolean; workspaceSlug?: string } = {},
   ): Promise<RuntimeModelListRequest> {
     const query = options.force === true ? "?force=true" : "";
     const raw = await this.fetch<unknown>(
       `/api/runtimes/${runtimeId}/models${query}`,
       {
         method: "POST",
+        headers: workspaceHeader(options.workspaceSlug),
       },
     );
     return parseWithFallback<RuntimeModelListRequest>(
@@ -2866,9 +2875,11 @@ export class ApiClient {
   async getListModelsResult(
     runtimeId: string,
     requestId: string,
+    workspaceSlug?: string,
   ): Promise<RuntimeModelListRequest> {
     const raw = await this.fetch<unknown>(
       `/api/runtimes/${runtimeId}/models/${requestId}`,
+      { headers: workspaceHeader(workspaceSlug) },
     );
     return parseWithFallback<RuntimeModelListRequest>(
       raw,

@@ -2200,6 +2200,40 @@ describe("ApiClient explicit workspace targeting", () => {
     });
     expect(slugHeaderOf(fetchMock)).toBeUndefined();
   });
+
+  // The onboarding runtime step lists models for a workspace the app has not
+  // navigated into, so the ambient header is still unset and both calls would
+  // otherwise be rejected with "workspace_id or workspace_slug is required".
+  // The poll is its own workspace-gated request — carrying the slug on the POST
+  // alone is not enough.
+  it("sends the given slug on model discovery and on its poll", async () => {
+    const record = {
+      id: "req-1",
+      runtime_id: "rt-1",
+      status: "completed",
+      supported: true,
+      created_at: "2026-07-29T00:00:00Z",
+      updated_at: "2026-07-29T00:00:01Z",
+      models: [],
+    };
+    const client = new ApiClient("https://api.example.test");
+
+    const discovery = stubOk(record);
+    await client.initiateListModels("rt-1", {
+      workspaceSlug: "proxima-centauri",
+    });
+    expect(slugHeaderOf(discovery)).toBe("proxima-centauri");
+
+    const poll = stubOk(record);
+    await client.getListModelsResult("rt-1", "req-1", "proxima-centauri");
+    expect(slugHeaderOf(poll)).toBe("proxima-centauri");
+
+    // Inside a workspace route the ambient header is the right answer, so an
+    // omitted slug must leave it alone instead of blanking it.
+    const ambient = stubOk(record);
+    await client.initiateListModels("rt-1");
+    expect(slugHeaderOf(ambient)).toBeUndefined();
+  });
 });
 
 describe("ApiClient model discovery response schema", () => {

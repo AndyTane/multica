@@ -189,7 +189,8 @@
   "connect": {
     "title": "添加电脑",
     "description": "在这台电脑上使用随包或本地构建的 CLI，然后连接到当前服务。",
-    "step1_label": "使用本地 CLI",
+    "step1_label": "构建 CLI",
+    "step1_hint": "在 U Workers 源码目录中运行，需要 Go 和 Git。构建会使用与本服务器一致的版本，并把 u-workers 加入当前终端的 PATH，不会下载远程安装脚本。",
     "platform_group": "选择你的系统",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

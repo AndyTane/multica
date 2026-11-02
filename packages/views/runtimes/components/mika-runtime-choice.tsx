@@ -33,6 +33,7 @@ export function MikaRuntimeChoice({
   onChange,
   disabled = false,
   layout = "dropdown",
+  workspaceSlug,
 }: {
   runtimes: AgentRuntime[];
   runtimesLoading?: boolean;
@@ -42,6 +43,8 @@ export function MikaRuntimeChoice({
   onChange: (next: MikaRuntimeSelection) => void;
   disabled?: boolean;
   layout?: "dropdown" | "list";
+  /** Forwarded to model discovery — see `ModelDropdown`'s prop of that name. */
+  workspaceSlug?: string;
 }) {
   const selected = runtimes.find((rt) => rt.id === value.runtimeId) ?? null;
 
@@ -87,6 +90,7 @@ export function MikaRuntimeChoice({
         value={value.model}
         onChange={(model) => onChange({ ...value, model })}
         disabled={!value.runtimeId || disabled}
+        workspaceSlug={workspaceSlug}
       />
     </div>
   );

@@ -25,8 +25,8 @@
   },
   "cli_install": {
     "copy_aria": "Copier",
-    "intro": "Utilisez le CLI fourni, compilez-le localement ou définissez U_WORKERS_CLI_PATH. Ajoutez multica au PATH avant de démarrer le daemon.",
-    "step1_label": "Utiliser un CLI local",
+    "intro": "À exécuter dans le dossier source de U Workers ; nécessite Go et Git. La compilation reprend la version de ce serveur et ajoute u-workers au PATH de ce terminal. Aucun script d’installation distant n’est téléchargé.",
+    "step1_label": "Compiler le CLI",
     "platform_group": "Choisissez votre système",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",

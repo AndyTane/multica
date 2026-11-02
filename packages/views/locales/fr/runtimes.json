@@ -201,7 +201,8 @@
   "connect": {
     "title": "Ajouter un ordinateur",
     "description": "Utilisez un CLI fourni ou compilé localement sur cet ordinateur, puis connectez-le à ce service.",
-    "step1_label": "Utiliser un CLI local",
+    "step1_label": "Compiler le CLI",
+    "step1_hint": "À exécuter dans le dossier source de U Workers ; nécessite Go et Git. La compilation reprend la version de ce serveur et ajoute u-workers au PATH de ce terminal. Aucun script d’installation distant n’est téléchargé.",
     "platform_group": "Choisissez votre système",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
