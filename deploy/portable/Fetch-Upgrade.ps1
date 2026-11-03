@@ -4,6 +4,7 @@ param(
     [string]$Version = 'latest',
     [string]$DestinationDirectory = '',
     [string]$Ossutil = 'ossutil.exe',
+    [switch]$ClientKit,
     [switch]$Apply,
     [switch]$CheckOnly,
     [string]$Root,
@@ -14,6 +15,7 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'oss-release-common.ps1')
 if ($Version -ne 'latest') { Assert-ReleaseVersion $Version }
+if ($ClientKit -and ($Apply -or $CheckOnly)) { throw 'ClientKit downloads do not apply server upgrades.' }
 if (($Apply -or $CheckOnly) -and (-not $Root -or -not $Profile -or -not $PublicOrigin)) { throw 'Pass -Root, -Profile and -PublicOrigin with -Apply or -CheckOnly.' }
 if (-not $DestinationDirectory) { $DestinationDirectory = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-upgrade-'+[guid]::NewGuid().ToString('N')) }
 $destination = [IO.Path]::GetFullPath($DestinationDirectory)
@@ -38,6 +40,18 @@ Invoke-ReleaseObject $Ossutil $config get ('releases/'+$Version+'/release.json')
 if ($latest) { Assert-ReleaseFile $releasePath $latest.release.sha256 ([long]$latest.release.bytes) }
 $release = Read-ReleaseJson $releasePath
 Assert-ReleaseManifest $release $Version
+if ($ClientKit) {
+    if (-not $release.clientKit) { throw 'This release has no client kit. Select v0.2.4 or a newer release.' }
+    $archive=Join-Path $destination 'client-kit.zip'
+    Invoke-ReleaseObject $Ossutil $config get $release.clientKit.key $archive
+    Assert-ReleaseFile $archive $release.clientKit.sha256 ([long]$release.clientKit.bytes)
+    $unpacked=Join-Path $destination 'client-kit'
+    Expand-ReleaseArchive $archive $unpacked
+    Assert-ClientKitDirectory $unpacked $Version $release.commit
+    Write-ReleaseJson (Join-Path $destination 'fetch-result.json') @{version=$Version;commit=$release.commit;packageType='client-kit';sha256=$release.clientKit.sha256;verified=$true;applied=$false}
+    Write-Host ('Verified client kit '+$Version+'. Use client-kit/Reconnect.cmd for an existing connection, or read README.md for first sign-in.')
+    return $unpacked
+}
 $archive = Join-Path $destination 'upgrade.zip'
 Invoke-ReleaseObject $Ossutil $config get $release.package.key $archive
 Assert-ReleaseFile $archive $release.package.sha256 ([long]$release.package.bytes)

@@ -82,6 +82,7 @@ v0.2.3 用完整包重新对齐公司基线。维护端从干净且已打 tag �
 ```text
 releases/<version>/upgrade.zip
 releases/<version>/UPGRADE.md
+releases/<version>/client-kit.zip
 releases/<version>/release.json
 channels/stable/latest.json
 ```
@@ -115,6 +116,18 @@ Apply 验证全部文件后检查安装 daemon，运行时拒绝升级；不会�
 
 失败时保留 `backups/upgrade-<version>-<timestamp>/files.json`、原 deployment.json、数据库/上传备份及旧 releases。按包内 UPGRADE.md 回滚。现有管理员身份保持不变；准确账号确认后再单独 grant-admin，不能给所有用户提权。成功后按 UPGRADE.md 验证版本、就绪、登录、原数据/附件和公司局域网，再启动原安装 daemon。
 
+## Client-Kit（v0.2.4 起）
+
+源码构建发布同时产出 `client-kit.zip`。包内 CLI 与服务端便携包来自同一次构建，`CLIENT-FILES.json` 记录同一版本与完整提交；`release.json` 的 `clientKit` 记录压缩包大小、SHA-256 和路径。发布顺序为服务端包、说明、客户端包、版本清单、latest，任一步失败都停止。客户端包使用空白连接配置，不复制机器的证书或登录。
+
+公司其他电脑可在 OSS 控制台下载 `releases/v0.2.4/client-kit.zip` 并校验清单中的 SHA-256。取得本次新版 Fetch 和共享模块后，也可只下载客户端：
+
+```powershell
+.\Fetch-Upgrade.ps1 -ClientKit -Version latest -DestinationDirectory C:\Transfer\client-v024 -Ossutil C:\Tools\ossutil\ossutil.exe
+```
+
+`-ClientKit` 只下载并验证，不执行服务端升级或客户端连接；不能与 `-Apply` / `-CheckOnly` 同用。v0.2.3 内的旧 Fetch 没有此参数，可从本次工单提供的 Fetch bootstrap 取得新版。客户端首次连接和双击重连见 `deploy/client-kit/README.md`。已登录的电脑沿用原 profile，机器重启后双击 `Reconnect.cmd`；开机自动连接默认关闭，需要时由用户放置 Windows 启动快捷方式。
+
 ## 验证边界
 
-R1 测试使用 fake OSS 验证传输协议和失败路径，并对 119 实包执行本地准备/内容校验；这些结果不代表云端 RAM 权限、真实发布或公司升级已完成。本批禁止真实上传。真实闭环由负责人在 Tane 确认桶、两端凭据、公司安装目录及独立终端后安排。
+自动化测试使用 fake OSS 验证传输协议和失败路径，使用隔离的 CLI 替身验证客户端生命周期；这些结果不代表真实发布或公司升级已完成。真实上传、压缩包核验和公司实机升级结果按各版本工单分别记录。发布使用已确认的桶和凭据，公司升级从独立终端执行。
