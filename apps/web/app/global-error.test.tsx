@@ -62,12 +62,12 @@ describe("resolveEmergencyLocale", () => {
     expect(resolveEmergencyLocale()).toBe("zh-Hans");
   });
 
-  it("hydrates with the browser locale when no cookie exists", async () => {
+  it("hydrates in Chinese when no cookie exists", async () => {
     setBrowserLanguages(["ja-JP", "ja"]);
     const { reset, onRecoverableError } = await hydrateGlobalError("ja-JP");
 
-    expect(document.documentElement.lang).toBe("ja-JP");
-    expect(document.body).toHaveTextContent("問題が発生しました");
+    expect(document.documentElement.lang).toBe("zh-CN");
+    expect(document.body).toHaveTextContent("出现了问题");
     expect(document.body).not.toHaveTextContent("Something went wrong");
     expect(onRecoverableError).not.toHaveBeenCalled();
 

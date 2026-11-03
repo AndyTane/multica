@@ -862,6 +862,7 @@ const ServerPaginatedBoardColumn = memo(function ServerPaginatedBoardColumn({
       childProgressMap={childProgressMap}
       projectMap={projectMap}
       totalCount={page?.total ?? group.totalCount}
+      isLoading={page?.isLoading || page?.isFetching}
       projectId={projectId}
       onCreateIssue={onCreateIssue}
       sortLabel={sortLabel}

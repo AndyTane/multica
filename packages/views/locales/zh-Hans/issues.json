@@ -409,9 +409,9 @@
     "quick_action_blocked_body": "\"{{name}}\"由一个你无权触发的智能体执行。可以请工作区管理员把该智能体开放给团队，或把这条操作改绑一个共享的智能体。",
     "quick_action_blocked_ok": "知道了",
     "pull_requests_loading": "加载中...",
-    "pull_request_state_draft": "Draft",
-    "pull_request_state_merged": "Merged",
-    "pull_request_state_closed": "Closed",
+    "pull_request_state_draft": "草稿",
+    "pull_request_state_merged": "已合并",
+    "pull_request_state_closed": "已关闭",
     "pull_request_checks_none": "暂无检查",
     "pull_request_checks_all_passed": "全部检查通过（{{total}}/{{total}}）",
     "pull_request_checks_running": "{{passed}}/{{total}} · {{running}} 个进行中",
@@ -980,7 +980,7 @@
     "more_label": "更多视图"
   },
   "plugins": {
-    "panels": "Plugins",
+    "panels": "插件",
     "surface_failed": "{{name}} 的界面加载失败。",
     "hook_succeeded": "{{name}} 已完成。",
     "hook_failed": "{{name}} 执行失败。",

@@ -9,6 +9,7 @@ import enIssues from "../../locales/en/issues.json";
 
 const TEST_RESOURCES = { en: { common: enCommon, issues: enIssues } };
 
+let mockPopulated = true;
 let mockAutoComplete: PRAutoComplete | null = null;
 vi.mock("@multica/core/github/queries", async () => {
   const actual = await vi.importActual<typeof import("@multica/core/github/queries")>(
@@ -18,7 +19,7 @@ vi.mock("@multica/core/github/queries", async () => {
     ...actual,
     issuePullRequestsOptions: (issueId: string) => ({
       queryKey: ["github", "pull-requests", issueId],
-      queryFn: async () => ({ pull_requests: [], auto_complete: mockAutoComplete }),
+      queryFn: async () => ({ pull_requests: mockPopulated ? [{ id: "pr1", number: 1, title: "Fix", state: "open", html_url: "https://github.com/acme/widget/pull/1" }] : [], auto_complete: mockAutoComplete }),
       enabled: !!issueId,
     }),
   };
@@ -45,6 +46,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
 }));
 
 import { PullRequestsSection } from "./pull-requests-section";
+vi.mock("./pull-request-list", () => ({ PullRequestList: () => <div>Fix</div> }));
 
 function renderSection() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -67,12 +69,23 @@ const decision: PRAutoComplete = {
 describe("PullRequestsSection (MUL-7429)", () => {
   beforeEach(() => {
     mockAutoComplete = decision;
+    mockPopulated = true;
     mockWorkspaceSettings = {};
     apiMock.linkIssuePullRequest.mockReset();
     apiMock.setIssuePRAutoComplete.mockReset();
     navigatePush.mockReset();
   });
 
+  it("keeps only a heading and a working link action when no PR is linked", async () => {
+    mockPopulated = false;
+    const view = renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Link pull request" }));
+    expect(await screen.findByRole("textbox", { name: "Link pull request" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pull requests" })).toBeInTheDocument();
+    expect(view.container.querySelector('.lucide-chevron-right')).toBeNull();
+    expect(screen.queryByText("No linked pull requests.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pull request automation" })).toBeNull();
+  });
   it("links a pasted PR URL", async () => {
     apiMock.linkIssuePullRequest.mockResolvedValue({ pull_requests: [], auto_complete: decision });
     renderSection();
@@ -149,7 +162,7 @@ describe("PullRequestsSection (MUL-7429)", () => {
   it("hides the actions on a backend without auto-complete", async () => {
     mockAutoComplete = null;
     renderSection();
-    await screen.findByText("No linked pull requests.");
+    await screen.findByText("Fix");
     expect(screen.queryByRole("button", { name: "Link pull request" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Pull request automation" })).toBeNull();
   });

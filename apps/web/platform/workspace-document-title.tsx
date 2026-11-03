@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { parseTabSubject } from "@multica/core/paths";
+import { parseTabSubject, useCurrentWorkspace } from "@multica/core/paths";
+import { useCanonicalIssue } from "@multica/core/issues/canonical-id";
 import { useTabPresentation } from "@multica/views/layout";
 import { SITE_TITLE, formatDocumentTitle } from "./document-title";
 
@@ -16,7 +17,8 @@ import { SITE_TITLE, formatDocumentTitle } from "./document-title";
  * plus cache-backed presentation hook that names desktop's tabs, so a browser
  * tab and a desktop tab for one URL always read identically, in the user's
  * locale, and a renamed project or a changed issue title re-titles the tab
- * live. Every query behind it is cache-only, so this costs no extra request.
+ * live. Issue routes also resolve their active issue, sharing the detail page's
+ * query and canonical UUID entry so a cold URL does not depend on a warm cache.
  *
  * Mounted once per dashboard layout — one writer for the whole tree. A page
  * that wants a different title should teach `resolveTabPresentation` about its
@@ -33,11 +35,20 @@ export function WorkspaceDocumentTitle() {
 
   const subject = useMemo(() => parseTabSubject(url), [url]);
   const { title } = useTabPresentation(url);
+  const workspace = useCurrentWorkspace();
+  const { issue } = useCanonicalIssue(
+    subject.kind === "issue" ? workspace?.id ?? "" : "",
+    subject.kind === "issue" ? subject.id : "",
+  );
 
   // An unrecognized URL gets the site title, never the "Unknown page" label a
   // tab strip needs: a browser tab has no other place to show the product name.
   const documentTitle =
-    subject.kind === "unknown" ? SITE_TITLE : formatDocumentTitle(title);
+    subject.kind === "unknown" ? SITE_TITLE : formatDocumentTitle(
+      subject.kind === "issue" && issue
+        ? `${issue.identifier}: ${issue.title}`
+        : title,
+    );
 
   // `url` is a dependency even though `documentTitle` is what we write: an app
   // router navigation re-renders the target route's metadata and resets

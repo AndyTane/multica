@@ -383,8 +383,7 @@ export function WakeupsSection({
   const text = useWakeupText();
   const disable = useDisableIssueWakeup(workspaceId, issueId);
   const enable = useEnableIssueWakeup(workspaceId, issueId);
-  // Open issues always show the section so people can add a wakeup.
-  if (closed && !data.length && !isError) return null;
+  const empty = !data.length && !systemRules.length && !isError;
   const current = data.filter((w) => isCurrentWakeup(w, wakeupRun(w, tasks)));
   const history = data.filter((w) => !isCurrentWakeup(w, wakeupRun(w, tasks)));
   const row = (wakeup: IssueWakeup) => (
@@ -419,27 +418,37 @@ export function WakeupsSection({
   return (
     <section>
       <div className="mb-1 flex items-center gap-1">
-        <button
-          type="button"
-          id={`issue-wakeups-${issueId}`}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-          className="flex min-h-9 flex-1 items-center gap-1 rounded-md px-2 py-1 text-caption font-medium hover:bg-accent/70 focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          {t(($) => $.wakeups.title)}{" "}
-          <span className="text-muted-foreground tabular-nums">
-            {current.length + systemRules.length}
-          </span>
-          <ChevronRight
-            className={`size-3 text-muted-foreground ${open ? "rotate-90" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-        {!closed && (
+        {empty ? (
+          <h3
+            id={`issue-wakeups-${issueId}`}
+            tabIndex={-1}
+            className="flex min-h-9 flex-1 items-center px-2 py-1 text-caption font-medium"
+          >
+            {t(($) => $.wakeups.title)}
+          </h3>
+        ) : (
+          <button
+            type="button"
+            id={`issue-wakeups-${issueId}`}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+            className="flex min-h-9 flex-1 items-center gap-1 rounded-md px-2 py-1 text-caption font-medium hover:bg-accent/70 focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            {t(($) => $.wakeups.title)}{" "}
+            <span className="text-muted-foreground tabular-nums">
+              {current.length + systemRules.length}
+            </span>
+            <ChevronRight
+              className={`size-3 text-muted-foreground ${open ? "rotate-90" : ""}`}
+              aria-hidden="true"
+            />
+          </button>
+        )}
+        {(!closed || empty) && (
           <WakeupCreate workspaceId={workspaceId} issueId={issueId} defaultAgentId={defaultAgentId} />
         )}
       </div>
-      {open && (
+      {open && !empty && (
         <div>
           {isError && (
             <button
