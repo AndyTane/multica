@@ -21,6 +21,7 @@ try {
     $package=Join-Path $work 'package'; $output=Join-Path $work 'prepared'; $version='v1.2.3'; $commit='3333333333333333333333333333333333333333'
     foreach ($path in @('upgrade.ps1','portable-common.ps1','payload/release/server.exe','payload/release/migrate.exe','payload/release/local-auth.exe','payload/release/web/apps/web/server.js','payload/release/web/apps/web/.next/BUILD_ID','payload/bin/u-workers.exe','payload/runtime/node.exe','payload/runtime/pgsql/bin/psql.exe','payload/runtime/caddy/caddy.exe','payload/runtime/opencode/opencode.exe','payload/scripts/native-windows.ps1','payload/installer/u-workers-setup-v1.2.3-windows-amd64.exe')) { Text (Join-Path $package $path) 'fixture' }
     Text (Join-Path $package 'manifest.json') '{"version":"v1.2.3","commit":"333333333"}'
+    Copy-Item (Join-Path $package 'payload/bin/u-workers.exe') (Join-Path $package 'payload/bin/multica.exe')
     Text (Join-Path $package '.env') 'FAKE_EXCLUDED'
     Text (Join-Path $package 'data/private.txt') 'FAKE_EXCLUDED'
     & pwsh.exe -NoProfile -File (Join-Path $portable 'build-full-release.ps1') -PackageDirectory $package -OutputDirectory $output -Version $version -Commit $commit -Ossutil $fake | Out-Null
@@ -103,6 +104,10 @@ $commit=(& git -C (Join-Path $PSScriptRoot '../..') rev-parse --short=9 HEAD | O
             $kit= & $fetch -Version latest -DestinationDirectory (Join-Path $work 'fetch-client') -Ossutil $fake -ClientKit
             Assert-ClientKitDirectory $kit $version $clientRelease.commit
             Check (Test-Path (Join-Path $kit 'Reconnect.cmd')) 'standalone client download verifies complete inventory'
+            Check ((Get-FileHash (Join-Path $kit 'u-workers.exe')).Hash -eq (Get-FileHash (Join-Path $kit 'multica.exe')).Hash) 'legacy CLI alias shipped as identical executable for built-in skills'
+            Remove-Item -LiteralPath (Join-Path $kit 'multica.exe')
+            Fail { Assert-ClientKitDirectory $kit $version $clientRelease.commit } 'missing legacy CLI alias rejected'
+            Copy-Item (Join-Path $kit 'u-workers.exe') (Join-Path $kit 'multica.exe')
             $env:FAKE_CORRUPT_KEY='releases/v1.2.3/client-kit.zip'
             Fail { & $fetch -Version latest -DestinationDirectory (Join-Path $work 'corrupt-client') -Ossutil $fake -ClientKit } 'corrupt client ZIP rejected'
             $env:FAKE_CORRUPT_KEY=''

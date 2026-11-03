@@ -63,7 +63,7 @@ v0.2.3 用完整包重新对齐公司基线。维护端从干净且已打 tag �
 每次使用一个新的输出目录。正常发布从已检出到指定 tag/commit 的干净源码构建，显式传入原 portable **未安装整包**作差分基线：
 
 ```powershell
-& .\deploy\portable\publish-release.ps1 -Version v0.2.4 -SourceRef v0.2.4 -SourceDirectory C:\Source\UWorkers-v024 -BaselineDirectory C:\Packages\UWorkers-Portable-v0.2.3 -OutputDirectory C:\Releases\v024 -Ossutil C:\Tools\ossutil\ossutil.exe -BuildParameters @{PostgresDirectory='C:\Runtime\pgsql'; CaddyExe='C:\Tools\caddy.exe'; OpenCodeExe='C:\Tools\opencode.exe'}
+& .\deploy\portable\publish-release.ps1 -Version v0.2.5 -SourceRef v0.2.5 -SourceDirectory C:\Source\UWorkers-v025 -BaselineDirectory C:\Packages\UWorkers-Portable-v0.2.3 -OutputDirectory C:\Releases\v025 -Ossutil C:\Tools\ossutil\ossutil.exe -BuildParameters @{PostgresDirectory='C:\Runtime\pgsql'; CaddyExe='C:\Tools\caddy.exe'; OpenCodeExe='C:\Tools\opencode.exe'}
 ```
 
 在 PowerShell 7 终端内进入仓库并执行。构建参数沿用 `build-package.ps1` 的工具路径；不允许 `ReusePayloadFrom`、Force 或版本覆盖。构建脚本不负责切换源码分支。Node/PostgreSQL 依赖改变需要单独的运行时升级，当前差分入口会拒绝。
@@ -116,14 +116,14 @@ Apply 验证全部文件后检查安装 daemon，运行时拒绝升级；不会�
 
 失败时保留 `backups/upgrade-<version>-<timestamp>/files.json`、原 deployment.json、数据库/上传备份及旧 releases。按包内 UPGRADE.md 回滚。现有管理员身份保持不变；准确账号确认后再单独 grant-admin，不能给所有用户提权。成功后按 UPGRADE.md 验证版本、就绪、登录、原数据/附件和公司局域网，再启动原安装 daemon。
 
-## Client-Kit（v0.2.4 起）
+## Client-Kit（v0.2.5 起）
 
 源码构建发布同时产出 `client-kit.zip`。包内 CLI 与服务端便携包来自同一次构建，`CLIENT-FILES.json` 记录同一版本与完整提交；`release.json` 的 `clientKit` 记录压缩包大小、SHA-256 和路径。发布顺序为服务端包、说明、客户端包、版本清单、latest，任一步失败都停止。客户端包使用空白连接配置，不复制机器的证书或登录。
 
-公司其他电脑可在 OSS 控制台下载 `releases/v0.2.4/client-kit.zip` 并校验清单中的 SHA-256。取得本次新版 Fetch 和共享模块后，也可只下载客户端：
+公司其他电脑可在 OSS 控制台下载 `releases/v0.2.5/client-kit.zip` 并校验清单中的 SHA-256。取得本次新版 Fetch 和共享模块后，也可只下载客户端：
 
 ```powershell
-.\Fetch-Upgrade.ps1 -ClientKit -Version latest -DestinationDirectory C:\Transfer\client-v024 -Ossutil C:\Tools\ossutil\ossutil.exe
+.\Fetch-Upgrade.ps1 -ClientKit -Version latest -DestinationDirectory C:\Transfer\client-v025 -Ossutil C:\Tools\ossutil\ossutil.exe
 ```
 
 `-ClientKit` 只下载并验证，不执行服务端升级或客户端连接；不能与 `-Apply` / `-CheckOnly` 同用。v0.2.3 内的旧 Fetch 没有此参数，可从本次工单提供的 Fetch bootstrap 取得新版。客户端首次连接和双击重连见 `deploy/client-kit/README.md`。已登录的电脑沿用原 profile，机器重启后双击 `Reconnect.cmd`；开机自动连接默认关闭，需要时由用户放置 Windows 启动快捷方式。

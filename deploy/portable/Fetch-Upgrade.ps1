@@ -41,7 +41,7 @@ if ($latest) { Assert-ReleaseFile $releasePath $latest.release.sha256 ([long]$la
 $release = Read-ReleaseJson $releasePath
 Assert-ReleaseManifest $release $Version
 if ($ClientKit) {
-    if (-not $release.clientKit) { throw 'This release has no client kit. Select v0.2.4 or a newer release.' }
+    if (-not $release.clientKit) { throw 'This release has no client kit. Select v0.2.5 or a newer release.' }
     $archive=Join-Path $destination 'client-kit.zip'
     Invoke-ReleaseObject $Ossutil $config get $release.clientKit.key $archive
     Assert-ReleaseFile $archive $release.clientKit.sha256 ([long]$release.clientKit.bytes)

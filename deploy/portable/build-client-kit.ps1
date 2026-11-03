@@ -19,7 +19,7 @@ $stage=Join-Path $OutputDirectory 'client-kit'
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 $template=Join-Path $PSScriptRoot '../client-kit'
 foreach ($name in $script:ClientKitFiles) {
-    $source=if ($name -eq 'u-workers.exe') { Resolve-ReleasePath $PackageDirectory 'payload/bin/u-workers.exe' } else { Resolve-ReleasePath $template $name }
+    $source=if ($name -in @('u-workers.exe','multica.exe')) { Resolve-ReleasePath $PackageDirectory ('payload/bin/'+$name) } else { Resolve-ReleasePath $template $name }
     Copy-Item -LiteralPath $source -Destination (Join-Path $stage $name)
 }
 $files=@(foreach ($file in Get-ReleaseFiles $stage) {

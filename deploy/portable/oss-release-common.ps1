@@ -2,7 +2,7 @@
 # Shared release contracts. This module never reads deployment secrets or .env.
 $script:ReleaseMaxObjectBytes = 5GB
 $script:ReleaseCheckedDirectories = @{}
-$script:ClientKitFiles = @('Connect.cmd','Reconnect.cmd','Status.cmd','Stop.cmd','client.ps1','connection.json','README.md','u-workers.exe')
+$script:ClientKitFiles = @('Connect.cmd','Reconnect.cmd','Status.cmd','Stop.cmd','client.ps1','connection.json','README.md','u-workers.exe','multica.exe')
 $script:ReleaseProgramFiles = @('manifest.json','README.txt','Setup.cmd','Start.cmd','Stop.cmd','Status.cmd','Upgrade.cmd','Uninstall.cmd','Trust-Browser.cmd','Find-OldDeployment.cmd','Build-Installer.cmd','install.ps1','start.ps1','stop.ps1','status.ps1','upgrade.ps1','uninstall.ps1','trust-browser.ps1','portable-common.ps1','find-old-deployment.ps1','build-installer.ps1',([string][char]0x64CD+[char]0x4F5C+[char]0x5355+'-'+[char]0x53F0+[char]0x5F0F+[char]0x673A+'.md'))
 
 function Assert-ReleaseVersion([string]$Version) {
@@ -193,6 +193,8 @@ function Assert-ClientKitDirectory([string]$Directory,[string]$Version,[string]$
         Assert-ReleaseFile (Resolve-ReleasePath $Directory $path) $entry.sha256 ([long]$entry.bytes)
     }
     foreach ($name in $script:ClientKitFiles) { if (-not $allowed.ContainsKey($name)) { throw ('Missing client kit file: '+$name) } }
+    $cliHash=(Get-FileHash -LiteralPath (Join-Path $Directory 'u-workers.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+    Assert-ReleaseFile (Join-Path $Directory 'multica.exe') $cliHash
     foreach ($file in Get-ReleaseFiles $Directory) {
         $relative=$file.FullName.Substring([IO.Path]::GetFullPath($Directory).TrimEnd('\','/').Length+1).Replace('\','/')
         if (-not $allowed.ContainsKey($relative)) { throw 'Client kit contains an unlisted file.' }
