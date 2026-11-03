@@ -114,9 +114,15 @@ $cfg.PublicOrigin=$PublicOrigin
     Check ($message -match 'UPGRADE-FILES.json') 'missing delta manifest has a targeted diagnostic'
     Check (-not (Test-Path (Join-Path $base 'trace.txt'))) 'invalid directory diagnostics precede lifecycle actions'
 
-    foreach ($mode in @('lan','local','explicit-local','pending-lan','ready-failure')) {
+    foreach ($mode in @('lan','local','explicit-local','explicit-localhost','legacy-no-scope','pending-lan','ready-failure')) {
         $root=Join-Path $work $mode; Copy-Item -LiteralPath $base -Destination $root -Recurse
         $origin='https://203.0.113.19:13443'
+        if ($mode -eq 'explicit-localhost') { $origin='https://localhost:13443' }
+        if ($mode -eq 'legacy-no-scope') {
+            $r=Read-ReleaseJson (Join-Path $root 'data/install-report.json')
+            foreach ($name in @('lanRequestedHost','lanHost','lanExposed','lanFirewall','lanFirewallRule','lanMessage')) { $r.PSObject.Properties.Remove($name) }
+            Write-ReleaseJson (Join-Path $root 'data/install-report.json') $r
+        }
         if ($mode -in @('local','pending-lan')) {
             $r=Read-ReleaseJson (Join-Path $root 'data/install-report.json')
             $r.lanExposed=$false; $r.lanHost='127.0.0.1'; $r.boardUrl='https://localhost:13443'
@@ -127,7 +133,7 @@ $cfg.PublicOrigin=$PublicOrigin
             $origin=$r.boardUrl
         }
         $args=@('-Root',$root,'-PublicOrigin',$origin,'-UpgradeDirectory',$delta)
-        if ($mode -eq 'explicit-local') { $args+='-NoLanAccess' }
+        if ($mode -in @('explicit-local','explicit-localhost')) { $args+='-NoLanAccess' }
         $env:REVIEW_FAIL_FINAL_READY=if ($mode -eq 'ready-failure') {'1'} else {''}
         $log=Join-Path $work ($mode+'.log')
         $code=Run-Script $apply $args $log
@@ -141,11 +147,14 @@ $cfg.PublicOrigin=$PublicOrigin
         }
         Check ($code -eq 0) ('real Apply and upgrade scripts succeed: '+$mode)
         $final=Read-ReleaseJson (Join-Path $root 'data/upgrade-report.json')
-        $expectedLan=$mode -eq 'lan'
+        $expectedLan=$mode -in @('lan','legacy-no-scope')
         $expectedHost=if ($expectedLan) {'203.0.113.19'} else {'127.0.0.1'}
         Check ($report.lanExposed -eq $expectedLan -and $final.lanExposed -eq $expectedLan -and $final.lanHost -eq $expectedHost) ('final reports match the actual listener: '+$mode)
         Check ($report.version -eq 'v1.0.1' -and $final.toVersion -eq 'v1.0.1' -and (Read-ReleaseJson (Join-Path $root 'deployment.json')).Version -eq 'v1.0.1') ('deployment, manifest and report versions agree: '+$mode)
         Check ($final.boardUrl -eq $report.boardUrl -and $final.boardUrl -eq (Read-ReleaseJson (Join-Path $root 'deployment.json')).PublicOrigin) ('reports display the final service origin: '+$mode)
+        if ($mode -in @('explicit-local','explicit-localhost')) {
+            Check ($report.lanRequestedHost -eq '127.0.0.1' -and $report.lanHost -eq '127.0.0.1' -and $report.boardUrl -eq 'https://localhost:13443' -and $report.lanFirewall -eq 'loopback') ('explicit local choice replaces the old LAN intent and origin: '+$mode)
+        }
         $output=Get-Content -Raw -Encoding UTF8 $log
         Check ($output.Contains((Join-Path $root 'payload\bin\u-workers.exe')) -and $output.Contains("--profile 'office''中文' daemon start")) ('success command quotes the exact installation and profile: '+$mode)
         if ($mode -eq 'pending-lan') {
@@ -175,7 +184,7 @@ $cfg.PublicOrigin=$PublicOrigin
     # Build an actual release ZIP with a Chinese top-level managed document.
     $document=([string][char]0x64CD+[char]0x4F5C+[char]0x5355+'-'+[char]0x53F0+[char]0x5F0F+[char]0x673A+'.md')
     Text (Join-Path $delta $document) 'Chinese filename round-trip'
-    $entry=Entry $delta $document; $entry | Add-Member NoteProperty action 'add'; $plan.write+= $entry
+    $entry=Entry $delta $document; $entry | Add-Member NoteProperty action 'add'; $entry | Add-Member NoteProperty old_sha256 $null; $plan.write+= $entry
     Write-ReleaseJson (Join-Path $delta 'UPGRADE-FILES.json') $plan
     $published=Join-Path $work 'prepared'
     Check ((Run-Script (Join-Path $portable 'publish-release.ps1') @('-PrepareOnly','-Version','v1.0.1','-UpgradeDirectory',$delta,'-OutputDirectory',$published) (Join-Path $work 'prepare.log') -Engine (Get-Command pwsh.exe).Source) -eq 0) 'real PS7-required PrepareOnly writer builds the Chinese-name release ZIP'
@@ -191,6 +200,31 @@ $cfg.PublicOrigin=$PublicOrigin
     $unicodeOutput=Join-Path $work 'unicode-extracted'; Expand-ReleaseArchive $unicodeZip $unicodeOutput
     Assert-ReleaseFile (Join-Path $unicodeOutput $document) (Entry $unicodeSource $document).sha256
     Check ($true) 'native engine ZIP writer and release extractor preserve Chinese names and hashes'
+
+    # Exercise the actual user entry and Fetch/Apply together, with only OSS and
+    # lifecycle operations replaced. Do not infer visible output from Apply alone.
+    $fakeOss=Join-Path $work 'fake-ossutil.exe'
+    & (Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe') /nologo /target:exe ('/out:'+$fakeOss) (Join-Path $PSScriptRoot 'fake-ossutil.cs') | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Fake OSS tool failed to compile' }
+    $store=Join-Path $work 'entry-store'
+    New-Item -ItemType Directory -Path (Join-Path $store 'releases/v1.0.1'),(Join-Path $store 'channels/stable') -Force | Out-Null
+    foreach ($name in @('upgrade.zip','release.json','UPGRADE.md')) { Copy-Item (Join-Path $published $name) (Join-Path $store ('releases/v1.0.1/'+$name)) }
+    Copy-Item (Join-Path $published 'latest.json') (Join-Path $store 'channels/stable/latest.json')
+    $entryRoot=Join-Path $work 'update-entry'; Copy-Item -LiteralPath $base -Destination $entryRoot -Recurse
+    $entryWrapper=Join-Path $work 'invoke-update.ps1'
+    Text $entryWrapper @'
+param($Update,$Root,$Tool,$Store,$Destination)
+$env:OSS_ACCESS_KEY_ID='FAKE_ONLY'; $env:OSS_ACCESS_KEY_SECRET='FAKE_ONLY'
+$env:OSS_REGION='cn-hangzhou'; $env:OSS_ENDPOINT='https://oss-cn-hangzhou.aliyuncs.com'; $env:UWORKERS_OSS_BUCKET='fake-release-bucket'
+$env:FAKE_STORE=$Store; $env:FAKE_FAIL_KEY=''; $env:FAKE_CORRUPT_KEY=''
+& $Update -Root $Root -Ossutil $Tool -DestinationDirectory $Destination -ConfirmUpgrade -NonInteractive
+'@
+    $entryLog=Join-Path $work 'update-entry.log'
+    Check ((Run-Script $entryWrapper @('-Update',(Join-Path $portable 'Update.ps1'),'-Root',$entryRoot,'-Tool',$fakeOss,'-Store',$store,'-Destination',(Join-Path $work 'entry-download')) $entryLog) -eq 0) 'actual Update entry completes Fetch and real Apply with isolated lifecycle doubles'
+    $entryOutput=Get-Content -Raw -Encoding UTF8 $entryLog
+    Check ($entryOutput.Contains('校验安装与差量文件：0/3') -and $entryOutput.Contains('校验安装与差量文件：3/3')) 'actual Update entry displays the complete preflight progress'
+    Check ($entryOutput.Contains((Join-Path $entryRoot 'payload\bin\u-workers.exe')) -and $entryOutput.Contains("--profile 'office''中文' daemon start")) 'actual Update success displays the exact installation and profile command'
+    Check ((Read-ReleaseJson (Join-Path $entryRoot 'data/install-report.json')).version -eq 'v1.0.1' -and (Read-ReleaseJson (Join-Path $entryRoot 'data/upgrade-report.json')).lanExposed -eq $true) 'actual Update entry publishes the final target version and original LAN scope'
 
     # 8,900 real keep files: the final hash must still be checked, with bounded output.
     $large=Join-Path $work 'large'; Copy-Item -LiteralPath $base -Destination $large -Recurse
