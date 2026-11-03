@@ -204,6 +204,15 @@ func normalizeServerVersion(v string) string {
 	return v
 }
 
+// normalizeServerCommit maps main.go's unstamped "unknown" commit default to
+// an empty string so /api/config omits server_commit for unstamped builds.
+func normalizeServerCommit(c string) string {
+	if c == "unknown" {
+		return ""
+	}
+	return c
+}
+
 // NewRouter creates the fully-configured Chi router with all middleware and routes.
 // rdb is optional: when non-nil the runtime local-skill request stores are
 // swapped for Redis-backed implementations so multiple API nodes share the
@@ -433,6 +442,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMMaxRetries:             opts.LLMMaxRetries,
 		LLMDisableThinking:        opts.LLMDisableThinking,
 		ServerVersion:             normalizeServerVersion(version),
+		ServerCommit:              normalizeServerCommit(commit),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
 	// One limiter instance serves both budgets of POST /auth/password: the
