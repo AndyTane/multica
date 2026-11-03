@@ -304,7 +304,7 @@ New-Item -ItemType Directory -Path (Join-Path $payload 'scripts') -Force | Out-N
 Copy-Item -LiteralPath (Join-Path $repoRoot 'scripts\native-windows.ps1') -Destination (Join-Path $payload 'scripts\native-windows.ps1') -Force
 
 Write-Step 'Copying the package scripts'
-foreach ($name in @('portable-common.ps1', 'install.ps1', 'start.ps1', 'stop.ps1', 'status.ps1', 'uninstall.ps1', 'upgrade.ps1', 'trust-browser.ps1')) {
+foreach ($name in @('portable-common.ps1', 'install.ps1', 'start.ps1', 'stop.ps1', 'status.ps1', 'uninstall.ps1', 'upgrade.ps1', 'trust-browser.ps1','Update.cmd','Update.ps1','Fetch-Upgrade.ps1','Apply-Upgrade.ps1','oss-release-common.ps1')) {
     Copy-Item -LiteralPath (Join-Path $portableRoot $name) -Destination (Join-Path $packageDir $name) -Force
 }
 Get-ChildItem -LiteralPath (Join-Path $portableRoot 'package') -File | ForEach-Object {

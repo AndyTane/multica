@@ -27,7 +27,9 @@ param(
     [switch]$NoBrowser,
     [switch]$NoStartup,
     [switch]$NoLanAccess,
-    [switch]$Force
+    [switch]$Force,
+    # Apply uses a checkpoint report until its final listener passes validation.
+    [string]$ReportPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,6 +51,7 @@ function Copy-PortableOverlay {
         if ($copy.ExitCode -ge 8) { throw ('Copying ' + $relative + ' from the new package failed (robocopy exit ' + $copy.ExitCode + ').') }
     }
     $files = @('manifest.json', 'install.ps1', 'start.ps1', 'stop.ps1', 'status.ps1', 'uninstall.ps1', 'upgrade.ps1', 'trust-browser.ps1', 'portable-common.ps1', 'build-installer.ps1', 'Setup.cmd', 'Start.cmd', 'Stop.cmd', 'Status.cmd', 'Uninstall.cmd', 'Upgrade.cmd', 'Trust-Browser.cmd', 'README.txt')
+    $files += @('Update.cmd', 'Update.ps1', 'Fetch-Upgrade.ps1', 'Apply-Upgrade.ps1', 'oss-release-common.ps1')
     foreach ($relative in $files) {
         $from = Join-Path $SourceRoot $relative
         if (-not (Test-Path -LiteralPath $from)) { continue }
@@ -187,7 +190,18 @@ if (-not $SkipBrowserTrust) {
     }
 }
 
-try { Update-PortableLanReport -Root $root -Plan $lanPlan | Out-Null } catch { }
+if (-not $ReportPath) {
+    Update-PortableLanReport -Root $root -Plan $lanPlan | Out-Null
+    $installReportPath = Join-Path $root 'data\install-report.json'
+    $installReport = Read-PortableJson $installReportPath
+    if ($installReport) {
+        foreach ($entry in ([ordered]@{version=$newVersion;boardUrl=$serverUrl;httpsPort=$httpsPort;profile=$Profile}).GetEnumerator()) {
+            $installReport | Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value -Force
+        }
+        Write-PortableJson $installReportPath $installReport
+    }
+    $ReportPath = Join-Path $root 'data\upgrade-report.json'
+}
 $report = [ordered]@{
     upgradedAt = (Get-Date).ToUniversalTime().ToString('o')
     fromVersion = $installedVersion
@@ -201,15 +215,15 @@ $report = [ordered]@{
     dataBefore = $before
     dataAfter = $after
 }
-$reportPath = Join-Path $root 'data\upgrade-report.json'
-Write-PortableJson $reportPath $report
+Write-PortableJson $ReportPath $report
 
 Write-Host ''
 Write-Host ('U Workers upgraded to ' + $newVersion + '.') -ForegroundColor Green
 Write-Host ('  Board:  https://localhost:' + $httpsPort + '/')
 if ($lanPlan.Exposed) { Write-Host ('  LAN:    ' + $serverUrl + '/') } else { Write-Host ('  LAN:    off - ' + [string]$lanPlan.Message) }
 Write-Host ('  Backup: ' + $backupDirectory.FullName)
-Write-Host ('  Report: ' + $reportPath)
+Write-Host ('  Report: ' + $ReportPath)
+if ($SkipDaemon) { Write-Host (Get-PortableDaemonStartCommand -Root $root -Profile $Profile) }
 if (-not $NoBrowser) {
     try { Start-Process -FilePath ($serverUrl + '/') | Out-Null } catch { }
 }

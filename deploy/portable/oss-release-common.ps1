@@ -1,9 +1,12 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Shared release contracts. This module never reads deployment secrets or .env.
 $script:ReleaseMaxObjectBytes = 5GB
 $script:ReleaseCheckedDirectories = @{}
-$script:ClientKitFiles = @('Connect.cmd','Reconnect.cmd','Status.cmd','Stop.cmd','client.ps1','connection.json','README.md','u-workers.exe','multica.exe')
+$script:LegacyClientKitFiles = @('Connect.cmd','Reconnect.cmd','Status.cmd','Stop.cmd','client.ps1','connection.json','README.md','u-workers.exe','multica.exe')
+$script:ClientKitFiles = $script:LegacyClientKitFiles + @('Import.cmd','client-settings.ps1')
+$script:UpdateToolFiles = @('Update.cmd','Update.ps1','Fetch-Upgrade.ps1','Apply-Upgrade.ps1','oss-release-common.ps1')
 $script:ReleaseProgramFiles = @('manifest.json','README.txt','Setup.cmd','Start.cmd','Stop.cmd','Status.cmd','Upgrade.cmd','Uninstall.cmd','Trust-Browser.cmd','Find-OldDeployment.cmd','Build-Installer.cmd','install.ps1','start.ps1','stop.ps1','status.ps1','upgrade.ps1','uninstall.ps1','trust-browser.ps1','portable-common.ps1','find-old-deployment.ps1','build-installer.ps1',([string][char]0x64CD+[char]0x4F5C+[char]0x5355+'-'+[char]0x53F0+[char]0x5F0F+[char]0x673A+'.md'))
+$script:ReleaseProgramFiles += $script:UpdateToolFiles
 
 function Assert-ReleaseVersion([string]$Version) {
     if ($Version -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?$') { throw 'Invalid release version; expected v1.2.3.' }
@@ -53,6 +56,17 @@ function Read-ReleaseJson([string]$Path) {
     if ((Get-Item -LiteralPath $Path).Length -gt 8MB) { throw 'Release metadata exceeds the size limit.' }
     try { return (Get-Content -Raw -LiteralPath $Path -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop) } catch { throw 'Invalid release JSON.' }
 }
+function Assert-ReleaseDaemonStopped($Status) {
+    if ($Status.Running) { throw '该安装的守护进程正在运行。请等任务空闲，用原安装 Stop.cmd 停止后重试。' }
+    $detail = if ($Status -is [Collections.IDictionary]) { $Status['Detail'] } elseif ($Status.PSObject.Properties['Detail']) { $Status.Detail } else { $null }
+    $state = $null; $conflict = $null
+    if ($detail -is [Collections.IDictionary]) { $state = $detail['status']; $conflict = $detail['port_conflict'] }
+    elseif ($detail) {
+        if ($detail.PSObject.Properties['status']) { $state = $detail.status }
+        if ($detail.PSObject.Properties['port_conflict']) { $conflict = $detail.port_conflict }
+    }
+    if ($state -ne 'stopped' -or $conflict) { throw '无法确认该安装的守护进程已停止。请检查原安装 Status.cmd 后重试。' }
+}
 function Write-ReleaseJson([string]$Path, $Value) {
     [IO.File]::WriteAllText($Path,($Value | ConvertTo-Json -Depth 12),(New-Object Text.UTF8Encoding($false)))
 }
@@ -87,6 +101,9 @@ function Assert-UpgradePlan($Plan) {
     if (-not (@($Plan.write)+@($Plan.keep) | Where-Object { $_.path -eq 'manifest.json' })) { throw 'Upgrade plan is missing the target manifest.' }
 }
 function Get-ReleasePlan([string]$Directory) {
+    if ([string]::IsNullOrWhiteSpace($Directory)) { throw 'UpgradeDirectory 不能为空或空白，请指定解压后的差量包目录。' }
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) { throw 'UpgradeDirectory 目录不存在，请指定解压后的差量包目录。' }
+    if (-not (Test-Path -LiteralPath (Join-Path $Directory 'UPGRADE-FILES.json') -PathType Leaf)) { throw 'UpgradeDirectory 缺少 UPGRADE-FILES.json，请选择解压后的差量包目录。' }
     $plan = Read-ReleaseJson (Resolve-ReleasePath $Directory 'UPGRADE-FILES.json')
     Assert-UpgradePlan $plan
     return $plan
@@ -101,8 +118,25 @@ function Get-ReleaseFiles([string]$Directory) {
         }
     }
 }
+function New-ReleaseProgress([long]$Total, [string]$Label) {
+    Write-Host ($Label+'：0/'+$Total)
+    return [pscustomobject]@{Total=$Total;Count=0L;Label=$Label;Timer=[Diagnostics.Stopwatch]::StartNew();Last=0L;Finished=$false}
+}
+function Step-ReleaseProgress($Progress) {
+    $Progress.Count++
+    $elapsed=$Progress.Timer.ElapsedMilliseconds
+    if (-not $Progress.Finished -and ($Progress.Count -ge $Progress.Total -or $elapsed-$Progress.Last -ge 1000)) {
+        Write-Host ($Progress.Label+'：'+$Progress.Count+'/'+$Progress.Total)
+        $Progress.Last=$elapsed
+        $Progress.Finished=$Progress.Count -ge $Progress.Total
+    }
+}
 function Assert-ReleaseDirectory($Directory, $Plan) {
-    foreach ($entry in $Plan.write) { Assert-ReleaseFile (Resolve-ReleasePath $Directory $entry.path) $entry.sha256 ([long]$entry.bytes) }
+    $progress=New-ReleaseProgress @($Plan.write).Count '校验升级包文件'
+    foreach ($entry in $Plan.write) {
+        Assert-ReleaseFile (Resolve-ReleasePath $Directory $entry.path) $entry.sha256 ([long]$entry.bytes)
+        Step-ReleaseProgress $progress
+    }
     $manifest = Read-ReleaseJson (Resolve-ReleasePath $Directory 'manifest.json')
     if ($manifest.version -ne $Plan.to -or -not ([string]$Plan.commit).StartsWith([string]$manifest.commit) -or ([string]$manifest.commit).Length -lt 9) { throw 'Target manifest and upgrade plan disagree.' }
 }
@@ -184,15 +218,16 @@ function Assert-ReleaseManifest($Release, [string]$Version) {
 }
 function Assert-ClientKitDirectory([string]$Directory,[string]$Version,[string]$Commit) {
     $inventory=Read-ReleaseJson (Resolve-ReleasePath $Directory 'CLIENT-FILES.json')
-    if ($inventory.schemaVersion -ne 1 -or $inventory.version -cne $Version -or $inventory.commit -cne $Commit -or $inventory.platform -cne 'windows-amd64' -or $Commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Client kit source identity mismatch.' }
+    if ($inventory.schemaVersion -notin @(1,2) -or $inventory.version -cne $Version -or $inventory.commit -cne $Commit -or $inventory.platform -cne 'windows-amd64' -or $Commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Client kit source identity mismatch.' }
+    $required = if ($inventory.schemaVersion -eq 1) { $script:LegacyClientKitFiles } else { $script:ClientKitFiles }
     $allowed=@{'CLIENT-FILES.json'=$true}
     foreach ($entry in @($inventory.files)) {
         $path=[string]$entry.path
-        if ($path -cnotin $script:ClientKitFiles -or $allowed.ContainsKey($path) -or $null -eq $entry.bytes -or $entry.bytes -is [string] -or [long]$entry.bytes -lt 0) { throw 'Invalid client inventory entry.' }
+        if ($path -cnotin $required -or $allowed.ContainsKey($path) -or $null -eq $entry.bytes -or $entry.bytes -is [string] -or [long]$entry.bytes -lt 0) { throw 'Invalid client inventory entry.' }
         $allowed[$path]=$true
         Assert-ReleaseFile (Resolve-ReleasePath $Directory $path) $entry.sha256 ([long]$entry.bytes)
     }
-    foreach ($name in $script:ClientKitFiles) { if (-not $allowed.ContainsKey($name)) { throw ('Missing client kit file: '+$name) } }
+    foreach ($name in $required) { if (-not $allowed.ContainsKey($name)) { throw ('Missing client kit file: '+$name) } }
     $cliHash=(Get-FileHash -LiteralPath (Join-Path $Directory 'u-workers.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
     Assert-ReleaseFile (Join-Path $Directory 'multica.exe') $cliHash
     foreach ($file in Get-ReleaseFiles $Directory) {
@@ -209,7 +244,7 @@ function Assert-FullReleaseDirectory([string]$Directory, [string]$Version, [stri
     foreach ($entry in @($inventory.files)) {
         $path = [string]$entry.path
         Assert-ReleaseRelativePath $path
-        if ($path -notin @('UPGRADE.md','download-tools/Fetch-Upgrade.ps1','download-tools/Apply-Upgrade.ps1','download-tools/oss-release-common.ps1','download-tools/ossutil.exe')) { Assert-ReleaseProgramPath $path }
+        if ($path -notin @('UPGRADE.md','download-tools/Fetch-Upgrade.ps1','download-tools/Apply-Upgrade.ps1','download-tools/oss-release-common.ps1','download-tools/ossutil.exe','download-tools/Update.cmd','download-tools/Update.ps1')) { Assert-ReleaseProgramPath $path }
         if ($allowed.ContainsKey($path) -or $null -eq $entry.bytes -or $entry.bytes -is [string] -or [long]$entry.bytes -lt 0) { throw 'Invalid full inventory entry.' }
         $allowed[$path] = $true
         Assert-ReleaseFile (Resolve-ReleasePath $Directory $path) $entry.sha256 ([long]$entry.bytes)

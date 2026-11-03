@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 [CmdletBinding()]
 param([string]$EvidencePath = '')
 $ErrorActionPreference = 'Stop'
@@ -161,13 +161,18 @@ try {
     Check ($LASTEXITCODE -eq 0) 'generic delta builder accepts an explicit package baseline'
     $builtPlan = Get-ReleasePlan (Join-Path $work 'built-delta')
     Check ($builtPlan.write.Count -eq 2 -and $builtPlan.keep.Count -eq 1 -and $builtPlan.delete.Count -eq 1) 'generic delta builder produces write/keep/delete inventories'
+    foreach ($name in $script:UpdateToolFiles) { Copy-Item -LiteralPath (Join-Path $portable $name) -Destination (Join-Path $targetPackage $name) }
+    & $pwsh -NoProfile -File $builder -PackageDirectory $targetPackage -BaselineDirectory $baselinePackage -OutputDirectory (Join-Path $work 'delta-with-update') -Commit $plan.commit | Out-Null
+    Check ($LASTEXITCODE -eq 0) 'delta builder includes new server update tools'
+    $entryPlan=Get-ReleasePlan (Join-Path $work 'delta-with-update')
+    Check (@($entryPlan.write | Where-Object { $_.path -in $script:UpdateToolFiles }).Count -eq 5) 'delta inventories all five new update tools with hashes'
     # Dedicated fake installation tests the changed lifecycle without real services.
     Text (Join-Path $root 'payload/source/retired.txt') 'old-source-artifact'
     $plan.delete += Entry $root 'payload/source/retired.txt'
     Write-ReleaseJson (Join-Path $delta 'UPGRADE-FILES.json') $plan
     Text (Join-Path $root 'portable-common.ps1') @'
-function Get-PortableDaemonStatus { param($Root,$Profile) return @{Running=($env:FAKE_DAEMON_BUSY -eq '1')} }
-function Invoke-PortableNativeAction { param($Root,$Action) Add-Content (Join-Path $Root 'trace.txt') $Action; if ($Action -eq 'Backup') { $b=Join-Path $Root 'backups/native-fixture'; New-Item -ItemType Directory $b -Force | Out-Null; Set-Content (Join-Path $b 'database.dump') 'fake-database' } }
+function Get-PortableDaemonStatus { param($Root,$Profile) return @{Running=($env:FAKE_DAEMON_BUSY -eq '1');Detail=@{status=$(if ($env:FAKE_DAEMON_UNKNOWN -eq '1') {'unknown'} else {'stopped'});port_conflict=$false}} }
+function Invoke-PortableNativeAction { param($Root,$Action) Add-Content (Join-Path $Root 'trace.txt') $Action; if ($Action -eq 'Backup') { if ($env:FAKE_BACKUP_FAIL -eq '1') { throw 'fake backup failure' }; $b=Join-Path $Root 'backups/native-fixture'; New-Item -ItemType Directory $b -Force | Out-Null; Set-Content (Join-Path $b 'database.dump') 'fake-database' } }
 function Stop-PortableCaddy { param($Root) Add-Content (Join-Path $Root 'trace.txt') 'StopCaddy' }
 function Start-PortableCaddy { param($Root,$PublicHost,$HttpsPort,$ApiPort,$WebPort,$LanExposed) Add-Content (Join-Path $Root 'trace.txt') 'StartCaddy' }
 function Get-NetTCPConnection { param($LocalPort,$State,$ErrorAction) return [pscustomobject]@{OwningProcess=$PID} }
@@ -177,17 +182,80 @@ function Get-PortableCaddyfilePath { param($Root) return (Join-Path $Root 'Caddy
 function Get-PortableProcessRecord { param($ProcessId,$ExpectedPath) return @{Pid=$ProcessId} }
 function Test-PortableProcessRecord { param($Record) return $true }
 function Write-PortableJson { param($Path,$Value) New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null; [IO.File]::WriteAllText($Path,($Value|ConvertTo-Json)) }
+function Get-PortablePublicRootCAPath { param($Root) return (Join-Path $Root 'public-ca.crt') }
+function Wait-PortableHttp { param($Uri,$RootCAPath,$TimeoutSec,$Description) Add-Content (Join-Path $rootPath 'trace.txt') ('Ready '+$Uri) }
+function Test-PortableLoopbackHost { param($Value) return $Value -in @('localhost','127.0.0.1','::1') }
+function Get-PortableDaemonStartCommand { param($Root,$Profile) return ('fixture daemon start '+$Profile) }
 '@
     Text (Join-Path $root 'runtime/native-windows.ps1') @'
 param($Action,$Root,$PublicOrigin,$CorsOrigins)
 Add-Content (Join-Path $Root 'trace.txt') $Action
 '@
     Text (Join-Path $root 'upgrade.ps1') @'
-param($Profile,[switch]$NoLanAccess,[switch]$SkipDaemon,[switch]$SkipBrowserTrust,[switch]$NoStartup,[switch]$NoBrowser)
+param($Profile,[switch]$NoLanAccess,[switch]$SkipDaemon,[switch]$SkipBrowserTrust,[switch]$NoStartup,[switch]$NoBrowser,$ReportPath)
 if (-not ($NoLanAccess -and $SkipDaemon -and $SkipBrowserTrust -and $NoStartup -and $NoBrowser)) { exit 15 }
 if ($env:FAKE_UPGRADE_FAIL -eq '1') { exit 16 }
 $path = Join-Path $PSScriptRoot 'deployment.json'; $cfg = Get-Content -Raw $path | ConvertFrom-Json; $cfg.Version = 'v1.0.1'; [IO.File]::WriteAllText($path,($cfg|ConvertTo-Json))
+$installPath=Join-Path $PSScriptRoot 'data/install-report.json'
+if (-not $ReportPath -and (Test-Path $installPath)) { $r=Get-Content -Raw $installPath | ConvertFrom-Json; $r | Add-Member NoteProperty lanExposed $false -Force; [IO.File]::WriteAllText($installPath,($r|ConvertTo-Json)) }
+[IO.File]::WriteAllText($ReportPath,(@{fromVersion='v1.0.0';toVersion='v1.0.1'}|ConvertTo-Json))
 '@
+    Text (Join-Path $root 'deployment.json') '{"Version":"v1.0.0","ApiPort":18080,"WebPort":13000,"PublicOrigin":"https://localhost:13443"}'
+    Text (Join-Path $root 'data/install-report.json') '{"profile":"fixture","boardUrl":"https://localhost:13443","lanExposed":false}'
+    $update = Join-Path $portable 'Update.ps1'
+    $originalConfig = (Get-FileHash (Join-Path $root 'deployment.json')).Hash
+    $originalReport = (Get-FileHash (Join-Path $root 'data/install-report.json')).Hash
+    & $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-check') -CheckOnly
+    Check (-not (Test-Path (Join-Path $root 'trace.txt'))) 'Update reads original config and preflights without lifecycle writes'
+    $global:UpdateTestAnswers = New-Object 'System.Collections.Generic.Queue[string]'
+    function Read-Host([string]$Prompt) { if ($global:UpdateTestAnswers.Count -eq 0) { throw ('Unexpected prompt: '+$Prompt) }; return $global:UpdateTestAnswers.Dequeue() }
+    $global:UpdateTestAnswers.Enqueue('N')
+    & $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-cancel') -Interactive
+    Check ($global:UpdateTestAnswers.Count -eq 0 -and -not (Test-Path (Join-Path $root 'trace.txt'))) 'Update cancellation never stops services or writes installation'
+    Must-Fail { & $update -NonInteractive } 'noninteractive Update rejects missing installation without prompting'
+    Must-Fail { & $update -Root $root -Ossutil $fake -PublicOrigin https://other.invalid -CheckOnly } 'Update rejects conflicting service address'
+    Must-Fail { & $update -Root $root -Ossutil $fake -Profile other -CheckOnly } 'Update rejects conflicting profile'
+    Must-Fail { & $update -Root $root -Ossutil $fake -LanAccess -CheckOnly } 'Update rejects changed listener scope'
+    $missingRoot = Join-Path $work 'missing-config'; Copy-Item -LiteralPath $root -Destination $missingRoot -Recurse
+    Text (Join-Path $missingRoot 'data/install-report.json') '{}'
+    Must-Fail { & $update -Root $missingRoot -Ossutil $fake -CheckOnly } 'Update missing profile produces explicit error without prompting'
+    Text (Join-Path $root 'deployment.json') '{"Version":"v1.0.1","PublicOrigin":"https://localhost:13443"}'
+    $sameLog = (& $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-same') -CheckOnly 6>&1 | Out-String)
+    Check ($sameLog.Contains('已是该版本') -and -not (Test-Path (Join-Path $root 'trace.txt'))) 'same version reports no work without lifecycle'
+    Text (Join-Path $root 'deployment.json') '{"Version":"v0.9.0","PublicOrigin":"https://localhost:13443"}'
+    Must-Fail { & $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-wrong-start') -ConfirmUpgrade } 'Update rejects skipping the delta chain'
+    Text (Join-Path $root 'deployment.json') '{"Version":"v2.0.0","PublicOrigin":"https://localhost:13443"}'
+    Must-Fail { & $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-downgrade') -ConfirmUpgrade } 'Update rejects downgrade'
+    Text (Join-Path $root 'deployment.json') '{"Version":"v1.0.0","ApiPort":18080,"WebPort":13000,"PublicOrigin":"https://localhost:13443"}'
+    $env:FAKE_CORRUPT_KEY='releases/v1.0.1/upgrade.zip'
+    Must-Fail { & $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-hash') -ConfirmUpgrade } 'Update rejects bad hash before lifecycle'
+    $env:FAKE_CORRUPT_KEY=''; $env:FAKE_FAIL_KEY='releases/v1.0.1/upgrade.zip'
+    Must-Fail { & $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-interrupted') -ConfirmUpgrade } 'Update interrupted download is non-success'
+    $env:FAKE_FAIL_KEY=''; $env:FAKE_DAEMON_BUSY='1'
+    Must-Fail { & $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-busy') -ConfirmUpgrade } 'Update busy daemon prevents service changes'
+    $env:FAKE_DAEMON_BUSY=''; $env:FAKE_DAEMON_UNKNOWN='1'
+    Must-Fail { & $update -Root $root -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-unknown') -ConfirmUpgrade } 'Update unknown daemon status never authorizes upgrade'
+    $env:FAKE_DAEMON_UNKNOWN=''
+    Check ((Get-FileHash (Join-Path $root 'deployment.json')).Hash -eq $originalConfig -and (Get-FileHash (Join-Path $root 'data/install-report.json')).Hash -eq $originalReport -and -not (Test-Path (Join-Path $root 'trace.txt'))) 'all rejected Update operations preserve original installation and config'
+    $backupFailRoot=Join-Path $work 'backup-failure'; Copy-Item -LiteralPath $root -Destination $backupFailRoot -Recurse
+    $env:FAKE_BACKUP_FAIL='1'
+    Must-Fail { & $update -Root $backupFailRoot -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-backup-failure') -ConfirmUpgrade } 'Update backup failure propagates'
+    Check ((Get-FileHash (Join-Path $backupFailRoot 'payload/release/server.exe')).Hash -eq $before) 'backup failure leaves installed program unchanged'
+    $env:FAKE_BACKUP_FAIL=''
+    $entryFailRoot=Join-Path $work 'entry-failure'; Copy-Item -LiteralPath $root -Destination $entryFailRoot -Recurse
+    $env:FAKE_UPGRADE_FAIL='1'; $entryLog=''
+    try { & $update -Root $entryFailRoot -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-entry-failure') -ConfirmUpgrade 6>&1 | ForEach-Object { $entryLog += [string]$_+"`n" } } catch { $entryLog += $_.Exception.Message }
+    Check ($entryLog.Contains('保留备份') -and $entryLog.Contains('UPGRADE.md') -and -not $entryLog.Contains('服务已就绪')) 'Update failure displays backup and recovery instructions without claiming success'
+    Check (@(Get-ChildItem (Join-Path $entryFailRoot 'backups') -Filter files.json -Recurse).Count -eq 1) 'Update failure retains real Apply file journal'
+    $env:FAKE_UPGRADE_FAIL=''
+    $entrySuccessRoot=Join-Path $work ('升级 with spaces '+[char]0x4E2D); Copy-Item -LiteralPath $root -Destination $entrySuccessRoot -Recurse
+    Text (Join-Path $entrySuccessRoot 'deployment.json') '{"Version":"v1.0.0","ApiPort":18080,"WebPort":13000,"PublicOrigin":"https://server.invalid:13443"}'
+    Text (Join-Path $entrySuccessRoot 'data/install-report.json') '{"profile":"fixture","boardUrl":"https://server.invalid:13443","lanExposed":true}'
+    & $update -Root $entrySuccessRoot -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-entry-success') -ConfirmUpgrade
+    Check ((Read-ReleaseJson (Join-Path $entrySuccessRoot 'deployment.json')).Version -eq 'v1.0.1') 'Update applies through real engine in Unicode and space path'
+    Check ((Get-Content (Join-Path $entrySuccessRoot 'trace.txt')) -contains 'Ready https://server.invalid:13443/readyz') 'Apply checks readiness after restoring original listener'
+    Check ((Read-ReleaseJson (Join-Path $entrySuccessRoot 'data/install-report.json')).profile -eq 'fixture' -and (Read-ReleaseJson (Join-Path $entrySuccessRoot 'data/install-report.json')).lanExposed) 'Update restores original LAN listener metadata after loopback upgrade'
+    Remove-Item Function:Read-Host
     $env:FAKE_DAEMON_BUSY = '1'
     Must-Fail { & (Join-Path $portable 'Apply-Upgrade.ps1') -UpgradeDirectory $delta -Root $root -Profile fixture -PublicOrigin https://localhost:13443 } 'busy daemon refuses before lifecycle'
     Check (-not (Test-Path (Join-Path $root 'trace.txt'))) 'busy daemon does not stop any service'

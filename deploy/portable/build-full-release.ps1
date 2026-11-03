@@ -37,7 +37,7 @@ $instructions = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '../../docs/wind
 [IO.File]::WriteAllText((Join-Path $stage 'UPGRADE.md'),$instructions,(New-Object Text.UTF8Encoding($false)))
 $bootstrap = Join-Path $stage 'download-tools'
 New-Item -ItemType Directory -Path $bootstrap | Out-Null
-foreach ($name in @('Fetch-Upgrade.ps1','Apply-Upgrade.ps1','oss-release-common.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bootstrap $name) }
+foreach ($name in $script:UpdateToolFiles) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $bootstrap $name) }
 Copy-Item -LiteralPath (Get-Command $Ossutil -ErrorAction Stop).Source -Destination (Join-Path $bootstrap 'ossutil.exe')
 $files = @(foreach ($file in Get-ReleaseFiles $stage) {
     @{path=$file.FullName.Substring($stage.Length+1).Replace('\','/');bytes=$file.Length;sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}

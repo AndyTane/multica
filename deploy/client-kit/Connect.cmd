@@ -1,6 +1,6 @@
 @echo off
 setlocal
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0client.ps1" -Action Connect
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0client.ps1" -Action Connect -Interactive %*
 set "result=%ERRORLEVEL%"
-pause
+if not defined UWORKERS_NO_PAUSE pause
 exit /b %result%

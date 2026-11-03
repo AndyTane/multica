@@ -4,7 +4,7 @@ $ErrorActionPreference='Stop'
 $template=Split-Path -Parent $PSScriptRoot
 $work=Join-Path ([IO.Path]::GetTempPath()) ('client kit '+[char]0x4E2D+[char]0x6587+' '+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
-foreach ($name in @('client.ps1','connection.json')) { Copy-Item (Join-Path $template $name) (Join-Path $work $name) }
+foreach ($name in @('client.ps1','client-settings.ps1','connection.json')) { Copy-Item (Join-Path $template $name) (Join-Path $work $name) }
 & "$env:WINDIR/Microsoft.NET/Framework64/v4.0.30319/csc.exe" /nologo /target:exe ('/out:'+(Join-Path $work 'u-workers.exe')) (Join-Path $PSScriptRoot 'fake-client.cs') | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Fake compile failed.' }
 $checks=New-Object 'System.Collections.Generic.List[string]'
