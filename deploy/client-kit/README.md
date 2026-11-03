@@ -1,6 +1,6 @@
 # UWorkers-Client-Kit
 
-用于把另一台 Windows 电脑的智能体接入已有的 U Workers 服务端。完整解压后使用，无需 Node、Go 或管理员权限；所选智能体 CLI 需要另外安装并登录。
+用于把另一台 Windows 电脑的智能体接入已有的 U Workers 服务端。完整解压后使用，无需 Node、Go 或管理员权限；所选智能体 CLI 需要另外安装并登录。包内 `u-workers.exe` 和 `multica.exe` 为同一程序，保留旧命令名供内置技能使用；两个文件都应保留。
 
 ## 机器重启后
 

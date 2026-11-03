@@ -1,5 +1,5 @@
 {
-  "transport": "local fake; no cloud or service access",
+  "passed": 46,
   "checks": [
     "full package prepares and verifies compressed contents",
     "private root files excluded",
@@ -36,6 +36,8 @@
     "full publish records all objects including client kit and source mode",
     "client kit recorded in release manifest",
     "standalone client download verifies complete inventory",
+    "legacy CLI alias shipped as identical executable for built-in skills",
+    "missing legacy CLI alias rejected",
     "corrupt client ZIP rejected",
     "cross-version client object rejected",
     "delta source publish includes client kit",
@@ -46,6 +48,6 @@
     "client program tampering rejected",
     "client mode rejects server lifecycle switches"
   ],
-  "passed": 44,
-  "powershell": "7.6.9"
+  "powershell": "7.6.9",
+  "transport": "local fake; no cloud or service access"
 }

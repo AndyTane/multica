@@ -37,6 +37,8 @@
                    "full publish records all objects including client kit and source mode",
                    "client kit recorded in release manifest",
                    "standalone client download verifies complete inventory",
+                   "legacy CLI alias shipped as identical executable for built-in skills",
+                   "missing legacy CLI alias rejected",
                    "corrupt client ZIP rejected",
                    "cross-version client object rejected",
                    "delta source publish includes client kit",
@@ -47,5 +49,5 @@
                    "client program tampering rejected",
                    "client mode rejects server lifecycle switches"
                ],
-    "passed":  44
+    "passed":  46
 }
