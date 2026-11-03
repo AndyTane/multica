@@ -162,15 +162,21 @@ function Resolve-NativeBuildCommit {
     return 'unknown'
 }
 
+function Get-NativeWindowsTarPath {
+    # Never select Git's GNU tar from PATH: drive-letter paths mean remote hosts.
+    $path = Join-Path $env:SystemRoot 'System32\tar.exe'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw ('Windows archive tool is missing: ' + $path + '. Repair the Windows tar component before retrying; no replacement tool is downloaded.') }
+    return $path
+}
+
 function Expand-NativePostgresArchive {
     param([string]$RuntimeDirectory, [string]$Archive, [string]$Sha256)
     if (-not $Archive -or -not (Test-Path -LiteralPath $Archive)) { throw 'A PostgreSQL Windows binaries archive is required for a clean deployment; download it from the EDB binary archive page.' }
     if (-not $Sha256) { throw 'A SHA-256 checksum is required to verify the PostgreSQL archive.' }
     $hash = Get-NativeFileHash $Archive
     if ($hash -ne $Sha256.Trim().ToUpperInvariant()) { throw 'The PostgreSQL archive does not match the provided SHA-256 checksum.' }
+    $tar = Get-NativeWindowsTarPath
     New-Item -ItemType Directory -Path $RuntimeDirectory -Force | Out-Null
-    $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
-    if (-not (Test-Path -LiteralPath $tar)) { $tar = 'tar.exe' }
     & $tar -xf $Archive -C $RuntimeDirectory
     if ($LASTEXITCODE -ne 0) { throw "PostgreSQL archive extraction failed (exit $LASTEXITCODE)." }
     if (-not (Test-Path -LiteralPath (Join-Path $RuntimeDirectory 'pgsql\bin\psql.exe'))) { throw 'The PostgreSQL archive did not contain pgsql\bin\psql.exe.' }
@@ -562,6 +568,7 @@ function Stage-NativeDeployment {
 
 function Backup-DockerDeployment {
     param($Config)
+    $tar = Get-NativeWindowsTarPath
     $name = Get-Date -Format 'yyyyMMdd-HHmmss'
     $destination = Join-Path $Config.Root ('backups\' + $name)
     New-Item -ItemType Directory -Path $destination | Out-Null
@@ -571,7 +578,7 @@ function Backup-DockerDeployment {
     $uploadSnapshot = Join-Path $destination 'uploads'
     New-Item -ItemType Directory -Path $uploadSnapshot | Out-Null
     Invoke-NativeCommand 'docker.exe' @('cp', 'multica-backend-1:/app/data/uploads/.', $uploadSnapshot)
-    Invoke-NativeCommand 'tar.exe' @('-czf', (Join-Path $destination 'uploads.tar.gz'), '-C', $uploadSnapshot, '.')
+    Invoke-NativeCommand $tar @('-czf', (Join-Path $destination 'uploads.tar.gz'), '-C', $uploadSnapshot, '.')
     Copy-Item -LiteralPath (Join-Path $Config.Root 'deployment.json') -Destination (Join-Path $destination 'deployment.json')
     Invoke-NativeCommand 'docker.exe' @('exec', 'multica-postgres-1', 'rm', '-f', $remoteDump)
     $hashEntries = @()
@@ -582,6 +589,7 @@ function Backup-DockerDeployment {
 
 function Backup-NativeDeployment {
     param($Config)
+    $tar = Get-NativeWindowsTarPath
     $destination = Join-Path $Config.Root ('backups\native-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     New-Item -ItemType Directory -Path $destination | Out-Null
     $savedPassword = $env:PGPASSWORD
@@ -589,7 +597,7 @@ function Backup-NativeDeployment {
         $env:PGPASSWORD = $Config.DatabasePassword
         Invoke-NativeCommand (Join-Path (Get-PostgresBin $Config.Root) 'pg_dump.exe') @('-h', '127.0.0.1', '-p', [string]$Config.DatabasePort, '-U', $Config.DatabaseUser, '-d', $Config.Database, '-Fc', '--no-owner', '--no-acl', '--no-password', '-f', (Join-Path $destination 'database.dump'))
     } finally { $env:PGPASSWORD = $savedPassword }
-    Invoke-NativeCommand 'tar.exe' @('-czf', (Join-Path $destination 'uploads.tar.gz'), '-C', (Join-Path $Config.Root 'uploads'), '.')
+    Invoke-NativeCommand $tar @('-czf', (Join-Path $destination 'uploads.tar.gz'), '-C', (Join-Path $Config.Root 'uploads'), '.')
     Copy-Item -LiteralPath (Join-Path $Config.Root 'deployment.json') -Destination (Join-Path $destination 'deployment.json')
     $hashEntries = @()
     Get-ChildItem -LiteralPath $destination -File | ForEach-Object { $hashEntries += [pscustomobject]@{ File = $_.Name; Hash = (Get-NativeFileHash $_.FullName) } }
@@ -609,6 +617,7 @@ function Restore-NativeDeployment {
         if ($entry.File -notin @('database.dump', 'uploads.tar.gz', 'deployment.json')) { throw 'Unexpected file in backup checksum manifest.' }
         if ((Get-NativeFileHash (Join-Path $Source $entry.File)) -ne $entry.Hash) { throw "Backup checksum mismatch: $($entry.File)." }
     }
+    $tar = Get-NativeWindowsTarPath
     Start-NativePostgres $Config
     $existing = @(Invoke-NativeSql $Config ("SELECT datname FROM pg_database WHERE datname='$Name';"))
     if ($existing.Count -gt 0 -and [string]$existing[-1]) { throw 'Restore refuses to overwrite an existing database.' }
@@ -619,7 +628,7 @@ function Restore-NativeDeployment {
         Invoke-NativeCommand (Join-Path (Get-PostgresBin $Config.Root) 'pg_restore.exe') @('-h', '127.0.0.1', '-p', [string]$Config.DatabasePort, '-U', $Config.DatabaseUser, '-d', $Name, '--no-owner', '--no-acl', '--exit-on-error', (Join-Path $Source 'database.dump'))
     } finally { $env:PGPASSWORD = $savedPassword }
     Invoke-NativeSql $Config 'ANALYZE;' $Name | Out-Null
-    Invoke-NativeCommand 'tar.exe' @('-xzf', (Join-Path $Source 'uploads.tar.gz'), '-C', (Join-Path $Config.Root 'uploads'))
+    Invoke-NativeCommand $tar @('-xzf', (Join-Path $Source 'uploads.tar.gz'), '-C', (Join-Path $Config.Root 'uploads'))
     Write-Host "Database restored and analyzed: $Name."
 }
 

@@ -101,6 +101,9 @@ function Assert-UpgradePlan($Plan) {
     if (-not (@($Plan.write)+@($Plan.keep) | Where-Object { $_.path -eq 'manifest.json' })) { throw 'Upgrade plan is missing the target manifest.' }
 }
 function Get-ReleasePlan([string]$Directory) {
+    if ([string]::IsNullOrWhiteSpace($Directory)) { throw 'UpgradeDirectory 不能为空或空白，请指定解压后的差量包目录。' }
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) { throw 'UpgradeDirectory 目录不存在，请指定解压后的差量包目录。' }
+    if (-not (Test-Path -LiteralPath (Join-Path $Directory 'UPGRADE-FILES.json') -PathType Leaf)) { throw 'UpgradeDirectory 缺少 UPGRADE-FILES.json，请选择解压后的差量包目录。' }
     $plan = Read-ReleaseJson (Resolve-ReleasePath $Directory 'UPGRADE-FILES.json')
     Assert-UpgradePlan $plan
     return $plan
@@ -115,8 +118,25 @@ function Get-ReleaseFiles([string]$Directory) {
         }
     }
 }
+function New-ReleaseProgress([long]$Total, [string]$Label) {
+    Write-Host ($Label+'：0/'+$Total)
+    return [pscustomobject]@{Total=$Total;Count=0L;Label=$Label;Timer=[Diagnostics.Stopwatch]::StartNew();Last=0L;Finished=$false}
+}
+function Step-ReleaseProgress($Progress) {
+    $Progress.Count++
+    $elapsed=$Progress.Timer.ElapsedMilliseconds
+    if (-not $Progress.Finished -and ($Progress.Count -ge $Progress.Total -or $elapsed-$Progress.Last -ge 1000)) {
+        Write-Host ($Progress.Label+'：'+$Progress.Count+'/'+$Progress.Total)
+        $Progress.Last=$elapsed
+        $Progress.Finished=$Progress.Count -ge $Progress.Total
+    }
+}
 function Assert-ReleaseDirectory($Directory, $Plan) {
-    foreach ($entry in $Plan.write) { Assert-ReleaseFile (Resolve-ReleasePath $Directory $entry.path) $entry.sha256 ([long]$entry.bytes) }
+    $progress=New-ReleaseProgress @($Plan.write).Count '校验升级包文件'
+    foreach ($entry in $Plan.write) {
+        Assert-ReleaseFile (Resolve-ReleasePath $Directory $entry.path) $entry.sha256 ([long]$entry.bytes)
+        Step-ReleaseProgress $progress
+    }
     $manifest = Read-ReleaseJson (Resolve-ReleasePath $Directory 'manifest.json')
     if ($manifest.version -ne $Plan.to -or -not ([string]$Plan.commit).StartsWith([string]$manifest.commit) -or ([string]$manifest.commit).Length -lt 9) { throw 'Target manifest and upgrade plan disagree.' }
 }

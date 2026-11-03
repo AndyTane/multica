@@ -1236,6 +1236,12 @@ function Get-PortableDaemonStatus {
     return (ConvertFrom-PortableDaemonStatus -ExitCode ([int]$result.ExitCode) -Output $result.Output)
 }
 
+function Get-PortableDaemonStartCommand {
+    param([string]$Root, [string]$Profile)
+    $cli = (Get-PortableCliPath $Root).Replace("'", "''")
+    return ("& '"+$cli+"' --profile '"+$Profile.Replace("'", "''")+"' daemon start")
+}
+
 function Start-PortableDaemon {
     param([string]$Root, [string]$Profile)
     $status = Get-PortableDaemonStatus -Root $Root -Profile $Profile

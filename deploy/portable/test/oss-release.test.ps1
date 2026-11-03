@@ -184,18 +184,21 @@ function Test-PortableProcessRecord { param($Record) return $true }
 function Write-PortableJson { param($Path,$Value) New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null; [IO.File]::WriteAllText($Path,($Value|ConvertTo-Json)) }
 function Get-PortablePublicRootCAPath { param($Root) return (Join-Path $Root 'public-ca.crt') }
 function Wait-PortableHttp { param($Uri,$RootCAPath,$TimeoutSec,$Description) Add-Content (Join-Path $rootPath 'trace.txt') ('Ready '+$Uri) }
+function Test-PortableLoopbackHost { param($Value) return $Value -in @('localhost','127.0.0.1','::1') }
+function Get-PortableDaemonStartCommand { param($Root,$Profile) return ('fixture daemon start '+$Profile) }
 '@
     Text (Join-Path $root 'runtime/native-windows.ps1') @'
 param($Action,$Root,$PublicOrigin,$CorsOrigins)
 Add-Content (Join-Path $Root 'trace.txt') $Action
 '@
     Text (Join-Path $root 'upgrade.ps1') @'
-param($Profile,[switch]$NoLanAccess,[switch]$SkipDaemon,[switch]$SkipBrowserTrust,[switch]$NoStartup,[switch]$NoBrowser)
+param($Profile,[switch]$NoLanAccess,[switch]$SkipDaemon,[switch]$SkipBrowserTrust,[switch]$NoStartup,[switch]$NoBrowser,$ReportPath)
 if (-not ($NoLanAccess -and $SkipDaemon -and $SkipBrowserTrust -and $NoStartup -and $NoBrowser)) { exit 15 }
 if ($env:FAKE_UPGRADE_FAIL -eq '1') { exit 16 }
 $path = Join-Path $PSScriptRoot 'deployment.json'; $cfg = Get-Content -Raw $path | ConvertFrom-Json; $cfg.Version = 'v1.0.1'; [IO.File]::WriteAllText($path,($cfg|ConvertTo-Json))
-$reportPath=Join-Path $PSScriptRoot 'data/install-report.json'
-if (Test-Path $reportPath) { $r=Get-Content -Raw $reportPath | ConvertFrom-Json; $r | Add-Member NoteProperty lanExposed $false -Force; [IO.File]::WriteAllText($reportPath,($r|ConvertTo-Json)) }
+$installPath=Join-Path $PSScriptRoot 'data/install-report.json'
+if (-not $ReportPath -and (Test-Path $installPath)) { $r=Get-Content -Raw $installPath | ConvertFrom-Json; $r | Add-Member NoteProperty lanExposed $false -Force; [IO.File]::WriteAllText($installPath,($r|ConvertTo-Json)) }
+[IO.File]::WriteAllText($ReportPath,(@{fromVersion='v1.0.0';toVersion='v1.0.1'}|ConvertTo-Json))
 '@
     Text (Join-Path $root 'deployment.json') '{"Version":"v1.0.0","ApiPort":18080,"WebPort":13000,"PublicOrigin":"https://localhost:13443"}'
     Text (Join-Path $root 'data/install-report.json') '{"profile":"fixture","boardUrl":"https://localhost:13443","lanExposed":false}'

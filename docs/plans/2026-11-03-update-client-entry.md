@@ -31,3 +31,11 @@
 - Cover cancellation, bad inputs, hashes/download failures, active daemon, backup/upgrade failures, configuration preservation, certificates/import, launchers and legacy inventories.
 - Build and inspect a bootstrap artifact with SHA-256. Use available real components only for isolated read-only checks; identify company acceptance still required.
 - Run git diff --check, commit using Tane's identity, push and open a CLAWSTA-124 PR. Return base..head, evidence and bootstrap in the original thread; keep the overall issue in_progress.
+
+### 5. Approved company-feedback review, same R1 PR
+
+- Make final Apply listener settings, install/upgrade reports and target versions agree; preserve original requested scope across the temporary loopback stage and a subsequent Start. Cover an explicit local-only choice and final-readiness failure without publishing a success report.
+- Resolve Windows System32 tar centrally for archive extraction, backup and restore; reject a missing tool before database/upload changes. Exercise a PATH with another tar first using real Windows archive operations and isolated command doubles.
+- Diagnose blank UpgradeDirectory and missing manifests before lifecycle operations. Show throttled progress while retaining every hash check, including a large inventory regression.
+- Round-trip a real Chinese-name ZIP through the existing writer, extraction and manifest hashes under PowerShell 5.1/7. Do not change archive encoding for an unconfirmed historical failure.
+- Document same-machine updates and installation/profile-specific daemon restart commands. Update PR #26, rebuild bootstrap/checksums and attach fresh evidence; no merge, tag, publication or model protocol changes.

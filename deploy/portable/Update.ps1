@@ -83,8 +83,10 @@ try {
     if ([version]($release.to -replace '^v|-.*$','') -le [version]($cfg.Version -replace '^v|-.*$','')) { throw '目标版本不高于当前版本，不能降级。' }
     if ($release.packageType -eq 'full') { Write-Host ('完整包已校验。请按 '+(Join-Path $payload 'UPGRADE.md')+' 备份并升级。'); return }
     if ($release.from -cne $cfg.Version) { throw ('此差量包需要 '+$release.from+'，当前为 '+$cfg.Version+'。请逐版升级，或按完整包说明对齐基线。') }
-    $applyArgs = @{Root=$installation;Profile=$Profile;PublicOrigin=$PublicOrigin;NoLanAccess=[bool]$NoLanAccess;UpgradeDirectory=$payload}
-    & (Join-Path $PSScriptRoot 'Apply-Upgrade.ps1') @applyArgs -CheckOnly 6>$null | Out-Null
+    $applyArgs = @{Root=$installation;Profile=$Profile;PublicOrigin=$PublicOrigin;UpgradeDirectory=$payload}
+    # An existing record retains requested intent separately from current exposure.
+    if ($PSBoundParameters.ContainsKey('NoLanAccess') -or $LanAccess -or -not $lanProperty) { $applyArgs.NoLanAccess=[bool]$NoLanAccess }
+    & (Join-Path $PSScriptRoot 'Apply-Upgrade.ps1') @applyArgs -CheckOnly | Out-Null
     # Query only the selected installation; an unknown status must not authorize replacement.
     . (Join-Path $installation 'portable-common.ps1')
     $daemon = Get-PortableDaemonStatus -Root $installation -Profile $Profile
@@ -98,12 +100,14 @@ try {
     & (Join-Path $PSScriptRoot 'Apply-Upgrade.ps1') @applyArgs 6>$null | Out-Null
     Write-Host '程序升级完成，服务已就绪。原权限保留。' -ForegroundColor Green
     Write-Host '请检查原登录、项目、任务、旧附件及另一台电脑访问；通过后再启动原守护进程。'
+    Write-Host (Get-PortableDaemonStartCommand -Root $installation -Profile $Profile)
 } catch {
     $reason = $_.Exception.Message
     if ($reason -notmatch '[\u4e00-\u9fff]') {
         if ($reason -match 'SHA-256|[Cc]hecksum|size mismatch') { $reason = '文件校验失败，请重新下载；未校验的包不能升级。' }
         elseif ($reason -match 'OSS operation|ossutil|environment variable') { $reason = '下载未完成，请检查 ossutil 2、OSS 环境变量、读取权限和网络。' }
         elseif ($reason -match 'baseline|delta requires|Unrecognised') { $reason = '安装基线与升级包不符，请下载匹配的差量包或按完整包说明操作。' }
+        elseif ($reason -match 'Windows archive tool|System32\\tar.exe') { $reason = 'Windows 自带 tar.exe 缺失。请先修复 Windows 压缩工具，再重试升级。' }
         else { $reason = '检查或升级未完成。请核对安装目录、原配置和升级包；保留下面的恢复资料。' }
     }
     Write-Host ('升级未完成：'+$reason) -ForegroundColor Yellow

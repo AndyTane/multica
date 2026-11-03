@@ -6,6 +6,8 @@ U Workers 服务端
 下载和备份目录，按下载目录中的 UPGRADE.md 恢复。
 v0.2.5 首次使用需取得并校验外置 UWorkers-Fetch-bootstrap.zip，旧安装没有此入口。
 客户端首次连接用同版本 Client-Kit 的 Connect.cmd；换新版先用 Import.cmd 导入旧包。
+Update 用于同机原地升级。新电脑首次安装请用未安装的完整包运行 Setup.cmd，
+换服务器的数据迁移另行安排；不要把正在使用的安装目录当发布包。
 
 Everything in this folder is the server: PostgreSQL, the API, the web app,
 LAN HTTPS with its own private root certificate, the desktop sign-in account
