@@ -10,6 +10,8 @@ import enIssues from "../../locales/en/issues.json";
 const TEST_RESOURCES = { en: { common: enCommon, issues: enIssues } };
 
 let mockPopulated = true;
+let mockQueryError = false;
+let mockQueryCalls = 0;
 let mockAutoComplete: PRAutoComplete | null = null;
 vi.mock("@multica/core/github/queries", async () => {
   const actual = await vi.importActual<typeof import("@multica/core/github/queries")>(
@@ -19,7 +21,11 @@ vi.mock("@multica/core/github/queries", async () => {
     ...actual,
     issuePullRequestsOptions: (issueId: string) => ({
       queryKey: ["github", "pull-requests", issueId],
-      queryFn: async () => ({ pull_requests: mockPopulated ? [{ id: "pr1", number: 1, title: "Fix", state: "open", html_url: "https://github.com/acme/widget/pull/1" }] : [], auto_complete: mockAutoComplete }),
+      queryFn: async () => {
+        mockQueryCalls++;
+        if (mockQueryError) throw new Error("offline");
+        return { pull_requests: mockPopulated ? [{ id: "pr1", number: 1, title: "Fix", state: "open", html_url: "https://github.com/acme/widget/pull/1" }] : [], auto_complete: mockAutoComplete };
+      },
       enabled: !!issueId,
     }),
   };
@@ -46,7 +52,16 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
 }));
 
 import { PullRequestsSection } from "./pull-requests-section";
-vi.mock("./pull-request-list", () => ({ PullRequestList: () => <div>Fix</div> }));
+vi.mock("./pull-request-list", async () => {
+  const { useQuery } = await import("@tanstack/react-query");
+  const { issuePullRequestsOptions } = await import("@multica/core/github/queries");
+  return {
+    PullRequestList: () => {
+      useQuery(issuePullRequestsOptions("issue-1"));
+      return <div>Fix</div>;
+    },
+  };
+});
 
 function renderSection() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -70,6 +85,8 @@ describe("PullRequestsSection (MUL-7429)", () => {
   beforeEach(() => {
     mockAutoComplete = decision;
     mockPopulated = true;
+    mockQueryError = false;
+    mockQueryCalls = 0;
     mockWorkspaceSettings = {};
     apiMock.linkIssuePullRequest.mockReset();
     apiMock.setIssuePRAutoComplete.mockReset();
@@ -85,6 +102,19 @@ describe("PullRequestsSection (MUL-7429)", () => {
     expect(view.container.querySelector('.lucide-chevron-right')).toBeNull();
     expect(screen.queryByText("No linked pull requests.")).toBeNull();
     expect(screen.queryByRole("button", { name: "Pull request automation" })).toBeNull();
+  });
+  it("keeps a failed empty query settled until the user retries", async () => {
+    mockPopulated = false;
+    mockQueryError = true;
+    renderSection();
+    const retry = await screen.findByRole("button", { name: "Could not load pull requests. Retry" });
+    expect(mockQueryCalls).toBe(1);
+    expect(screen.queryByText("Fix")).toBeNull();
+    mockQueryError = false;
+    fireEvent.click(retry);
+    await screen.findByRole("button", { name: "Link pull request" });
+    expect(mockQueryCalls).toBe(2);
+    expect(screen.queryByRole("button", { name: "Could not load pull requests. Retry" })).toBeNull();
   });
   it("links a pasted PR URL", async () => {
     apiMock.linkIssuePullRequest.mockResolvedValue({ pull_requests: [], auto_complete: decision });

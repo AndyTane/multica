@@ -44,12 +44,12 @@ export function PullRequestsSection({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT("issues");
-  const { data, isError } = useQuery(issuePullRequestsOptions(issueId));
+  const { data, isError, refetch } = useQuery(issuePullRequestsOptions(issueId));
   // Older backends have no link / auto-complete endpoints; keep the header
   // actions hidden until the server says it supports them.
   const supported = !!data?.auto_complete;
   const count = data?.pull_requests.length ?? 0;
-  const hasContent = count > 0 || isError;
+  const hasContent = count > 0;
 
   return (
     <div>
@@ -88,6 +88,15 @@ export function PullRequestsSection({
           </>
         ) : null}
       </div>
+      {isError && !hasContent && (
+        <button
+          type="button"
+          className="px-2 text-caption text-muted-foreground hover:text-foreground"
+          onClick={() => void refetch()}
+        >
+          {t(($) => $.detail.pull_requests_load_failed)}
+        </button>
+      )}
       {open && hasContent && (
         <div className="pl-2">
           <PullRequestList issueId={issueId} identifier={identifier} />
