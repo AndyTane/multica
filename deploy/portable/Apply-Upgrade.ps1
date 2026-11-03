@@ -7,9 +7,11 @@ param(
     [switch]$NoLanAccess,
     [switch]$LinkPayloadFiles,
     [switch]$CheckOnly,
-    [string]$UpgradeDirectory = $PSScriptRoot
+    [string]$UpgradeDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 has no PSScriptRoot while binding advanced-script defaults under -File.
+if (-not $PSBoundParameters.ContainsKey('UpgradeDirectory')) { $UpgradeDirectory = $PSScriptRoot }
 . (Join-Path $PSScriptRoot 'oss-release-common.ps1')
 if ([string]::IsNullOrWhiteSpace($UpgradeDirectory)) { throw 'UpgradeDirectory 不能为空或空白，请指定解压后的差量包目录。' }
 # The native lifecycle calls tar.exe. Prefer Windows bsdtar, whose drive-letter
