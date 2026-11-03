@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-03",
+  "key": "releases/v0.2.2/UWorkers-v0.2.2-company-kit.zip",
+  "published": true,
+  "uploadProcessExitCode": 0,
+  "forbidOverwrite": true,
+  "bytes": 62808727,
+  "sha256": "18865b1de96fe832338c9a33b03a37cda3628aa7779df700ee0dc95f798159e6",
+  "files": 291,
+  "contents": "Existing verified v0.2.2 delta plus Fetch/Apply/common, verified official ossutil 2.4.1, Chinese README and checksums",
+  "remoteReadback": false,
+  "existingReleaseObjectsModified": false,
+  "latestModified": false,
+  "companyUpgradeTested": false
+}

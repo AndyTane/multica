@@ -1,0 +1,11 @@
+{
+  "hashes": "all writes and current helpers verified",
+  "zipSha256": "113dbba2aa06fc0ab8fb731d51846ab79a5099a6d1398e2ffa380b408d5a84e4",
+  "zipBytes": 50918644,
+  "sourceMode": "existing119",
+  "unchangedDependencies": 8853,
+  "prepareOnly": true,
+  "programWrites": 280,
+  "archiveFiles": 284,
+  "ossRequests": 0
+}

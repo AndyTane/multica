@@ -1,0 +1,10 @@
+{
+  "actual": "35f0a4c12b8da534366eb52316a1788d8319e6e70c19d53088c2666c12ae7e1e",
+  "result": "rejected before lifecycle",
+  "filesChanged": false,
+  "servicesChanged": false,
+  "baseline": "isolated v0.2.1/cfc93fef6",
+  "mode": "read-only Apply -CheckOnly",
+  "reason": "modified install.ps1 differs from required old_sha256",
+  "expected": "c3ea316f4c598b06319ea0095e0808b7b2a587fade3e616ce773e7f717d167ab"
+}

@@ -1,0 +1,27 @@
+{
+  "stage": "real-publish-after-user-policy-change",
+  "date": "2026-11-03",
+  "version": "v0.2.2",
+  "commit": "3e62bb6ebb9393210a7ed44fbad021611e9bc7ff",
+  "sourceMode": "existing-119-delta",
+  "region": "cn-shanghai",
+  "published": true,
+  "uploadProcessExitCode": 0,
+  "completedObjectsInOrder": [
+    "releases/v0.2.2/upgrade.zip",
+    "releases/v0.2.2/UPGRADE.md",
+    "releases/v0.2.2/release.json",
+    "channels/stable/latest.json"
+  ],
+  "immutableObjectsForbidOverwrite": true,
+  "latestWrittenLast": true,
+  "readRequests": 0,
+  "credentialsRecorded": false,
+  "packageBytes": 50918644,
+  "packageSha256": "e6607ac33a6ea6e4e747611372e9d66abda5db3cbfa33b6052348d2d77e0f90b",
+  "verification": "Official ossutil 2.4.1 returned success for all four PutObject calls; local SHA-256 and size are recorded in the uploaded manifest. No remote readback was performed.",
+  "permissionBoundary": "User screenshot shows bucket-wide full control for publisher and read including ListObject for downloader. Successful upload does not establish least-privilege acceptance; policy narrowing and verification remain pending.",
+  "companyRootPresentOnRunner": false,
+  "companyFetchAndUpgradeVerified": false,
+  "existingServicesChanged": false
+}

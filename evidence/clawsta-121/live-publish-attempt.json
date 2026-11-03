@@ -1,0 +1,21 @@
+{
+  "stage": "real-publish",
+  "version": "v0.2.2",
+  "commit": "3e62bb6ebb9393210a7ed44fbad021611e9bc7ff",
+  "sourceMode": "existing-119-delta",
+  "region": "cn-shanghai",
+  "configurationSource": "same-machine Windows User environment loaded into child process",
+  "credentialsRecorded": false,
+  "companyRootPresentOnRunner": false,
+  "uploadExitCode": 2,
+  "httpStatus": 403,
+  "ossCode": "AccessDenied",
+  "object": "releases/v0.2.2/upgrade.zip",
+  "forbidOverwrite": true,
+  "completedObjects": [],
+  "latestWriteAttempted": false,
+  "readRequests": 0,
+  "packageBytes": 50918644,
+  "packageSha256": "62063a4db88080f8df632960f422eb29253bf0eea3ec2fc9129684443c8f6cea",
+  "diagnostic": "One same-object diagnostic PUT retained forbid-overwrite and returned 403 AccessDenied. No reads or permission changes were attempted."
+}
