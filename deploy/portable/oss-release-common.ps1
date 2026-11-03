@@ -2,6 +2,7 @@
 # Shared release contracts. This module never reads deployment secrets or .env.
 $script:ReleaseMaxObjectBytes = 5GB
 $script:ReleaseCheckedDirectories = @{}
+$script:ClientKitFiles = @('Connect.cmd','Reconnect.cmd','Status.cmd','Stop.cmd','client.ps1','connection.json','README.md','u-workers.exe')
 $script:ReleaseProgramFiles = @('manifest.json','README.txt','Setup.cmd','Start.cmd','Stop.cmd','Status.cmd','Upgrade.cmd','Uninstall.cmd','Trust-Browser.cmd','Find-OldDeployment.cmd','Build-Installer.cmd','install.ps1','start.ps1','stop.ps1','status.ps1','upgrade.ps1','uninstall.ps1','trust-browser.ps1','portable-common.ps1','find-old-deployment.ps1','build-installer.ps1',([string][char]0x64CD+[char]0x4F5C+[char]0x5355+'-'+[char]0x53F0+[char]0x5F0F+[char]0x673A+'.md'))
 
 function Assert-ReleaseVersion([string]$Version) {
@@ -143,7 +144,7 @@ function Assert-ReleaseOssutil([string]$Ossutil) {
     if ($version -notmatch '(?im)^\s*(?:ossutil(?: version)?[: ]+)?v?2\.[0-9]+\.[0-9]+') { throw 'This release channel requires ossutil 2.' }
 }
 function Invoke-ReleaseObject([string]$Ossutil, $Config, [ValidateSet('put','get')][string]$Operation, [string]$Key, [string]$File, [switch]$Mutable) {
-    if ($Key -cnotmatch '^(releases/v[0-9A-Za-z.-]+/(upgrade\.zip|full\.zip|release\.json|UPGRADE\.md)|channels/stable/latest\.json)$') { throw 'Object key is outside the release channel.' }
+    if ($Key -cnotmatch '^(releases/v[0-9A-Za-z.-]+/(upgrade\.zip|full\.zip|client-kit\.zip|release\.json|UPGRADE\.md)|channels/stable/latest\.json)$') { throw 'Object key is outside the release channel.' }
     if ($Mutable -and $Key -ne 'channels/stable/latest.json') { throw 'Only latest.json is mutable.' }
     $arguments = @('api',($Operation+'-object'),'--bucket',$Config.Bucket,'--key',$Key,'--region',$Config.Region,'--endpoint',$Config.Endpoint,'--mode','AK','--config-file','NUL','--loglevel','off','--log-file','NUL')
     if ($Operation -eq 'put') {
@@ -175,6 +176,29 @@ function Assert-ReleaseManifest($Release, [string]$Version) {
         if ($object.key -cne ('releases/'+$Version+'/'+$pair[1]) -or $null -eq $object.bytes -or $object.bytes -is [string] -or [long]$object.bytes -le 0 -or [long]$object.bytes -gt $script:ReleaseMaxObjectBytes) { throw 'Invalid release object key or size.' }
         Assert-ReleaseHash ([string]$object.sha256)
     }
+    if ($Release.clientKit) {
+        $object=$Release.clientKit
+        if ($object.key -cne ('releases/'+$Version+'/client-kit.zip') -or $null -eq $object.bytes -or $object.bytes -is [string] -or [long]$object.bytes -le 0 -or [long]$object.bytes -gt $script:ReleaseMaxObjectBytes) { throw 'Invalid client kit object key or size.' }
+        Assert-ReleaseHash ([string]$object.sha256)
+    }
+}
+function Assert-ClientKitDirectory([string]$Directory,[string]$Version,[string]$Commit) {
+    $inventory=Read-ReleaseJson (Resolve-ReleasePath $Directory 'CLIENT-FILES.json')
+    if ($inventory.schemaVersion -ne 1 -or $inventory.version -cne $Version -or $inventory.commit -cne $Commit -or $inventory.platform -cne 'windows-amd64' -or $Commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Client kit source identity mismatch.' }
+    $allowed=@{'CLIENT-FILES.json'=$true}
+    foreach ($entry in @($inventory.files)) {
+        $path=[string]$entry.path
+        if ($path -cnotin $script:ClientKitFiles -or $allowed.ContainsKey($path) -or $null -eq $entry.bytes -or $entry.bytes -is [string] -or [long]$entry.bytes -lt 0) { throw 'Invalid client inventory entry.' }
+        $allowed[$path]=$true
+        Assert-ReleaseFile (Resolve-ReleasePath $Directory $path) $entry.sha256 ([long]$entry.bytes)
+    }
+    foreach ($name in $script:ClientKitFiles) { if (-not $allowed.ContainsKey($name)) { throw ('Missing client kit file: '+$name) } }
+    foreach ($file in Get-ReleaseFiles $Directory) {
+        $relative=$file.FullName.Substring([IO.Path]::GetFullPath($Directory).TrimEnd('\','/').Length+1).Replace('\','/')
+        if (-not $allowed.ContainsKey($relative)) { throw 'Client kit contains an unlisted file.' }
+    }
+    $settings=Read-ReleaseJson (Join-Path $Directory 'connection.json')
+    if (@($settings.PSObject.Properties.Name).Count -ne 3 -or $null -eq $settings.profile -or $null -eq $settings.serverUrl -or $null -eq $settings.rootCa -or $settings.profile -cne '' -or $settings.serverUrl -cne '' -or $settings.rootCa -cne '') { throw 'Published client settings must be the empty template.' }
 }
 function Assert-FullReleaseDirectory([string]$Directory, [string]$Version, [string]$Commit) {
     $inventory = Read-ReleaseJson (Resolve-ReleasePath $Directory 'FULL-FILES.json')

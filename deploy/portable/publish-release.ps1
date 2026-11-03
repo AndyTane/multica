@@ -85,13 +85,27 @@ $releaseRecord = Get-ObjectRecord 'release.json'
 Write-ReleaseJson (Join-Path $output 'latest.json') @{schemaVersion=1;version=$Version;release=$releaseRecord}
 }
 $release = Read-ReleaseJson (Join-Path $output 'release.json')
+if ($SourceDirectory) {
+    $kitArchive = & (Join-Path $SourceDirectory 'deploy/portable/build-client-kit.ps1') -PackageDirectory (Join-Path $OutputDirectory ('build/UWorkers-Portable-'+$Version)) -OutputDirectory (Join-Path $output 'client-build') -Version $Version -Commit $head
+    $kitPath=Join-Path $output 'client-kit.zip'
+    Copy-Item -LiteralPath $kitArchive -Destination $kitPath
+    $kitRecord=@{key=('releases/'+$Version+'/client-kit.zip');bytes=(Get-Item -LiteralPath $kitPath).Length;sha256=(Get-FileHash -LiteralPath $kitPath -Algorithm SHA256).Hash.ToLowerInvariant()}
+    $release | Add-Member -NotePropertyName clientKit -NotePropertyValue $kitRecord
+    Assert-ReleaseManifest $release $Version
+    Write-ReleaseJson (Join-Path $output 'release.json') $release
+    $releasePath=Join-Path $output 'release.json'
+    Write-ReleaseJson (Join-Path $output 'latest.json') @{schemaVersion=1;version=$Version;release=@{key=('releases/'+$Version+'/release.json');bytes=(Get-Item -LiteralPath $releasePath).Length;sha256=(Get-FileHash -LiteralPath $releasePath -Algorithm SHA256).Hash.ToLowerInvariant()}}
+}
 $result = @{version=$Version;commit=$release.commit;prepared=$true;published=$false;sourceMode=$(if ($Full) {'source-build-full'} elseif ($SourceDirectory) {'source-build'} else {'existing-delta'});completedObjects=@()}
 $resultPath = Join-Path $output 'publish-result.json'
 Write-ReleaseJson $resultPath $result
 if ($PrepareOnly) { Write-Host ('Prepared '+$Version+'; no OSS requests were made.'); return $output }
 try {
     $packageName = if ($Full) {'full.zip'} else {'upgrade.zip'}
-    foreach ($name in @($packageName,'UPGRADE.md','release.json','latest.json')) {
+    $objects=@($packageName,'UPGRADE.md')
+    if ($release.clientKit) { $objects += 'client-kit.zip' }
+    $objects+=@('release.json','latest.json')
+    foreach ($name in $objects) {
         $key = if ($name -eq 'latest.json') {'channels/stable/latest.json'} else {'releases/'+$Version+'/'+$name}
         Invoke-ReleaseObject $Ossutil $config put $key (Join-Path $output $name) -Mutable:($name -eq 'latest.json')
         $result.completedObjects += $key

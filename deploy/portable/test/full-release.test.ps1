@@ -61,7 +61,8 @@ try {
     # Git identity here belongs only to an isolated test fixture with no remote.
     $source=Join-Path $work 'source'; $sourcePortable=Join-Path $source 'deploy/portable'
     New-Item -ItemType Directory -Path $sourcePortable,(Join-Path $source 'docs') -Force | Out-Null
-    foreach ($name in @('build-full-release.ps1','Fetch-Upgrade.ps1','Apply-Upgrade.ps1','oss-release-common.ps1')) { Copy-Item (Join-Path $portable $name) (Join-Path $sourcePortable $name) }
+    foreach ($name in @('build-full-release.ps1','build-client-kit.ps1','Fetch-Upgrade.ps1','Apply-Upgrade.ps1','oss-release-common.ps1')) { Copy-Item (Join-Path $portable $name) (Join-Path $sourcePortable $name) }
+    Copy-Item (Join-Path $portable '../client-kit') (Join-Path $source 'deploy/client-kit') -Recurse
     Copy-Item (Join-Path $portable '../../docs/windows-full-package-upgrade.md') (Join-Path $source 'docs/windows-full-package-upgrade.md')
     $builder=@'
 param($Version,$OutputRoot,[switch]$SkipBuildKit,[switch]$NoZip)
@@ -77,7 +78,7 @@ $commit=(& git -C (Join-Path $PSScriptRoot '../..') rev-parse --short=9 HEAD | O
     & git -C $source -c user.name=Fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit --quiet -m fixture
     if ($LASTEXITCODE -ne 0) { throw 'Fixture commit failed' }
     & git -C $source tag v1.2.3
-    foreach ($failKey in @('full.zip','UPGRADE.md','release.json','latest.json','success')) {
+    foreach ($failKey in @('full.zip','UPGRADE.md','client-kit.zip','release.json','latest.json','success')) {
         $env:FAKE_STORE=Join-Path $work ('orchestrator-'+$failKey.Replace('.','-'))
         $latest=Join-Path $env:FAKE_STORE 'channels/stable/latest.json'; Text $latest 'UNCHANGED'
         $env:FAKE_FAIL_KEY=if ($failKey -eq 'success') {''} elseif ($failKey -eq 'latest.json') {'channels/stable/latest.json'} else {'releases/v1.2.3/'+$failKey}
@@ -96,13 +97,42 @@ $commit=(& git -C (Join-Path $PSScriptRoot '../..') rev-parse --short=9 HEAD | O
             if ($exitCode -ne 0) { throw ('Fixture full publish failed: '+$log) }
             Check ($exitCode -eq 0) 'full source publish orchestrator succeeds'
             $result=Read-ReleaseJson (Join-Path $out 'full/publish-result.json')
-            Check ($result.published -and $result.completedObjects.Count -eq 4 -and $result.sourceMode -eq 'source-build-full') 'full publish records all objects and source mode'
+            Check ($result.published -and $result.completedObjects.Count -eq 5 -and $result.sourceMode -eq 'source-build-full') 'full publish records all objects including client kit and source mode'
+            $clientRelease=Read-ReleaseJson (Join-Path $out 'full/release.json')
+            Check ($clientRelease.clientKit.key -eq 'releases/v1.2.3/client-kit.zip') 'client kit recorded in release manifest'
+            $kit= & $fetch -Version latest -DestinationDirectory (Join-Path $work 'fetch-client') -Ossutil $fake -ClientKit
+            Assert-ClientKitDirectory $kit $version $clientRelease.commit
+            Check (Test-Path (Join-Path $kit 'Reconnect.cmd')) 'standalone client download verifies complete inventory'
+            $env:FAKE_CORRUPT_KEY='releases/v1.2.3/client-kit.zip'
+            Fail { & $fetch -Version latest -DestinationDirectory (Join-Path $work 'corrupt-client') -Ossutil $fake -ClientKit } 'corrupt client ZIP rejected'
+            $env:FAKE_CORRUPT_KEY=''
+            $clientRelease.clientKit.key='releases/v1.2.4/client-kit.zip'
+            Fail { Assert-ReleaseManifest $clientRelease $version } 'cross-version client object rejected'
         } else {
             Check ($exitCode -ne 0 -and (Get-Content -Raw $latest) -eq 'UNCHANGED') ('full upload failure '+$failKey+' preserves latest')
-            $expectedCalls=1+[array]::IndexOf(@('full.zip','UPGRADE.md','release.json','latest.json'),$failKey)
+            $expectedCalls=1+[array]::IndexOf(@('full.zip','UPGRADE.md','client-kit.zip','release.json','latest.json'),$failKey)
             Check (@(Get-Content (Join-Path $env:FAKE_STORE 'calls.txt')).Count -eq $expectedCalls) ('failure reached expected upload step '+$failKey)
         }
     }
+    # The differential publishing path must ship the same client as full mode.
+    & git -C $source tag v1.2.4
+    $env:FAKE_STORE=Join-Path $work 'delta-store'; $env:FAKE_FAIL_KEY=''; $env:FAKE_CORRUPT_KEY=''
+    $deltaOut=Join-Path $work 'delta-output'
+    & pwsh.exe -NoProfile -File (Join-Path $portable 'publish-release.ps1') -Version v1.2.4 -SourceDirectory $source -BaselineDirectory $package -OutputDirectory $deltaOut -Ossutil $fake | Out-Null
+    Check ($LASTEXITCODE -eq 0) 'delta source publish includes client kit'
+    $deltaRelease=Read-ReleaseJson (Join-Path $deltaOut 'release.json')
+    Check ($deltaRelease.from -eq 'v1.2.3' -and $deltaRelease.clientKit.key -eq 'releases/v1.2.4/client-kit.zip') 'delta manifest pins server baseline and matching client version'
+    $calls=Get-Content (Join-Path $env:FAKE_STORE 'calls.txt')
+    Check (($calls -join '|') -eq 'put releases/v1.2.4/upgrade.zip true|put releases/v1.2.4/UPGRADE.md true|put releases/v1.2.4/client-kit.zip true|put releases/v1.2.4/release.json true|put channels/stable/latest.json false') 'delta client immutable upload precedes release and latest'
+    $kit= & $fetch -Version v1.2.4 -DestinationDirectory (Join-Path $work 'fetch-delta-client') -Ossutil $fake -ClientKit
+    Assert-ClientKitDirectory $kit 'v1.2.4' $deltaRelease.commit
+    Check (Test-Path (Join-Path $kit 'u-workers.exe')) 'client download independent of server package type'
+    Text (Join-Path $kit 'credentials.json') 'fixture'
+    Fail { Assert-ClientKitDirectory $kit 'v1.2.4' $deltaRelease.commit } 'unlisted client file rejected'
+    Remove-Item -LiteralPath (Join-Path $kit 'credentials.json')
+    Text (Join-Path $kit 'u-workers.exe') 'tampered'
+    Fail { Assert-ClientKitDirectory $kit 'v1.2.4' $deltaRelease.commit } 'client program tampering rejected'
+    Fail { & $fetch -Version latest -DestinationDirectory (Join-Path $work 'client-apply') -Ossutil $fake -ClientKit -Apply } 'client mode rejects server lifecycle switches'
     $result=@{powershell=$PSVersionTable.PSVersion.ToString();passed=$checks.Count;checks=@($checks);transport='local fake; no cloud or service access'}
     if ($EvidencePath) { Write-ReleaseJson $EvidencePath $result }
     $result | ConvertTo-Json -Depth 5

@@ -1,0 +1,24 @@
+{
+    "powershell":  "5.1.26100.9444",
+    "transport":  "fake CLI; no agents or network",
+    "checks":  [
+                   "stopped daemon starts exactly once in path with spaces and Unicode",
+                   "parent environment restored and task identity excluded from child",
+                   "reconnect never logs in, restarts or stops",
+                   "running daemon left untouched",
+                   "starting daemon left untouched",
+                   "failed daemon start reported",
+                   "failed status never treated as stopped",
+                   "status failure does not start a daemon",
+                   "malformed status rejected",
+                   "unknown status rejected before daemon start",
+                   "unknown status does not start a daemon",
+                   "server failure distinct from local daemon liveness",
+                   "network failure preserves active daemon",
+                   "all commands use configured profile",
+                   "explicit stop targets configured profile",
+                   "first connect uses configured server",
+                   "invalid profile rejected before lifecycle command"
+               ],
+    "passed":  17
+}
