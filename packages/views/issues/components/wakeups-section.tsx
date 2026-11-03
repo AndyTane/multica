@@ -383,6 +383,7 @@ export function WakeupsSection({
   const text = useWakeupText();
   const disable = useDisableIssueWakeup(workspaceId, issueId);
   const enable = useEnableIssueWakeup(workspaceId, issueId);
+  if (closed && !data.length && !isError) return null;
   const empty = !data.length && !systemRules.length && !isError;
   const current = data.filter((w) => isCurrentWakeup(w, wakeupRun(w, tasks)));
   const history = data.filter((w) => !isCurrentWakeup(w, wakeupRun(w, tasks)));
@@ -444,7 +445,7 @@ export function WakeupsSection({
             />
           </button>
         )}
-        {(!closed || empty) && (
+        {!closed && (
           <WakeupCreate workspaceId={workspaceId} issueId={issueId} defaultAgentId={defaultAgentId} />
         )}
       </div>

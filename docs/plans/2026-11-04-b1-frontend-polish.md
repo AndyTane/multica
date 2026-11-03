@@ -14,3 +14,9 @@
 6. Run pnpm typecheck, pnpm lint, pnpm test. Render the specified states against an isolated deployment and attach screenshots. Review the diff, commit named files, push and open the PR. Post one final issue comment and request frontend-owner review.
 
 Validation uses a separate database, ports, and generated test identity; no running multica-fork data or services are used.
+
+## Review follow-up: B1-R1 and B1-R2
+
+1. Add a board regression in `board-view-project-grouping.test.tsx`: a settled empty paginated column stays 200px while `isFetching` changes. Verify it fails, then pass only `page?.isLoading` to `BoardColumn`; retain the footer's fetch indicator.
+2. Split the wakeup empty-state regression in `wakeups-section.test.tsx`: closed issues render no section without records, while open issues show only the heading and create action. Verify the closed case fails, then restore the closed-issue guard and open-only create action in `wakeups-section.tsx`.
+3. Run the focused tests, then root `pnpm typecheck`, `pnpm lint`, and `pnpm test` with bounded concurrency. Build the isolated deployment and capture one open-issue detail screenshot. Stop the deployment, update PR #31, and reply to the review with the new head and verification summary; do not merge, tag, or release.

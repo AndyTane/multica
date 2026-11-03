@@ -197,9 +197,11 @@ describe("Board grouped by project", () => {
   function render({
     descriptors = [NO_PROJECT_DESCRIPTOR, ...PROJECT_DESCRIPTORS],
     issues = ISSUES,
+    pagination = {},
   }: {
     descriptors?: IssueGroupBranches["descriptors"];
     issues?: Issue[];
+    pagination?: IssueGroupBranches["pagination"];
   } = {}) {
     const store = getIssueSurfaceViewStore(
       `board-project-${Math.floor(Math.random() * 1e9)}`,
@@ -222,7 +224,7 @@ describe("Board grouped by project", () => {
             projectMap={
               new Map([[ACME_ID, makeProject(ACME_ID, "Acme Corp", "🚀")]])
             }
-            groupBranches={makeGroupBranches(descriptors, issues)}
+            groupBranches={{ ...makeGroupBranches(descriptors, issues), pagination }}
           />
           </IssueContextMenuProvider>
         </ViewStoreProvider>
@@ -237,6 +239,28 @@ describe("Board grouped by project", () => {
     expect(screen.getByText("No project")).toBeTruthy();
     expect(screen.queryByText(ACME_ID)).toBeNull();
     expect(screen.queryByText(GHOST_ID)).toBeNull();
+  });
+
+  it("keeps a settled empty column at 200px during a background refetch", () => {
+    render({
+      descriptors: [{ ...NO_PROJECT_DESCRIPTOR, count: 0 }],
+      issues: [],
+      pagination: {
+        [NO_PROJECT_DESCRIPTOR.key]: {
+          total: 0,
+          loaded: 0,
+          hasMore: false,
+          isLoading: false,
+          isFetching: true,
+          isError: false,
+          loadMore: vi.fn(),
+          retry: vi.fn(),
+        },
+      },
+    });
+
+    expect(screen.getByText("No project").closest("[data-board-column]"))
+      .toHaveStyle({ width: "200px" });
   });
 
   it("keeps a No project column when the server returns no such group", () => {

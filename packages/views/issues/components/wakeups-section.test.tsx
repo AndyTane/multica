@@ -91,9 +91,14 @@ beforeEach(() => {
   };
 });
 describe("Wakeups sidebar", () => {
-  it.each([false, true])("keeps only a heading and the create action when empty (closed=%s)", (closed) => {
+  it("does not render an empty wakeup section on a closed issue", () => {
     empty = true;
-    const view = renderWithI18n(<WakeupsSection issueId="issue" closed={closed} />);
+    const view = renderWithI18n(<WakeupsSection issueId="issue" closed />);
+    expect(view.container).toBeEmptyDOMElement();
+  });
+  it("keeps only a heading and the create action when an open issue is empty", () => {
+    empty = true;
+    const view = renderWithI18n(<WakeupsSection issueId="issue" />);
     expect(screen.getByRole("heading", { name: "Wakeups" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New wakeup" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Wakeups/ })).toBeNull();
@@ -481,6 +486,7 @@ describe("conditions, limits and history", () => {
 
   it("offers neither action on an ended issue", async () => {
     renderWithI18n(<WakeupsSection issueId="issue" closed />);
+    expect(screen.queryByRole("button", { name: "New wakeup" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Wake every hour/ }));
     await screen.findByRole("dialog");
     expect(screen.queryByRole("button", { name: "Wake now" })).toBeNull();
