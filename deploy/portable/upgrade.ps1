@@ -32,6 +32,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+if ($Source -and (Test-Path -LiteralPath (Join-Path $Source 'UPGRADE-FILES.json'))) {
+    throw 'Sparse differential package detected. Run Apply-Upgrade.ps1 from that package; Upgrade -Source requires a complete package.'
+}
 . (Join-Path $root 'portable-common.ps1')
 
 function Copy-PortableOverlay {

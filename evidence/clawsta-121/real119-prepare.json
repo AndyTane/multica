@@ -1,0 +1,17 @@
+{
+  "programWrites": 280,
+  "archiveFiles": 284,
+  "programFileScope": "write set plus four reviewed helpers only",
+  "from": "v0.2.1",
+  "prepareOnly": true,
+  "ossRequests": 0,
+  "extractedHashes": "all program writes match",
+  "zipBytes": 50918532,
+  "uncompressedBytes": 147701496.0,
+  "zipSha256": "9a4fdb40f82f0f9d803c17eee486a52354dc629830468d2bd65fdf3654f17c06",
+  "version": "v0.2.2",
+  "sourceMode": "existing CLAWSTA-119 delta, no source rebuild",
+  "unchangedDependencies": 8853,
+  "commit": "3e62bb6ebb9393210a7ed44fbad021611e9bc7ff",
+  "checkpointInstructions": "119 paths normalized to version-based checkpoint names"
+}
