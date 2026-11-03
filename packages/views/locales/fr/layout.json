@@ -31,7 +31,13 @@
     "trigger": "Aide",
     "docs": "Documentation",
     "feedback": "Faire un retour",
-    "server_version": "Version du serveur {{version}}"
+    "product_version": "{{product}} {{version}}",
+    "commit": "Commit {{commit}}",
+    "copy_version": "Copier la version",
+    "version_copied": "Version copiée",
+    "version_copy_failed": "Impossible de copier la version",
+    "reload_stale": "Recharger pour mettre à jour",
+    "reload_stale_title": "Cette page a été construite pour {{version}} ; rechargez pour charger la version actuelle."
   },
   "workspace_loader": {
     "loading_workspace": "Chargement de l'espace de travail…",

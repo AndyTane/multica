@@ -226,6 +226,8 @@
   "update": {
     "cli_version_label": "CLI Version:",
     "version_unknown": "unknown",
+    "server_mismatch": "CLI {{cli}} doesn't match server {{version}}",
+    "server_mismatch_title": "Reconnect this machine with the client-kit.zip from the same release as the server.",
     "managed_by_desktop": "Managed by Desktop",
     "managed_by_desktop_title": "The CLI binary is managed by U Workers Desktop — update Desktop to upgrade the CLI.",
     "read_only": "Read-only",

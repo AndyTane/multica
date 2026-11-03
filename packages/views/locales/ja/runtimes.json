@@ -214,6 +214,8 @@
   "update": {
     "cli_version_label": "CLI バージョン:",
     "version_unknown": "不明",
+    "server_mismatch": "CLI {{cli}} がサーバー {{version}} と不一致",
+    "server_mismatch_title": "サーバーと同じバージョンの client-kit.zip でこのマシンを再接続してください。",
     "managed_by_desktop": "デスクトップで管理",
     "managed_by_desktop_title": "CLI バイナリは U Workers Desktop で管理されています。CLI をアップグレードするには Desktop を更新してください。",
     "read_only": "読み取り専用",

@@ -31,7 +31,13 @@
     "trigger": "도움말",
     "docs": "문서",
     "feedback": "피드백",
-    "server_version": "서버 버전 {{version}}"
+    "product_version": "{{product}} {{version}}",
+    "commit": "커밋 {{commit}}",
+    "copy_version": "버전 복사",
+    "version_copied": "버전을 복사했습니다",
+    "version_copy_failed": "버전을 복사하지 못했습니다",
+    "reload_stale": "새로고침하여 업데이트",
+    "reload_stale_title": "이 페이지는 {{version}}용입니다. 새로고침하여 최신 버전을 불러오세요."
   },
   "workspace_loader": {
     "loading_workspace": "워크스페이스 로딩 중...",
