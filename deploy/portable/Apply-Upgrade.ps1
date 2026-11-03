@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$Root,
@@ -109,7 +109,9 @@ Write-Host ('Validated build '+$baselineCommit+': '+$plan.write.Count+' files to
 if ($CheckOnly) { Write-Host 'Read-only preflight passed. No service or installation file was changed.'; return }
 . (Join-Path $rootPath 'portable-common.ps1')
 $status = Get-PortableDaemonStatus -Root $rootPath -Profile $Profile
-if ($status.Running) { throw 'Stop this installation-specific daemon after its tasks finish, then retry. No files were replaced.' }
+Assert-ReleaseDaemonStopped $status
+$originalReportPath = Join-Path $rootPath 'data\install-report.json'
+$originalReport = if (Test-Path -LiteralPath $originalReportPath) { Read-ReleaseJson $originalReportPath } else { $null }
 
 # Back up while the old database is available, then stop only this installation.
 Invoke-PortableNativeAction -Root $rootPath -Action 'Start' | Out-Null
@@ -125,6 +127,7 @@ Invoke-PortableNativeAction -Root $rootPath -Action 'Stop' | Out-Null
 $backup = Join-Path $rootPath ('backups\upgrade-'+$plan.to+'-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'-'+[guid]::NewGuid().ToString('N').Substring(0,8))
 New-Item -ItemType Directory -Path $backup | Out-Null
 Copy-Item -LiteralPath $cfgPath -Destination (Join-Path $backup 'deployment.json')
+if ($originalReport) { Copy-Item -LiteralPath $originalReportPath -Destination (Join-Path $backup 'install-report.json') }
 $journal = [ordered]@{ root=$rootPath; databaseBackup=$databaseBackup.FullName; version=$plan.to; from=$plan.from; profile=$Profile; files=@() }
 $journalPath = Join-Path $backup 'files.json'
 try {
@@ -167,12 +170,32 @@ try {
     $now = Get-Content -Raw -LiteralPath $cfgPath -Encoding UTF8 | ConvertFrom-Json
     Start-PortableCaddy -Root $rootPath -PublicHost $uri.Host -HttpsPort $uri.Port -ApiPort ([int]$now.ApiPort) -WebPort ([int]$now.WebPort) -LanExposed:(-not $NoLanAccess) | Out-Null
     Sync-UpgradeCaddyRecord -Installation $rootPath -Port $uri.Port | Out-Null
+    Wait-PortableHttp -Uri ($PublicOrigin+'/readyz') -RootCAPath (Get-PortablePublicRootCAPath $rootPath) -TimeoutSec 120 -Description 'the restored HTTPS listener' | Out-Null
     $now = Get-Content -Raw -LiteralPath $cfgPath -Encoding UTF8 | ConvertFrom-Json
     if ($now.Version -ne $plan.to) { throw 'Upgrade did not record the target version.' }
     foreach ($entry in $plan.write) { Assert-Hash (Resolve-DeltaPath $rootPath $entry.path) $entry.sha256 }
-    Write-Host ('Upgrade complete. Rollback checkpoint: '+$backup)
-    Write-Host 'Grant the intended operator instance-admin access as described in UPGRADE.md, then start only this installation-specific daemon.'
+    # The inner upgrade deliberately uses loopback to avoid firewall changes.
+    # Restore the original listener metadata after the real endpoint is ready.
+    if ($originalReport) {
+        $updatedReport = Read-ReleaseJson $originalReportPath
+        foreach ($property in $originalReport.PSObject.Properties) {
+            if ($property.Name -like 'lan*' -or $property.Name -in @('boardUrl','httpsPort','profile')) { $updatedReport | Add-Member -NotePropertyName $property.Name -NotePropertyValue $property.Value -Force }
+        }
+        Write-PortableJson $originalReportPath $updatedReport
+    }
+    $upgradeReportPath = Join-Path $rootPath 'data\upgrade-report.json'
+    if (Test-Path -LiteralPath $upgradeReportPath) {
+        $upgradeReport = Read-ReleaseJson $upgradeReportPath
+        $upgradeReport | Add-Member -NotePropertyName boardUrl -NotePropertyValue $PublicOrigin -Force
+        $upgradeReport | Add-Member -NotePropertyName lanExposed -NotePropertyValue ([bool](-not $NoLanAccess)) -Force
+        $upgradeReport | Add-Member -NotePropertyName lanHost -NotePropertyValue $uri.Host -Force
+        $upgradeReport | Add-Member -NotePropertyName lanMessage -NotePropertyValue '已保留原监听范围，未修改防火墙。' -Force
+        Write-PortableJson $upgradeReportPath $upgradeReport
+    }
+    Write-Host ('程序升级完成，原服务地址已就绪。恢复备份：'+$backup)
+    Write-Host '原有权限保留。请完成业务验收后再启动原安装的守护进程。'
 } catch {
-    Write-Host ('Upgrade stopped. Preserve this checkpoint for rollback: '+$backup)
+    Write-Host ('升级未完成，请保留备份：'+$backup)
+    Write-Host ('恢复说明：'+(Join-Path $sourcePath 'UPGRADE.md'))
     throw
 }

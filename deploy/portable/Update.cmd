@@ -1,0 +1,6 @@
+@echo off
+setlocal
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Update.ps1" -Interactive %*
+set "result=%ERRORLEVEL%"
+if not defined UWORKERS_NO_PAUSE pause
+exit /b %result%

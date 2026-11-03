@@ -838,6 +838,7 @@ function Invoke-PortableCommand {
     try {
         $lines = New-Object System.Collections.Generic.List[string]
         $lines.Add('@echo off')
+        $lines.Add('chcp 65001 >nul')
         $lines.Add('setlocal')
         if ($Environment) {
             foreach ($key in $Environment.Keys) {
@@ -854,8 +855,8 @@ function Invoke-PortableCommand {
         if ($tokens.Count -gt 0) { $commandLine += ' ' + ($tokens -join ' ') }
         $lines.Add($commandLine + ' 1> "' + $stdoutPath + '" 2> "' + $stderrPath + '"')
         $lines.Add('> "' + $exitCodePath + '" echo %ERRORLEVEL%')
-        $ansi = [Text.Encoding]::GetEncoding([Globalization.CultureInfo]::CurrentCulture.TextInfo.ANSICodePage)
-        [IO.File]::WriteAllLines($batchPath, $lines, $ansi)
+        # Switch cmd before it reads Unicode paths and environment values.
+        [IO.File]::WriteAllLines($batchPath, $lines, (New-Object Text.UTF8Encoding($false)))
         $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\cmd.exe') -ArgumentList ('/d /c ""' + $batchPath + '""') -WindowStyle Hidden -PassThru
         $deadline = (Get-Date).AddSeconds($TimeoutSec)
         while (-not (Test-Path -LiteralPath $exitCodePath)) {

@@ -25,7 +25,7 @@ foreach ($name in $script:ClientKitFiles) {
 $files=@(foreach ($file in Get-ReleaseFiles $stage) {
     @{path=$file.Name;bytes=$file.Length;sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
 })
-Write-ReleaseJson (Join-Path $stage 'CLIENT-FILES.json') @{schemaVersion=1;version=$Version;commit=$Commit;platform='windows-amd64';files=$files}
+Write-ReleaseJson (Join-Path $stage 'CLIENT-FILES.json') @{schemaVersion=2;version=$Version;commit=$Commit;platform='windows-amd64';files=$files}
 Assert-ClientKitDirectory $stage $Version $Commit
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive=Join-Path $OutputDirectory 'client-kit.zip'

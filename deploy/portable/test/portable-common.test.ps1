@@ -22,7 +22,7 @@ foreach ($file in $scriptFiles) {
 $common = Join-Path $portableRoot 'portable-common.ps1'
 . $common
 
-$testRoot = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-portable-test-' + [guid]::NewGuid().ToString('N'))
+$testRoot = Join-Path ([IO.Path]::GetTempPath()) ('uworkers portable ' + [char]0x4E2D + [char]0x6587 + '-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
 try {
     # --- JSON helpers -----------------------------------------------------

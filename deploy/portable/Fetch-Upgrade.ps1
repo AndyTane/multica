@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 [CmdletBinding()]
 param(
     [string]$Version = 'latest',
@@ -49,7 +49,7 @@ if ($ClientKit) {
     Expand-ReleaseArchive $archive $unpacked
     Assert-ClientKitDirectory $unpacked $Version $release.commit
     Write-ReleaseJson (Join-Path $destination 'fetch-result.json') @{version=$Version;commit=$release.commit;packageType='client-kit';sha256=$release.clientKit.sha256;verified=$true;applied=$false}
-    Write-Host ('Verified client kit '+$Version+'. Use client-kit/Reconnect.cmd for an existing connection, or read README.md for first sign-in.')
+    Write-Host ('客户端包 '+$Version+' 已校验。换新版先用 Import.cmd 导入旧设置；首次使用双击 Connect.cmd。')
     return $unpacked
 }
 $archive = Join-Path $destination 'upgrade.zip'
@@ -89,5 +89,5 @@ if ($Apply -or $CheckOnly) {
     & (Join-Path $PSScriptRoot 'Apply-Upgrade.ps1') -Root $Root -Profile $Profile -PublicOrigin $PublicOrigin -NoLanAccess:$NoLanAccess -CheckOnly:$CheckOnly -UpgradeDirectory $unpacked
     Write-ReleaseJson (Join-Path $destination 'fetch-result.json') @{version=$Version;sha256=$release.package.sha256;verified=$true;applied=[bool](-not $CheckOnly);checked=[bool]$CheckOnly}
 }
-Write-Host ('Verified '+$Version+'. Instructions and payload are in the staging directory. Administrator grants, if needed, remain an explicit operator step in UPGRADE.md.')
+Write-Host ('升级包 '+$Version+' 已校验，文件与说明在下载目录。原有权限保留。')
 return $unpacked

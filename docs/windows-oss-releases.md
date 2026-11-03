@@ -1,5 +1,16 @@
 # Windows OSS 发布与升级
 
+## 升级入口（v0.2.6 起）
+
+v0.2.5 用户首次使用新版入口，先取得随本次交付的 `UWorkers-Fetch-bootstrap.zip`，核对交付的 SHA-256，解压到安装目录之外。旧安装和 v0.2.3 下载工具中没有 `Update.cmd`。将已有 `ossutil.exe`（2.x）放到同目录，或按提示选择其路径；凭据仍仅使用原环境变量。
+
+双击 `Update.cmd`，选原安装目录。它读取原地址、profile 和监听范围，下载、校验并只读检查；差量起点不匹配会停止，完整包会转到包内说明。任务空闲后用原安装 `Stop.cmd` 停止，再运行入口并输入 Y 升级。取消不启停服务、不修改安装。成功后检查登录、项目、任务、旧附件与另一台电脑访问，再启动原守护进程。失败保留显示的下载和备份目录，按 `UPGRADE.md` 恢复。
+
+后续新服务端包根目录与完整包 `download-tools` 都携带同版本入口；差量计划包含对应文件和 SHA-256，保留旧 full/delta/client 清单兼容。客户端换新版：新包 `Import.cmd` 选旧包，任务空闲后旧包 `Stop.cmd`、新包 `Reconnect.cmd`；首次使用 `Connect.cmd` 按中文提示填写，无需编辑 JSON。
+
+以下底层命令继续供维护人员使用。正式发布仍由负责人升新版本、从最新 main 打 tag、完成服务端包与 Client-Kit 同号上传和校验，最后切换 stable。
+
+
 家里使用 PowerShell 7 构建/发布，公司使用 Windows PowerShell 5.1 或 PowerShell 7 拉取/升级。沿用现有 portable 安装与 119 的清单式差分流程。
 
 ## 首次准备

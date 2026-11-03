@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 param([string]$EvidencePath)
 $ErrorActionPreference = 'Stop'
 $portable = Split-Path -Parent $PSScriptRoot
@@ -27,6 +27,7 @@ try {
     & pwsh.exe -NoProfile -File (Join-Path $portable 'build-full-release.ps1') -PackageDirectory $package -OutputDirectory $output -Version $version -Commit $commit -Ossutil $fake | Out-Null
     Check ($LASTEXITCODE -eq 0) 'full package prepares and verifies compressed contents'
     $archive=Join-Path $output 'archive'
+    Check ((Test-Path (Join-Path $archive 'download-tools/Update.cmd')) -and (Test-Path (Join-Path $archive 'download-tools/Update.ps1'))) 'full download tools include Chinese Update entry'
     Check (-not (Test-Path (Join-Path $archive '.env')) -and -not (Test-Path (Join-Path $archive 'data'))) 'private root files excluded'
     $release=Read-ReleaseJson (Join-Path $output 'release.json'); Assert-ReleaseManifest $release $version
     Check ($release.packageType -eq 'full' -and $release.tag -eq $version -and $release.commit -eq $commit) 'full manifest pins version tag and complete commit'
@@ -50,6 +51,11 @@ try {
     $env:FAKE_CORRUPT_KEY=''
     Fail { & $fetch -Version latest -DestinationDirectory (Join-Path $work 'apply') -Ossutil $fake -Apply -Root (Join-Path $work 'absent-installation') -Profile fixture -PublicOrigin https://localhost } 'full package never enters differential Apply'
     Check (-not (Test-Path (Join-Path $work 'absent-installation'))) 'full Apply rejection leaves installation untouched'
+    $fullRoot=Join-Path $work 'full-existing'
+    Text (Join-Path $fullRoot 'deployment.json') '{"Version":"v1.2.2","PublicOrigin":"https://localhost:13443"}'
+    Text (Join-Path $fullRoot 'data/install-report.json') '{"profile":"fixture","lanExposed":false}'
+    $fullLog=(& (Join-Path $portable 'Update.ps1') -Root $fullRoot -Ossutil $fake -DestinationDirectory (Join-Path $work 'full-update-entry') -ConfirmUpgrade 6>&1 | Out-String)
+    Check ($fullLog.Contains('完整包已校验') -and $fullLog.Contains('UPGRADE.md') -and -not (Test-Path (Join-Path $fullRoot 'backups'))) 'Update routes full package to instructions without differential lifecycle'
     $bad=Read-ReleaseJson (Join-Path $output 'release.json'); $bad.commit='4444444444444444444444444444444444444444'
     Fail { Assert-FullReleaseDirectory $archive $version $bad.commit } 'full inventory commit mismatch rejected'
     $bad.tag='v1.2.4'; Fail { Assert-ReleaseManifest $bad $version } 'tag mismatch rejected'
@@ -62,7 +68,7 @@ try {
     # Git identity here belongs only to an isolated test fixture with no remote.
     $source=Join-Path $work 'source'; $sourcePortable=Join-Path $source 'deploy/portable'
     New-Item -ItemType Directory -Path $sourcePortable,(Join-Path $source 'docs') -Force | Out-Null
-    foreach ($name in @('build-full-release.ps1','build-client-kit.ps1','Fetch-Upgrade.ps1','Apply-Upgrade.ps1','oss-release-common.ps1')) { Copy-Item (Join-Path $portable $name) (Join-Path $sourcePortable $name) }
+    foreach ($name in @('build-full-release.ps1','build-client-kit.ps1','Fetch-Upgrade.ps1','Apply-Upgrade.ps1','oss-release-common.ps1','Update.cmd','Update.ps1')) { Copy-Item (Join-Path $portable $name) (Join-Path $sourcePortable $name) }
     Copy-Item (Join-Path $portable '../client-kit') (Join-Path $source 'deploy/client-kit') -Recurse
     Copy-Item (Join-Path $portable '../../docs/windows-full-package-upgrade.md') (Join-Path $source 'docs/windows-full-package-upgrade.md')
     $builder=@'
@@ -131,6 +137,17 @@ $commit=(& git -C (Join-Path $PSScriptRoot '../..') rev-parse --short=9 HEAD | O
     Check (($calls -join '|') -eq 'put releases/v1.2.4/upgrade.zip true|put releases/v1.2.4/UPGRADE.md true|put releases/v1.2.4/client-kit.zip true|put releases/v1.2.4/release.json true|put channels/stable/latest.json false') 'delta client immutable upload precedes release and latest'
     $kit= & $fetch -Version v1.2.4 -DestinationDirectory (Join-Path $work 'fetch-delta-client') -Ossutil $fake -ClientKit
     Assert-ClientKitDirectory $kit 'v1.2.4' $deltaRelease.commit
+    $clientInventory=Read-ReleaseJson (Join-Path $kit 'CLIENT-FILES.json')
+    Check ($clientInventory.schemaVersion -eq 2 -and (Test-Path (Join-Path $kit 'Import.cmd')) -and (Test-Path (Join-Path $kit 'client-settings.ps1'))) 'new client schema requires import and settings helper'
+    $legacyKit=Join-Path $work 'legacy-client'; Copy-Item -LiteralPath $kit -Destination $legacyKit -Recurse
+    $legacyInventory=Read-ReleaseJson (Join-Path $legacyKit 'CLIENT-FILES.json')
+    $legacyInventory.schemaVersion=1; $legacyInventory.files=@($legacyInventory.files | Where-Object { $_.path -notin @('Import.cmd','client-settings.ps1') })
+    Write-ReleaseJson (Join-Path $legacyKit 'CLIENT-FILES.json') $legacyInventory
+    Remove-Item -LiteralPath (Join-Path $legacyKit 'Import.cmd'),(Join-Path $legacyKit 'client-settings.ps1')
+    Assert-ClientKitDirectory $legacyKit 'v1.2.4' $deltaRelease.commit
+    Check ($true) 'old schema 1 client manifest still accepted without new files'
+    $legacyInventory.schemaVersion=2; Write-ReleaseJson (Join-Path $legacyKit 'CLIENT-FILES.json') $legacyInventory
+    Fail { Assert-ClientKitDirectory $legacyKit 'v1.2.4' $deltaRelease.commit } 'new schema rejects missing import entry'
     Check (Test-Path (Join-Path $kit 'u-workers.exe')) 'client download independent of server package type'
     Text (Join-Path $kit 'credentials.json') 'fixture'
     Fail { Assert-ClientKitDirectory $kit 'v1.2.4' $deltaRelease.commit } 'unlisted client file rejected'

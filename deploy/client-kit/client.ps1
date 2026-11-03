@@ -1,7 +1,18 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 [CmdletBinding()]
-param([ValidateSet('Connect','Reconnect','Status','Stop')][string]$Action = 'Reconnect')
+param(
+    [ValidateSet('Connect','Reconnect','Status','Stop','Import')][string]$Action = 'Reconnect',
+    [string]$ServerUrl,
+    [string]$RootCa,
+    [string]$Profile,
+    [string]$SourceDirectory,
+    [switch]$ReplaceSettings,
+    [switch]$Interactive,
+    [switch]$NonInteractive
+)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'client-settings.ps1')
+$canPrompt = $Interactive -and -not $NonInteractive
 
 # User launchers must not inherit a task's credentials or daemon identity.
 $saved = @{}
@@ -18,7 +29,7 @@ function Invoke-Client([string[]]$Arguments,[switch]$Capture) {
     $argv = @(); if ($settings.profile) { $argv += @('--profile',[string]$settings.profile) }; $argv += $Arguments
     if (-not $Capture) {
         & $cli @argv
-        if ($LASTEXITCODE -ne 0) { throw 'CLI command failed. Follow the message above; use Connect.cmd if sign-in expired.' }
+        if ($LASTEXITCODE -ne 0) { throw ('操作未完成（退出码 '+$LASTEXITCODE+'）。请检查网络和原 profile 的登录，登录过期时双击 Connect.cmd。') }
         return
     }
     $start = New-Object Diagnostics.ProcessStartInfo
@@ -32,51 +43,90 @@ function Invoke-Client([string[]]$Arguments,[switch]$Capture) {
         $null=$process.Start()
         $stdout=$process.StandardOutput.ReadToEndAsync(); $stderr=$process.StandardError.ReadToEndAsync()
         $process.WaitForExit(); $raw=$stdout.GetAwaiter().GetResult(); $null=$stderr.GetAwaiter().GetResult()
-        if ($process.ExitCode -ne 0) { throw ('CLI query failed (exit '+$process.ExitCode+'). Check profile, server access and sign-in; use Connect.cmd for first sign-in.') }
-        try { return ($raw | ConvertFrom-Json -ErrorAction Stop) } catch { throw 'CLI returned invalid status JSON.' }
+        if ($process.ExitCode -ne 0) { throw ('无法验证（退出码 '+$process.ExitCode+'）。请检查服务地址与网络，再检查原 profile 的登录；登录过期时双击 Connect.cmd。') }
+        try { return ($raw | ConvertFrom-Json -ErrorAction Stop) } catch { throw '无法读取状态，请重新解压完整客户端包后重试。' }
     } finally { $process.Dispose() }
 }
 function Get-ClientStatus {
     $status=Invoke-Client @('daemon','status','--output','json') -Capture
-    if ($status.status -notin @('running','starting','stopped')) { throw 'CLI returned an unknown daemon status.' }
-    if ($status.port_conflict) { throw 'Another profile owns this daemon port. Check Status.cmd and the selected profile before reconnecting.' }
+    if ($status.status -notin @('running','starting','stopped')) { throw '状态无法识别，请核对客户端版本后重试。' }
+    if ($status.port_conflict) { throw '端口由另一套 profile 占用，请核对原 profile；不要重复启动。' }
     return $status
 }
 try {
+    $settings = Read-ClientSettings $PSScriptRoot
+    if ($Action -eq 'Import') {
+        if (-not $SourceDirectory) {
+            if (-not $canPrompt) { throw '缺少旧包目录，请传 -SourceDirectory，或双击 Import.cmd。' }
+            $SourceDirectory = (Read-Host '旧客户端包目录').Trim().Trim('"')
+        }
+        if (-not $SourceDirectory -or -not (Test-Path -LiteralPath (Join-Path $SourceDirectory 'connection.json') -PathType Leaf)) { throw '旧包目录中找不到 connection.json。' }
+        $source = [IO.Path]::GetFullPath($SourceDirectory).TrimEnd('\','/')
+        if ($source -eq $PSScriptRoot.TrimEnd('\','/')) { throw '请选择旧包目录，不能导入自身。' }
+        $incoming = Read-ClientSettings $source
+        $certificate = Assert-ClientSettings $incoming $source
+        if (($settings.profile -or $settings.serverUrl -or $settings.rootCa) -and -not $ReplaceSettings) {
+            if (-not $canPrompt) { throw '新包已有连接设置，未覆盖。确认更换请传 -ReplaceSettings。' }
+            if ((Read-Host '新包已有连接设置，确认替换（Y/N，回车取消）') -ne 'Y') { Write-Host '已取消，原设置保留。'; return }
+        }
+        Import-ClientSettings $incoming $certificate $PSScriptRoot
+        Write-Host '连接设置已导入，仅需操作一次。原登录和旧包保留。' -ForegroundColor Green
+        Write-Host '等任务空闲后，用旧包 Stop.cmd 停止，再用新包 Reconnect.cmd 重连。'
+        return
+    }
     $cli=Join-Path $PSScriptRoot 'u-workers.exe'
-    if (-not (Test-Path -LiteralPath $cli -PathType Leaf)) { throw 'Missing u-workers.exe. Extract the complete client kit first.' }
-    $settings=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'connection.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ([string]$settings.profile -match '[\\/:\x00-\x1f]' -or [string]$settings.profile -in @('.','..')) { throw 'Invalid profile in connection.json.' }
+    if (-not (Test-Path -LiteralPath $cli -PathType Leaf)) { throw '缺少 u-workers.exe，请完整解压客户端包。' }
     if ($Action -eq 'Connect') {
-        $argv=@('connect')
-        if ($settings.serverUrl) {
-            $uri=$null
-            if (-not [Uri]::TryCreate([string]$settings.serverUrl,[UriKind]::Absolute,[ref]$uri) -or $uri.Scheme -ne 'https' -or $uri.UserInfo -or $uri.Query -or $uri.Fragment) { throw 'serverUrl must be an HTTPS URL without credentials, query or fragment.' }
-            $argv+=@('--server-url',[string]$settings.serverUrl)
+        $candidate = [pscustomobject]@{profile=$settings.profile;serverUrl=$settings.serverUrl;rootCa=$settings.rootCa}
+        foreach ($pair in @(@('ServerUrl','serverUrl'),@('RootCa','rootCa'),@('Profile','profile'))) {
+            if ($PSBoundParameters.ContainsKey($pair[0])) { $candidate.($pair[1]) = [string](Get-Variable -Name $pair[0] -ValueOnly) }
         }
-        if ($settings.rootCa) {
-            $ca=[string]$settings.rootCa
-            if (-not [IO.Path]::IsPathRooted($ca)) { $ca=Join-Path $PSScriptRoot $ca }
-            if (-not (Test-Path -LiteralPath $ca -PathType Leaf)) { throw 'rootCa file was not found. Obtain the public certificate from the server administrator.' }
-            $argv+=@('--root-ca',$ca)
+        if (-not $candidate.serverUrl -and $canPrompt) {
+            $candidate.serverUrl = (Read-Host 'HTTPS 服务地址（由管理员提供）').Trim()
+            if (-not $candidate.rootCa -and -not $PSBoundParameters.ContainsKey('RootCa')) { $candidate.rootCa = (Read-Host '公开根证书路径（公共 CA 可回车留空；不要选择私钥）').Trim().Trim('"') }
+            if (-not $candidate.profile -and -not $PSBoundParameters.ContainsKey('Profile')) { $candidate.profile = (Read-Host '原 profile 名称（默认配置回车留空，决定沿用哪套登录）').Trim() }
         }
+        $certificate = Assert-ClientSettings $candidate $PSScriptRoot -RequireServer
+        $changed = $candidate.serverUrl -cne $settings.serverUrl -or $candidate.rootCa -cne $settings.rootCa -or $candidate.profile -cne $settings.profile
+        if ($changed -and ($settings.serverUrl -or $settings.profile -or $settings.rootCa) -and -not $ReplaceSettings) {
+            if (-not $canPrompt) { throw '已有连接设置，未覆盖。确认更换请传 -ReplaceSettings。' }
+            if ((Read-Host '确认更换连接设置（Y/N，回车取消）') -ne 'Y') { Write-Host '已取消，原设置保留。'; return }
+        }
+        if ($changed) { Save-ClientSettings $candidate $PSScriptRoot }
+        $settings = $candidate
+        $argv=@('connect','--server-url',$settings.serverUrl)
+        if ($certificate) { $argv+=@('--root-ca',$certificate.Path) }
+        Write-Host ('连接：'+$settings.serverUrl)
         Invoke-Client $argv
     } elseif ($Action -eq 'Stop') {
+        $null = Assert-ClientSettings ([pscustomobject]@{profile=$settings.profile;serverUrl='';rootCa=''}) $PSScriptRoot
         Invoke-Client @('daemon','stop')
+        Write-Host '已停止。需要连接时双击 Reconnect.cmd。'
         return
     } elseif ($Action -eq 'Reconnect') {
+        $null = Assert-ClientSettings $settings $PSScriptRoot -SkipCertificate
         $status=Get-ClientStatus
         if ($status.status -notin @('running','starting')) {
             Invoke-Client @('daemon','start')
         }
     }
+    $null = Assert-ClientSettings $settings $PSScriptRoot -SkipCertificate
+    Write-Host ('profile：'+$(if ($settings.profile) {$settings.profile} else {'default'}))
+    if ($settings.serverUrl) { Write-Host ('服务：'+$settings.serverUrl) }
+    $inventory = Join-Path $PSScriptRoot 'CLIENT-FILES.json'
+    if (Test-Path -LiteralPath $inventory) {
+        $identity = Get-Content -LiteralPath $inventory -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$identity.version -match '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$') { Write-Host ('版本：'+$identity.version) }
+    }
     $status=Get-ClientStatus
-    if ($status.status -notin @('running','starting')) { throw 'Daemon is stopped. Run Reconnect.cmd; for first sign-in use Connect.cmd.' }
-    Write-Host ('Daemon: '+$status.status+'; profile: '+$(if ($settings.profile) {$settings.profile} else {'default'})+'; PID: '+$status.pid)
+    if ($status.status -eq 'stopped') { Write-Host '尚未连接，双击 Reconnect.cmd；首次使用请双击 Connect.cmd。'; return }
+    if ($status.status -eq 'starting') { Write-Host '连接中，请稍后双击 Status.cmd 查看。'; return }
+    Write-Host '本机守护进程已运行，正在验证服务器访问...'
     # Authenticated read distinguishes server access from local process liveness.
-    $null=Invoke-Client @('workspace','list','--output','json') -Capture
-    Write-Host 'Server access verified. Check this machine in the web runtime list.' -ForegroundColor Green
-    if (@($status.agents).Count -eq 0) { Write-Host 'No agent CLI detected yet. Install/configure the desired agent CLI before assigning work.' -ForegroundColor Yellow }
+    try { $null=Invoke-Client @('workspace','list','--output','json') -Capture }
+    catch { throw '本机已运行，但服务器访问未通过。请检查服务地址与网络，再检查原 profile 的登录；登录过期时双击 Connect.cmd。' }
+    Write-Host '服务器访问已验证，请在网页运行时列表确认本机在线。' -ForegroundColor Green
+    if (@($status.agents).Count -eq 0) { Write-Host '尚未检测到智能体 CLI，请安装并登录后再分配任务。' -ForegroundColor Yellow }
 } finally {
     foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name],'Process') }
 }
