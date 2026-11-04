@@ -83,6 +83,12 @@ try {
     if ([version]($release.to -replace '^v|-.*$','') -le [version]($cfg.Version -replace '^v|-.*$','')) { throw '目标版本不高于当前版本，不能降级。' }
     if ($release.packageType -eq 'full') { Write-Host ('完整包已校验。请按 '+(Join-Path $payload 'UPGRADE.md')+' 备份并升级。'); return }
     if ($release.from -cne $cfg.Version) { throw ('此差量包需要 '+$release.from+'，当前为 '+$cfg.Version+'。请逐版升级，或按完整包说明对齐基线。') }
+    $clientStage=''
+    if ($release.clientKit) {
+        Write-Host '正在下载并校验同版客户端包...'
+        $clientStage=$stage+'-client'
+        $null=& (Join-Path $PSScriptRoot 'Fetch-Upgrade.ps1') -Version $release.to -ClientKit -Ossutil $Ossutil -DestinationDirectory $clientStage
+    }
     $applyArgs = @{Root=$installation;Profile=$Profile;PublicOrigin=$PublicOrigin;UpgradeDirectory=$payload}
     # An existing record retains requested intent separately from current exposure.
     if ($PSBoundParameters.ContainsKey('NoLanAccess') -or $LanAccess -or -not $lanProperty) { $applyArgs.NoLanAccess=[bool]$NoLanAccess }
@@ -93,6 +99,7 @@ try {
     Assert-ReleaseDaemonStopped $daemon
     Write-Host '下载、校验和只读检查完成。'
     if ($CheckOnly) { Write-Host '仅检查，未修改安装。'; return }
+    if ($clientStage) { $applyArgs.ClientReleaseDirectory=$clientStage }
     if (-not $ConfirmUpgrade) {
         if (-not $canPrompt) { throw '检查通过。确认升级请传 -ConfirmUpgrade；仅检查请传 -CheckOnly。' }
         if ((Read-Host '现在升级（Y/N，回车取消）') -ne 'Y') { Write-Host '已取消，未修改安装。'; return }

@@ -7,6 +7,7 @@ param(
     [switch]$NoLanAccess,
     [switch]$LinkPayloadFiles,
     [switch]$CheckOnly,
+    [string]$ClientReleaseDirectory = '',
     [string]$UpgradeDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -130,6 +131,8 @@ if ($PSBoundParameters.ContainsKey('NoLanAccess')) { $requestedHost = if ($NoLan
 $finalHost = if ($finalLanExposed) { $uri.Host } else { '127.0.0.1' }
 $finalOrigin = if ($finalLanExposed -or (Test-PortableLoopbackHost $uri.Host)) { $PublicOrigin } else { 'https://localhost:'+$uri.Port }
 
+$clientCache=''
+if ($ClientReleaseDirectory) { $clientCache=Initialize-PortableClientCache $rootPath $ClientReleaseDirectory $plan.to $plan.commit }
 # Back up while the old database is available, then stop only this installation.
 Invoke-PortableNativeAction -Root $rootPath -Action 'Start' | Out-Null
 $previousBackups = @{}
@@ -210,6 +213,8 @@ try {
     $upgradeReportPath = Join-Path $rootPath 'data\upgrade-report.json'
     foreach ($key in $finalFields.Keys) { $upgradeReport | Add-Member -NotePropertyName $key -NotePropertyValue $finalFields[$key] -Force }
     Write-PortableJson $upgradeReportPath $upgradeReport
+    if ($clientCache) { Enable-PortableClientCache $clientCache $plan.to $plan.commit; Write-Host '同版客户端升级缓存已就绪，受管客户端将在空闲时自动跟随。' }
+    else { Write-Host '客户端自动升级缓存尚未就绪；现有连接与业务继续运行。' }
     Write-Host ('程序升级完成，原服务地址已就绪。恢复备份：'+$backup)
     Write-Host '原有权限保留。请完成业务验收后再启动原安装的守护进程。'
     Write-Host $daemonStartCommand

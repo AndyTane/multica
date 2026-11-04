@@ -11,6 +11,38 @@ $script:ReleaseProgramFiles += $script:UpdateToolFiles
 function Assert-ReleaseVersion([string]$Version) {
     if ($Version -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?$') { throw 'Invalid release version; expected v1.2.3.' }
 }
+
+# Cache preparation runs during an explicit install/upgrade, never in the API.
+# Readiness is published separately, after the final listener passes readyz.
+function Initialize-PortableClientCache([string]$Root,[string]$Directory,[string]$Version,[string]$Commit) {
+    $release=Read-ReleaseJson (Resolve-ReleasePath $Directory 'release.json')
+    Assert-ReleaseManifest $release $Version
+    if ($release.commit -cne $Commit -or -not $release.clientKit) { throw 'Client cache must match the target server source.' }
+    $archive=Resolve-ReleasePath $Directory 'client-kit.zip'
+    Assert-ReleaseFile $archive $release.clientKit.sha256 ([long]$release.clientKit.bytes)
+    if ([long]$release.clientKit.bytes -gt 256MB) { throw 'Client package exceeds the managed client size limit.' }
+    $cache=Resolve-ReleasePath $Root ('data/client-releases/'+$Version)
+    if (Test-Path -LiteralPath $cache) {
+        Assert-ReleaseFile (Join-Path $cache 'client-kit.zip') $release.clientKit.sha256 ([long]$release.clientKit.bytes)
+    } else {
+        $validation=Join-Path $Root ('data/client-releases/check-'+[guid]::NewGuid().ToString('N'))
+        Expand-ReleaseArchive $archive $validation
+        Assert-ClientKitDirectory $validation $Version $Commit
+        New-Item -ItemType Directory -Path $cache -Force | Out-Null
+        Copy-Item -LiteralPath $archive -Destination (Join-Path $cache 'client-kit.zip')
+        Copy-Item -LiteralPath (Join-Path $Directory 'release.json') -Destination (Join-Path $cache 'release.json')
+        # Keep only verified distribution content, never connection/login data.
+        Remove-Item -LiteralPath $validation -Recurse -Force
+    }
+    return $cache
+}
+function Enable-PortableClientCache([string]$Cache,[string]$Version,[string]$Commit) {
+    $release=Read-ReleaseJson (Join-Path $Cache 'release.json')
+    Assert-ReleaseManifest $release $Version
+    if ($release.commit -cne $Commit) { throw 'Client cache commit mismatch.' }
+    Assert-ReleaseFile (Join-Path $Cache 'client-kit.zip') $release.clientKit.sha256 ([long]$release.clientKit.bytes)
+    Write-ReleaseJson (Join-Path $Cache 'ready.json') @{version=$Version;commit=$Commit;platform='windows-amd64';sha256=$release.clientKit.sha256;bytes=[long]$release.clientKit.bytes}
+}
 function Assert-ReleaseCommit([string]$Commit) {
     if ($Commit -cnotmatch '^[0-9a-f]{9,40}$') { throw 'Invalid release commit.' }
 }
@@ -193,6 +225,9 @@ function Invoke-ReleaseObject([string]$Ossutil, $Config, [ValidateSet('put','get
     Write-Host ('OSS '+$Operation+' '+$Key+' OK')
 }
 function Assert-ReleaseManifest($Release, [string]$Version) {
+    # Portable lifecycle callers enable StrictMode; optional legacy fields
+    # remain optional here, while required fields are validated explicitly.
+    Set-StrictMode -Off
     Assert-ReleaseVersion $Version
     $full = $Release.schemaVersion -eq 2 -and $Release.packageType -ceq 'full'
     if ((-not $full -and $Release.schemaVersion -ne 1) -or $Release.platform -cne 'windows-amd64' -or $Release.to -cne $Version) { throw 'Unsupported or mismatched release manifest.' }

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Upgrades an installed U Workers portable server in place.
@@ -28,6 +28,7 @@ param(
     [switch]$NoStartup,
     [switch]$NoLanAccess,
     [switch]$Force,
+    [string]$ClientReleaseDirectory = '',
     # Apply uses a checkpoint report until its final listener passes validation.
     [string]$ReportPath = ''
 )
@@ -81,6 +82,14 @@ if (-not $Profile) {
 
 $manifest = if ($Source) { Get-PortableManifest ([IO.Path]::GetFullPath($Source)) } else { Get-PortableManifest $root }
 $newVersion = [string]$manifest.version
+$clientCache=''
+if ($ClientReleaseDirectory) {
+    $cacheTools=if ($Source) { [IO.Path]::GetFullPath($Source) } else { $root }
+    . (Join-Path $cacheTools 'oss-release-common.ps1')
+    $clientRelease=Read-ReleaseJson (Join-Path $ClientReleaseDirectory 'release.json')
+    if (-not ([string]$clientRelease.commit).StartsWith([string]$manifest.commit)) { throw 'Client cache source differs from the target server.' }
+    $clientCache=Initialize-PortableClientCache $root $ClientReleaseDirectory $newVersion $clientRelease.commit
+}
 if ($newVersion -eq $installedVersion -and -not $Force) {
     Write-Host ('Already running ' + $installedVersion + '; the package is the same version. Nothing to upgrade.') -ForegroundColor Yellow
     exit 0
@@ -216,6 +225,7 @@ $report = [ordered]@{
     dataAfter = $after
 }
 Write-PortableJson $ReportPath $report
+if ($clientCache) { Enable-PortableClientCache $clientCache $newVersion $clientRelease.commit }
 
 Write-Host ''
 Write-Host ('U Workers upgraded to ' + $newVersion + '.') -ForegroundColor Green
