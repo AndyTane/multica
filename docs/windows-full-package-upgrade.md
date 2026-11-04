@@ -21,7 +21,7 @@
 
 这是**完整包专用**的 `-Source` 路径，之前的差分 ZIP 不能这样用。
 
-下面命令从旧安装目录运行其原有升级器；执行前公司 agent 应确认该升级器具备数据库备份失败即中止、完整 Source 覆盖和下列参数。若旧脚本不具备这些能力，停止并反馈，不直接覆盖替换脚本。
+下面命令运行新完整包内的升级器，通过 `-Root` 指向原安装。它先核验完整包与原 PostgreSQL 分发文件，再备份并升级，不依赖旧升级器的文件名单。不要先把脚本复制到旧安装。
 
 ```powershell
 $root = 'D:\03_DevProjects\sandboxes\UWorkers-Portable-v0.2.1' # 改成实际已安装根目录
@@ -30,8 +30,8 @@ $profile = (Get-Content -Raw -Encoding UTF8 "$root\data\install-report.json" | C
 if (-not $profile) { throw '先确认本安装的 CLI profile' }
 $env:PATH = "$env:SystemRoot\System32;" + $env:PATH
 $shell = (Get-Process -Id $PID).Path
-& $shell -NoProfile -ExecutionPolicy Bypass -File "$root\upgrade.ps1" `
-  -Source $full -Profile $profile -NoLanAccess -SkipDaemon -SkipBrowserTrust -NoStartup -NoBrowser
+& $shell -NoProfile -ExecutionPolicy Bypass -File "$full\upgrade.ps1" `
+  -Root $root -Source $full -Profile $profile -NoLanAccess -SkipDaemon -SkipBrowserTrust -NoStartup -NoBrowser
 if ($LASTEXITCODE -ne 0) { throw '升级失败，保留日志和备份，先定位，不要重装' }
 ```
 
