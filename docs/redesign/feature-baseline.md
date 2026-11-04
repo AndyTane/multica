@@ -9,29 +9,29 @@
 
 ## 怎么跑截图脚本
 
-脚本在 `e2e/visual/baseline.spec.ts`，平时不参与测试：只有 `VISUAL_BASELINE=1` 时才会被 Playwright 收集。
+脚本在 `e2e-visual/baseline.spec.ts`，用独立的 `playwright.visual.config.ts` 跑。仓库原有的 `playwright.config.ts` 没有改：它的 `testDir` 是 `./e2e`，不会收集 `e2e-visual/`。
 
 ```bash
 # 1. 起本地服务（web + api + PostgreSQL）
 bash scripts/dev-env.sh up          # 或 make up
 
-# 2. 确认 visual 用例的 gating（普通 suite 不含它们）
-pnpm exec playwright test e2e/visual --list                          # Total: 0 tests
-VISUAL_BASELINE=1 pnpm exec playwright test e2e/visual --list        # Total: 25 tests
+# 2. 确认 gating（普通 suite 不含这些截图用例）
+pnpm exec playwright test --list e2e-visual                          # No tests found
+pnpm exec playwright test -c playwright.visual.config.ts --list      # Total: 25 tests
 
 # 3. 截图
-VISUAL_BASELINE=1 pnpm exec playwright test e2e/visual/baseline.spec.ts
+pnpm exec playwright test -c playwright.visual.config.ts
 
 # 4. 收工（保留数据库，方便下次）
 bash scripts/dev-env.sh down        # 或 make down
 ```
 
-- 输出目录：`e2e/visual/__out__/`，已加进 `.gitignore`，截图不进仓库。
+- 输出目录：`e2e-visual/__out__/`，已加进 `.gitignore`，截图不进仓库。
 - 文件名：`<编号>-<页面>-<宽>-<主题>.png`，例如 `07-issues-board-1440-light.png`。每页 4 张：1440×900 / 1280×800 × 浅色 / 深色，25 个页面共 100 张。
 - 界面固定简体中文。12 号（任务详情-评论区）截的是滚动到评论输入框后的视口图，其余都是整页图；长页面的整页图会很高，这是有意的。
-- 数据由现有的 `TestApiClient`（`e2e/fixtures.ts`）在本次运行里新建一个独立工作区生成：各状态任务、一个带父任务/评论/附件的任务、两个项目、一个智能体、一套运行时、一个 Skill、一个小队、一个自动化、几条收件箱通知和一条邀请链接。跑完删掉这个工作区。
+- 数据由现有的 `TestApiClient`（`e2e/fixtures.ts`）加上 `e2e-visual/fixtures.ts` 里的可视基线辅助方法，在本次运行里新建一个独立工作区生成：各状态任务、一个带父任务/评论/附件的任务、两个项目、一个智能体、一套运行时、一个 Skill、一个小队、一个自动化、几条收件箱通知和一条邀请链接。跑完删掉这个工作区。
 - 不要指向真实部署或真实数据库（见 `AGENTS.md` 的 Testing 规则）。
-- 只重截某一页：`VISUAL_BASELINE=1 pnpm exec playwright test e2e/visual/baseline.spec.ts -g "07 任务-看板"`。
+- 只重截某一页：`pnpm exec playwright test -c playwright.visual.config.ts -g "07 任务-看板"`。
 
 
 ## 页面与路由对照
@@ -1353,7 +1353,7 @@ bash scripts/dev-env.sh down        # 或 make down
 
 ### 仓库存量问题（不是这次改出来的）
 
-- `e2e/plugin-surface-document.spec.ts` 仍在 import 不存在的 `buildSurfaceDocument`（源码导出的是 `buildSurfaceFrameDocument`），Playwright 加载这个文件就报错，导致当前 main 上 `pnpm exec playwright test --list` 整份列不出来。本次 visual gating 用按文件过滤验证：无 flag 时 `pnpm exec playwright test e2e/visual --list` 为 0 个，`VISUAL_BASELINE=1` 时为 25 个。
+- `e2e/plugin-surface-document.spec.ts` 仍在 import 不存在的 `buildSurfaceDocument`（源码导出的是 `buildSurfaceFrameDocument`），Playwright 加载这个文件就报错，导致当前 main 上 `pnpm exec playwright test --list` 整份列不出来。截图脚本放在独立的 `e2e-visual/` 和 `playwright.visual.config.ts` 里，主配置的 `testDir` 是 `./e2e`，所以普通 suite 不会收集它：`pnpm exec playwright test --list e2e-visual` 为 0 个，`pnpm exec playwright test -c playwright.visual.config.ts --list` 为 25 个。
 - `e2e/onboarding-smoke.spec.ts`、`e2e/onboarding-shell.spec.ts` 断言的是旧版引导流程（「About you」步骤与「Continue on web」按钮），`e2e/navigation.spec.ts` 的标签标题断言仍是「Inbox | Multica」（当前品牌是 U Workers）。这三处按现状会失败，不能当对应功能的覆盖证据。
 
 ## 本批没做

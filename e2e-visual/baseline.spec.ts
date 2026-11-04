@@ -5,16 +5,24 @@
  * full-page screenshot at 1440x900 and 1280x800, in both the light and the
  * dark theme:
  *
- *     <id>-<page>-<width>-<theme>.png   -> e2e/visual/__out__/
+ *     <id>-<page>-<width>-<theme>.png   -> e2e-visual/__out__/
  *
- * How to run (needs an already running local web + api; the ordinary
- * `pnpm exec playwright test` does not collect this directory):
+ * How to run (needs an already running local web + api):
  *
- *     VISUAL_BASELINE=1 pnpm exec playwright test e2e/visual/baseline.spec.ts
+ *     pnpm exec playwright test -c playwright.visual.config.ts
  *
- * The fixture data is created by TestApiClient in a workspace this run creates
- * and deletes afterwards. Never point this at a real deployment or a real
- * database (AGENTS.md "Testing").
+ * The config lives outside playwright.config.ts on purpose: the upstream test
+ * config stays untouched, and its testDir (./e2e) never collects this folder.
+ * Targeting one page:
+ *
+ *     pnpm exec playwright test -c playwright.visual.config.ts -g "07 任务-看板"
+ *
+ * Login, workspace, issues, projects and comments come from the existing
+ * TestApiClient (e2e/fixtures.ts); the visual-only rows (share link,
+ * attachment, agent, runtime, inbox items, skill, squad, autopilot) come from
+ * ./fixtures. The data is created in a workspace this run owns and deletes
+ * afterwards. Never point this at a real deployment or a real database
+ * (AGENTS.md "Testing").
  *
  * Page ids and list order must match docs/redesign/feature-baseline.md: when a
  * page is added or removed, update the checklist first and this file second.
@@ -22,11 +30,12 @@
 import { test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "fs";
 import { join } from "path";
-import { TestApiClient } from "../fixtures";
+import { TestApiClient } from "../e2e/fixtures";
+import { VisualBaselineData } from "./fixtures";
 
-// `playwright test` runs from the repo root and the config's testDir is
-// ./e2e, so anchor the output directory to the root: ESM has no __dirname.
-const OUTPUT_DIR = join(process.cwd(), "e2e", "visual", "__out__");
+// `playwright test` runs from the repo root, so anchor the output directory
+// to the root rather than __dirname: ESM has no __dirname.
+const OUTPUT_DIR = join(process.cwd(), "e2e-visual", "__out__");
 const BASE_URL =
   process.env.PLAYWRIGHT_BASE_URL ??
   process.env.FRONTEND_ORIGIN ??
@@ -306,6 +315,7 @@ const PAGES: PageDefinition[] = [
 ];
 
 let fixture: Fixture;
+let visual: VisualBaselineData;
 
 async function waitForReady(
   page: Page,
@@ -398,13 +408,6 @@ async function captureDefinition(
 }
 
 test.describe("R0 视觉基线截图", () => {
-  // The config already ignores this directory unless VISUAL_BASELINE=1; this
-  // is a second guard for anyone pulling the visual specs in with another config.
-  test.skip(
-    process.env.VISUAL_BASELINE !== "1",
-    "整页截图需要本地服务：VISUAL_BASELINE=1 pnpm exec playwright test e2e/visual/baseline.spec.ts",
-  );
-
   test.beforeAll(async () => {
     mkdirSync(OUTPUT_DIR, { recursive: true });
 
@@ -414,6 +417,7 @@ test.describe("R0 视觉基线截图", () => {
     await api.markUserOnboarded();
     const workspaceName = "R0 视觉基线";
     const workspace = await api.createWorkspace(workspaceName, `r0-visual-${runId}`);
+    visual = new VisualBaselineData(api, { id: workspace.id, slug: workspace.slug });
 
     const parentIssueTitle = "统一发布流程";
     const parent = await api.createIssue(parentIssueTitle, {
@@ -471,7 +475,7 @@ test.describe("R0 视觉基线截图", () => {
       parent.id,
       "差量包只适用于对应的起始版本，不能跨版本升级；公司电脑先 Stop.cmd 再换 Client-Kit。",
     );
-    await api.uploadIssueAttachment(
+    await visual.uploadIssueAttachment(
       parent.id,
       "upgrade-plan.png",
       new Uint8Array(ATTACHMENT_PNG),
@@ -480,19 +484,19 @@ test.describe("R0 视觉基线截图", () => {
 
     const agentName = "视觉基线助手";
     const runtimeName = "R0 视觉基线机器";
-    const { agentId } = await api.seedAgent(agentName, {
+    const { agentId } = await visual.seedAgent(agentName, {
       description: "用于 R0 功能基线截图的智能体。",
       runtimeName,
     });
     const skillName = "发布检查清单";
-    await api.createSkill(skillName, "上线前逐项核对", "# 发布检查清单\n- 版本号\n- SHA-256");
+    await visual.createSkill(skillName, "上线前逐项核对", "# 发布检查清单\n- 版本号\n- SHA-256");
     const squadName = "发布小组";
-    await api.createSquad(squadName, agentId, "负责版本发布与验收。");
+    await visual.createSquad(squadName, agentId, "负责版本发布与验收。");
     const autopilotTitle = "每周发布摘要";
-    await api.createAutopilot(autopilotTitle, agentId);
+    await visual.createAutopilot(autopilotTitle, agentId);
 
     const inboxItemTitle = "请评审统一发布流程";
-    await api.seedInboxItems([
+    await visual.seedInboxItems([
       {
         title: inboxItemTitle,
         body: "统一发布流程进入评审，等你确认差量包的起始版本。",
@@ -515,7 +519,7 @@ test.describe("R0 视觉基线截图", () => {
       },
     ]);
 
-    const shareLink = await api.createShareLink();
+    const shareLink = await visual.createShareLink();
 
     fixture = {
       api,
@@ -538,9 +542,12 @@ test.describe("R0 视觉基线截图", () => {
   });
 
   test.afterAll(async () => {
-    if (!fixture) return;
+    if (!fixture || !visual) return;
     try {
-      // Clean up in dependency order (a squad's leader is a RESTRICT reference to an agent), then drop the workspace.
+      // Clean up in dependency order: visual-only rows first (a squad's leader
+      // is a RESTRICT reference to its agent), then the client's issues and
+      // projects, then the workspace itself.
+      await visual.cleanup();
       await fixture.api.cleanup();
       await fixture.api.deleteWorkspace();
     } catch (error) {
