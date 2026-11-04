@@ -80,91 +80,72 @@ func TestResolveAppURL(t *testing.T) {
 }
 
 func TestResolveCallbackBinding(t *testing.T) {
-	// Fake outbound detector: pretends the CLI has a fixed LAN IP regardless
-	// of which server it dials.
-	fixed := func(ip string) func(string) net.IP {
-		return func(string) net.IP { return net.ParseIP(ip).To4() }
-	}
-	failing := func(string) net.IP { return nil }
-
-	cases := []struct {
-		name         string
-		flagHost     string
-		serverURL    string
-		appURL       string
-		detect       func(string) net.IP
-		wantCallback string
-		wantBind     string
+	for _, tc := range []struct {
+		name, host, wantCallback, wantBind string
+		wantError                          bool
 	}{
-		{
-			name:         "public app URL stays on loopback",
-			appURL:       "https://multica.ai",
-			serverURL:    "https://api.multica.ai",
-			detect:       failing,
-			wantCallback: "localhost",
-			wantBind:     "127.0.0.1",
-		},
-		{
-			name:         "localhost app URL stays on loopback",
-			appURL:       "http://localhost:3000",
-			serverURL:    "http://localhost:8080",
-			detect:       failing,
-			wantCallback: "localhost",
-			wantBind:     "127.0.0.1",
-		},
-		{
-			name:         "same-machine self-host uses loopback (CLI IP matches app IP)",
-			appURL:       "http://192.168.0.28:3000",
-			serverURL:    "http://192.168.0.28:8080",
-			detect:       fixed("192.168.0.28"),
-			wantCallback: "localhost",
-			wantBind:     "127.0.0.1",
-		},
-		{
-			name:         "cross-machine self-host points callback at CLI's LAN IP",
-			appURL:       "http://192.168.0.28:3000",
-			serverURL:    "http://192.168.0.28:8080",
-			detect:       fixed("192.168.0.47"),
-			wantCallback: "192.168.0.47",
-			wantBind:     "0.0.0.0",
-		},
-		{
-			name:         "outbound detection failure falls back to app IP",
-			appURL:       "http://192.168.0.28:3000",
-			serverURL:    "http://192.168.0.28:8080",
-			detect:       failing,
-			wantCallback: "192.168.0.28",
-			wantBind:     "0.0.0.0",
-		},
-		{
-			name:         "--callback-host flag overrides everything",
-			flagHost:     "cli.internal.example",
-			appURL:       "https://multica.ai",
-			serverURL:    "https://api.multica.ai",
-			detect:       fixed("10.0.0.5"),
-			wantCallback: "cli.internal.example",
-			wantBind:     "0.0.0.0",
-		},
-	}
-
-	for _, tc := range cases {
-		tc := tc
+		{name: "default is independent of server and outbound IP", wantCallback: "127.0.0.1", wantBind: "127.0.0.1"},
+		{name: "explicit localhost", host: " localhost ", wantCallback: "127.0.0.1", wantBind: "127.0.0.1"},
+		{name: "explicit loopback", host: "127.0.0.1", wantCallback: "127.0.0.1", wantBind: "127.0.0.1"},
+		{name: "explicit private address", host: "192.168.1.25", wantCallback: "192.168.1.25", wantBind: "0.0.0.0"},
+		{name: "explicit 10 address", host: "10.0.0.5", wantCallback: "10.0.0.5", wantBind: "0.0.0.0"},
+		{name: "explicit 172 private address", host: "172.31.0.5", wantCallback: "172.31.0.5", wantBind: "0.0.0.0"},
+		{name: "company public range", host: "174.34.66.99", wantError: true},
+		{name: "outside private 172 range", host: "172.32.0.5", wantError: true},
+		{name: "private-looking hostname", host: "10.example.com", wantError: true},
+		{name: "URL instead of host", host: "http://127.0.0.1", wantError: true},
+		{name: "port in host", host: "127.0.0.1:1234", wantError: true},
+		{name: "IPv6 unsupported by tcp4 listener", host: "::1", wantError: true},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			gotCallback, gotBind := resolveCallbackBinding(tc.flagHost, tc.serverURL, tc.appURL, tc.detect)
-			if gotCallback != tc.wantCallback {
-				t.Errorf("callback host = %q, want %q", gotCallback, tc.wantCallback)
+			host, bind, err := resolveCallbackBinding(tc.host)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("error = %v, wantError = %v", err, tc.wantError)
 			}
-			if gotBind != tc.wantBind {
-				t.Errorf("bind addr = %q, want %q", gotBind, tc.wantBind)
+			if host != tc.wantCallback || bind != tc.wantBind {
+				t.Fatalf("callback/bind = %q/%q, want %q/%q", host, bind, tc.wantCallback, tc.wantBind)
+			}
+			if err != nil && !strings.Contains(err.Error(), "--callback-host") {
+				t.Fatalf("error lacks recovery instructions: %v", err)
 			}
 		})
+	}
+}
+
+func TestDefaultCallbackListener(t *testing.T) {
+	host, bind, err := resolveCallbackBinding("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("tcp4", net.JoinHostPort(bind, "0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/callback" {
+			t.Errorf("unexpected callback path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	server.Listener.Close()
+	server.Listener = listener
+	server.Start()
+	defer server.Close()
+	port := listener.Addr().(*net.TCPAddr).Port
+	resp, err := server.Client().Get(fmt.Sprintf("http://%s:%d/callback", host, port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("callback status = %d", resp.StatusCode)
 	}
 }
 
 func TestBrowserLoginInstructionsSSHRemoteHint(t *testing.T) {
 	const loginURL = "https://multica.ai/login?cli_callback=http%3A%2F%2Flocalhost%3A43689%2Fcallback"
 
-	got := browserLoginInstructions(loginURL, "localhost", 43689, true)
+	got := browserLoginInstructions(loginURL, "127.0.0.1", 43689, true)
 	if !strings.Contains(got, "ssh -L 43689:127.0.0.1:43689 <user>@<remote-host>") {
 		t.Fatalf("remote SSH instructions missing tunnel command:\n%s", got)
 	}
@@ -172,7 +153,7 @@ func TestBrowserLoginInstructionsSSHRemoteHint(t *testing.T) {
 		t.Fatalf("instructions missing login URL:\n%s", got)
 	}
 
-	got = browserLoginInstructions(loginURL, "localhost", 43689, false)
+	got = browserLoginInstructions(loginURL, "127.0.0.1", 43689, false)
 	if strings.Contains(got, "ssh -L") {
 		t.Fatalf("local instructions should not include SSH tunnel command:\n%s", got)
 	}

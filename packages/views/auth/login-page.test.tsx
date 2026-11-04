@@ -919,6 +919,18 @@ describe("LoginPage", () => {
 // ---------------------------------------------------------------------------
 
 describe("validateCliCallback", () => {
+  it.each([
+    "http://174.34.66.99:9876/callback",
+    "http://10.example.com:9876/callback",
+    "http://172.16.example.com:9876/callback",
+    "http://192.168.example.com:9876/callback",
+    "http://10.0.0.5.example.com:9876/callback",
+    "http://user:password@127.0.0.1:9876/callback",
+    "http://127.0.0.1:9876/callback#fragment",
+  ])("rejects unsafe callback %s", (url) => {
+    expect(validateCliCallback(url)).toBe(false);
+  });
+
   it("accepts http://localhost", () => {
     expect(validateCliCallback("http://localhost:9876/callback")).toBe(true);
   });
