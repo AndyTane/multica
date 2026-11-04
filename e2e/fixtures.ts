@@ -52,6 +52,12 @@ export class TestApiClient {
   private email: string | null = null;
   private createdIssueIds: string[] = [];
   private createdProjectIds: string[] = [];
+  private createdSkillIds: string[] = [];
+  private createdSquadIds: string[] = [];
+  private createdAutopilotIds: string[] = [];
+  private createdAgentIds: string[] = [];
+  private createdRuntimeIds: string[] = [];
+  private createdInboxItemIds: string[] = [];
   private seededIssueIds: string[] = [];
 
   async login(email: string, name: string) {
@@ -456,6 +462,276 @@ export class TestApiClient {
       }
     }
     this.createdProjectIds = [];
+    // Autopilots, squads and skills are ordinary API resources; remove them
+    // first. A squad's leader is a RESTRICT reference to an agent, so squads
+    // must go before the seeded agents below.
+    for (const id of this.createdAutopilotIds) {
+      try {
+        await this.authedFetch(`/api/autopilots/${id}`, { method: "DELETE" });
+      } catch {
+        /* ignore — may already be deleted */
+      }
+    }
+    this.createdAutopilotIds = [];
+    for (const id of this.createdSquadIds) {
+      try {
+        await this.authedFetch(`/api/squads/${id}`, { method: "DELETE" });
+      } catch {
+        /* ignore — may already be deleted */
+      }
+    }
+    this.createdSquadIds = [];
+    for (const id of this.createdSkillIds) {
+      try {
+        await this.authedFetch(`/api/skills/${id}`, { method: "DELETE" });
+      } catch {
+        /* ignore — may already be deleted */
+      }
+    }
+    this.createdSkillIds = [];
+    // Agents, runtimes and inbox rows are seeded by SQL, so remove them by SQL.
+    if (
+      this.createdAgentIds.length > 0 ||
+      this.createdRuntimeIds.length > 0 ||
+      this.createdInboxItemIds.length > 0
+    ) {
+      const client = new pg.Client(DATABASE_URL);
+      await client.connect();
+      try {
+        if (this.createdInboxItemIds.length > 0) {
+          await client.query(`DELETE FROM inbox_item WHERE id = ANY($1::uuid[])`, [
+            this.createdInboxItemIds,
+          ]);
+        }
+        if (this.createdAgentIds.length > 0) {
+          await client.query(`DELETE FROM agent WHERE id = ANY($1::uuid[])`, [this.createdAgentIds]);
+        }
+        if (this.createdRuntimeIds.length > 0) {
+          await client.query(`DELETE FROM agent_runtime WHERE id = ANY($1::uuid[])`, [
+            this.createdRuntimeIds,
+          ]);
+        }
+      } finally {
+        await client.end();
+      }
+    }
+    this.createdAgentIds = [];
+    this.createdRuntimeIds = [];
+    this.createdInboxItemIds = [];
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Visual baseline fixtures (CLAWSTA-133)
+  //
+  // e2e/visual/baseline.spec.ts screenshots a workspace whose pages have
+  // content. A few of those rows cannot be produced through the product API:
+  // the join page needs an invite code, the issue page needs a real attachment,
+  // and agents/runtimes only exist through a daemon or the database. These
+  // helpers keep the seeding next to the existing fixture client instead of
+  // re-implementing auth or SQL in the visual spec.
+  // -------------------------------------------------------------------------
+
+  /** Create a workspace share link; the join page is `/join?code=<code>`. */
+  async createShareLink(role: "member" | "admin" = "member"): Promise<{ id: string; code: string }> {
+    if (!this.workspaceId) {
+      throw new Error("Cannot create a share link before a workspace is selected");
+    }
+    const res = await this.authedFetch(`/api/workspaces/${this.workspaceId}/share-links`, {
+      method: "POST",
+      body: JSON.stringify({ role }),
+    });
+    if (!res.ok) {
+      throw new Error(`create share link failed: ${res.status} ${await res.text()}`);
+    }
+    return (await res.json()) as { id: string; code: string };
+  }
+
+  /**
+   * Upload a file bound to an issue. Mirrors `api.uploadFile` in
+   * packages/core/api/client.ts: multipart form, bearer auth, workspace header.
+   */
+  async uploadIssueAttachment(
+    issueId: string,
+    filename: string,
+    content: Uint8Array,
+    contentType = "application/octet-stream",
+  ): Promise<{ id: string; url: string; filename?: string }> {
+    const form = new FormData();
+    // Copy into a plain ArrayBuffer-backed view: File only accepts Blob parts
+    // backed by ArrayBuffer, not the ArrayBufferLike generic Uint8Array.
+    const bytes = new Uint8Array(content.length);
+    bytes.set(content);
+    form.append("file", new File([bytes], filename, { type: contentType }));
+    form.append("issue_id", issueId);
+    const headers: Record<string, string> = {};
+    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    if (this.workspaceSlug) headers["X-Workspace-Slug"] = this.workspaceSlug;
+    const res = await fetch(`${API_BASE}/api/upload-file`, {
+      method: "POST",
+      body: form,
+      headers,
+    });
+    if (!res.ok) {
+      throw new Error(`upload attachment failed: ${res.status} ${await res.text()}`);
+    }
+    return (await res.json()) as { id: string; url: string; filename?: string };
+  }
+
+  async createSkill(name: string, description = "", content = "") {
+    const res = await this.authedFetch("/api/skills", {
+      method: "POST",
+      body: JSON.stringify({ name, description, content }),
+    });
+    if (!res.ok) {
+      throw new Error(`create skill failed: ${res.status} ${await res.text()}`);
+    }
+    const skill = (await res.json()) as { id: string; name: string };
+    this.createdSkillIds.push(skill.id);
+    return skill;
+  }
+
+  async createSquad(name: string, leaderId: string, description = "") {
+    const res = await this.authedFetch("/api/squads", {
+      method: "POST",
+      body: JSON.stringify({ name, description, leader_id: leaderId }),
+    });
+    if (!res.ok) {
+      throw new Error(`create squad failed: ${res.status} ${await res.text()}`);
+    }
+    const squad = (await res.json()) as { id: string; name: string };
+    this.createdSquadIds.push(squad.id);
+    return squad;
+  }
+
+  async createAutopilot(
+    title: string,
+    assigneeId: string,
+    executionMode: "create_issue" | "run_only" = "create_issue",
+  ) {
+    const res = await this.authedFetch("/api/autopilots", {
+      method: "POST",
+      body: JSON.stringify({ title, assignee_id: assigneeId, execution_mode: executionMode }),
+    });
+    if (!res.ok) {
+      throw new Error(`create autopilot failed: ${res.status} ${await res.text()}`);
+    }
+    const autopilot = (await res.json()) as { id: string; title: string };
+    this.createdAutopilotIds.push(autopilot.id);
+    return autopilot;
+  }
+
+  /**
+   * Insert an online runtime plus an agent bound to it, directly in the
+   * database. The product only registers runtimes through a live daemon, and
+   * agent creation requires an existing runtime_id, so the visual baseline
+   * seeds the pair the same way e2e/chat-attachments.spec.ts does.
+   */
+  async seedAgent(
+    name: string,
+    opts: { description?: string; runtimeName?: string } = {},
+  ): Promise<{ agentId: string; runtimeId: string }> {
+    if (!this.workspaceId || !this.email) {
+      throw new Error("Cannot seed an agent before login and workspace setup");
+    }
+    const client = new pg.Client(DATABASE_URL);
+    await client.connect();
+    try {
+      const userResult = await client.query<{ id: string }>(
+        `SELECT id FROM "user" WHERE email = $1`,
+        [this.email],
+      );
+      const ownerId = userResult.rows[0]?.id;
+      if (!ownerId) {
+        throw new Error(`Cannot resolve E2E user for ${this.email}`);
+      }
+      const runtimeResult = await client.query<{ id: string }>(
+        `INSERT INTO agent_runtime (
+           workspace_id, daemon_id, name, runtime_mode, provider, status,
+           device_info, metadata, last_seen_at
+         )
+         VALUES ($1, NULL, $2, 'cloud', 'r0_visual_baseline', 'online', $3, '{}'::jsonb, now())
+         RETURNING id`,
+        [this.workspaceId, opts.runtimeName ?? "R0 视觉基线机器", "R0 visual baseline runtime"],
+      );
+      const runtimeId = runtimeResult.rows[0]?.id;
+      if (!runtimeId) {
+        throw new Error("Failed to seed the visual baseline runtime");
+      }
+      const agentResult = await client.query<{ id: string }>(
+        `INSERT INTO agent (
+           workspace_id, name, description, runtime_mode, runtime_config,
+           runtime_id, visibility, max_concurrent_tasks, owner_id
+         )
+         VALUES ($1, $2, $3, 'cloud', '{}'::jsonb, $4, 'workspace', 1, $5)
+         RETURNING id`,
+        [this.workspaceId, name, opts.description ?? "R0 视觉基线用智能体", runtimeId, ownerId],
+      );
+      const agentId = agentResult.rows[0]?.id;
+      if (!agentId) {
+        throw new Error("Failed to seed the visual baseline agent");
+      }
+      this.createdAgentIds.push(agentId);
+      this.createdRuntimeIds.push(runtimeId);
+      return { agentId, runtimeId };
+    } finally {
+      await client.end();
+    }
+  }
+
+  /** Insert inbox rows for the logged-in user; returns the created item ids. */
+  async seedInboxItems(
+    items: {
+      title: string;
+      body?: string;
+      type?: string;
+      severity?: "action_required" | "attention" | "info";
+      issueId?: string;
+      read?: boolean;
+    }[],
+  ): Promise<string[]> {
+    if (!this.workspaceId || !this.email) {
+      throw new Error("Cannot seed inbox items before login and workspace setup");
+    }
+    const client = new pg.Client(DATABASE_URL);
+    await client.connect();
+    const ids: string[] = [];
+    try {
+      const userResult = await client.query<{ id: string }>(
+        `SELECT id FROM "user" WHERE email = $1`,
+        [this.email],
+      );
+      const recipientId = userResult.rows[0]?.id;
+      if (!recipientId) {
+        throw new Error(`Cannot resolve E2E user for ${this.email}`);
+      }
+      for (const item of items) {
+        const result = await client.query<{ id: string }>(
+          `INSERT INTO inbox_item (
+             workspace_id, recipient_type, recipient_id, type, severity,
+             issue_id, title, body, read
+           )
+           VALUES ($1, 'member', $2, $3, $4, $5, $6, $7, $8)
+           RETURNING id`,
+          [
+            this.workspaceId,
+            recipientId,
+            item.type ?? "issue_assigned",
+            item.severity ?? "info",
+            item.issueId ?? null,
+            item.title,
+            item.body ?? null,
+            item.read ?? false,
+          ],
+        );
+        const id = result.rows[0]?.id;
+        if (id) ids.push(id);
+      }
+      this.createdInboxItemIds.push(...ids);
+      return ids;
+    } finally {
+      await client.end();
+    }
   }
 
   getToken() {

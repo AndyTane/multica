@@ -68,6 +68,9 @@ data/
 .idea
 .gstack/
 
+# R0 视觉基线截图输出：脚本在 e2e/visual/，说明见 docs/redesign/feature-baseline.md
+e2e/visual/__out__/
+
 # Python (agent tooling)
 __pycache__/
 *.pyc
