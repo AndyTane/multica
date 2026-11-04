@@ -62,8 +62,8 @@ test("B1: Chinese first visit, join states, compact board and direct issue URL",
     await expect(column("done")).toHaveCount(0);
     await expect(column("cancelled")).toHaveCount(0);
     await expect(column("backlog")).toContainText(backlog.title);
-    await expect(column("in_progress")).toHaveCSS("width", "168px");
-    expect(await column("todo").evaluate((element) => element.clientWidth)).toBeGreaterThanOrEqual(200);
+    await expect(column("in_progress")).toHaveCSS("width", "200px");
+    await expect(column("todo")).toHaveCSS("width", "280px");
     expect((await page.context().cookies()).find((cookie) => cookie.name === "multica-locale")).toBeUndefined();
     await page.evaluate(() => { localStorage.setItem("theme", "light"); });
     await page.reload();
@@ -75,7 +75,7 @@ test("B1: Chinese first visit, join states, compact board and direct issue URL",
     await page.evaluate(() => { localStorage.setItem("theme", "dark"); });
     await page.reload();
     await expect(page.locator("html")).toHaveClass(/dark/);
-    await expect(column("in_progress")).toHaveCSS("width", "168px");
+    await expect(column("in_progress")).toHaveCSS("width", "200px");
     const darkBackgrounds = await page.locator("[data-board-column]").evaluateAll((elements) => elements.map((element) => getComputedStyle(element).backgroundColor));
     expect(new Set(darkBackgrounds).size).toBe(1);
     await page.screenshot({ path: join(evidence, "02-board-en-US-dark.png") });
@@ -97,7 +97,7 @@ test("B1: Chinese first visit, join states, compact board and direct issue URL",
     await page.mouse.move(target!.x + 70, target!.y + 140, { steps: 20 });
     await page.mouse.up();
     await expect(column("in_progress")).toContainText(issue.title);
-    expect(await column("in_progress").evaluate((element) => element.clientWidth)).toBeGreaterThanOrEqual(200);
+    await expect(column("in_progress")).toHaveCSS("width", "280px");
     await page.reload();
     await expect(column("in_progress")).toContainText(issue.title);
 
@@ -120,7 +120,7 @@ test("B1: Chinese first visit, join states, compact board and direct issue URL",
     }
     writeFileSync(join(evidence, "verification.json"), JSON.stringify({
       browserLocale: "en-US", localeCookie: null, directUrl: detail.url(), documentTitle: await detail.title(),
-      widths: { empty: 168, populatedMax: 320 }, uniformBackgrounds: true, hidden: ["done", "cancelled"],
+      widths: { empty: 200, populated: 280 }, uniformBackgrounds: true, hidden: ["done", "cancelled"],
     }, null, 2));
     await detail.close();
 

@@ -239,11 +239,9 @@ describe("Board grouped by project", () => {
     expect(screen.getByText("No project")).toBeTruthy();
     expect(screen.queryByText(ACME_ID)).toBeNull();
     expect(screen.queryByText(GHOST_ID)).toBeNull();
-    expect(screen.getByText("Acme Corp").closest("[data-board-column]"))
-      .toHaveStyle({ flex: "1 0 200px", minWidth: "200px", maxWidth: "320px" });
   });
 
-  it("keeps a settled empty column at 168px during a background refetch", () => {
+  it("keeps a settled empty column at 200px during a background refetch", () => {
     render({
       descriptors: [{ ...NO_PROJECT_DESCRIPTOR, count: 0 }],
       issues: [],
@@ -262,7 +260,7 @@ describe("Board grouped by project", () => {
     });
 
     expect(screen.getByText("No project").closest("[data-board-column]"))
-      .toHaveStyle({ width: "168px", flex: "0 0 168px" });
+      .toHaveStyle({ width: "200px" });
   });
 
   it("keeps a No project column when the server returns no such group", () => {
