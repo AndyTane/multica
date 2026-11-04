@@ -41,6 +41,7 @@ import type { IssueCreateDefaults } from "../surface/types";
 // inaccurate indicator is worse than showing none.
 
 export const BOARD_COL_WIDTH = 280;
+const EMPTY_BOARD_COL_WIDTH = 200;
 export const BOARD_CARD_WIDTH = BOARD_COL_WIDTH - 16 - 8; // col(280) - col p-2(16) - droppable p-1(8)
 
 // Board cards are ~90-140px tall, so ~10 fill a column viewport — unlike the
@@ -107,6 +108,7 @@ export const BoardColumn = memo(function BoardColumn({
   projectId,
   onCreateIssue,
   sortLabel,
+  isLoading = false,
 }: {
   group: BoardColumnGroup;
   issueIds: string[];
@@ -119,6 +121,7 @@ export const BoardColumn = memo(function BoardColumn({
   projectId?: string;
   onCreateIssue?: (defaults: IssueCreateDefaults) => void;
   sortLabel?: string | null;
+  isLoading?: boolean;
 }) {
   const status = group.status;
   const wsId = useWorkspaceId();
@@ -192,7 +195,11 @@ export const BoardColumn = memo(function BoardColumn({
   );
 
   return (
-    <div style={{ width: BOARD_COL_WIDTH }} className={`flex shrink-0 flex-col rounded-xl ${cfg?.columnBg ?? "bg-muted/40"} p-2`}>
+    <div
+      data-board-column={group.id}
+      style={{ width: !isLoading && issueIds.length === 0 && (totalCount ?? 0) === 0 ? EMPTY_BOARD_COL_WIDTH : BOARD_COL_WIDTH }}
+      className={`flex shrink-0 flex-col rounded-xl ${cfg?.columnBg ?? "bg-muted/40"} p-2`}
+    >
       <div className="mb-2 flex items-center justify-between px-1.5">
         <BoardGroupHeading group={group} count={totalCount ?? issueIds.length} />
 

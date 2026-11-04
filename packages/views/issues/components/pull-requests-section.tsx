@@ -44,42 +44,60 @@ export function PullRequestsSection({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT("issues");
-  const { data } = useQuery(issuePullRequestsOptions(issueId));
+  const { data, isError, refetch } = useQuery(issuePullRequestsOptions(issueId));
   // Older backends have no link / auto-complete endpoints; keep the header
   // actions hidden until the server says it supports them.
   const supported = !!data?.auto_complete;
   const count = data?.pull_requests.length ?? 0;
+  const hasContent = count > 0;
 
   return (
     <div>
       {/* Label and actions are siblings, not a button wrapping buttons. */}
       <div className="mb-2 flex w-full items-center gap-0.5">
-        <button
-          type="button"
-          aria-expanded={open}
-          className={`flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-1 text-caption font-medium transition-colors hover:bg-accent/70 ${open ? "" : "text-muted-foreground hover:text-foreground"}`}
-          onClick={() => onOpenChange(!open)}
-        >
-          <span className="truncate">{t(($) => $.detail.section_pull_requests)}</span>
-          {count > 0 ? (
-            <span className="shrink-0 rounded-xs bg-muted px-1 text-micro font-medium tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          ) : null}
-          <ChevronRight className={`!size-3 shrink-0 stroke-[2.5] text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} />
-        </button>
+        {!hasContent ? (
+          <h3 className="min-w-0 flex-1 truncate px-2 py-1 text-caption font-medium">
+            {t(($) => $.detail.section_pull_requests)}
+          </h3>
+        ) : (
+          <button
+            type="button"
+            aria-expanded={open}
+            className={`flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-1 text-caption font-medium transition-colors hover:bg-accent/70 ${open ? "" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => onOpenChange(!open)}
+          >
+            <span className="truncate">{t(($) => $.detail.section_pull_requests)}</span>
+            {count > 0 ? (
+              <span className="shrink-0 rounded-xs bg-muted px-1 text-micro font-medium tabular-nums text-muted-foreground">
+                {count}
+              </span>
+            ) : null}
+            <ChevronRight className={`!size-3 shrink-0 stroke-[2.5] text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} />
+          </button>
+        )}
         {supported ? (
           <>
             <LinkPullRequestPopover issueId={issueId} identifier={identifier} onLinked={() => onOpenChange(true)} />
-            <AutoCompleteMenu
-              issueId={issueId}
-              disabled={data?.auto_complete?.issue_disabled ?? false}
-              workspaceEnabled={data?.auto_complete?.workspace_enabled ?? true}
-            />
+            {count > 0 && (
+              <AutoCompleteMenu
+                issueId={issueId}
+                disabled={data?.auto_complete?.issue_disabled ?? false}
+                workspaceEnabled={data?.auto_complete?.workspace_enabled ?? true}
+              />
+            )}
           </>
         ) : null}
       </div>
-      {open && (
+      {isError && !hasContent && (
+        <button
+          type="button"
+          className="px-2 text-caption text-muted-foreground hover:text-foreground"
+          onClick={() => void refetch()}
+        >
+          {t(($) => $.detail.pull_requests_load_failed)}
+        </button>
+      )}
+      {open && hasContent && (
         <div className="pl-2">
           <PullRequestList issueId={issueId} identifier={identifier} />
         </div>

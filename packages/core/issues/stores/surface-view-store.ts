@@ -82,10 +82,7 @@ function migrateLegacySurfaceState(
     };
   }
   const legacyHidden = (state as unknown as { hiddenStatusCategories?: string[] }).hiddenStatusCategories;
-  if (
-    (state.hiddenStatuses ?? legacyHidden) === undefined ||
-    (state.hiddenStatuses ?? legacyHidden)?.length === 0
-  ) {
+  if ((state.hiddenStatuses ?? legacyHidden) === undefined) {
     next.hiddenStatuses = [...DEFAULT_HIDDEN_STATUSES];
   }
   return next;

@@ -5,6 +5,9 @@ import {
 } from "./locale-routing";
 
 describe("locale routing", () => {
+  it.each(["en-US,en;q=0.9", "", "----"])("defaults to Chinese without a cookie for %s", (acceptLanguage) => {
+    expect(resolveLocaleFromSignals({ acceptLanguage })).toBe("zh-Hans");
+  });
   it("accepts only app-supported locale identifiers", () => {
     expect(isSupportedLocale("en")).toBe(true);
     expect(isSupportedLocale("zh-Hans")).toBe(true);
@@ -32,7 +35,7 @@ describe("locale routing", () => {
     ).toBe("en");
   });
 
-  it("falls back to Accept-Language when no cookie is set", () => {
+  it("defaults to Chinese without a cookie", () => {
     expect(
       resolveLocaleFromSignals({
         acceptLanguage: "zh-CN,zh;q=0.9,en;q=0.8",
@@ -40,19 +43,19 @@ describe("locale routing", () => {
     ).toBe("zh-Hans");
   });
 
-  it("matches Korean browser language signals", () => {
+  it("ignores Korean browser language signals", () => {
     expect(
       resolveLocaleFromSignals({
         acceptLanguage: "ko-KR,ko;q=0.9,en;q=0.8",
       }),
-    ).toBe("ko");
+    ).toBe("zh-Hans");
   });
 
-  it("matches Japanese browser language signals", () => {
+  it("ignores Japanese browser language signals", () => {
     expect(
       resolveLocaleFromSignals({
         acceptLanguage: "ja-JP,ja;q=0.9,en;q=0.8",
       }),
-    ).toBe("ja");
+    ).toBe("zh-Hans");
   });
 });

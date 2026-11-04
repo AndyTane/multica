@@ -166,7 +166,7 @@ describe("proxy runtime upstream rewrites", () => {
       expect(res.headers.get("x-middleware-rewrite")).toBeNull();
       expect(
         res.headers.get(`x-middleware-request-${MULTICA_LOCALE_HEADER}`),
-      ).toBe("en");
+      ).toBe("zh-Hans");
     });
   });
 
@@ -187,7 +187,7 @@ describe("proxy runtime upstream rewrites", () => {
       expect(res.headers.get("x-middleware-rewrite")).toBeNull();
       expect(
         res.headers.get(`x-middleware-request-${MULTICA_LOCALE_HEADER}`),
-      ).toBe("en");
+      ).toBe("zh-Hans");
     });
   });
 
@@ -276,7 +276,7 @@ describe("proxy runtime upstream rewrites", () => {
       expect(res.headers.get("x-middleware-rewrite")).toBeNull();
       expect(
         res.headers.get(`x-middleware-request-${MULTICA_LOCALE_HEADER}`),
-      ).toBe("en");
+      ).toBe("zh-Hans");
     } finally {
       restoreEnv("REMOTE_API_URL", previous);
     }
@@ -306,11 +306,21 @@ describe("proxy root and locale handling", () => {
     );
   });
 
-  it("forwards locale on login requests", () => {
-    const res = proxy(makeRequest("/login", { "multica-locale": "zh-Hans" }));
+  it.each(["zh-Hans", "en"])("forwards explicit %s locale on login requests", (locale) => {
+    const res = proxy(makeRequest("/login", { "multica-locale": locale }));
 
     expect(res.status).toBe(200);
     expect(res.headers.get("location")).toBeNull();
+    expect(
+      res.headers.get(`x-middleware-request-${MULTICA_LOCALE_HEADER}`),
+    ).toBe(locale);
+  });
+
+  it("defaults to Chinese on login requests from an English browser", () => {
+    const res = proxy(new NextRequest("https://app.multica.test/login", {
+      headers: { "accept-language": "en-US,en;q=0.9" },
+    }));
+
     expect(
       res.headers.get(`x-middleware-request-${MULTICA_LOCALE_HEADER}`),
     ).toBe("zh-Hans");

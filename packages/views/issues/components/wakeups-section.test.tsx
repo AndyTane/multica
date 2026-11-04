@@ -12,6 +12,7 @@ let runs: unknown[] = [];
 let systemRules: SystemWakeup[] = [];
 let pending = false;
 let wakeup: IssueWakeup;
+let empty = false;
 let status = "queued";
 let viewTZ = "UTC";
 vi.mock("./wakeup-condition-names", () => ({
@@ -36,7 +37,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({
     data:
       queryKey[0] === "wakeups"
-        ? [wakeup]
+        ? empty ? [] : [wakeup]
         : queryKey[0] === "system"
           ? systemRules
           : queryKey[0] === "tasks"
@@ -60,6 +61,7 @@ beforeEach(() => {
   trigger.mockReset();
   remove.mockReset();
   runs = [];
+  empty = false;
   updateSystem.mockReset().mockResolvedValue(undefined);
   systemRules = [];
   enable.mockReset().mockResolvedValue(undefined);
@@ -89,6 +91,20 @@ beforeEach(() => {
   };
 });
 describe("Wakeups sidebar", () => {
+  it("does not render an empty wakeup section on a closed issue", () => {
+    empty = true;
+    const view = renderWithI18n(<WakeupsSection issueId="issue" closed />);
+    expect(view.container).toBeEmptyDOMElement();
+  });
+  it("keeps only a heading and the create action when an open issue is empty", () => {
+    empty = true;
+    const view = renderWithI18n(<WakeupsSection issueId="issue" />);
+    expect(screen.getByRole("heading", { name: "Wakeups" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New wakeup" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Wakeups/ })).toBeNull();
+    expect(view.container.querySelector('.lucide-chevron-right')).toBeNull();
+    expect(screen.queryByText("0")).toBeNull();
+  });
   it("describes hourly schedules without exposing interval seconds", () => {
     renderWithI18n(<WakeupsSection issueId="issue" />, { locale: "zh-Hans" });
     expect(screen.getByRole("button", { name: /唤醒 Emacs/ })).toHaveTextContent("每小时唤醒");
@@ -470,6 +486,7 @@ describe("conditions, limits and history", () => {
 
   it("offers neither action on an ended issue", async () => {
     renderWithI18n(<WakeupsSection issueId="issue" closed />);
+    expect(screen.queryByRole("button", { name: "New wakeup" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Wake every hour/ }));
     await screen.findByRole("dialog");
     expect(screen.queryByRole("button", { name: "Wake now" })).toBeNull();
