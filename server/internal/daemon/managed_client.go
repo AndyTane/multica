@@ -14,6 +14,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/managedkit"
+	"github.com/multica-ai/multica/server/internal/tlsx"
 )
 
 func (d *Daemon) managedClientRoot() string {
@@ -63,6 +64,7 @@ func (d *Daemon) handleManagedClient(ctx context.Context, runtimeID string, offe
 		attempts = previous.Attempts + 1
 	}
 	j := managedkit.Journal{Offer: *offer, InstallationID: installation.ID, Profile: d.cfg.Profile, ServerURL: d.cfg.ServerBaseURL, RuntimeID: runtimeID, Phase: "waiting_idle", Attempts: attempts - 1, OldProgram: managedkit.CurrentProgram(root), OldPID: os.Getpid(), Args: append([]string(nil), os.Args[1:]...), HealthPort: d.cfg.HealthPort}
+	j.RootCAFile = tlsx.EnvPath()
 	if err = managedkit.SaveJournal(root, j); err != nil {
 		return
 	}

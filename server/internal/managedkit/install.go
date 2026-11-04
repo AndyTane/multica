@@ -31,6 +31,7 @@ type Journal struct {
 	HelperPID      int       `json:"helper_pid"`
 	Args           []string  `json:"args"`
 	HealthPort     int       `json:"health_port"`
+	RootCAFile     string    `json:"root_ca_file,omitempty"`
 }
 
 func JournalPath(root string) string           { return filepath.Join(root, ".managed", "update.json") }

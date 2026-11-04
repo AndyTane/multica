@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/tlsx"
 )
 
 func Spawn(binary string, args []string, root string) (*exec.Cmd, error) {
@@ -89,6 +91,12 @@ func RunHelper(ctx context.Context, root string) error {
 	if err != nil || i.ID != j.InstallationID || !j.Offer.Valid() {
 		return errors.New("invalid recovery identity")
 	}
+	if j.RootCAFile != "" {
+		_ = os.Setenv(tlsx.RootCAEnv, j.RootCAFile)
+	}
+	if err = tlsx.InstallFromEnv(); err != nil {
+		return err
+	}
 	j.HelperPID = os.Getpid()
 	if err = SaveJournal(root, j); err != nil {
 		return err
@@ -136,7 +144,8 @@ func RunHelper(ctx context.Context, root string) error {
 		return err
 	}
 	var child *exec.Cmd
-	if h.PID == 0 {
+	waitingNetwork := h.PID == 0 && !serverReady(j.ServerURL)
+	if h.PID == 0 && !waitingNetwork {
 		child, err = Spawn(filepath.Join(newDir, "u-workers.exe"), j.Args, root)
 	}
 	if err != nil {
@@ -152,6 +161,30 @@ func RunHelper(ctx context.Context, root string) error {
 	for {
 		if stopRequested() {
 			return markStopped()
+		}
+		if waitingNetwork {
+			j.Reason = "服务器暂不可达，等待恢复后启动并确认新版"
+			_ = SaveJournal(root, j)
+			if !serverReady(j.ServerURL) {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(3 * time.Second):
+					continue
+				}
+			}
+			child, err = Spawn(filepath.Join(newDir, "u-workers.exe"), j.Args, root)
+			if err != nil {
+				return restorePrevious(root, j, oldDir, "新版进程无法启动，已恢复旧版")
+			}
+			exited = make(chan error, 1)
+			watch := exited
+			candidate := child
+			go func() { watch <- candidate.Wait() }()
+			waitingNetwork = false
+			j.Reason = "等待新版鉴权心跳"
+			_ = SaveJournal(root, j)
+			deadline = time.Now().Add(120 * time.Second)
 		}
 		var ack struct {
 			SHA     string `json:"sha256"`
@@ -176,12 +209,20 @@ func RunHelper(ctx context.Context, root string) error {
 			if stopRequested() {
 				return markStopped()
 			}
+			if !serverReady(j.ServerURL) {
+				child = nil
+				waitingNetwork = true
+				continue
+			}
 			return restorePrevious(root, j, oldDir, "新版启动后退出，已恢复旧版")
 		case <-time.After(time.Second):
 		}
 		// Network outages leave a live successor pending. They never trigger a
 		// successful report or a repeated rollback/reinstall cycle.
 		if time.Now().After(deadline) && h.PID == 0 {
+			if !serverReady(j.ServerURL) {
+				continue
+			}
 			if child != nil {
 				_ = child.Process.Kill()
 				<-exited
@@ -189,6 +230,18 @@ func RunHelper(ctx context.Context, root string) error {
 			return restorePrevious(root, j, oldDir, "新版未就绪，已恢复旧版")
 		}
 	}
+}
+
+// This probe only distinguishes an unavailable original server from a local
+// executable failure. It never substitutes for the authenticated heartbeat.
+func serverReady(origin string) bool {
+	client := &http.Client{Timeout: 3 * time.Second, Transport: tlsx.HTTPTransport(), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Get(strings.TrimRight(origin, "/") + "/readyz")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 func restorePrevious(root string, j Journal, oldDir, reason string) error {
 	j.Phase = "rolled_back"
