@@ -1,29 +1,31 @@
 /**
- * R0 改版功能基线 · 整页截图脚本（CLAWSTA-133）
+ * R0 redesign feature baseline: full-page screenshots (CLAWSTA-133).
  *
- * 对照 docs/redesign/feature-baseline.md 的页面编号，把主要页面在
- * 1440×900 / 1280×800 两种宽度、浅色 / 深色两种主题下各截一张图：
+ * For every page id in docs/redesign/feature-baseline.md, capture one
+ * full-page screenshot at 1440x900 and 1280x800, in both the light and the
+ * dark theme:
  *
- *     <编号>-<页面>-<宽>-<主题>.png   → e2e/visual/__out__/
+ *     <id>-<page>-<width>-<theme>.png   -> e2e/visual/__out__/
  *
- * 运行方式（需要一个已经起好的本地 web + api，普通的
- * `pnpm exec playwright test` 不会收集本目录）：
+ * How to run (needs an already running local web + api; the ordinary
+ * `pnpm exec playwright test` does not collect this directory):
  *
  *     VISUAL_BASELINE=1 pnpm exec playwright test e2e/visual/baseline.spec.ts
  *
- * 数据由 TestApiClient 在本次运行里新建的独立工作区生成，跑完删除该工作区；
- * 不能指向真实部署或真实数据库（AGENTS.md「Testing」）。
+ * The fixture data is created by TestApiClient in a workspace this run creates
+ * and deletes afterwards. Never point this at a real deployment or a real
+ * database (AGENTS.md "Testing").
  *
- * 页面列表和编号必须与 docs/redesign/feature-baseline.md 一致：增删页面前先改
- * 清单，再改这里。
+ * Page ids and list order must match docs/redesign/feature-baseline.md: when a
+ * page is added or removed, update the checklist first and this file second.
  */
 import { test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "fs";
 import { join } from "path";
 import { TestApiClient } from "../fixtures";
 
-// playwright test 从仓库根目录运行；cfg 的 testDir 是 ./e2e，所以固定拼
-// 根目录下的输出目录，避免 ESM 里没有 __dirname。
+// `playwright test` runs from the repo root and the config's testDir is
+// ./e2e, so anchor the output directory to the root: ESM has no __dirname.
 const OUTPUT_DIR = join(process.cwd(), "e2e", "visual", "__out__");
 const BASE_URL =
   process.env.PLAYWRIGHT_BASE_URL ??
@@ -31,7 +33,7 @@ const BASE_URL =
   "http://localhost:3000";
 const LOCALE_ORIGIN = new URL(BASE_URL).origin;
 
-/** 截图固定用简体中文：清单里的功能点就是按中文界面核对的。 */
+/** Screenshots always use Simplified Chinese: the checklist is verified against the Chinese UI. */
 const LOCALE = "zh-Hans";
 
 const VIEWPORTS = [
@@ -41,7 +43,7 @@ const VIEWPORTS = [
 const THEMES = ["light", "dark"] as const;
 type Theme = (typeof THEMES)[number];
 
-/** 1×1 PNG，用作任务附件；附件卡片按文件名展示，内容不参与截图。 */
+/** 1x1 PNG used as an issue attachment; the attachment card shows its filename only. */
 const ATTACHMENT_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
@@ -67,35 +69,37 @@ interface Fixture {
 }
 
 interface PageDefinition {
-  /** 页面编号，对应 docs/redesign/feature-baseline.md 的「截图编号」 */
+  /** Page id, matching the "screenshot id" column in docs/redesign/feature-baseline.md */
   id: string;
-  /** 文件名里的页面名 */
+  /** Page name used in the screenshot filename */
   name: string;
-  /** 测试标题里的中文页面名 */
+  /** Chinese page name used in the test title */
   label: string;
   route: (fixture: Fixture) => string;
-  /** 公开页面（登录 / 注册 / 加入）不注入登录态 */
+  /** Public pages (login / register / join) get no auth state */
   authenticated?: boolean;
   /**
-   * 页面出现这段文字才算渲染完成。优先用本次种子数据的标题，这样断言和
-   * 界面语言无关；只有页面没有专属数据时才用固定文案。
+   * The page is considered rendered once this text is on screen. Prefer a
+   * title from the seeded data so the assertion does not depend on the UI
+   * language; fixed copy is only for pages without their own data.
    */
   readyText?: (fixture: Fixture) => string;
-  /** 没有可靠文案时的可见选择器 */
+  /** Visible selector used when there is no reliable text */
   readySelector?: string;
-  /** 截图前的交互（滚动、点开某个区块等） */
+  /** Interaction before the screenshot (scroll, reveal a block, ...) */
   prepare?: (page: Page, fixture: Fixture) => Promise<void>;
-  /** 注入到 localStorage 的额外状态（比如任务视图模式） */
+  /** Extra localStorage state (for example the issue view mode) */
   storage?: (fixture: Fixture) => Record<string, string>;
-  /** 12 号任务详情评论区截滚动后的视口，其余都是整页图 */
+  /** Page 12 screenshots the viewport scrolled to the comments; everything else is full page */
   viewportOnly?: boolean;
 }
 
 const workspacePath = (fixture: Fixture, path: string) => `/${fixture.workspaceSlug}${path}`;
 
 /**
- * /issues 四种视图模式存在 surface-view-store 的持久化注册表里，键是
- * 「存储名:工作区 slug」，surfaceKey 是 `workspace:all`（范围页签默认值）。
+ * The four /issues view modes live in the surface-view-store persistence
+ * registry, keyed by "<storage name>:<workspace slug>", with the surface key
+ * `workspace:all` (the default scope tab).
  */
 function issueSurfaceStorage(workspaceSlug: string, viewMode: string): Record<string, string> {
   const storageKey = `multica_issue_surface_views:${workspaceSlug}`;
@@ -335,7 +339,7 @@ async function waitForReady(
     );
   }
   await page.waitForFunction(() => document.fonts.status === "loaded").catch(() => undefined);
-  // 数据到手后 React 还可能补一帧布局；给动画和懒加载留一点稳定时间。
+  // React may still settle one more layout pass after the data arrives; give animations and lazy content a moment.
   await page.waitForTimeout(500);
 }
 
@@ -364,7 +368,7 @@ async function captureDefinition(
         await page.addInitScript(
           ({ theme, token, storage }) => {
             localStorage.setItem("theme", theme);
-            // Web 用 cookie 记语言；桌面端适配器读这个键，写一份不会有副作用。
+            // Web stores the locale in a cookie; the desktop adapter reads this key, so writing it is harmless.
             localStorage.setItem("multica-locale", "zh-Hans");
             if (token) {
               localStorage.setItem("multica_token", token);
@@ -394,8 +398,8 @@ async function captureDefinition(
 }
 
 test.describe("R0 视觉基线截图", () => {
-  // 配置层已经按 VISUAL_BASELINE=1 过滤本目录；这里再挡一层，避免有人直接
-  // 换配置把 visual 用例拉进普通 suite。
+  // The config already ignores this directory unless VISUAL_BASELINE=1; this
+  // is a second guard for anyone pulling the visual specs in with another config.
   test.skip(
     process.env.VISUAL_BASELINE !== "1",
     "整页截图需要本地服务：VISUAL_BASELINE=1 pnpm exec playwright test e2e/visual/baseline.spec.ts",
@@ -536,11 +540,11 @@ test.describe("R0 视觉基线截图", () => {
   test.afterAll(async () => {
     if (!fixture) return;
     try {
-      // 先按依赖顺序清理（squad 的 leader 对 agent 是 RESTRICT），再删工作区。
+      // Clean up in dependency order (a squad's leader is a RESTRICT reference to an agent), then drop the workspace.
       await fixture.api.cleanup();
       await fixture.api.deleteWorkspace();
     } catch (error) {
-      // 清理失败不能吞掉截图结果，但要在日志里留痕，方便下次手动清工作区。
+      // A cleanup failure must not hide the screenshots, but log it so a leftover workspace can be removed by hand.
       console.warn("视觉基线清理失败，请手动删除工作区", fixture.workspaceSlug, error);
     }
   });
