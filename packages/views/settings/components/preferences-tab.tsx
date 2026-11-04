@@ -52,6 +52,7 @@ import { api } from "@multica/core/api";
 import { browserTimezone, timezoneOptions } from "../../common/timezone-select";
 import { SegmentedToggle } from "../../common/segmented-toggle";
 import { useT } from "../../i18n";
+import { UiThemeRow } from "./ui-theme-row";
 import {
   SettingsCard,
   SettingsRow,
@@ -88,6 +89,7 @@ export function PreferencesTab() {
       >
         <SettingsCard>
           <ThemeRow />
+          <UiThemeRow />
         </SettingsCard>
       </SettingsSection>
 
