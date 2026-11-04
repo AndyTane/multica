@@ -128,7 +128,7 @@ func TestRetryAndProgramIsolation(t *testing.T) {
 		t.Fatal("backoff ignored")
 	}
 	j.RetryAfter = time.Time{}
-	for _, phase := range []string{"switching", "verifying", "completed"} {
+	for _, phase := range []string{"switching", "verifying", "completed", "interrupted"} {
 		j.Phase = phase
 		if CanAttempt(j, o, time.Now()) {
 			t.Fatal("duplicate install")

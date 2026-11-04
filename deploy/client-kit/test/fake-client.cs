@@ -19,7 +19,9 @@ class FakeClient {
             if (Environment.GetEnvironmentVariable("KIT_BAD_JSON")=="1") { Console.WriteLine("invalid"); return 0; }
             if (Environment.GetEnvironmentVariable("KIT_STATUS_FAIL")=="1") return 5;
             string status=File.Exists(state)?File.ReadAllText(state):"stopped";
-            Console.WriteLine("{\"status\":\""+status+"\",\"pid\":1234,\"agents\":[\"fixture\"]}");
+            string managed=Environment.GetEnvironmentVariable("KIT_MANAGED_ID");
+            string extra=String.IsNullOrEmpty(managed)?"":",\"managed_client_update\":{\"installation_id\":\""+managed+"\",\"phase\":\"verifying\"}";
+            Console.WriteLine("{\"status\":\""+status+"\",\"pid\":1234,\"agents\":[\"fixture\"]"+extra+"}");
             return 0;
         }
         if (args[0]=="daemon" && args[1]=="start") {
