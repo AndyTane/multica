@@ -102,3 +102,19 @@ func TestHelperRecoversLiveUnconfirmedCandidate(t *testing.T) {
 	}
 	t.Fatal("previous program was not restarted")
 }
+
+func TestHelperDoesNotRewriteTerminalTransaction(t *testing.T) {
+	root := t.TempDir()
+	j := Journal{Phase: "completed", HelperPID: 123, NewProgram: "programs/previous", Offer: Offer{SHA256: strings.Repeat("b", 64)}}
+	if err := SaveJournal(root, j); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(JournalPath(root))
+	if err := RunHelper(context.Background(), root); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.ReadFile(JournalPath(root))
+	if string(before) != string(after) {
+		t.Fatal("late recovery helper rewrote terminal journal")
+	}
+}

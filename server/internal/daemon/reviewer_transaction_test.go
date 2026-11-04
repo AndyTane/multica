@@ -129,6 +129,23 @@ func TestReviewVerifiedSuccessorWithoutCurrentOffer(t *testing.T) {
 			}
 		})
 	}
+	t.Run("explicit-stop-preserves-barrier", func(t *testing.T) {
+		j := managedkit.Journal{Offer: offer, InstallationID: installID, Phase: "interrupted", Profile: profile, ServerURL: server, NewProgram: "."}
+		save(managedkit.JournalPath(root), j)
+		_ = os.Remove(filepath.Join(root, ".managed", "ack.json"))
+		stopPath := filepath.Join(root, ".managed", "stop.json")
+		save(stopPath, map[string]string{"sha256": offer.SHA256})
+		defer os.Remove(stopPath)
+		d := &Daemon{cfg: Config{Profile: profile, ServerBaseURL: server, CLIVersion: offer.Version}, pauseClaims: true}
+		d.managedVerifying.Store(true)
+		d.handleManagedClient(context.Background(), "synthetic-runtime", &next)
+		if !claimsPaused(t, d) || managedkit.LoadJournal(root).Phase != "interrupted" {
+			t.Fatal("heartbeat overrode explicit stop")
+		}
+		if _, err := os.Stat(filepath.Join(root, ".managed", "ack.json")); !os.IsNotExist(err) {
+			t.Fatal("stopped candidate acknowledged")
+		}
+	})
 	t.Run("wrong-pinned-program", func(t *testing.T) {
 		j := managedkit.Journal{Offer: offer, InstallationID: installID, Phase: "verifying", Profile: profile, ServerURL: server, NewProgram: "."}
 		save(managedkit.JournalPath(root), j)
