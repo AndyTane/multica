@@ -99,6 +99,27 @@ test("B2: five populated columns fit at 1440, measured comments fold, and Chines
     for (const card of await page.locator("[data-board-card]").all()) {
       expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     }
+    const hiddenColumns = page.locator("[data-board-hidden-columns]");
+    await expect(hiddenColumns).toContainText("已完成");
+    await expect(hiddenColumns).toContainText("已取消");
+    measurements.hiddenColumns = await hiddenColumns.evaluate((element) => ({
+      padding: getComputedStyle(element).padding,
+      rows: Array.from(element.children).filter((child) => child.tagName === "DIV").map((row) => {
+        const [label, count] = Array.from(row.children);
+        return {
+          height: row.getBoundingClientRect().height,
+          labelCountGap: count!.getBoundingClientRect().left - label!.getBoundingClientRect().right,
+        };
+      }),
+    }));
+    const hiddenLayout = measurements.hiddenColumns as { padding: string; rows: { height: number; labelCountGap: number }[] };
+    expect(hiddenLayout.padding).toBe("8px 16px");
+    expect(hiddenLayout.rows).toHaveLength(2);
+    for (const row of hiddenLayout.rows) {
+      expect(row.labelCountGap).toBeGreaterThanOrEqual(8);
+      expect(row.height).toBe(await page.getByRole("button", { name: "显示", exact: true }).evaluate((button) => button.getBoundingClientRect().height));
+    }
+    await capture("11-board-footer-1440-light.png");
     await capture("01-board-1440-light.png");
     await page.evaluate(() => { localStorage.setItem("theme", "dark"); });
     await page.reload();
@@ -181,8 +202,25 @@ test("B2: five populated columns fit at 1440, measured comments fold, and Chines
     await expect(attachments).not.toHaveAttribute("open");
     await expect(page.getByRole("heading", { name: "跟进", exact: true })).toBeVisible();
     await capture("09-attachments-and-followup.png");
-    await attachments.locator("summary").click();
+    const attachmentSummary = attachments.locator("summary");
+    const attachmentChevron = attachmentSummary.locator("svg.lucide-chevron-right");
+    await expect(attachmentChevron).toHaveAttribute("aria-hidden", "true");
+    await expect(attachmentSummary).toHaveCSS("list-style-type", "none");
+    await expect(attachmentChevron).toHaveCSS("rotate", "none");
+    await capture("12-attachments-collapsed.png");
+    // Keep the native disclosure keyboard behavior while matching the activity icon.
+    await attachmentSummary.focus();
+    await page.keyboard.press("Enter");
+    await expect(attachments).toHaveAttribute("open", "");
+    await expect(attachmentChevron).toHaveCSS("rotate", "90deg");
     await expect(attachments.getByRole("button", { name: "测试汇总.txt" })).toBeVisible();
+    await capture("13-attachments-expanded.png");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(attachmentChevron).toHaveCSS("transition-property", "none");
+    await page.keyboard.press("Space");
+    await expect(attachments).not.toHaveAttribute("open");
+    await expect(attachmentChevron).toHaveCSS("rotate", "none");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
 
     // A new long comment sent through the real composer opens immediately.
     const composer = page.locator("div.relative.flex.flex-col.rounded-lg.bg-card.pb-8");

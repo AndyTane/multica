@@ -881,13 +881,14 @@ function BoardHiddenColumnsPanel({
 }) {
   const { t } = useT("issues");
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-4 px-3 py-1 text-muted-foreground">
-      <span className="text-caption">{t(($) => $.board.hidden_columns_label)}</span>
+    <div data-board-hidden-columns="" className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 px-4 py-2 text-muted-foreground">
+      <span className="text-label">{t(($) => $.board.hidden_columns_label)}</span>
       {hiddenStatuses.map((status) => (
         <HiddenColumnRow
           key={status}
           status={status}
           total={statusPagination?.[status]?.total}
+          compact
         />
       ))}
     </div>

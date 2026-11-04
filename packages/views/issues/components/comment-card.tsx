@@ -270,8 +270,9 @@ export function AttachmentList({
     <AttachmentDownloadProvider attachments={attachments}>
       <div className={className}>
         {collapsible && standalone.length >= 3 && !onRemove ? (
-          <details>
-            <summary className="cursor-pointer rounded-md py-1 text-caption text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring">
+          <details className="group/attachments">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md py-1 text-caption text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+              <ChevronRight aria-hidden className="h-3.5 w-3.5 shrink-0 transition-transform group-open/attachments:rotate-90 motion-reduce:transition-none" />
               {t(($) => $.comment.attachment_count, { count: standalone.length })}
             </summary>
             {list}
