@@ -11,6 +11,24 @@
 
 看到“服务器访问已验证”后，到网页的运行环境列表确认本机在线。尚未连接属于正常停止状态；“连接中”请稍后查看；本机已运行但服务器访问未通过时，先检查服务器和网络，再检查原 profile 的登录。登录过期时用 Connect.cmd。所选智能体 CLI 需另外安装并登录。
 
+## OpenCode 程序和配置
+
+首次连接会同时检查 PATH、用户常用安装目录、固定磁盘 Tools/Programs 和指定位置。搜索不访问网络盘，不遍历其他用户目录，不跟随目录链接；每轮最多 600 个目录、3 层、5 秒。唯一安装显示完整路径后继续；多个安装按编号选择，也可输入完整文件或目录路径。npm 的同一套包装入口和原生程序只显示一次。输入错误可重试，R 重新检查，Q 取消，S 跳过 OpenCode 后继续使用其他运行环境。
+
+配置支持 `opencode.json` 和 `opencode.jsonc`。已有 `OPENCODE_CONFIG` 优先用于文件选择，`OPENCODE_CONFIG_DIR`、`XDG_CONFIG_HOME` 继续生效；否则查找用户配置目录、工作目录及祖先项目、程序附近、Kit 和 Documents/Desktop/Downloads。多个候选列出路径供选择，不改写配置。缺少配置时显示当前用户可使用的完整保存路径，放好后按 R 重试，或输入其他配置路径。
+
+程序和配置路径按 profile 保存在原 Kit 的 `opencode-selection.json`，重连和自动升级继续使用。文件只含路径；模型配置和密钥留在原位置。Status.cmd 可查看保存的路径。若原文件移动或损坏，提示修正原路径或重新选择，不静默换安装。运行中的连接不更换程序；先等任务空闲，再 Stop、选择和 Reconnect。
+
+指定工具/项目目录或直接选择文件：
+
+```powershell
+.\client.ps1 -Action Connect -Interactive -SearchDirectory 'D:\Tools','D:\MyProjects'
+.\client.ps1 -Action Reconnect -OpenCodePath 'D:\Tools\OpenCode\opencode.exe' -OpenCodeConfig 'D:\Models\opencode.jsonc'
+.\client.ps1 -Action Reconnect -SkipOpenCode
+```
+
+脚本调用默认不等待输入。多个候选或显式选择不可用时，返回完整候选和指定方式；首次未指定 OpenCode 且未找到程序/配置时，说明缺项并让其他运行环境继续连接，不把 OpenCode 报为就绪。双击 Connect/Reconnect 保留窗口和重试提示。选择基础配置不会改变 OpenCode 自身的配置叠加规则，项目配置仍按任务目录生效（[官方配置说明](https://docs.opencode.ai/docs/config/)）。
+
 ## 换新版与设置
 
 带自动升级能力的 Kit 只需按上表换一次。此后跟随实际服务端版本，在任务空闲后自动升级；离线电脑下次连接补升。Status.cmd 显示进度与回退原因。可运行 `client.ps1 -Action PauseUpdate` 暂停、`-Action ResumeUpdate` 恢复。保留原目录的 connection.json、证书、kit-install.json、current.json、programs 和 .managed；原登录与模型配置不写入程序包。根目录程序是恢复入口，当前运行版本以 Status.cmd 为准。

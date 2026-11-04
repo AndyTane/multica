@@ -132,6 +132,7 @@ func codebuddyUserMcpConfigPath(home string) string {
 // with comments and trailing commas, which CodeBuddy accepts in its MCP files —
 // parsing those as strict JSON would drop every server behind a single `//`.
 func unmarshalRuntimeMcpConfig(raw []byte, format string) (map[string]any, error) {
+	raw = bytes.TrimPrefix(raw, []byte{0xef, 0xbb, 0xbf})
 	var cfg map[string]any
 	switch format {
 	case "toml":
@@ -286,11 +287,7 @@ func loadRuntimeMcpServerConfigs(provider string) (map[string]any, bool, error) 
 	case "cursor":
 		path, key, format = filepath.Join(home, ".cursor", "mcp.json"), "mcpServers", "json"
 	case "opencode":
-		configHome := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME"))
-		if configHome == "" {
-			configHome = filepath.Join(home, ".config")
-		}
-		path, key, format = filepath.Join(configHome, "opencode", "opencode.json"), "mcp", "json"
+		return loadOpenCodeMcpConfigs(home)
 	case "openclaw":
 		path = strings.TrimSpace(os.Getenv("CLAWDBOT_CONFIG_PATH"))
 		if path == "" {
@@ -420,11 +417,13 @@ func listRuntimeLocalMcpServers(provider string) ([]runtimeLocalMcpServerSummary
 	case "cursor":
 		path, key, source, format = filepath.Join(home, ".cursor", "mcp.json"), "mcpServers", "User config", "json"
 	case "opencode":
-		configHome := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME"))
-		if configHome == "" {
-			configHome = filepath.Join(home, ".config")
+		servers, supported, err := loadOpenCodeMcpConfigs(home)
+		if err != nil {
+			return nil, supported, err
 		}
-		path, key, source, format = filepath.Join(configHome, "opencode", "opencode.json"), "mcp", "User config", "json"
+		out := runtimeMcpSummaries(servers, "User config")
+		sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
+		return out, supported, nil
 	case "openclaw":
 		path = strings.TrimSpace(os.Getenv("CLAWDBOT_CONFIG_PATH"))
 		if path == "" {

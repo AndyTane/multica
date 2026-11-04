@@ -6,6 +6,7 @@ $work = Join-Path ([IO.Path]::GetTempPath()) ('client settings 中文 '+[guid]::
 $old = Join-Path $work 'old kit'; $kit = Join-Path $work 'new kit'
 New-Item -ItemType Directory -Path $old,$kit | Out-Null
 Get-ChildItem -LiteralPath $template -File | Copy-Item -Destination $kit
+[IO.File]::WriteAllText((Join-Path $kit 'opencode-selection.json'),'{"schemaVersion":1,"selections":[{"profile":"","disabled":true},{"profile":"office","disabled":true},{"profile":"absolute-profile","disabled":true},{"profile":"preserved-profile","disabled":true}]}')
 Copy-Item (Join-Path $PSScriptRoot 'public-test-ca.crt') (Join-Path $old 'root.crt')
 & "$env:WINDIR/Microsoft.NET/Framework64/v4.0.30319/csc.exe" /nologo /target:exe ('/out:'+(Join-Path $kit 'u-workers.exe')) (Join-Path $PSScriptRoot 'fake-client.cs') | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Fake compile failed' }
@@ -97,6 +98,7 @@ try {
     $reconnectLog=(& $client -Action Reconnect 6>&1 | Out-String)
     Check ($reconnectLog.Contains('服务器访问已验证')) 'reconnect reuses CLI certificate when original public input file has moved'
     Settings $kit '' '' 'preserved-profile'
+    [IO.File]::WriteAllText((Join-Path $kit 'state.txt'),'stopped')
     $global:ClientTestAnswers.Enqueue('https://server.invalid')
     $global:ClientTestAnswers.Enqueue('')
     $global:ClientTestAnswers.Enqueue('Y')
