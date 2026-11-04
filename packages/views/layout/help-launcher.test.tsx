@@ -1,10 +1,17 @@
 import { cloneElement, type ReactElement, type ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configStore } from "@multica/core/config";
 import enLayout from "../locales/en/layout.json";
 import { isDesktopShell } from "../platform/local-directory";
 import { HelpLauncher } from "./help-launcher";
+
+const apiMock = vi.hoisted(() => ({ getConfig: vi.fn() }));
+vi.mock("@multica/core/api", () => ({ api: apiMock }));
+const clipboardMock = vi.hoisted(() => ({ copyText: vi.fn() }));
+vi.mock("@multica/ui/lib/clipboard", () => clipboardMock);
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 // The download entry is gated on the desktop-shell probe, which reads a
 // preload-injected bridge that jsdom never has. Mock it so both platforms are
@@ -48,7 +55,21 @@ vi.mock("@multica/ui/components/ui/dropdown-menu", async () => {
   const { createContext, useContext } = await import("react");
   const GroupContext = createContext(false);
   return {
-    DropdownMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
+    // Exposes onOpenChange as a button so tests can simulate opening.
+    DropdownMenu: ({
+      children,
+      onOpenChange,
+    }: {
+      children: ReactNode;
+      onOpenChange?: (open: boolean) => void;
+    }) => (
+      <>
+        <button type="button" onClick={() => onOpenChange?.(true)}>
+          open-menu
+        </button>
+        {children}
+      </>
+    ),
     DropdownMenuContent: ({ children }: { children: ReactNode }) => <>{children}</>,
     // Base UI's `render` prop swaps in a caller-supplied element (here the
     // <a>) and adopts the item's children. Flattening it to a bare fragment —
@@ -57,10 +78,19 @@ vi.mock("@multica/ui/components/ui/dropdown-menu", async () => {
     DropdownMenuItem: ({
       children,
       render,
+      onClick,
     }: {
       children: ReactNode;
       render?: ReactElement;
-    }) => (render ? cloneElement(render, undefined, children) : <>{children}</>),
+      onClick?: () => void;
+    }) =>
+      render ? (
+        cloneElement(render, undefined, children)
+      ) : (
+        <button type="button" onClick={onClick}>
+          {children}
+        </button>
+      ),
     DropdownMenuGroup: ({ children }: { children: ReactNode }) => (
       <GroupContext.Provider value={true}>{children}</GroupContext.Provider>
     ),
@@ -84,18 +114,59 @@ beforeEach(() => {
 
 afterEach(() => {
   configStore.getState().setServerVersion("");
+  configStore.getState().setWebBuildVersion("");
+  vi.clearAllMocks();
 });
 
 describe("HelpLauncher", () => {
   it("does not show a version row when the server omits it", () => {
     render(<HelpLauncher />);
-    expect(screen.queryByText(/Server version/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/U Workers/)).not.toBeInTheDocument();
   });
 
-  it("shows the server version once /api/config resolves it", () => {
-    configStore.getState().setServerVersion("1.2.3");
+  it("shows the server version and commit once /api/config resolves them", () => {
+    configStore.getState().setServerVersion("v0.2.8", "012edaa");
     render(<HelpLauncher />);
-    expect(screen.getByText("Server version 1.2.3")).toBeInTheDocument();
+    expect(screen.getByText("U Workers v0.2.8")).toBeInTheDocument();
+    expect(screen.getByText("Commit 012edaa")).toBeInTheDocument();
+  });
+
+  it("copies version and commit together", async () => {
+    clipboardMock.copyText.mockResolvedValue(true);
+    configStore.getState().setServerVersion("v0.2.8", "012edaa");
+    render(<HelpLauncher />);
+    fireEvent.click(screen.getByText("U Workers v0.2.8"));
+    expect(clipboardMock.copyText).toHaveBeenCalledWith("U Workers v0.2.8 (012edaa)");
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Version copied"));
+  });
+
+  // A tab left open across an upgrade keeps the config it booted with, so
+  // opening the menu must re-read the live server version.
+  it("re-reads the server version when the menu opens", async () => {
+    apiMock.getConfig.mockResolvedValue({ server_version: "v0.2.8", server_commit: "012edaa" });
+    configStore.getState().setServerVersion("v0.2.7", "abc1234");
+    render(<HelpLauncher />);
+    fireEvent.click(screen.getByText("open-menu"));
+    expect(await screen.findByText("U Workers v0.2.8")).toBeInTheDocument();
+  });
+
+  it("offers a reload when the page is older than the server", () => {
+    configStore.getState().setWebBuildVersion("v0.2.7");
+    configStore.getState().setServerVersion("v0.2.8");
+    render(<HelpLauncher />);
+    expect(screen.getByText("Reload to update")).toBeInTheDocument();
+  });
+
+  it("does not offer a reload for a matching or untagged web build", () => {
+    configStore.getState().setServerVersion("v0.2.8");
+    configStore.getState().setWebBuildVersion("v0.2.8");
+    const { unmount } = render(<HelpLauncher />);
+    expect(screen.queryByText(/Reload to update/)).not.toBeInTheDocument();
+    unmount();
+    // The package.json fallback of an untagged build is not a release tag.
+    configStore.getState().setWebBuildVersion("0.2.7");
+    render(<HelpLauncher />);
+    expect(screen.queryByText(/Reload to update/)).not.toBeInTheDocument();
   });
 
   // MUL-6462: after web onboarding the desktop download CTA was unreachable —

@@ -6,6 +6,7 @@ import type { AgentRuntime } from "@multica/core/types";
 import type { RuntimeMachine } from "./runtime-machines";
 
 const mockUpdateSection = vi.hoisted(() => vi.fn());
+const mockServerVersionMismatch = vi.hoisted(() => vi.fn());
 
 vi.mock("./update-section", () => ({
   UpdateSection: (props: Record<string, unknown>) => {
@@ -15,6 +16,13 @@ vi.mock("./update-section", () => ({
     ) : (
       <span>CLI status</span>
     );
+  },
+}));
+
+vi.mock("./server-version-mismatch", () => ({
+  ServerVersionMismatch: (props: Record<string, unknown>) => {
+    mockServerVersionMismatch(props);
+    return null;
   },
 }));
 
@@ -72,6 +80,23 @@ function machine(runtimes: AgentRuntime[]): RuntimeMachine {
 describe("MachineCliSection", () => {
   beforeEach(() => {
     mockUpdateSection.mockClear();
+    mockServerVersionMismatch.mockClear();
+  });
+
+  // UpdateSection renders nothing while external background requests are
+  // disabled, so the release check must not live inside it (CLAWSTA-127).
+  it("checks the machine CLI against the server release next to the update control", () => {
+    render(
+      <MachineCliSection
+        machine={machine([runtime({ owner_id: "user-2" })])}
+        currentUserId="user-1"
+      />,
+    );
+
+    expect(mockServerVersionMismatch).toHaveBeenCalledWith({
+      currentVersion: "0.3.17",
+      launchedBy: null,
+    });
   });
 
   it("renders one update control using an online viewer-owned runtime", () => {

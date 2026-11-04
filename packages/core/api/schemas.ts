@@ -793,6 +793,7 @@ export interface AppConfigResponse {
    * older servers and on every deployment that never turned it on. */
   open_registration_enabled?: boolean;
   server_version?: string;
+  server_commit?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1061,6 +1062,7 @@ export const AppConfigSchema = z.object({
   // value has to mean enabled or every older server would lose its login page.
   email_code_login_enabled: BooleanWithDefaultSchema(true),
   server_version: OptionalStringSchema,
+  server_commit: OptionalStringSchema,
 }).loose();
 
 export const EMPTY_APP_CONFIG: AppConfigResponse = {

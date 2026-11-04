@@ -31,7 +31,13 @@
     "trigger": "Help",
     "docs": "Docs",
     "feedback": "Feedback",
-    "server_version": "Server version {{version}}"
+    "product_version": "{{product}} {{version}}",
+    "commit": "Commit {{commit}}",
+    "copy_version": "Copy version",
+    "version_copied": "Version copied",
+    "version_copy_failed": "Couldn't copy the version",
+    "reload_stale": "Reload to update",
+    "reload_stale_title": "This page was built for {{version}}; reload to load the current release."
   },
   "workspace_loader": {
     "loading_workspace": "Loading workspace…",

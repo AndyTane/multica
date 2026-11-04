@@ -31,7 +31,13 @@
     "trigger": "帮助",
     "docs": "文档",
     "feedback": "反馈",
-    "server_version": "服务器版本 {{version}}"
+    "product_version": "{{product}} {{version}}",
+    "commit": "提交 {{commit}}",
+    "copy_version": "复制版本号",
+    "version_copied": "已复制版本号",
+    "version_copy_failed": "复制版本号失败",
+    "reload_stale": "页面不是最新，点击刷新",
+    "reload_stale_title": "当前页面是 {{version}} 的版本，刷新后加载服务器上的最新版本。"
   },
   "workspace_loader": {
     "loading_workspace": "正在加载工作区...",

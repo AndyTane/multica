@@ -376,6 +376,40 @@ func TestGetConfigExposesServerVersion(t *testing.T) {
 	}
 }
 
+// TestGetConfigExposesServerCommit verifies the stamped short commit rides
+// along with the version on self-hosted deployments and is omitted on the
+// managed cloud.
+func TestGetConfigExposesServerCommit(t *testing.T) {
+	origCfg := testHandler.cfg
+	defer func() { testHandler.cfg = origCfg }()
+	testHandler.cfg.ServerVersion = "v0.2.8"
+	testHandler.cfg.ServerCommit = "012edaa"
+	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
+
+	t.Setenv("MULTICA_APP_URL", "https://multica.self-hosted.example")
+	t.Setenv("FRONTEND_ORIGIN", "")
+	w := httptest.NewRecorder()
+	testHandler.GetConfig(w, req)
+	var cfg AppConfig
+	if err := json.Unmarshal(w.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("decode config: %v", err)
+	}
+	if cfg.ServerCommit != "012edaa" {
+		t.Fatalf("server_commit: want 012edaa on self-hosted, got %q", cfg.ServerCommit)
+	}
+
+	t.Setenv("MULTICA_APP_URL", "https://multica.ai")
+	w = httptest.NewRecorder()
+	testHandler.GetConfig(w, req)
+	cfg = AppConfig{}
+	if err := json.Unmarshal(w.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("decode config: %v", err)
+	}
+	if cfg.ServerCommit != "" {
+		t.Fatalf("server_commit: want omitted on official cloud, got %q", cfg.ServerCommit)
+	}
+}
+
 // TestGetConfigOmitsServerVersionOnOfficialCloud verifies the build version is
 // suppressed on the managed cloud (frontend host multica.ai) even when the
 // binary is stamped, while a self-hosted frontend origin still reports it. The

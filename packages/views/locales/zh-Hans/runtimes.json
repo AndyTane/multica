@@ -214,6 +214,8 @@
   "update": {
     "cli_version_label": "CLI 版本：",
     "version_unknown": "未知",
+    "server_mismatch": "CLI {{cli}} 与服务器 {{version}} 不一致",
+    "server_mismatch_title": "请用与服务器同版本的 client-kit.zip 重新接入这台电脑。",
     "managed_by_desktop": "由桌面端管理",
     "managed_by_desktop_title": "CLI 二进制由 U Workers 桌面端管理——升级桌面端即可升级 CLI。",
     "read_only": "只读",
