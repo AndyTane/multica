@@ -104,7 +104,9 @@ try {
         if (-not $canPrompt) { throw '检查通过。确认升级请传 -ConfirmUpgrade；仅检查请传 -CheckOnly。' }
         if ((Read-Host '现在升级（Y/N，回车取消）') -ne 'Y') { Write-Host '已取消，未修改安装。'; return }
     }
-    & (Join-Path $PSScriptRoot 'Apply-Upgrade.ps1') @applyArgs 6>$null | Out-Null
+    # A capturing pipeline waits for inherited native pipe handles on Windows.
+    # Invoke directly so the persistent HTTPS child cannot delay final checks.
+    & (Join-Path $PSScriptRoot 'Apply-Upgrade.ps1') @applyArgs
     Write-Host '程序升级完成，服务已就绪。原权限保留。' -ForegroundColor Green
     Write-Host '请检查原登录、项目、任务、旧附件及另一台电脑访问；通过后再启动原守护进程。'
     Write-Host (Get-PortableDaemonStartCommand -Root $installation -Profile $Profile)
