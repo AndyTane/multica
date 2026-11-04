@@ -59,6 +59,13 @@ SELECT * FROM agent_runtime
 WHERE id = $1
 FOR UPDATE;
 
+-- name: LockAgentRuntimeForBinding :one
+-- Keep runtime visibility stable until the binding commits. A concurrent
+-- enqueue can still take KEY SHARE while holding its agent row lock.
+SELECT * FROM agent_runtime
+WHERE id = $1 AND workspace_id = $2
+FOR NO KEY UPDATE;
+
 -- name: GetAgentRuntimeForWorkspace :one
 SELECT * FROM agent_runtime
 WHERE id = $1 AND workspace_id = $2;

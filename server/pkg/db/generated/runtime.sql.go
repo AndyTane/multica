@@ -966,6 +966,44 @@ func (q *Queries) LockAgentRuntime(ctx context.Context, id pgtype.UUID) (AgentRu
 	return i, err
 }
 
+const lockAgentRuntimeForBinding = `-- name: LockAgentRuntimeForBinding :one
+SELECT id, workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, metadata, last_seen_at, created_at, updated_at, owner_id, legacy_daemon_id, visibility, profile_id, custom_name FROM agent_runtime
+WHERE id = $1 AND workspace_id = $2
+FOR NO KEY UPDATE
+`
+
+type LockAgentRuntimeForBindingParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Keep runtime visibility stable until the binding commits. A concurrent
+// enqueue can still take KEY SHARE while holding its agent row lock.
+func (q *Queries) LockAgentRuntimeForBinding(ctx context.Context, arg LockAgentRuntimeForBindingParams) (AgentRuntime, error) {
+	row := q.db.QueryRow(ctx, lockAgentRuntimeForBinding, arg.ID, arg.WorkspaceID)
+	var i AgentRuntime
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.DaemonID,
+		&i.Name,
+		&i.RuntimeMode,
+		&i.Provider,
+		&i.Status,
+		&i.DeviceInfo,
+		&i.Metadata,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.LegacyDaemonID,
+		&i.Visibility,
+		&i.ProfileID,
+		&i.CustomName,
+	)
+	return i, err
+}
+
 const lockRuntimesForMerge = `-- name: LockRuntimesForMerge :many
 SELECT id, workspace_id, owner_id FROM agent_runtime
 WHERE id = ANY($1::uuid[])
