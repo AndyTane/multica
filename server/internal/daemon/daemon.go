@@ -387,6 +387,7 @@ type repoCacheBackend interface {
 // Daemon is the local agent runtime that polls for and executes tasks.
 type Daemon struct {
 	managedVerifying atomic.Bool
+	managedClientMu  sync.Mutex
 	cfg              Config
 	client           *Client
 	repoCache        repoCacheBackend
@@ -2089,7 +2090,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.rootCtx = ctx
 	if root := d.managedClientRoot(); root != "" {
 		j := managedkit.LoadJournal(root)
-		if (j.Phase == "switching" || j.Phase == "verifying") && j.Offer.Version == d.cfg.CLIVersion {
+		if managedkit.RecoveryPending(j) && j.Offer.Version == d.cfg.CLIVersion {
 			d.claimMu.Lock()
 			d.pauseClaims = true
 			d.claimMu.Unlock()

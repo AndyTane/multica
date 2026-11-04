@@ -56,11 +56,28 @@ func CopyExecutable(from, to string) error {
 }
 
 type localHealth struct {
+	PID     int     `json:"pid"`
+	Profile string  `json:"profile"`
+	Server  string  `json:"server_url"`
+	Version string  `json:"cli_version"`
+	Status  string  `json:"status"`
+	Managed *Status `json:"managed_client_update"`
+}
+
+type acknowledgement struct {
+	SHA     string `json:"sha256"`
+	Program string `json:"program"`
 	PID     int    `json:"pid"`
-	Profile string `json:"profile"`
-	Server  string `json:"server_url"`
-	Version string `json:"cli_version"`
-	Status  string `json:"status"`
+	Version string `json:"version"`
+}
+
+func confirmed(root string, j Journal, h localHealth) bool {
+	var ack acknowledgement
+	return ReadJSON(filepath.Join(root, ".managed", "ack.json"), &ack) == nil && ack.SHA == j.Offer.SHA256 && ack.Program == j.NewProgram && ack.PID > 0 && ack.PID == h.PID && ack.Version == j.Offer.Version && candidateHealth(j, h)
+}
+
+func candidateHealth(j Journal, h localHealth) bool {
+	return h.PID > 0 && h.Profile == j.Profile && h.Server == j.ServerURL && h.Version == j.Offer.Version && h.Managed != nil && h.Managed.InstallationID == j.InstallationID
 }
 
 func probeHealth(port int) localHealth {
@@ -78,12 +95,19 @@ func probeHealth(port int) localHealth {
 // RunHelper owns switching independently of both daemon executables. A local
 // health response alone is never accepted as a server reconnection.
 func RunHelper(ctx context.Context, root string) error {
-	unlock, err := acquireHelperLock(filepath.Join(root, ".managed", "helper.lock"))
+	return runHelper(ctx, root, 120*time.Second)
+}
+
+func runHelper(ctx context.Context, root string, confirmationTimeout time.Duration) error {
+	unlock, err := AcquireUpdateLock(root)
 	if err != nil {
 		return err
 	}
 	defer unlock()
 	j := LoadJournal(root)
+	if !RecoveryPending(j) {
+		return nil
+	}
 	if j.Phase == "interrupted" {
 		_ = os.Remove(filepath.Join(root, ".managed", "stop.json"))
 	}
@@ -135,7 +159,7 @@ func RunHelper(ctx context.Context, root string) error {
 	if stopRequested() {
 		return markStopped()
 	}
-	if h.PID != 0 && (h.Profile != j.Profile || h.Server != j.ServerURL || h.Version != j.Offer.Version) {
+	if h.PID != 0 && !candidateHealth(j, h) {
 		return errors.New("health port belongs to another daemon")
 	}
 	j.Phase = "switching"
@@ -157,7 +181,7 @@ func RunHelper(ctx context.Context, root string) error {
 	}
 	j.Phase = "verifying"
 	_ = SaveJournal(root, j)
-	deadline = time.Now().Add(120 * time.Second)
+	deadline = time.Now().Add(confirmationTimeout)
 	for {
 		if stopRequested() {
 			return markStopped()
@@ -184,12 +208,7 @@ func RunHelper(ctx context.Context, root string) error {
 			waitingNetwork = false
 			j.Reason = "等待新版鉴权心跳"
 			_ = SaveJournal(root, j)
-			deadline = time.Now().Add(120 * time.Second)
-		}
-		var ack struct {
-			SHA     string `json:"sha256"`
-			PID     int    `json:"pid"`
-			Version string `json:"version"`
+			deadline = time.Now().Add(confirmationTimeout)
 		}
 		h = probeHealth(j.HealthPort)
 		if child != nil && h.PID == child.Process.Pid && (h.Profile != j.Profile || h.Server != j.ServerURL || h.Version != j.Offer.Version) {
@@ -197,7 +216,7 @@ func RunHelper(ctx context.Context, root string) error {
 			<-exited
 			return restorePrevious(root, j, oldDir, "新版身份或版本不符，已恢复旧版")
 		}
-		if ReadJSON(filepath.Join(root, ".managed", "ack.json"), &ack) == nil && ack.SHA == j.Offer.SHA256 && ack.PID == h.PID && ack.Version == j.Offer.Version && h.Profile == j.Profile && h.Server == j.ServerURL {
+		if confirmed(root, j, h) {
 			j.Phase = "completed"
 			j.Reason = "新版已重连原服务器并确认版本"
 			return SaveJournal(root, j)
@@ -217,17 +236,45 @@ func RunHelper(ctx context.Context, root string) error {
 			return restorePrevious(root, j, oldDir, "新版启动后退出，已恢复旧版")
 		case <-time.After(time.Second):
 		}
-		// Network outages leave a live successor pending. They never trigger a
-		// successful report or a repeated rollback/reinstall cycle.
-		if time.Now().After(deadline) && h.PID == 0 {
+		// An authenticated heartbeat can confirm the pinned program even after
+		// a cache withdrawal or server target change. A live but unconfirmed
+		// process must also have a bounded recovery path when the server is up.
+		if time.Now().After(deadline) {
 			if !serverReady(j.ServerURL) {
 				continue
 			}
-			if child != nil {
+			if confirmed(root, j, probeHealth(j.HealthPort)) {
+				j.Phase = "completed"
+				j.Reason = "新版已重连原服务器并确认版本"
+				return SaveJournal(root, j)
+			}
+			if h.PID != 0 {
+				if !candidateHealth(j, h) || !processAt(h.PID, filepath.Join(newDir, "u-workers.exe")) {
+					return errors.New("cannot stop an unowned health process")
+				}
+				p, e := os.FindProcess(h.PID)
+				if e != nil {
+					return e
+				}
+				e = p.Kill()
+				_ = p.Release()
+				if e != nil {
+					return e
+				}
+			} else if child != nil {
 				_ = child.Process.Kill()
+			}
+			if child != nil {
 				<-exited
 			}
-			return restorePrevious(root, j, oldDir, "新版未就绪，已恢复旧版")
+			stopDeadline := time.Now().Add(10 * time.Second)
+			for probeHealth(j.HealthPort).PID != 0 {
+				if time.Now().After(stopDeadline) {
+					return errors.New("successor health port did not close")
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			return restorePrevious(root, j, oldDir, "新版未完成鉴权确认，已恢复旧版")
 		}
 	}
 }

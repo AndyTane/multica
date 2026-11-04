@@ -32,8 +32,19 @@ func (d *Daemon) handleManagedClient(ctx context.Context, runtimeID string, offe
 	if root == "" {
 		return
 	}
-	if managedkit.Acknowledge(root, d.cfg.Profile, d.cfg.ServerBaseURL, d.cfg.CLIVersion, offer) && d.managedVerifying.CompareAndSwap(true, false) {
-		d.releaseClaimBarrier()
+	// Confirmation and the next claim owner must not overlap across heartbeat
+	// goroutines, including the interval before the update CAS is acquired.
+	if !d.managedClientMu.TryLock() {
+		return
+	}
+	defer d.managedClientMu.Unlock()
+	if d.managedVerifying.Load() {
+		if managedkit.Acknowledge(root, d.cfg.Profile, d.cfg.ServerBaseURL, d.cfg.CLIVersion) && d.managedVerifying.CompareAndSwap(true, false) {
+			d.releaseClaimBarrier()
+		} else {
+			managedkit.ResumeHelper(root)
+			return
+		}
 	}
 	if offer == nil || !offer.Valid() || !cli.IsNewerVersion(offer.Version, d.cfg.CLIVersion) {
 		return
@@ -42,10 +53,22 @@ func (d *Daemon) handleManagedClient(ctx context.Context, runtimeID string, offe
 		return
 	}
 	handedOff := false
+	claimsOwned := false
 	defer func() {
 		if !handedOff {
-			d.releaseClaimBarrier()
+			if claimsOwned {
+				d.releaseClaimBarrier()
+			}
 			d.updating.Store(false)
+		}
+	}()
+	unlock, err := managedkit.AcquireUpdateLock(root)
+	if err != nil {
+		return
+	}
+	defer func() {
+		if unlock != nil {
+			unlock()
 		}
 	}()
 	installation, err := managedkit.LoadInstallation(root, d.cfg.Profile, d.cfg.ServerBaseURL)
@@ -69,6 +92,7 @@ func (d *Daemon) handleManagedClient(ctx context.Context, runtimeID string, offe
 		return
 	}
 	// Pause under the same mutex used by every claim, then drain existing work.
+	claimsOwned = true
 	if !d.drainManagedClaims(ctx, func() bool {
 		current, e := managedkit.LoadInstallation(root, d.cfg.Profile, d.cfg.ServerBaseURL)
 		return e != nil || current.Paused
@@ -117,12 +141,22 @@ func (d *Daemon) handleManagedClient(ctx context.Context, runtimeID string, offe
 	if err = managedkit.SaveJournal(root, j); err != nil {
 		return
 	}
+	// The persisted phase blocks every new target before releasing the writer
+	// lock to the helper. No daemon journal writes are allowed after this point.
+	unlock()
+	unlock = nil
 	cmd, err := managedkit.Spawn(helper, []string{"kit-recover", "--root", root}, root)
 	if err != nil {
-		fail("恢复助手启动失败，保留原版")
-		return
+		// A concurrent explicit recovery may already own the handoff. Only an
+		// exclusive writer can abandon it while this old daemon is still alive.
+		if release, lockErr := managedkit.AcquireUpdateLock(root); lockErr == nil {
+			fail("恢复助手启动失败，保留原版")
+			release()
+			return
+		}
+	} else {
+		_ = cmd.Process.Release()
 	}
-	_ = cmd.Process.Release()
 	handedOff = true
 	// The helper, not the ordinary restart path, owns the successor.
 	if d.cancelFunc != nil {

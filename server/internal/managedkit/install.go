@@ -123,15 +123,21 @@ func SetProgram(root, relative string) error {
 	}
 	return WriteJSON(filepath.Join(root, "current.json"), map[string]string{"program": relative})
 }
-func Acknowledge(root, profile, server, version string, offer *Offer) bool {
+
+// Acknowledge is called only after an authenticated heartbeat from the original
+// server. The pinned transaction, not the server's current download offer,
+// identifies the successor. Completion is committed by the lock-owning helper
+// before the daemon may release its claim barrier.
+func Acknowledge(root, profile, server, version string) bool {
 	j := LoadJournal(root)
-	if offer == nil || offer.SHA256 != j.Offer.SHA256 {
+	if stopIntent(root, j) {
 		return false
 	}
-	if j.Phase != "switching" && j.Phase != "verifying" {
+	if j.Phase != "switching" && j.Phase != "verifying" && j.Phase != "interrupted" && j.Phase != "completed" {
 		return false
 	}
-	if j.Profile != profile || j.ServerURL != server || j.Offer.Version != version {
+	i, err := LoadInstallation(root, profile, server)
+	if err != nil || i.ID != j.InstallationID || j.Profile != profile || j.ServerURL != server || j.Offer.Version != version || !j.Offer.Valid() {
 		return false
 	}
 	exe, err := os.Executable()
@@ -139,14 +145,78 @@ func Acknowledge(root, profile, server, version string, offer *Offer) bool {
 		return false
 	}
 	expected, err := ProgramPath(root, j.NewProgram)
-	if err != nil || !strings.EqualFold(filepath.Clean(exe), filepath.Join(expected, "u-workers.exe")) {
+	if err != nil || CurrentProgram(root) != j.NewProgram || !strings.EqualFold(filepath.Clean(exe), filepath.Join(expected, "u-workers.exe")) {
 		return false
 	}
-	return WriteJSON(filepath.Join(root, ".managed", "ack.json"), map[string]any{"sha256": j.Offer.SHA256, "pid": os.Getpid(), "version": version}) == nil
+	var inventory Inventory
+	if ReadJSON(filepath.Join(expected, "CLIENT-FILES.json"), &inventory) != nil || inventory.SchemaVersion != 2 || inventory.Version != version || inventory.Commit != j.Offer.Commit || inventory.Platform != j.Offer.Platform {
+		return false
+	}
+	verified := false
+	for _, file := range inventory.Files {
+		if file.Path == "u-workers.exe" {
+			verified = CheckFile(exe, file.SHA256, file.Bytes) == nil
+			break
+		}
+	}
+	if !verified {
+		return false
+	}
+	ack := acknowledgement{SHA: j.Offer.SHA256, Program: j.NewProgram, PID: os.Getpid(), Version: version}
+	if WriteJSON(filepath.Join(root, ".managed", "ack.json"), ack) != nil {
+		return false
+	}
+	return j.Phase == "completed"
 }
 func CanAttempt(j Journal, o Offer, now time.Time) bool {
+	if RecoveryPending(j) {
+		return false
+	}
 	if j.Offer.SHA256 != o.SHA256 {
 		return true
 	}
 	return j.Phase != "completed" && j.Phase != "switching" && j.Phase != "verifying" && j.Phase != "interrupted" && j.Attempts < 3 && !now.Before(j.RetryAfter)
+}
+
+func RecoveryPending(j Journal) bool {
+	return j.Phase == "switching" || j.Phase == "verifying" || j.Phase == "interrupted"
+}
+
+// AcquireUpdateLock protects every journal writer, from the daemon's first
+// admission/read through helper completion. The handoff gap is protected by the
+// persisted switching phase. OS locks also release after an interrupted process.
+func AcquireUpdateLock(root string) (func(), error) {
+	if err := os.MkdirAll(filepath.Join(root, ".managed"), 0700); err != nil {
+		return nil, err
+	}
+	return acquireHelperLock(filepath.Join(root, ".managed", "helper.lock"))
+}
+
+// ResumeHelper never edits the journal. It restarts an orphaned transaction;
+// concurrent invocations can spawn contenders but only one can own the lock.
+func ResumeHelper(root string) {
+	unlock, err := AcquireUpdateLock(root)
+	if err != nil {
+		return
+	}
+	j := LoadJournal(root)
+	pending := RecoveryPending(j) && !stopIntent(root, j)
+	unlock()
+	if !pending {
+		return
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	if cmd, err := Spawn(exe, []string{"kit-recover", "--root", root}, root); err == nil {
+		_ = cmd.Process.Release()
+	}
+}
+
+func stopIntent(root string, j Journal) bool {
+	var stop struct {
+		SHA string `json:"sha256"`
+	}
+	return ReadJSON(filepath.Join(root, ".managed", "stop.json"), &stop) == nil && stop.SHA == j.Offer.SHA256
 }
