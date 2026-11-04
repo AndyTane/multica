@@ -68,6 +68,8 @@ data/
 .idea
 .gstack/
 
+e2e-visual/__out__/
+
 # Python (agent tooling)
 __pycache__/
 *.pyc
