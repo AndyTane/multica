@@ -24,6 +24,7 @@ import { buildSteps, groupSteps, isCallStep, isGroupRow, type TraceRow } from ".
 import { traceEventSummary, traceToolArgSummary } from "../../common/task-transcript/trace-event-presenter";
 import { redactSecrets } from "../../common/task-transcript/redact";
 import { ReadonlyContent } from "../../editor";
+import { CommentBody, useCommentBodyExpansion } from "./comment-body";
 import { useLocale, useT, useTimeAgo } from "../../i18n";
 import { formatDuration } from "../../agents/components/agent-activity-hover-content";
 import { failureNeedsAction, isCancelledOutcome, runOutcomeLabel } from "../../agents/components/tabs/task-failure";
@@ -74,6 +75,7 @@ export function InlineCommentRun({ run, className, viewState, showIdentity = fal
   replacesFailureNotice?: boolean;
 }) {
   const { task, hasReply } = run;
+  const [outputExpanded, setOutputExpanded] = useCommentBodyExpansion(`run:${task.id}`, false);
   const { t } = useT("issues");
   const { t: tAgents } = useT("agents");
   const { getActorName } = useActorName();
@@ -226,7 +228,11 @@ export function InlineCommentRun({ run, className, viewState, showIdentity = fal
       </div>
       <div className={cn(showIdentity && "pl-8")}>
         {replyTo}
-        {output && <div className="mt-2 text-body"><ReadonlyContent content={redactSecrets(output)} /></div>}
+        {output && <div className="mt-2 min-w-0 text-body">
+          <CommentBody expanded={outputExpanded} onExpandedChange={setOutputExpanded}>
+            <ReadonlyContent content={redactSecrets(output)} />
+          </CommentBody>
+        </div>}
         {needsAction && rawError && <p title={rawError}
           className="mt-1.5 line-clamp-4 whitespace-pre-wrap break-words rounded-md border bg-muted/50 px-2.5 py-1.5 font-mono text-caption text-muted-foreground">
           {rawError}

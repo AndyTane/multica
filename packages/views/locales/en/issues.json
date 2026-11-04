@@ -553,6 +553,9 @@
     "wakeup_chip_system": "System rule"
   },
   "comment": {
+    "expand_body": "Show full comment",
+    "collapse_body": "Show less",
+    "attachment_count": "{{count}} attachments",
     "add_reaction": "Add reaction",
     "collapse_thread": "Collapse thread",
     "expand_thread": "Expand thread",

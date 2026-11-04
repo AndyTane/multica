@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -50,7 +50,7 @@ function renderWithQuery(ui: ReactElement) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return renderWithI18n(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -172,6 +172,20 @@ describe("AttachmentList — layout (MUL-7649)", () => {
     const image = container.querySelector(".image-figure")!;
     const card = screen.getByRole("button", { name: "notes.md" });
     expect(image.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("folds three standalone attachments into one summary and keeps edit attachments open", () => {
+    const attachments = [file("a", "a.pdf", "application/pdf"), file("b", "b.pdf", "application/pdf"), file("c", "c.pdf", "application/pdf")];
+    const { container, unmount } = renderList(<AttachmentList collapsible attachments={attachments} />);
+    const summary = screen.getByText("3 attachments");
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
+    expect(screen.getByRole("button", { name: "a.pdf", hidden: true })).not.toBeVisible();
+    fireEvent.click(summary);
+    expect(screen.getByRole("button", { name: "a.pdf" })).toBeVisible();
+    unmount();
+    const edited = renderList(<AttachmentList collapsible attachments={attachments} onRemove={vi.fn()} />);
+    expect(edited.container.querySelector("details")).toBeNull();
+    expect(screen.getByRole("button", { name: "a.pdf" })).toBeVisible();
   });
 
   // Reverses the MUL-2330 pin. An uploaded HTML file is a deliverable, not

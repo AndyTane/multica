@@ -40,9 +40,9 @@ import type { IssueCreateDefaults } from "../surface/types";
 // cannot be faithfully replicated in JavaScript (ICU/V8). Showing an
 // inaccurate indicator is worse than showing none.
 
-export const BOARD_COL_WIDTH = 280;
-const EMPTY_BOARD_COL_WIDTH = 200;
-export const BOARD_CARD_WIDTH = BOARD_COL_WIDTH - 16 - 8; // col(280) - col p-2(16) - droppable p-1(8)
+const MIN_BOARD_COL_WIDTH = 200;
+const MAX_BOARD_COL_WIDTH = 320;
+const EMPTY_BOARD_COL_WIDTH = 168;
 
 // Board cards are ~90-140px tall, so ~10 fill a column viewport — unlike the
 // generic VIRTUOSO_SEED_COUNT (30, sized for 36px list rows). The seed mounts
@@ -197,14 +197,16 @@ export const BoardColumn = memo(function BoardColumn({
   return (
     <div
       data-board-column={group.id}
-      style={{ width: !isLoading && issueIds.length === 0 && (totalCount ?? 0) === 0 ? EMPTY_BOARD_COL_WIDTH : BOARD_COL_WIDTH }}
-      className={`flex shrink-0 flex-col rounded-xl ${cfg?.columnBg ?? "bg-muted/40"} p-2`}
+      style={!isLoading && issueIds.length === 0 && (totalCount ?? 0) === 0
+        ? { width: EMPTY_BOARD_COL_WIDTH, flex: `0 0 ${EMPTY_BOARD_COL_WIDTH}px` }
+        : { flex: `1 0 ${MIN_BOARD_COL_WIDTH}px`, minWidth: MIN_BOARD_COL_WIDTH, maxWidth: MAX_BOARD_COL_WIDTH }}
+      className={`flex min-w-0 flex-col rounded-xl ${cfg?.columnBg ?? "bg-muted/40"} p-2`}
     >
-      <div className="mb-2 flex items-center justify-between px-1.5">
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-1 px-1.5">
         <BoardGroupHeading group={group} count={totalCount ?? issueIds.length} />
 
         {/* Right: add + menu */}
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {/* Column-header popups mount lazily: a board/swimlane renders one
               header per column and almost none of these menus/tooltips are
               ever opened — eagerly mounting them dominated surface mount

@@ -62,6 +62,7 @@ import { useAttachmentVersions } from "./deliverables/attachment-versions";
 import { VersionBadge } from "./deliverables/version-badge";
 import { useRunCommentMotion } from "./use-run-comment-motion";
 import { WakeupSourceChip } from "./wakeup-source-chip";
+import { CommentBody, useCommentBodyExpansion } from "./comment-body";
 
 const commentActionClassName =
   "text-muted-foreground aria-expanded:bg-transparent aria-expanded:hover:bg-muted dark:aria-expanded:hover:bg-muted/50";
@@ -212,13 +213,16 @@ export function AttachmentList({
   content,
   className,
   onRemove,
+  collapsible = false,
 }: {
   attachments?: Attachment[];
   content?: string;
   className?: string;
   onRemove?: (attachmentId: string) => void;
+  collapsible?: boolean;
 }) {
   const versions = useAttachmentVersions();
+  const { t } = useT("issues");
   if (!attachments?.length) return null;
   // Skip attachments whose URL (stable or legacy) is already referenced in the
   // markdown content, and duplicates of the same file that are referenced.
@@ -246,21 +250,33 @@ export function AttachmentList({
     );
   };
 
-  // Every image shows at its full size, one under another, so it reads
+  // Expanded images show at full size, one under another, so they read
   // without opening (MUL-7736). Every other file — HTML too: an uploaded file
   // is a deliverable to open, not part of the text — is a card in a grid, not
   // a full-width row each.
+  const list = (
+    <div className="flex min-w-0 flex-col gap-2">
+      {images.length > 0 && (
+        <div className="flex flex-col items-start gap-2">{images.map(render)}</div>
+      )}
+      {files.length > 0 && (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(15rem,100%),1fr))] gap-2">
+          {files.map(render)}
+        </div>
+      )}
+    </div>
+  );
   return (
     <AttachmentDownloadProvider attachments={attachments}>
-      <div className={cn("flex flex-col gap-2", className)}>
-        {images.length > 0 && (
-          <div className="flex flex-col items-start gap-2">{images.map(render)}</div>
-        )}
-        {files.length > 0 && (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(15rem,100%),1fr))] gap-2">
-            {files.map(render)}
-          </div>
-        )}
+      <div className={className}>
+        {collapsible && standalone.length >= 3 && !onRemove ? (
+          <details>
+            <summary className="cursor-pointer rounded-md py-1 text-caption text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring">
+              {t(($) => $.comment.attachment_count, { count: standalone.length })}
+            </summary>
+            {list}
+          </details>
+        ) : list}
       </div>
     </AttachmentDownloadProvider>
   );
@@ -673,6 +689,7 @@ function CommentRow({
   const { getActorName } = useActorName();
 
   const edit = useEditAttachmentState(issueId, entry, onEdit);
+  const [bodyExpanded, setBodyExpanded] = useCommentBodyExpansion(entry.id, !!isHighlighted || edit.editing);
 
   const isOwn = entry.actor_type === "member" && entry.actor_id === currentUserId;
   // A message that steered a run is part of that run's input: it cannot be
@@ -907,9 +924,11 @@ function CommentRow({
           <div tabIndex={currentUserId ? 0 : undefined} role="group"
             aria-label={t(($) => $.reply.annotations.source_label, { name: entry.actor_name || getActorName(entry.actor_type, entry.actor_id) })}
             data-comment-content={entry.id} className="pl-12 pr-4 max-md:pl-3 max-md:pr-3 text-body leading-relaxed text-foreground">
-            <ReadonlyContent content={entry.content ?? ""} attachments={entry.attachments} />
+            <CommentBody expanded={bodyExpanded} onExpandedChange={setBodyExpanded}>
+              <ReadonlyContent content={entry.content ?? ""} attachments={entry.attachments} />
+            </CommentBody>
           </div>
-          <AttachmentList attachments={entry.attachments} content={entry.content} className="mt-1.5 pl-12 pr-4 max-md:pl-3 max-md:pr-3" />
+          <AttachmentList collapsible attachments={entry.attachments} content={entry.content} className="mt-1.5 pl-12 pr-4 max-md:pl-3 max-md:pr-3" />
           <div className="pl-12 pr-4 max-md:pl-3 max-md:pr-3">
             <SteerReceipts issueId={issueId} entry={entry} />
           </div>
@@ -1058,6 +1077,7 @@ function CommentCardImpl({
   );
 
   const edit = useEditAttachmentState(issueId, entry, onEdit);
+  const [bodyExpanded, setBodyExpanded] = useCommentBodyExpansion(entry.id, highlightedCommentId === entry.id || edit.editing);
 
   const isOwn = entry.actor_type === "member" && entry.actor_id === currentUserId;
   const receipts = commentSupplementReceipts(entry);
@@ -1176,7 +1196,7 @@ function CommentCardImpl({
     // overflow-clip (not -hidden) clips the rounded corners WITHOUT creating a
     // scroll container, so the sticky collapse affordances below resolve to the
     // timeline's scroll parent instead of this card. See PR #3623.
-    <Card ref={annotation.cardRef} {...annotation.captureProps} className="!py-0 !gap-0 overflow-clip transition-colors duration-700">
+    <Card ref={annotation.cardRef} {...annotation.captureProps} className="!py-0 !gap-0 min-w-0 overflow-clip transition-colors duration-700">
       {annotation.popup}
       {onCollapseResolved && (
         <button
@@ -1444,9 +1464,11 @@ function CommentCardImpl({
                 <div tabIndex={currentUserId ? 0 : undefined} role="group"
             aria-label={t(($) => $.reply.annotations.source_label, { name: entry.actor_name || getActorName(entry.actor_type, entry.actor_id) })}
             data-comment-content={entry.id} className="pl-8 max-md:pl-0 text-body leading-relaxed text-foreground">
-                  <ReadonlyContent content={entry.content ?? ""} attachments={entry.attachments} />
+                  <CommentBody expanded={bodyExpanded} onExpandedChange={setBodyExpanded}>
+                    <ReadonlyContent content={entry.content ?? ""} attachments={entry.attachments} />
+                  </CommentBody>
                 </div>
-                <AttachmentList attachments={entry.attachments} content={entry.content} className="mt-1.5 pl-8 max-md:pl-0" />
+                <AttachmentList collapsible attachments={entry.attachments} content={entry.content} className="mt-1.5 pl-8 max-md:pl-0" />
                 <div className="pl-8 max-md:pl-0">
                   <SteerReceipts issueId={issueId} entry={entry} />
                 </div>

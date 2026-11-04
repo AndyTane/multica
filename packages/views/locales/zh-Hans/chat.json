@@ -13,7 +13,7 @@
     "placeholder_no_agent": "创建一个智能体后才能开始对话",
     "placeholder_archived": "此会话已归档",
     "placeholder_archived_agent": "该智能体已归档",
-    "placeholder_runtime_required": "绑定运行时后继续",
+    "placeholder_runtime_required": "绑定运行环境后继续",
     "placeholder_access_revoked": "你已没有运行该智能体的权限",
     "placeholder_named": "给 {{name}} 发消息…",
     "placeholder_default": "输入消息…",
@@ -22,8 +22,8 @@
     "stop_tooltip": "停止",
     "send_failed_toast": "发送消息失败",
     "send_blocked_toast": "消息未发送——你已没有该智能体的使用权限",
-    "runtime_required_toast": "消息未发送——请先为该智能体绑定运行时",
-    "runtime_access_denied_toast": "消息未发送——该智能体无法在其私有运行时上运行。请将该运行时设为公开，或将智能体重新绑定/复制到其所有者可用的运行时",
+    "runtime_required_toast": "消息未发送——请先为该智能体绑定运行环境",
+    "runtime_access_denied_toast": "消息未发送——该智能体无法在其私有运行环境上运行。请将该运行环境设为公开，或将智能体重新绑定/复制到其所有者可用的运行环境",
     "attachment_bind_failed_toast": "消息已发送，但文件未能附加。请稍后重试。",
     "add_tooltip": "添加",
     "upload_file": "图片或文件",
@@ -31,7 +31,7 @@
     "change_project_context": "更改项目上下文",
     "remove_project_context": "移除项目上下文",
     "no_projects": "还没有项目",
-    "project_context_unsupported": "项目描述不会生效——该智能体的守护进程版本过旧，需要升级"
+    "project_context_unsupported": "项目描述不会生效——该智能体的后台连接版本过旧，需要升级"
   },
   "queue": {
     "title_other": "{{count}} 条排队消息",
@@ -57,7 +57,7 @@
       "timeout": "智能体处理超时，未能完成。可以重试，或把需求拆得更小一些。",
       "codex_semantic_inactivity": "智能体长时间无响应，已停止。请重试。",
       "runtime_offline": "智能体当前离线，暂时无法回复。等它恢复在线后再试。",
-      "runtime_access_denied": "该智能体无法在其私有运行时上运行，暂时无法回复。请将该运行时设为公开，或将智能体重新绑定/复制到其所有者可用的运行时。",
+      "runtime_access_denied": "该智能体无法在其私有运行环境上运行，暂时无法回复。请将该运行环境设为公开，或将智能体重新绑定/复制到其所有者可用的运行环境。",
       "runtime_recovery": "智能体在完成前重启了。请重试。",
       "manual": "这次回复已取消。",
       "skill_bundle_unavailable": "没能下载到智能体的 skill，这次回复没有启动。通常是网络连接问题，请重试。",
@@ -136,8 +136,8 @@
     "no_agents": "暂无智能体",
     "history_group": "历史对话",
     "agent_filter_placeholder": "搜索智能体...",
-    "agent_needs_runtime": "需绑定运行时",
-    "agent_needs_runtime_hint": "请先绑定运行时，再与该智能体开始对话"
+    "agent_needs_runtime": "需绑定运行环境",
+    "agent_needs_runtime_hint": "请先绑定运行环境，再与该智能体开始对话"
   },
   "empty_state": {
     "first_time_title": "和你的智能体对话",
@@ -191,8 +191,8 @@
   "agent_access_revoked_banner": "你已没有运行 {{name}} 的权限——此会话为只读。",
   "runtime_required_banner": {
     "fallback_name": "该智能体",
-    "message": "{{name}} 需要绑定运行时后才能回复。",
-    "action": "绑定运行时"
+    "message": "{{name}} 需要绑定运行环境后才能回复。",
+    "action": "绑定运行环境"
   },
   "offline_banner": {
     "fallback_name": "智能体",

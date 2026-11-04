@@ -553,6 +553,9 @@
     "wakeup_chip_system": "Règle système"
   },
   "comment": {
+    "expand_body": "Show full comment",
+    "collapse_body": "Show less",
+    "attachment_count": "{{count}} attachments",
     "add_reaction": "Ajouter une réaction",
     "collapse_thread": "Replier le fil",
     "expand_thread": "Développer le fil",
