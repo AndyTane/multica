@@ -99,6 +99,32 @@ describe("LoginPage", () => {
     mockListMyInvitations.mockResolvedValue([]);
   });
 
+  it.each([null, { id: "u1", email: "test@example.com" }])(
+    "blocks invalid CLI links before rendering sign-in or redirecting (session %j)",
+    async (user) => {
+      authStateRef.state.user = user;
+      searchParamsState.params = new URLSearchParams({
+        cli_callback: "http://174.34.66.99:4321/callback",
+        platform: "desktop",
+      });
+      render(<LoginPage />, { wrapper: createWrapper() });
+      expect(screen.getByRole("alert")).toHaveTextContent(enAuth.web.callback.invalid_cli_callback);
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Back to login" })).toHaveAttribute("href", "/login");
+      await act(async () => {});
+      expect(mockIssueCliToken).not.toHaveBeenCalled();
+      expect(mockListWorkspaces).not.toHaveBeenCalled();
+      expect(mockReplace).not.toHaveBeenCalled();
+      expect(mockPush).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not treat an empty CLI callback as ordinary login", () => {
+    searchParamsState.params = new URLSearchParams({ cli_callback: "" });
+    render(<LoginPage />, { wrapper: createWrapper() });
+    expect(screen.getByRole("alert")).toHaveTextContent(enAuth.web.callback.invalid_cli_callback);
+  });
+
   // Shared LoginPage behavior is canonical in
   // packages/views/auth/login-page.test.tsx. This wrapper suite only owns web
   // platform handoff and redirect behavior.

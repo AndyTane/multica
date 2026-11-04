@@ -63,21 +63,26 @@ function CallbackContent() {
     // Google auth completes.
     const cliCallbackPart = stateParts.find((p) => p.startsWith("cli_callback:"));
     const cliStatePart = stateParts.find((p) => p.startsWith("cli_state:"));
-    const cliCallbackRaw = cliCallbackPart
-      ? decodeURIComponent(cliCallbackPart.slice("cli_callback:".length))
-      : null;
-    const cliState = cliStatePart
-      ? decodeURIComponent(cliStatePart.slice("cli_state:".length))
-      : "";
+    let cliCallback: string | null = null;
+    let cliState = "";
+    try {
+      if (cliCallbackPart !== undefined) {
+        cliCallback = decodeURIComponent(cliCallbackPart.slice("cli_callback:".length));
+        if (!validateCliCallback(cliCallback)) {
+          setError({ kind: "invalid_cli_callback" });
+          return;
+        }
+      }
+      cliState = cliStatePart
+        ? decodeURIComponent(cliStatePart.slice("cli_state:".length))
+        : "";
+    } catch {
+      // Malformed percent encoding must not escape the effect or start web login.
+      setError({ kind: "invalid_cli_callback" });
+      return;
+    }
 
     const redirectUri = `${window.location.origin}/auth/callback`;
-
-    // Validate the CLI callback URL before redirecting — the state parameter
-    // passes through Google OAuth and must be treated as attacker-controlled.
-    const cliCallback =
-      cliCallbackRaw && validateCliCallback(cliCallbackRaw)
-        ? cliCallbackRaw
-        : null;
 
     if (cliCallback) {
       // CLI login flow: exchange the Google code for a JWT, then redirect the
@@ -162,6 +167,8 @@ function CallbackContent() {
     switch (error.kind) {
       case "raw":
         return error.text;
+      case "invalid_cli_callback":
+        return t(($) => $.web.callback.invalid_cli_callback);
       case "missing_code":
         return t(($) => $.web.callback.missing_code);
       case "access_denied":

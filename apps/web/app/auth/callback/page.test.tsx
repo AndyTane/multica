@@ -396,21 +396,22 @@ describe("CallbackPage", () => {
     }
   });
 
-  it("falls through to normal web flow when state contains invalid cli_callback", async () => {
-    mockSearchParams.set("state", "cli_callback:https://evil.com/callback");
-    mockLoginWithGoogle.mockResolvedValue(makeUser());
-    mockListWorkspaces.mockResolvedValue([]);
-    mockListMyInvitations.mockResolvedValue([]);
-
-    renderCallback();
-
-    await waitFor(() => {
-      // Normal web flow: loginWithGoogle is called (not googleLogin)
-      expect(mockLoginWithGoogle).toHaveBeenCalled();
-    });
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith(paths.onboarding());
-    });
+  it.each([
+    "cli_callback:http://174.34.66.99:4321/callback",
+    "cli_callback:https://evil.com/callback",
+    "platform:desktop,cli_callback:http://10.example.com/callback",
+    "cli_callback:",
+    "cli_callback:%E0%A4%A",
+    "cli_callback:http://127.0.0.1:1234/callback,cli_state:%E0%A4%A",
+  ])("shows a recoverable error without exchanging tokens for invalid state %s", async (state) => {
+    const { api: mockedApi } = await import("@multica/core/api");
+    mockSearchParams.set("state", state);
+    renderCallback("zh-Hans");
+    expect(await screen.findByText(/CLI 回调地址不受支持/)).toBeInTheDocument();
+    expect(mockLoginWithGoogle).not.toHaveBeenCalled();
+    expect(mockedApi.googleLogin).not.toHaveBeenCalled();
+    expect(mockListWorkspaces).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("redirects to CLI callback even when state also contains platform:desktop", async () => {
