@@ -36,6 +36,8 @@
    code blocks gained 1-2 lines in the editor only). */
 .rich-text-editor {
   overflow-wrap: break-word;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Headings — compact but with clear visual hierarchy */
@@ -296,6 +298,7 @@
 
 /* Tables */
 .rich-text-editor .tableWrapper {
+  max-width: 100%;
   overflow-x: auto;
   margin: 1rem 0;
   border: 1px solid var(--border);

@@ -34,16 +34,16 @@ describe("wakeup timeline entries", () => {
     const { t, text } = helpers();
     const read = (e: TimelineEntry) => formatWakeupActivity(e, t, text, getActorName);
     expect(read(entry("wakeup_created", { wakeup: reply }, { actor_type: "agent", actor_id: "a" }))).toBe(
-      "添加了唤醒：当此任务有新评论时（由 Jiayuan 触发）唤醒 Emacs",
+      "添加了跟进：当此任务有新评论时（由 Jiayuan 触发）请 Emacs 跟进",
     );
     expect(read(entry("wakeup_triggered", { wakeup: { ...reply, condition: { type: "pull_request", event: "checks_finished" } } }))).toBe(
-      "当关联 PR 的 CI 结束时，唤醒了 Emacs",
+      "当关联 PR 的 CI 结束时，已请 Emacs 跟进",
     );
     expect(read(entry("wakeup_triggered", { wakeup: reply, events: ["wakeup.manual"], actor_type: "member", actor_id: "u" }))).toBe(
-      "Jiayuan 立即唤醒了 Emacs",
+      "Jiayuan 已请 Emacs 立即跟进",
     );
     expect(read(entry("wakeup_triggered", { rule: "child_done", stage: 1, total: 2, target_type: "agent", target_id: "a", outcome: "woke" }))).toBe(
-      "第 1 阶段的 2 个子任务已全部结束，唤醒了 Emacs",
+      "第 1 阶段的 2 个子任务已全部结束，已请 Emacs 跟进",
     );
     expect(read(entry("wakeup_triggered", { rule: "child_done", total: 3, target_type: "member", target_id: "u", outcome: "notified" }))).toBe(
       "3 个子任务已全部结束，已通知 Jiayuan",
@@ -55,16 +55,16 @@ describe("wakeup timeline entries", () => {
       "第 2 阶段的 1 个子任务已全部结束",
     );
     expect(read(entry("wakeup_triggered", { rule: "child_done", stage: 1, total: 2, target_type: "agent", target_id: "a", outcome: "acknowledged" }))).toBe(
-      "第 1 阶段的 2 个子任务已全部结束，Emacs 正在处理，未重复唤醒",
+      "第 1 阶段的 2 个子任务已全部结束，Emacs 正在处理，未重复跟进",
     );
     expect(read(entry("wakeup_triggered", { wakeup: reply, outcome: "merged" }))).toBe(
       "当此任务有新评论时（由 Jiayuan 触发），并入了 Emacs 待开始的运行",
     );
     expect(read(entry("wakeup_triggered", { wakeup: reply, outcome: "acknowledged" }))).toBe(
-      "当此任务有新评论时（由 Jiayuan 触发），由 Emacs 自己触发，未重复唤醒",
+      "当此任务有新评论时（由 Jiayuan 触发），由 Emacs 自己触发，未重复跟进",
     );
-    expect(read(entry("wakeup_timed_out", { wakeup: reply, woke: true }))).toContain("唤醒了 Emacs 处理超时");
-    expect(read(entry("wakeup_paused", { wakeup: reply, reason: "loop" }))).toBe("已暂停：与其他唤醒规则互相触发");
+    expect(read(entry("wakeup_timed_out", { wakeup: reply, woke: true }))).toContain("已请 Emacs 跟进处理");
+    expect(read(entry("wakeup_paused", { wakeup: reply, reason: "loop" }))).toBe("已暂停：与其他跟进规则互相触发");
     expect(read(entry("wakeup_checkin", { wakeup: reply, note: "进度 72%" }, { actor_type: "agent", actor_id: "g", coalesced_count: 3 }))).toBe(
       "静默检查 3 次 · 最近一次：进度 72%",
     );

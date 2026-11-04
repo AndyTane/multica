@@ -161,6 +161,9 @@ type Config struct {
 	// Surfaced through /api/config so self-hosted operators can confirm which
 	// server build is deployed. Empty in dev builds.
 	ServerVersion string
+	// ServerCommit is the short source commit stamped via -X main.commit.
+	// Empty in unstamped builds.
+	ServerCommit string
 }
 
 type cloudRuntimeProxy interface {

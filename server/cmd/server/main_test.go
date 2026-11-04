@@ -182,6 +182,14 @@ func TestNormalizeServerVersion(t *testing.T) {
 	}
 }
 
+func TestNormalizeServerCommit(t *testing.T) {
+	for in, want := range map[string]string{"unknown": "", "": "", "012edaa": "012edaa"} {
+		if got := normalizeServerCommit(in); got != want {
+			t.Errorf("normalizeServerCommit(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestEnvBool(t *testing.T) {
 	tests := []struct {
 		name  string

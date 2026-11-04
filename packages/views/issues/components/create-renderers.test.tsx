@@ -119,6 +119,17 @@ beforeEach(() => {
 });
 
 describe("issue renderer create entrypoints", () => {
+  it("narrows a settled empty column and restores its width while loading or populated", () => {
+    const props = { group: { id: "todo", title: "Todo", status: "todo" }, issueIds: [] as string[], issueMap: new Map() };
+    const view = render(<BoardColumn {...props} />);
+    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "200px" });
+    view.rerender(<BoardColumn {...props} isLoading />);
+    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "280px" });
+    view.rerender(<BoardColumn {...props} issueIds={["pending-issue"]} totalCount={1} />);
+    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "280px" });
+    view.rerender(<BoardColumn {...props} />);
+    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "200px" });
+  });
   it("does not offer creation into an archived board/list status", () => {
     const onCreateIssue = vi.fn();
     const { container } = render(<>

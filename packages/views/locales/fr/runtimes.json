@@ -226,6 +226,8 @@
   "update": {
     "cli_version_label": "Version du CLI :",
     "version_unknown": "inconnue",
+    "server_mismatch": "CLI {{cli}} différente du serveur {{version}}",
+    "server_mismatch_title": "Reconnectez cette machine avec le client-kit.zip de la même version que le serveur.",
     "managed_by_desktop": "Géré par l'application de bureau",
     "managed_by_desktop_title": "Le binaire du CLI est géré par U Workers Desktop — mettez Desktop à jour pour mettre à niveau le CLI.",
     "read_only": "Lecture seule",

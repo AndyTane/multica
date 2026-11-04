@@ -39,6 +39,7 @@ const messages: TaskMessagePayload[] = [
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 function setup(initialTask: AgentTask, hasReply = false, presentation: "inline" | "header" = "inline") {
@@ -389,6 +390,14 @@ describe("InlineCommentRun", () => {
     expect(screen.getByText("Review complete.").closest('[data-slot="card"]')).toBeNull();
     expect(screen.getByText("Completed").closest('[data-slot="card"]')).toBeNull();
     expect(api.listTaskMessages).not.toHaveBeenCalled();
+  });
+
+  it("folds a long agent deliverable using the comment body controls", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 400 } as DOMRect);
+    setup(task({ status: "completed", result: { comment: "Conclusion, with a long validation record." } }));
+    expect(screen.getByRole("button", { name: "Show full comment" })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Show full comment" }));
+    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it.each(["queued", "running"] as const)("confirms stopping the specific %s run before its reply", async (state) => {

@@ -16,6 +16,7 @@ import {
   resolveBrowserWsUrl,
 } from "@/config/runtime-urls";
 import "./globals.css";
+import { UiThemeScript } from "@multica/ui/components/common/ui-theme-script";
 
 // Inter is the Latin UI face. next/font produces a hashed family (`__Inter_xxx`)
 // plus a synthetic size-adjusted fallback face to prevent FOUT layout shift —
@@ -136,6 +137,7 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={cn("antialiased font-sans h-full", inter.variable, geistMono.variable, sourceSerif.variable)}
     >
+      <head><UiThemeScript /></head>
       <body className="h-full overflow-hidden">
         {/*
           react-grab: dev-only element inspector. Hold ⌘C (Mac) / Ctrl+C and click

@@ -29,6 +29,13 @@ interface ConfigState {
   // self-hosted operators can confirm what's deployed. Empty for dev builds
   // or servers older than this feature.
   serverVersion: string;
+  // Short source commit of the running API build, shown under the version.
+  // Empty when the server is unstamped or predates the field.
+  serverCommit: string;
+  // The release this web bundle was built as. Only set on the web platform,
+  // where the bundle ships with the server: a mismatch with serverVersion
+  // means the page is older than the server it talks to.
+  webBuildVersion: string;
   // Whether the connected server validates local_directory execution_mode.
   // Defaults to false, and stays false for any server that does not declare it:
   // the dangerous ones accept worktree mode, drop the field, and run the task
@@ -75,7 +82,8 @@ interface ConfigState {
     daemonAppUrl?: string;
   }) => void;
   setFeatureFlags: (flags?: Record<string, boolean>) => void;
-  setServerVersion: (version?: string) => void;
+  setServerVersion: (version?: string, commit?: string) => void;
+  setWebBuildVersion: (version?: string) => void;
   setLocalWorktreeSupported: (supported?: boolean) => void;
   setAgentConversationStartersSupported: (supported?: boolean) => void;
   setIssueCreatePropertiesSupported: (supported?: boolean) => void;
@@ -95,6 +103,8 @@ export const configStore = createStore<ConfigState>((set) => ({
   vcsIntegrationAvailable: false,
   featureFlags: {},
   serverVersion: "",
+  serverCommit: "",
+  webBuildVersion: "",
   localWorktreeSupported: false,
   agentConversationStartersSupported: false,
   issueCreatePropertiesSupported: false,
@@ -126,7 +136,9 @@ export const configStore = createStore<ConfigState>((set) => ({
   setDaemonConfig: ({ daemonServerUrl = "", daemonAppUrl = "" }) =>
     set({ daemonServerUrl, daemonAppUrl }),
   setFeatureFlags: (flags = {}) => set({ featureFlags: { ...flags } }),
-  setServerVersion: (version = "") => set({ serverVersion: version }),
+  setServerVersion: (version = "", commit = "") =>
+    set({ serverVersion: version, serverCommit: commit }),
+  setWebBuildVersion: (version = "") => set({ webBuildVersion: version }),
   setLocalWorktreeSupported: (supported = false) =>
     set({ localWorktreeSupported: supported === true }),
   setAgentConversationStartersSupported: (supported = false) =>

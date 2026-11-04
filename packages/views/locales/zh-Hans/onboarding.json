@@ -6,7 +6,7 @@
       "label": "工作区"
     },
     "runtime": {
-      "label": "运行时 / 模型"
+      "label": "运行环境 / 模型"
     },
     "task": {
       "label": "任务"
@@ -30,23 +30,23 @@
     "platform_group": "选择你的系统",
     "platform_macos_linux": "macOS / Linux",
     "platform_windows": "Windows",
-    "step2_label": "启动守护进程"
+    "step2_label": "启动后台连接"
   },
   "welcome_after_onboarding": {
     "skip": {
       "loading": "正在为你准备工作区...",
       "title": "欢迎来到 U Workers！",
-      "subtitle": "我们建了一个任务帮你连接运行时。准备好后，在 \"运行时\" 页面就能开始使用 Siman。",
+      "subtitle": "我们建了一个任务帮你连接运行环境。准备好后，在 \"运行环境\" 页面就能开始使用 Siman。",
       "got_it": "知道了",
       "status_in_progress": "进行中",
       "error_title": "没能帮你准备好",
-      "error_body": "运行时引导任务没有创建成功。可以重试，也可以随时在\"运行时\"页面自己连接。",
+      "error_body": "运行环境引导任务没有创建成功。可以重试，也可以随时在\"运行环境\"页面自己连接。",
       "retry": "重试",
       "dismiss": "暂不",
       "cards": {
         "install_runtime": {
-          "title": "连接一个运行时",
-          "subtitle": "安装 Codex 或 Kimi，然后从 \"运行时\" 页面进入 Siman 的引导对话。"
+          "title": "连接一个运行环境",
+          "subtitle": "安装 Codex 或 Kimi，然后从 \"运行环境\" 页面进入 Siman 的引导对话。"
         }
       }
     }
@@ -96,23 +96,23 @@
     "scanning_lede_prefix": "你的智能体借助本机已安装的 AI 编程工具运行，例如 ",
     "scanning_lede_suffix": " 等。我们正在检测这台电脑上装了哪些。",
     "found_headline": "让 Siman 在哪台电脑上运行？",
-    "runtime_count_other": "{{count}} 个智能体运行时",
+    "runtime_count_other": "{{count}} 个智能体运行环境",
     "status_all_online": "全部在线",
     "status_none_online": "全部离线",
     "status_n_online": "{{count}} 个在线",
     "online_label": "在线",
     "offline_label": "离线",
-    "empty_headline": "这台电脑上还没有可用的智能体运行时。",
-    "empty_lede_prefix": "智能体运行时就是我们要连接的 AI 编程工具，比如 ",
+    "empty_headline": "这台电脑上还没有可用的智能体运行环境。",
+    "empty_lede_prefix": "智能体运行环境就是我们要连接的 AI 编程工具，比如 ",
     "empty_lede_suffix": "。装好任意一个后点刷新，或从下面选择一种方式。",
     "empty_skip_title": "暂时跳过",
-    "empty_skip_subtitle": "连接运行时前，智能体无法运行。",
+    "empty_skip_subtitle": "连接运行环境前，智能体无法运行。",
     "empty_skip_action": "跳过",
     "skip": "暂时跳过",
     "refresh": "刷新",
     "refreshing": "正在刷新...",
     "hint_selected": "已选择：{{name}}",
-    "hint_pick": "在上方选择一个智能体运行时，就可以开始使用 Siman。",
+    "hint_pick": "在上方选择一个智能体运行环境，就可以开始使用 Siman。",
     "hint_waiting": "等待第一个结果...",
     "continue": "继续创建任务"
   },
@@ -133,8 +133,8 @@
   },
   "task": {
     "title": "开始第一个任务",
-    "connected": "Siman 会使用所选运行时和模型，帮你把目标变成任务。",
-    "no_runtime": "进入工作区创建任务，之后也可以连接运行时。",
+    "connected": "Siman 会使用所选运行环境和模型，帮你把目标变成任务。",
+    "no_runtime": "进入工作区创建任务，之后也可以连接运行环境。",
     "start": "与 Siman 开始",
     "starting": "正在打开…",
     "open_workspace": "进入工作区"

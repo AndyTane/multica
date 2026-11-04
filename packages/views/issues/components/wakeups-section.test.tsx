@@ -12,6 +12,7 @@ let runs: unknown[] = [];
 let systemRules: SystemWakeup[] = [];
 let pending = false;
 let wakeup: IssueWakeup;
+let empty = false;
 let status = "queued";
 let viewTZ = "UTC";
 vi.mock("./wakeup-condition-names", () => ({
@@ -36,7 +37,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({
     data:
       queryKey[0] === "wakeups"
-        ? [wakeup]
+        ? empty ? [] : [wakeup]
         : queryKey[0] === "system"
           ? systemRules
           : queryKey[0] === "tasks"
@@ -60,6 +61,7 @@ beforeEach(() => {
   trigger.mockReset();
   remove.mockReset();
   runs = [];
+  empty = false;
   updateSystem.mockReset().mockResolvedValue(undefined);
   systemRules = [];
   enable.mockReset().mockResolvedValue(undefined);
@@ -89,9 +91,23 @@ beforeEach(() => {
   };
 });
 describe("Wakeups sidebar", () => {
+  it("does not render an empty wakeup section on a closed issue", () => {
+    empty = true;
+    const view = renderWithI18n(<WakeupsSection issueId="issue" closed />);
+    expect(view.container).toBeEmptyDOMElement();
+  });
+  it("keeps only a heading and the create action when an open issue is empty", () => {
+    empty = true;
+    const view = renderWithI18n(<WakeupsSection issueId="issue" />);
+    expect(screen.getByRole("heading", { name: "Wakeups" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New wakeup" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Wakeups/ })).toBeNull();
+    expect(view.container.querySelector('.lucide-chevron-right')).toBeNull();
+    expect(screen.queryByText("0")).toBeNull();
+  });
   it("describes hourly schedules without exposing interval seconds", () => {
     renderWithI18n(<WakeupsSection issueId="issue" />, { locale: "zh-Hans" });
-    expect(screen.getByRole("button", { name: /唤醒 Emacs/ })).toHaveTextContent("每小时唤醒");
+    expect(screen.getByRole("button", { name: /请 Emacs 跟进/ })).toHaveTextContent("每小时跟进");
     expect(screen.queryByText(/3600/)).toBeNull();
   });
   it("describes a daily cron and preserves its expression in details", async () => {
@@ -273,10 +289,10 @@ it("describes the source condition in Chinese, keeping instructions in details",
   wakeup.filter_agent_id = "grok";
   renderWithI18n(<WakeupsSection issueId="issue" />, { locale: "zh-Hans" });
   const trigger = screen.getByRole("button", { name: /当 Grok 的运行成功结束时/ });
-  expect(trigger).toHaveTextContent("唤醒 Emacs · 仅触发一次");
+  expect(trigger).toHaveTextContent("请 Emacs 跟进 · 仅触发一次");
   expect(screen.queryByText("Check CI")).not.toBeVisible();
   fireEvent.click(trigger);
-  await waitFor(() => expect(screen.getByText("唤醒后要做什么")).toBeVisible());
+  await waitFor(() => expect(screen.getByText("跟进后要做什么")).toBeVisible());
   expect(screen.getByText(/以下任一事件发生时/)).toHaveTextContent("当 Grok 的运行失败时");
   expect(screen.getByText(/监听范围/)).toHaveTextContent("当前任务");
 });
@@ -351,10 +367,10 @@ describe("v2 sidebar", () => {
       });
       renderWithI18n(<WakeupsSection issueId="issue" />, { locale: "zh-Hans" });
       const row = screen.getByRole("button", { name: /由 Jiayuan 触发/ });
-      expect(row).toHaveTextContent("唤醒 Emacs · 仅触发一次 · 还剩 2 天 22 小时");
+      expect(row).toHaveTextContent("请 Emacs 跟进 · 仅触发一次 · 还剩 2 天 22 小时");
       fireEvent.click(row);
       await waitFor(() => expect(screen.getByText(/来源/)).toHaveTextContent("Emacs 创建（代表 Jiayuan）"));
-      expect(screen.getByText(/有效期/)).toHaveTextContent("超时后唤醒 Emacs 处理");
+      expect(screen.getByText(/有效期/)).toHaveTextContent("超时后请 Emacs 跟进处理");
     } finally {
       vi.useRealTimers();
     }
@@ -380,9 +396,9 @@ describe("v2 sidebar", () => {
     renderWithI18n(<WakeupsSection issueId="issue" />, { locale: "zh-Hans" });
     const row = screen.getByRole("button", { name: /当第 1 阶段的子任务全部结束时/ });
     expect(row).toHaveTextContent("系统");
-    expect(row).toHaveTextContent("唤醒负责人 Emacs · 还差 1 个");
-    expect(screen.getByRole("button", { name: /唤醒 2/ })).toBeVisible();
-    fireEvent.click(screen.getAllByRole("switch", { name: "子任务结束时唤醒负责人" })[0]!);
+    expect(row).toHaveTextContent("请负责人 Emacs 跟进 · 还差 1 个");
+    expect(screen.getByRole("button", { name: /跟进 2/ })).toBeVisible();
+    fireEvent.click(screen.getAllByRole("switch", { name: "子任务结束时请负责人跟进" })[0]!);
     await waitFor(() => expect(updateSystem).toHaveBeenCalledWith({ rule: "child_done", enabled: false, instruction: "" }));
   });
 
@@ -449,7 +465,7 @@ describe("conditions, limits and history", () => {
       { id: "r1", status: "completed", created_at: "2026-09-23T01:00:00Z", started_at: null, completed_at: null, checkin_note: "", triggers: ["time.due"], commented: true },
     ];
     renderWithI18n(<WakeupsSection issueId="issue" />, { locale: "zh-Hans" });
-    fireEvent.click(screen.getByRole("button", { name: /每小时唤醒/ }));
+    fireEvent.click(screen.getByRole("button", { name: /每小时跟进/ }));
     expect(await screen.findByText("触发记录")).toBeVisible();
     expect(screen.getByText("静默检查")).toBeVisible();
     expect(screen.getByText(/Progress 38%/)).toBeVisible();
@@ -470,6 +486,7 @@ describe("conditions, limits and history", () => {
 
   it("offers neither action on an ended issue", async () => {
     renderWithI18n(<WakeupsSection issueId="issue" closed />);
+    expect(screen.queryByRole("button", { name: "New wakeup" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Wake every hour/ }));
     await screen.findByRole("dialog");
     expect(screen.queryByRole("button", { name: "Wake now" })).toBeNull();

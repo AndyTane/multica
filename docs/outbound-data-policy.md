@@ -22,7 +22,10 @@ data stays on the machine.
   and scheduled work can continue in the background within their stored scope and
   lifecycle. Revocation stops that work.
 - Explicit update/install actions use a real user-selected source or local package.
-  Startup and timers must not discover or download releases. Detecting a binary
+    Managed Windows Client-Kit is explicitly authorized to follow an activated,
+    verified package from its existing authenticated U Workers HTTPS server;
+    it waits for idle, supports pause and confirms reconnection before success.
+    General CLI/Desktop startup and timers must not discover or download releases. Detecting a binary
   that the user has already replaced on disk is a local operation.
 - Fonts, product assets and diagnostics are local. Remote images, embeds and
   previews require an explicit loading action or an authorized integration.

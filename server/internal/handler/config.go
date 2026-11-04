@@ -111,6 +111,12 @@ type AppConfig struct {
 	// which is continuously deployed so its users can't act on the version —
 	// and empty for dev builds that aren't stamped via -X main.version.
 	ServerVersion string `json:"server_version,omitempty"`
+
+	// ServerCommit is the short source commit the API binary was built from
+	// (-X main.commit), shown next to the version so operators can tie a
+	// running build to its release tag. Same visibility rules as
+	// ServerVersion; empty when the binary wasn't stamped.
+	ServerCommit string `json:"server_commit,omitempty"`
 }
 
 // GetConfig is mounted on the public (unauthenticated) route group because
@@ -148,6 +154,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	// the Help popover's version row would just be noise there (MUL-4108).
 	if !isOfficialCloudDeployment() {
 		config.ServerVersion = h.cfg.ServerVersion
+		config.ServerCommit = h.cfg.ServerCommit
 	}
 
 	writeJSON(w, http.StatusOK, config)

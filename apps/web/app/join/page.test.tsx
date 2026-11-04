@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "@multica/views/locales/en/common.json";
+import zhAuth from "@multica/views/locales/zh-Hans/auth.json";
+import type { SupportedLocale } from "@multica/core/i18n";
 import enAuth from "@multica/views/locales/en/auth.json";
 import enSettings from "@multica/views/locales/en/settings.json";
 import { ApiError } from "@multica/core/api";
@@ -11,12 +13,13 @@ import type { ReactNode } from "react";
 
 const TEST_RESOURCES = {
   en: { common: enCommon, auth: enAuth, settings: enSettings },
+  "zh-Hans": { common: enCommon, auth: zhAuth, settings: enSettings },
 };
 
-function createWrapper() {
+function createWrapper(locale: SupportedLocale = "en") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: ReactNode }) => (
-    <I18nProvider locale="en" resources={TEST_RESOURCES}>
+    <I18nProvider locale={locale} resources={TEST_RESOURCES}>
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     </I18nProvider>
   );
@@ -98,13 +101,30 @@ describe("JoinPage", () => {
     mockRefreshMe.mockResolvedValue(undefined);
   });
 
+  it("renders the Chinese invitation and omits an absent inviter", async () => {
+    mockGetShareLinkInfo.mockResolvedValue({ ...TEST_INFO, creator_name: null });
+    render(<JoinPage />, { wrapper: createWrapper("zh-Hans") });
+    expect(await screen.findByRole("heading", { name: "加入 Acme" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录后加入" })).toBeInTheDocument();
+    expect(screen.queryByText(/邀请你加入/)).toBeNull();
+    expect(document.title).toBe("加入 Acme — U Workers");
+  });
+  it("renders a Chinese invalid-link state when the code is missing", async () => {
+    searchParamsState.params = new URLSearchParams();
+    render(<JoinPage />, { wrapper: createWrapper("zh-Hans") });
+    expect(await screen.findByRole("heading", { name: "邀请链接无效" })).toBeInTheDocument();
+    expect(screen.getByText("请向邀请人重新获取链接。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返回首页" })).toBeInTheDocument();
+    expect(mockGetShareLinkInfo).not.toHaveBeenCalled();
+  });
+
   it("shows the workspace preview without joining", async () => {
     render(<JoinPage />, { wrapper: createWrapper() });
 
     await waitFor(() =>
-      expect(screen.getByText(/You're invited to Acme/)).toBeInTheDocument(),
+      expect(screen.getByText(/Join Acme/)).toBeInTheDocument(),
     );
-    expect(screen.getByText("Invited by Alice")).toBeInTheDocument();
+    expect(screen.getByText("Alice invited you to join")).toBeInTheDocument();
     expect(mockJoinByShareLink).not.toHaveBeenCalled();
   });
 
@@ -118,7 +138,7 @@ describe("JoinPage", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("You'll join this workspace as"),
+        screen.getByText("You’ll join as"),
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("Administrator")).toBeInTheDocument();
@@ -134,7 +154,7 @@ describe("JoinPage", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("You'll join this workspace as"),
+        screen.getByText("You’ll join as"),
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("Member")).toBeInTheDocument();
@@ -147,7 +167,7 @@ describe("JoinPage", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("This invite link is invalid or has expired."),
+        screen.getByText("Ask the inviter for a new link."),
       ).toBeInTheDocument(),
     );
     expect(mockJoinByShareLink).not.toHaveBeenCalled();
@@ -159,7 +179,7 @@ describe("JoinPage", () => {
     render(<JoinPage />, { wrapper: createWrapper() });
 
     await user.click(
-      await screen.findByRole("button", { name: "Log In to Join" }),
+      await screen.findByRole("button", { name: "Log in to join" }),
     );
     expect(mockPush).toHaveBeenCalledWith(
       "/login?next=" + encodeURIComponent("/join?code=abc123"),
@@ -179,13 +199,13 @@ describe("JoinPage", () => {
     render(<JoinPage />, { wrapper: createWrapper() });
 
     await user.click(
-      await screen.findByRole("button", { name: "Join Workspace" }),
+      await screen.findByRole("button", { name: "Join" }),
     );
     await waitFor(() => expect(mockJoinByShareLink).toHaveBeenCalledTimes(1));
     // The join succeeded — the page should transition to the Joined state
     // (navigation happens after a short delay).
     await waitFor(() =>
-      expect(screen.getByText("Joined!")).toBeInTheDocument(),
+      expect(screen.getByText("Joined")).toBeInTheDocument(),
     );
   });
 
@@ -202,7 +222,7 @@ describe("JoinPage", () => {
     render(<JoinPage />, { wrapper: createWrapper() });
 
     await user.click(
-      await screen.findByRole("button", { name: "Join Workspace" }),
+      await screen.findByRole("button", { name: "Join" }),
     );
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/acme/issues"));
     expect(mockRefreshMe).toHaveBeenCalledTimes(1);
@@ -216,7 +236,7 @@ describe("JoinPage", () => {
     mockRefreshMe.mockReturnValue(new Promise<void>((resolve) => { finishIdentity = resolve; }));
     mockListWorkspaces.mockReturnValue(new Promise<unknown[]>((resolve) => { finishWorkspaces = resolve; }));
     render(<JoinPage />, { wrapper: createWrapper() });
-    await userEvent.click(await screen.findByRole("button", { name: "Join Workspace" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Join" }));
     await waitFor(() => expect(mockRefreshMe).toHaveBeenCalledTimes(1));
     expect(mockPush).not.toHaveBeenCalled();
     await act(async () => finishIdentity());
@@ -231,7 +251,7 @@ describe("JoinPage", () => {
     const failingRequest = failure === "identity" ? mockRefreshMe : mockListWorkspaces;
     failingRequest.mockRejectedValueOnce(new Error("temporarily offline"));
     render(<JoinPage />, { wrapper: createWrapper() });
-    await userEvent.click(await screen.findByRole("button", { name: "Join Workspace" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Join" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Your membership is saved");
     expect(mockPush).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Retry sync" }));
@@ -247,7 +267,7 @@ describe("JoinPage", () => {
     mockListWorkspaces.mockResolvedValue([{ id: "ws0", slug: "other" }]);
     mockRefreshMe.mockRejectedValueOnce(new Error("temporarily offline"));
     render(<JoinPage />, { wrapper: createWrapper() });
-    await userEvent.click(await screen.findByRole("button", { name: "Join Workspace" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Join" }));
     await screen.findByRole("alert");
     await userEvent.click(screen.getByRole("button", { name: "Retry sync" }));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/acme/issues"));
@@ -265,11 +285,11 @@ describe("JoinPage", () => {
     render(<JoinPage />, { wrapper: createWrapper() });
 
     await user.click(
-      await screen.findByRole("button", { name: "Join Workspace" }),
+      await screen.findByRole("button", { name: "Join" }),
     );
     await waitFor(() =>
       expect(
-        screen.getByText("share link not found or expired"),
+        screen.getByText(enAuth.join.join_failed),
       ).toBeInTheDocument(),
     );
   });
@@ -293,7 +313,7 @@ describe("JoinPage", () => {
     render(<JoinPage />, { wrapper: createWrapper() });
 
     await user.click(
-      await screen.findByRole("button", { name: "Join Workspace" }),
+      await screen.findByRole("button", { name: "Join" }),
     );
     await waitFor(() => expect(screen.getByText(message)).toBeInTheDocument());
   });

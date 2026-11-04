@@ -412,6 +412,7 @@
     "quick_action_blocked_title": "Vous ne pouvez pas exécuter cette action rapide",
     "quick_action_blocked_body": "« {{name}} » s'exécute sous un agent que vous n'êtes pas autorisé à déclencher. Demandez à un administrateur de l'espace de travail de rendre cet agent accessible à l'équipe, ou de rattacher cette action à un agent partagé.",
     "quick_action_blocked_ok": "Compris",
+    "pull_requests_load_failed": "Impossible de charger les pull requests. Réessayer",
     "pull_requests_loading": "Chargement…",
     "pull_request_state_draft": "Brouillon",
     "pull_request_state_merged": "Fusionnée",
@@ -552,6 +553,9 @@
     "wakeup_chip_system": "Règle système"
   },
   "comment": {
+    "expand_body": "Show full comment",
+    "collapse_body": "Show less",
+    "attachment_count": "{{count}} attachments",
     "add_reaction": "Ajouter une réaction",
     "collapse_thread": "Replier le fil",
     "expand_thread": "Développer le fil",

@@ -782,7 +782,7 @@ describe("createMentionSuggestion", () => {
     );
 
     expect(screen.getByText("智能体")).toBeInTheDocument();
-    expect(screen.getByText("小队")).toBeInTheDocument();
+    expect(screen.getByText("小组")).toBeInTheDocument();
     expect(screen.queryByText("Agent")).not.toBeInTheDocument();
     expect(screen.queryByText("Squad")).not.toBeInTheDocument();
   });

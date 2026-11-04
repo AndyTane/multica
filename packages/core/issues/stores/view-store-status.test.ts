@@ -24,11 +24,17 @@ describe("column visibility vs status filter", () => {
   // The regression: hiding one column wrote the OTHER six built-in keys into
   // statusFilters, so the query then excluded every custom status too — hiding
   // Backlog silently dropped a QA card too.
+  it("hides only done and cancelled by default and preserves a saved visibility choice", () => {
+    expect(store.getState().hiddenStatuses).toEqual(["cancelled", "done"]);
+    expect(mergeViewStatePersisted({ hiddenStatuses: ["cancelled"] }, store.getState()).hiddenStatuses).toEqual(["cancelled"]);
+    expect(mergeViewStatePersisted({ hiddenStatuses: [] }, store.getState()).hiddenStatuses).toEqual([]);
+  });
   it("hiding a column does not touch the status filter", () => {
     store.getState().hideStatus("backlog");
 
     expect(store.getState().hiddenStatuses).toEqual([
       "cancelled",
+      "done",
       "backlog",
     ]);
     expect(store.getState().statusFilters).toEqual([]);
@@ -52,6 +58,7 @@ describe("column visibility vs status filter", () => {
 
     expect(store.getState().hiddenStatuses).toEqual([
       "cancelled",
+      "done",
       "backlog",
     ]);
   });
@@ -69,7 +76,7 @@ describe("column visibility vs status filter", () => {
     store.getState().showStatus("cancelled");
     store.getState().clearFilters();
 
-    expect(store.getState().hiddenStatuses).toEqual(["backlog"]);
+    expect(store.getState().hiddenStatuses).toEqual(["done", "backlog"]);
   });
 });
 

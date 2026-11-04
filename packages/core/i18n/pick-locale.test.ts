@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { matchLocale, pickLocale } from "./pick-locale";
 import type { LocaleAdapter } from "./types";
@@ -15,7 +16,7 @@ function makeAdapter(
 
 describe("matchLocale", () => {
   it("returns DEFAULT_LOCALE when given an empty list", () => {
-    expect(matchLocale([])).toBe("en");
+    expect(matchLocale([])).toBe("zh-Hans");
   });
 
   it("matches a clean supported tag", () => {
@@ -36,7 +37,7 @@ describe("matchLocale", () => {
   });
 
   it("falls back to DEFAULT_LOCALE when no candidate matches", () => {
-    expect(matchLocale(["es", "de"])).toBe("en");
+    expect(matchLocale(["es", "de"])).toBe("zh-Hans");
   });
 
   it("zh-Hant (traditional) collapses to zh-Hans — same base subtag, better UX than English fallback", () => {
@@ -50,12 +51,18 @@ describe("matchLocale", () => {
   });
 
   it("returns DEFAULT_LOCALE for malformed BCP-47 tags rather than throwing", () => {
-    expect(matchLocale(["----"])).toBe("en");
-    expect(matchLocale(["x-private-only"])).toBe("en");
+    expect(matchLocale(["----"])).toBe("zh-Hans");
+    expect(matchLocale(["x-private-only"])).toBe("zh-Hans");
   });
 });
 
 describe("pickLocale", () => {
+  it.each(["en-US", "ko-KR", "ja-JP", "fr-FR", "----"])("defaults to Chinese regardless of system language %s", (language) => {
+    expect(pickLocale(makeAdapter({ getSystemPreferences: () => [language] }))).toBe("zh-Hans");
+  });
+  it.each(["en", "zh-Hans", "ko", "ja", "fr"])("preserves explicit %s over the system language", (choice) => {
+    expect(pickLocale(makeAdapter({ getUserChoice: () => choice, getSystemPreferences: () => ["en-US"] }))).toBe(choice);
+  });
   it("prefers explicit user choice over system signal", () => {
     const adapter = makeAdapter({
       getUserChoice: () => "zh-Hans",
@@ -64,7 +71,7 @@ describe("pickLocale", () => {
     expect(pickLocale(adapter)).toBe("zh-Hans");
   });
 
-  it("falls back to system preferences when no user choice", () => {
+  it("defaults to Chinese when no user choice", () => {
     const adapter = makeAdapter({
       getSystemPreferences: () => ["zh-Hans-CN", "en-US"],
     });
@@ -76,10 +83,10 @@ describe("pickLocale", () => {
       getUserChoice: () => null,
       getSystemPreferences: () => ["es", "de"],
     });
-    expect(pickLocale(adapter)).toBe("en");
+    expect(pickLocale(adapter)).toBe("zh-Hans");
   });
 
-  it("ignores empty-string user choice and falls through to system", () => {
+  it("ignores an empty-string user choice", () => {
     const adapter = makeAdapter({
       getUserChoice: () => "",
       getSystemPreferences: () => ["zh-Hans"],

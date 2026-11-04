@@ -12,29 +12,9 @@ import { api } from "@multica/core/api";
 import { EXTERNAL_BACKGROUND_REQUESTS_ENABLED } from "@multica/core/analytics/privacy";
 import type { RuntimeUpdateStatus } from "@multica/core/types";
 import { useT } from "../../i18n";
+import { parseReleaseVersion } from "../../common/release-version";
 
 async function fetchLatestVersion(): Promise<string | null> { return null; }
-
-/**
- * Parses a released CLI version ("v0.4.17" / "0.4.17") into comparable parts,
- * or null when the string is not a release version.
- *
- * A daemon built from source reports a `git describe` string
- * ("v0.4.17-12-gabc1234") or the ldflags default ("dev"), and neither can be
- * ordered against a release tag. This mirrors `IsReleaseVersion` in
- * server/internal/cli/update.go, which is how the daemon's own auto-update
- * loop decides the same question.
- */
-function parseReleaseVersion(v: string): number[] | null {
-  const parts = v.trim().replace(/^v/, "").split(".");
-  if (parts.length !== 3) return null;
-  const parsed: number[] = [];
-  for (const part of parts) {
-    if (!/^\d+$/.test(part)) return null;
-    parsed.push(Number(part));
-  }
-  return parsed;
-}
 
 /**
  * True when `latest` is strictly newer than `current`.
@@ -192,6 +172,7 @@ function EnabledUpdateSection({
   // up to date when we never parsed its version.
   const isLocalBuild =
     !!currentVersion && parseReleaseVersion(currentVersion) === null;
+
 
   const config = status ? statusConfig[status] : null;
   const Icon = config?.icon;

@@ -1,6 +1,7 @@
 import type { AgentRuntime } from "@multica/core/types";
 import type { RuntimeMachine } from "./runtime-machines";
 import { UpdateSection } from "./update-section";
+import { ServerVersionMismatch } from "./server-version-mismatch";
 
 /**
  * Pick one runtime the viewer may use as the command channel for a
@@ -62,12 +63,20 @@ export function MachineCliSection({
     return null;
   }
 
+  // The release check sits outside UpdateSection, which renders nothing
+  // while external background requests are disabled.
   return (
-    <UpdateSection
-      runtimeId={updateRuntime?.id ?? null}
-      currentVersion={machine.cliVersion}
-      isOnline={updateRuntime?.status === "online"}
-      launchedBy={machine.launchedBy}
-    />
+    <>
+      <UpdateSection
+        runtimeId={updateRuntime?.id ?? null}
+        currentVersion={machine.cliVersion}
+        isOnline={updateRuntime?.status === "online"}
+        launchedBy={machine.launchedBy}
+      />
+      <ServerVersionMismatch
+        currentVersion={machine.cliVersion}
+        launchedBy={machine.launchedBy}
+      />
+    </>
   );
 }

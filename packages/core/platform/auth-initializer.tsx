@@ -89,7 +89,14 @@ export function AuthInitializer({
           daemonAppUrl: cfg.daemon_app_url,
         });
         configStore.getState().setFeatureFlags(cfg.feature_flags);
-        configStore.getState().setServerVersion(cfg.server_version);
+        configStore
+          .getState()
+          .setServerVersion(cfg.server_version, cfg.server_commit);
+        // Desktop ships on its own release train, so only the web bundle's
+        // version is comparable with the server's.
+        if (identity?.platform === "web") {
+          configStore.getState().setWebBuildVersion(identity.version);
+        }
         // Absent on every server that predates the worktree save gate, which
         // is exactly when the client must not offer the mode (#7113).
         configStore
@@ -132,7 +139,7 @@ export function AuthInitializer({
       });
     configRequestRef.current = request;
     return request;
-  }, [identity?.version]);
+  }, [identity?.platform, identity?.version]);
 
   useEffect(() => {
     // Stamp attribution before anything else — the signup event (server-side)

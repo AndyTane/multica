@@ -31,7 +31,13 @@
     "trigger": "ヘルプ",
     "docs": "ドキュメント",
     "feedback": "フィードバック",
-    "server_version": "サーバーバージョン {{version}}"
+    "product_version": "{{product}} {{version}}",
+    "commit": "コミット {{commit}}",
+    "copy_version": "バージョンをコピー",
+    "version_copied": "バージョンをコピーしました",
+    "version_copy_failed": "バージョンをコピーできませんでした",
+    "reload_stale": "再読み込みして更新",
+    "reload_stale_title": "このページは {{version}} 用です。再読み込みして最新版を読み込んでください。"
   },
   "workspace_loader": {
     "loading_workspace": "ワークスペースを読み込み中…",

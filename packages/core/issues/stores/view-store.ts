@@ -194,6 +194,7 @@ export const DEFAULT_CARD_PROPERTIES: Readonly<CardProperties> = {
 
 export const DEFAULT_HIDDEN_STATUSES: readonly IssueStatus[] = [
   "cancelled",
+  "done",
 ];
 
 export function defaultSortDirection(field: SortField): SortDirection {

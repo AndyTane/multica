@@ -412,6 +412,7 @@
     "quick_action_blocked_title": "You can’t run this quick action",
     "quick_action_blocked_body": "“{{name}}” runs as an agent you’re not allowed to trigger. Ask a workspace admin to make that agent available to the team, or to point this action at a shared one.",
     "quick_action_blocked_ok": "Got it",
+    "pull_requests_load_failed": "Could not load pull requests. Retry",
     "pull_requests_loading": "Loading…",
     "pull_request_state_draft": "Draft",
     "pull_request_state_merged": "Merged",
@@ -552,6 +553,9 @@
     "wakeup_chip_system": "System rule"
   },
   "comment": {
+    "expand_body": "Show full comment",
+    "collapse_body": "Show less",
+    "attachment_count": "{{count}} attachments",
     "add_reaction": "Add reaction",
     "collapse_thread": "Collapse thread",
     "expand_thread": "Expand thread",

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { forwardRef, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -52,7 +52,9 @@ vi.mock("../../editor", async () => ({
   }),
 }));
 
-import { CommentCard } from "./comment-card";
+import { CommentCard, type CommentCardProps } from "./comment-card";
+
+afterEach(() => vi.restoreAllMocks());
 
 function comment(id: string, parentId: string | null): TimelineEntry {
   return {
@@ -75,6 +77,7 @@ function renderThread(
   root: TimelineEntry,
   replies: TimelineEntry[],
   onCopyLink?: (commentId: string) => void,
+  overrides: Partial<CommentCardProps> = {},
 ) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderWithI18n(
@@ -89,6 +92,7 @@ function renderThread(
         onDelete={vi.fn()}
         onToggleReaction={vi.fn()}
         onCopyLink={onCopyLink}
+        {...overrides}
       />
     </QueryClientProvider>,
   );
@@ -97,6 +101,13 @@ function renderThread(
 const actionMenus = () => screen.queryAllByRole("button", { name: "Comment actions" });
 
 describe("CommentCard — copy comment link", () => {
+  it("opens only the located long comment, including a nested reply", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 400 } as DOMRect);
+    renderThread(comment("root", null), [comment("reply", "root")], undefined, { highlightedCommentId: "reply" });
+    expect(screen.getAllByRole("button", { name: "Show full comment" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Show less" })).toHaveLength(1);
+    expect(document.querySelector('[data-comment-content="reply"] [data-comment-body]')).toHaveAttribute("data-comment-body", "expanded");
+  });
   it("copies the root comment's own deep link", async () => {
     const onCopyLink = vi.fn();
     renderThread(comment("root", null), [], onCopyLink);
