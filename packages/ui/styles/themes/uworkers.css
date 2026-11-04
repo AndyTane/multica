@@ -1,0 +1,125 @@
+/* UWorkers theme — optional overrides shared by Web and Desktop.
+ * Remove its globals.css import to restore the upstream interface.
+ * Keep upstream tokens, components, typography scales and geometry intact.
+ */
+
+:root {
+  --app-shell: oklch(1 0 0);
+  --page-canvas: oklch(0.971 0.003 286);
+  --surface: oklch(1 0 0);
+  --surface-foreground: oklch(0.232 0.004 286);
+  --surface-raised: oklch(1 0 0);
+  --surface-hover: oklch(0.955 0.003 286);
+  --surface-selected: oklch(0.51 0.2 260 / 8%);
+  --surface-selected-foreground: oklch(0.51 0.2 260);
+  --surface-border: oklch(0.932 0.007 286);
+  --surface-shadow: 0 1px 3px rgb(0 0 0 / 0.06), 0 0 0 0.5px rgb(0 0 0 / 0.04);
+  --floating-shadow: 0 16px 40px rgb(15 23 42 / 0.14), 0 3px 10px rgb(15 23 42 / 0.08);
+  --menu-shadow: 0 8px 24px rgb(15 23 42 / 0.08), 0 2px 6px rgb(15 23 42 / 0.05);
+  --background: var(--page-canvas);
+  --foreground: oklch(0.232 0.004 286);
+  --card: var(--surface);
+  --card-foreground: oklch(0.232 0.004 286);
+  --popover: var(--surface);
+  --popover-foreground: oklch(0.232 0.004 286);
+  --primary: oklch(0.51 0.2 260);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.955 0.003 286);
+  --secondary-foreground: oklch(0.232 0.004 286);
+  --muted: oklch(0.955 0.003 286);
+  --muted-foreground: oklch(0.51 0.008 286);
+  --faint-foreground: oklch(0.60 0.008 286);
+  --accent: oklch(0.955 0.003 286);
+  --accent-foreground: oklch(0.232 0.004 286);
+  --destructive: oklch(0.50 0.245 27.325);
+  --border: oklch(0.932 0.007 286);
+  --input: oklch(0.932 0.007 286);
+  --ring: oklch(0.51 0.2 260);
+  --chart-1: oklch(0.46 0.16 255);
+  --chart-2: oklch(0.495 0.13 255);
+  --chart-3: oklch(0.53 0.10 255);
+  --chart-4: oklch(0.565 0.06 255);
+  --chart-5: oklch(0.60 0.03 255);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.232 0.004 286);
+  --sidebar-primary: oklch(0.51 0.2 260);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.51 0.2 260 / 8%);
+  --sidebar-accent-foreground: oklch(0.51 0.2 260);
+  --sidebar-border: oklch(0.932 0.007 286);
+  --sidebar-ring: oklch(0.51 0.2 260);
+  --brand: oklch(0.51 0.2 260);
+  --brand-foreground: oklch(1 0 0);
+  --success: oklch(0.49 0.16 145);
+  --warning: oklch(0.49 0.16 85);
+  --info: oklch(0.49 0.18 250);
+}
+
+.dark {
+  --app-shell: oklch(0.227 0.004 286);
+  --page-canvas: oklch(0 0 0);
+  --surface: oklch(0.227 0.004 286);
+  --surface-foreground: oklch(0.985 0 0);
+  --surface-raised: oklch(0.294 0.004 286);
+  --surface-hover: oklch(0.294 0.004 286);
+  --surface-selected: oklch(0.273 0.031 252);
+  --surface-selected-foreground: oklch(0.669 0.181 252);
+  --surface-border: oklch(0.36 0.007 286);
+  --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 1px 1px rgb(0 0 0 / 0.16);
+  --floating-shadow: 0 20px 48px rgb(0 0 0 / 0.46), 0 4px 12px rgb(0 0 0 / 0.28);
+  --menu-shadow: 0 10px 28px rgb(0 0 0 / 0.3), 0 2px 8px rgb(0 0 0 / 0.18);
+  --background: var(--page-canvas);
+  --foreground: oklch(0.985 0 0);
+  --card: var(--surface);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: var(--surface);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.669 0.181 252);
+  --primary-foreground: oklch(0.227 0.004 286);
+  --secondary: oklch(0.294 0.004 286);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.294 0.004 286);
+  --muted-foreground: oklch(0.68 0.008 286);
+  --faint-foreground: oklch(0.60 0.008 286);
+  --accent: oklch(0.294 0.004 286);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.75 0.191 22.216);
+  --border: oklch(0.36 0.007 286);
+  --input: oklch(0.36 0.007 286);
+  --ring: oklch(0.669 0.181 252);
+  --chart-1: oklch(0.72 0.16 255);
+  --chart-2: oklch(0.68 0.13 255);
+  --chart-3: oklch(0.64 0.10 255);
+  --chart-4: oklch(0.61 0.06 255);
+  --chart-5: oklch(0.58 0.03 255);
+  --sidebar: oklch(0.227 0.004 286);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.669 0.181 252);
+  --sidebar-primary-foreground: oklch(0.227 0.004 286);
+  --sidebar-accent: oklch(0.273 0.031 252);
+  --sidebar-accent-foreground: oklch(0.669 0.181 252);
+  --sidebar-border: oklch(0.36 0.007 286);
+  --sidebar-ring: oklch(0.669 0.181 252);
+  --brand: oklch(0.669 0.181 252);
+  --brand-foreground: oklch(0.227 0.004 286);
+  --success: oklch(0.70 0.15 145);
+  --warning: oklch(0.75 0.16 85);
+  --info: oklch(0.71 0.18 250);
+}
+
+/* Existing reading classes only. Specificity wins over editor/renderer
+ * styles regardless of route-chunk order; no global font scale changes.
+ * Headings, code, tables and controls retain their upstream typography.
+ */
+:root .rich-text-editor,
+:root .markdown-content {
+  font-size: 15px;
+  line-height: 24px;
+}
+
+:root .rich-text-editor p,
+:root .rich-text-editor li,
+:root .markdown-content p,
+:root .markdown-content li {
+  line-height: inherit;
+}
