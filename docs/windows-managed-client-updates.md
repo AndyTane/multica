@@ -17,6 +17,8 @@ Status.cmd 显示等待空闲、下载校验、切换重启、等待服务器确
 
 切换、确认或中断恢复尚未结束时，新包只作为后续目标，不能覆盖当前记录。下载准备和助手共用安装锁，恢复后先完成原事务，再按当前服务端目标处理下一次升级。助手中断后，在线候选会在鉴权心跳中接续助手；原 Reconnect.cmd 也可恢复。服务器可用但候选在两分钟内仍未完成鉴权确认时，助手核实进程身份、停止候选并恢复上一版；断网期间继续等待原服务器恢复。用户 Stop 的记录仍由 Reconnect 接续，暂停设置继续生效。
 
+OpenCode 的程序与外部 JSON/JSONC 配置选择按 profile 保存在稳定 Kit 数据目录 `opencode-selection.json`，不进入不可变程序槽或发布清单。daemon 启动和升级后启动都重新读取该记录，再探测实际选择的程序；配置路径进入模型任务进程，MCP 本地读取采用相同的自定义文件/目录。Status/Stop 及事务恢复不依赖配置有效，配置失效不会静默选择别的安装。首次使用及重新选择见 Client-Kit README。
+
 ## 服务端缓存与发布
 
 Update.ps1 在显式升级时，复用 reader 下载同目标版本的 client-kit.zip 和 release.json；Apply 在停止服务前校验并准备安装目录 `data/client-releases/<version>/`。最终 HTTPS readyz、文件及版本检查通过后才写 ready.json。API 运行时只读缓存，不要求 OSS 环境变量或写权限。服务端回滚后，版本/提交不匹配的缓存不会继续下发。

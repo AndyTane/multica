@@ -19,6 +19,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
+	"github.com/multica-ai/multica/server/internal/managedkit"
 	"github.com/multica-ai/multica/server/internal/tlsx"
 	"github.com/multica-ai/multica/server/pkg/agent"
 )
@@ -206,6 +207,26 @@ type Overrides struct {
 // LoadConfig builds the daemon configuration from environment variables
 // and optional CLI flag overrides.
 func LoadConfig(overrides Overrides) (Config, error) {
+	kitEnv, err := managedkit.OpenCodeEnvironment(os.Getenv("U_WORKERS_KIT_ROOT"), overrides.Profile)
+	if err != nil {
+		return Config{}, err
+	}
+	if configPath := kitEnv["OPENCODE_CONFIG"]; configPath != "" {
+		raw, readErr := os.ReadFile(configPath)
+		if readErr != nil {
+			return Config{}, fmt.Errorf("OpenCode config unavailable: %s", configPath)
+		}
+		cfg, parseErr := unmarshalRuntimeMcpConfig(raw, "jsonc")
+		if parseErr != nil || cfg == nil {
+			// Parser errors may contain secret-bearing fragments of the config.
+			return Config{}, fmt.Errorf("invalid OpenCode JSON/JSONC config: %s; correct the file and retry Connect.cmd", configPath)
+		}
+	}
+	for key, value := range kitEnv {
+		if err := os.Setenv(key, value); err != nil {
+			return Config{}, fmt.Errorf("apply OpenCode selection: %w", err)
+		}
+	}
 	// Server URL: override > env > default
 	rawServerURL := envOrDefault("MULTICA_SERVER_URL", DefaultServerURL)
 	if overrides.ServerURL != "" {

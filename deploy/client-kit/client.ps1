@@ -7,6 +7,11 @@ param(
     [string]$RootCa,
     [string]$Profile,
     [string]$SourceDirectory,
+    [string]$OpenCodePath,
+    [string]$OpenCodeConfig,
+    [string[]]$SearchDirectory,
+    [string]$WorkDirectory,
+    [switch]$SkipOpenCode,
     [switch]$ReplaceSettings,
     [switch]$Interactive,
     [switch]$NonInteractive
@@ -39,6 +44,8 @@ $canPrompt = $Interactive -and -not $NonInteractive
 
 # User launchers must not inherit a task's credentials or daemon identity.
 $saved = @{}
+$runtimeSaved = @{}
+foreach ($name in @('OPENCODE_CONFIG','OPENCODE_CONFIG_DIR','XDG_CONFIG_HOME')) { $runtimeSaved[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
 foreach ($entry in Get-ChildItem Env:) {
     if ($entry.Name -match '^(MULTICA_|U_WORKERS_)') {
         $saved[$entry.Name] = $entry.Value
@@ -80,6 +87,9 @@ function Get-ClientStatus {
         if ($status.managed_client_update.installation_id -cne $identity.id) { throw '原 profile 正由另一套客户端使用。请先用原包停止，或为独立安装选择独立 profile。' }
     }
     return $status
+}
+function Initialize-ClientOpenCode {
+    Set-ClientOpenCode -Directory $kitRoot -Profile $settings.profile -CanPrompt $canPrompt -OpenCodePath $OpenCodePath -OpenCodeConfig $OpenCodeConfig -SearchDirectory $SearchDirectory -WorkDirectory $WorkDirectory -SkipOpenCode:$SkipOpenCode
 }
 try {
     if ($needsRecovery) {
@@ -139,6 +149,13 @@ try {
             if (-not $canPrompt) { throw '已有连接设置，未覆盖。确认更换请传 -ReplaceSettings。' }
             if ((Read-Host '确认更换连接设置（Y/N，回车取消）') -ne 'Y') { Write-Host '已取消，原设置保留。'; return }
         }
+        $status=Get-ClientStatus
+        if ($status.status -in @('running','starting')) {
+            if ($OpenCodePath -or $OpenCodeConfig -or $SkipOpenCode -or $changed) { throw '原连接正在运行。请等任务空闲后用 Stop.cmd 停止，再选择程序、配置或连接设置。' }
+        } else {
+            $settings=$candidate
+            Initialize-ClientOpenCode
+        }
         if ($changed) { Save-ClientSettings $candidate $kitRoot }
         if (-not (Test-Path -LiteralPath $markerPath)) {
             $marker = [ordered]@{id=[guid]::NewGuid().ToString();profile=[string]$candidate.profile;serverUrl=[string]$candidate.serverUrl;paused=$false}
@@ -168,12 +185,16 @@ try {
         $null = Assert-ClientSettings $settings $kitRoot -SkipCertificate
         $status=Get-ClientStatus
         if ($status.status -notin @('running','starting')) {
+            Initialize-ClientOpenCode
             Invoke-Client @('daemon','start')
+        } elseif ($OpenCodePath -or $OpenCodeConfig -or $SkipOpenCode) {
+            throw '原连接正在运行。请等任务空闲后用 Stop.cmd 停止，再选择程序或配置。'
         }
     }
     $null = Assert-ClientSettings $settings $kitRoot -SkipCertificate
     Write-Host ('profile：'+$(if ($settings.profile) {$settings.profile} else {'default'}))
     if ($settings.serverUrl) { Write-Host ('服务：'+$settings.serverUrl) }
+    if ($Action -eq 'Status') { Show-ClientOpenCode $kitRoot $settings.profile }
     $inventory = Join-Path $PSScriptRoot 'CLIENT-FILES.json'
     if (Test-Path -LiteralPath $inventory) {
         $identity = Get-Content -LiteralPath $inventory -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -199,6 +220,8 @@ try {
     Write-Host '服务器访问已验证，请在网页运行时列表确认本机在线。' -ForegroundColor Green
     if (@($status.agents).Count -eq 0) { Write-Host '尚未检测到智能体 CLI，请安装并登录后再分配任务。' -ForegroundColor Yellow }
 } finally {
+    Remove-Item Env:MULTICA_OPENCODE_PATH -ErrorAction SilentlyContinue
     if (-not $saved.ContainsKey('U_WORKERS_KIT_ROOT')) { Remove-Item Env:U_WORKERS_KIT_ROOT -ErrorAction SilentlyContinue }
     foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name],'Process') }
+    foreach ($name in $runtimeSaved.Keys) { [Environment]::SetEnvironmentVariable($name,$runtimeSaved[$name],'Process') }
 }
