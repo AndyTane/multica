@@ -19,6 +19,9 @@
 [CmdletBinding()]
 param(
     [string]$Source,
+    # A verified full package can upgrade an older installation without first
+    # replacing its upgrader or relying on its historical overlay file list.
+    [string]$Root = '',
     [string]$PublicHost,
     [int]$HttpsPort = 0,
     [string]$Profile = '',
@@ -34,11 +37,31 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = $PSScriptRoot
+$externalRoot = [bool]$Root
+$root = if ($Root) { [IO.Path]::GetFullPath($Root) } else { $PSScriptRoot }
 if ($Source -and (Test-Path -LiteralPath (Join-Path $Source 'UPGRADE-FILES.json'))) {
     throw 'Sparse differential package detected. Run Apply-Upgrade.ps1 from that package; Upgrade -Source requires a complete package.'
 }
-. (Join-Path $root 'portable-common.ps1')
+. (Join-Path $PSScriptRoot 'portable-common.ps1')
+if ($externalRoot) {
+    if (-not $Source) { throw '-Root requires a verified complete -Source package.' }
+    $sourceRoot = [IO.Path]::GetFullPath($Source).TrimEnd('\','/')
+    if (-not [string]::Equals($sourceRoot, $PSScriptRoot.TrimEnd('\','/'), [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Run upgrade.ps1 from the full Source package when using -Root.'
+    }
+    . (Join-Path $PSScriptRoot 'oss-release-common.ps1')
+    Assert-ReleaseSeparateDirectory $root $sourceRoot
+    $full = Read-ReleaseJson (Join-Path $sourceRoot 'FULL-FILES.json')
+    if (-not $full) { throw '-Root requires FULL-FILES.json from the complete release.' }
+    Assert-FullReleaseDirectory $sourceRoot $full.version $full.commit
+    $null = Get-PortableDeployment $root
+    foreach ($entry in @($full.files)) {
+        if ($entry.path.StartsWith('payload/runtime/pgsql/', [StringComparison]::Ordinal)) {
+            $installedPath = Join-Path $root ('runtime/pgsql/'+$entry.path.Substring('payload/runtime/pgsql/'.Length))
+            Assert-ReleaseFile $installedPath $entry.sha256 ([long]$entry.bytes)
+        }
+    }
+}
 
 function Copy-PortableOverlay {
     param([string]$SourceRoot)
@@ -53,6 +76,7 @@ function Copy-PortableOverlay {
     }
     $files = @('manifest.json', 'install.ps1', 'start.ps1', 'stop.ps1', 'status.ps1', 'uninstall.ps1', 'upgrade.ps1', 'trust-browser.ps1', 'portable-common.ps1', 'build-installer.ps1', 'Setup.cmd', 'Start.cmd', 'Stop.cmd', 'Status.cmd', 'Uninstall.cmd', 'Upgrade.cmd', 'Trust-Browser.cmd', 'README.txt')
     $files += @('Update.cmd', 'Update.ps1', 'Fetch-Upgrade.ps1', 'Apply-Upgrade.ps1', 'oss-release-common.ps1')
+    if ($externalRoot) { $files = @($script:ReleaseProgramFiles) }
     foreach ($relative in $files) {
         $from = Join-Path $SourceRoot $relative
         if (-not (Test-Path -LiteralPath $from)) { continue }
@@ -62,6 +86,11 @@ function Copy-PortableOverlay {
     if (Test-Path -LiteralPath $node) {
         New-PortableDirectory (Join-Path $root 'runtime\node')
         Copy-Item -LiteralPath $node -Destination (Join-Path $root 'runtime\node\node.exe') -Force
+    }
+    # Stage and subsequent lifecycle commands must use this release's runner.
+    $native = Join-Path $SourceRoot 'payload\scripts\native-windows.ps1'
+    if (Test-Path -LiteralPath $native) {
+        Copy-Item -LiteralPath $native -Destination (Join-Path $root 'runtime\native-windows.ps1') -Force
     }
 }
 
