@@ -3,7 +3,6 @@
 import { Eye, MoreHorizontal } from "lucide-react";
 import type { IssueStatus } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
-import { cn } from "@multica/ui/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -56,11 +55,9 @@ export function HiddenColumnsPanel({
 export function HiddenColumnRow({
   status,
   total,
-  compact = false,
 }: {
   status: IssueStatus;
   total?: number;
-  compact?: boolean;
 }) {
   const { t } = useT("issues");
   const wsId = useWorkspaceId();
@@ -68,15 +65,10 @@ export function HiddenColumnRow({
   const { categoryOf, colorOf, iconOf } = useIssueStatuses(wsId);
   const viewStoreApi = useViewStoreApi();
   return (
-    <div className={cn(
-      "flex items-center justify-between rounded-lg hover:bg-muted/50",
-      compact
-        ? "h-[var(--button-height-sm)] gap-2 px-[var(--button-padding-sm)]"
-        : "px-2.5 py-2",
-    )}>
+    <div className="flex items-center justify-between rounded-lg px-2.5 py-2 hover:bg-muted/50">
       <div className="flex items-center gap-2">
         <StatusIcon category={categoryOf(status)} color={colorOf(status)} icon={iconOf(status)} status={status} className="h-3.5 w-3.5" />
-        <span className={compact ? "text-label" : "text-body"}>{labelOf(status)}</span>
+        <span className="text-body">{labelOf(status)}</span>
       </div>
       <div className="flex items-center gap-1.5">
         {total !== undefined && (

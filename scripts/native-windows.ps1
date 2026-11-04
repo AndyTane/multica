@@ -640,6 +640,7 @@ function Get-BackendEnvironment {
     $environment.DATABASE_URL = Get-DatabaseUrl $Config
     $environment.DATABASE_MAX_CONNS = '10'; $environment.DATABASE_MIN_CONNS = '2'
     $environment.LOCAL_UPLOAD_DIR = Join-Path $Config.Root 'uploads'
+    $environment.UWORKERS_CLIENT_CACHE = Join-Path $Config.Root 'data/client-releases'
     $publicOrigin = Resolve-NativePublicOrigin $Config
     $environment.FRONTEND_ORIGIN = $publicOrigin
     $environment.MULTICA_APP_URL = $publicOrigin

@@ -5,7 +5,6 @@ import { AppLink } from "../../navigation";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { cn } from "@multica/ui/lib/utils";
 import type { Issue, IssueProperty, Project, UpdateIssueRequest } from "@multica/core/types";
 import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -72,7 +71,6 @@ export const BoardCardContent = memo(function BoardCardContent({
   const storeProperties = useViewStore((s) => s.cardProperties);
   const cardPropertyIds = useViewStore((s) => s.cardPropertyIds);
   const viewMode = useViewStore((s) => s.viewMode);
-  const responsiveBoard = viewMode === "board";
   const grouping = useViewStore((s) => s.grouping);
   const swimlaneGrouping = useViewStore((s) => s.swimlaneGrouping);
   const cardGrouping =
@@ -211,7 +209,7 @@ export const BoardCardContent = memo(function BoardCardContent({
       </div>
 
       {/* Row 2: Title */}
-      <p className={cn("mt-1 text-body font-medium leading-snug line-clamp-2", responsiveBoard && "break-words")}>
+      <p className="mt-1 text-body font-medium leading-snug line-clamp-2">
         {issue.title}
       </p>
 
@@ -232,13 +230,13 @@ export const BoardCardContent = memo(function BoardCardContent({
         <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
           <CustomStatusChip status={issue.status} />
           {showProject && (
-            <span className={cn("inline-flex items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5 text-micro text-muted-foreground max-w-[160px]", responsiveBoard && "min-w-0 max-w-full")}>
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5 text-micro text-muted-foreground max-w-[160px]">
               <ProjectIcon project={project} size="sm" />
               <span className="truncate">{project!.title}</span>
             </span>
           )}
           {showLabels && labels.slice(0, 2).map((label) => (
-            <LabelChip key={label.id} label={label} className={responsiveBoard ? "max-w-full" : undefined} />
+            <LabelChip key={label.id} label={label} />
           ))}
           {showLabels && labels.length > 2 && (
             <span className="text-micro text-muted-foreground">
@@ -248,7 +246,7 @@ export const BoardCardContent = memo(function BoardCardContent({
           {cardCustomProperties.map((property) => (
             <span
               key={property.id}
-              className={cn("inline-flex max-w-[160px] items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5 text-micro text-muted-foreground", responsiveBoard && "min-w-0 max-w-full")}
+              className="inline-flex max-w-[160px] items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5 text-micro text-muted-foreground"
             >
               <PropertyIcon property={property} className="size-3 text-micro" />
               <CustomPropertyValueDisplay property={property} value={issue.properties?.[property.id]} />
@@ -259,14 +257,14 @@ export const BoardCardContent = memo(function BoardCardContent({
 
       {/* Meta row: assignee (left), start date, due date, child progress (right) */}
       {showMetaRow && (
-        <div className={cn("mt-2 flex items-center justify-between gap-2", responsiveBoard && "flex-wrap")}>
+        <div className="mt-2 flex items-center justify-between gap-2">
           {showAssigneeSection && (
-            <div className={cn("min-w-0 flex-1", responsiveBoard && "min-w-6")}>
+            <div className="min-w-0 flex-1">
               {assigneeNode}
             </div>
           )}
           {showRightMeta && (
-            <div className={cn("ml-auto flex shrink-0 items-center gap-2", responsiveBoard && "max-w-full shrink flex-wrap justify-end")}>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               {showStartDate && (
                 canEdit ? (
                   <PickerWrapper className="flex shrink-0">

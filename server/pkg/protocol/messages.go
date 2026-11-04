@@ -1,6 +1,9 @@
 package protocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"github.com/multica-ai/multica/server/internal/managedkit"
+)
 
 const (
 	// DaemonCapabilityQuickCreateV1 covers attachment URL/binding handling and
@@ -419,6 +422,7 @@ type DaemonHeartbeatRequestPayload struct {
 // and re-registers; without it the dead UUID would keep heartbeating until the
 // daemon process restarts.
 type DaemonHeartbeatAckPayload struct {
+	ManagedClientUpdate     *managedkit.Offer                       `json:"managed_client_update,omitempty"`
 	RuntimeID               string                                  `json:"runtime_id"`
 	Status                  string                                  `json:"status"`
 	ServerCapabilities      []string                                `json:"server_capabilities,omitempty"`

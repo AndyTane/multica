@@ -15,13 +15,15 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/daemon/repocache"
+	"github.com/multica-ai/multica/server/internal/managedkit"
 	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // HealthResponse is returned by the daemon's local health endpoint.
 type HealthResponse struct {
-	Status string `json:"status"`
-	PID    int    `json:"pid"`
+	ManagedClientUpdate *managedkit.Status `json:"managed_client_update,omitempty"`
+	Status              string             `json:"status"`
+	PID                 int                `json:"pid"`
 	// OS is the daemon's runtime.GOOS. The desktop app compares it against its
 	// own host OS to detect a daemon it cannot manage — e.g. a Windows desktop
 	// reaching a Linux daemon inside WSL2 over localhost forwarding. The
@@ -363,6 +365,10 @@ func (d *Daemon) healthHandler(startedAt time.Time) http.HandlerFunc {
 
 			ReloadPendingReason: d.reloadPending(),
 			Workspaces:          wsList,
+		}
+		if root := d.managedClientRoot(); root != "" {
+			state := managedkit.Snapshot(root)
+			resp.ManagedClientUpdate = &state
 		}
 		if reporter, ok := d.repoCache.(interface{ Activity() repocache.Activity }); ok {
 			activity := reporter.Activity()

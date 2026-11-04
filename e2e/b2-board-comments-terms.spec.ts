@@ -8,7 +8,7 @@ const isolatedRoot = process.env.E2E_B2_ISOLATED_ROOT;
 test.skip(!isolatedRoot, "Requires a fresh isolated B2 native deployment");
 test.use({ locale: "en-US", viewport: { width: 1440, height: 900 } });
 
-test("B2: five populated columns fit at 1440, measured comments fold, and Chinese terms read naturally", async ({ page, baseURL }, testInfo) => {
+test("B2: board keeps fixed column widths, measured comments fold, and Chinese terms read naturally", async ({ page, baseURL }, testInfo) => {
   test.setTimeout(240_000);
   const deployment = JSON.parse(readFileSync(join(isolatedRoot!, "deployment.json"), "utf8"));
   const database = new URL(process.env.DATABASE_URL!);
@@ -81,45 +81,20 @@ test("B2: five populated columns fit at 1440, measured comments fold, and Chines
     await page.keyboard.press("Escape");
     await expect(column("todo").getByText(label.name, { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "运行环境", exact: true }).first()).toBeVisible();
-    const scroller = page.locator("[data-board-scroller]");
     const measurements: Record<string, unknown> = {};
-    const measure = async () => scroller.evaluate((element) => ({
-      clientWidth: element.clientWidth, scrollWidth: element.scrollWidth,
-      widths: Array.from(element.querySelectorAll<HTMLElement>("[data-board-column]")).map((col) => col.getBoundingClientRect().width),
-      gap: getComputedStyle(element).columnGap,
-      padding: getComputedStyle(element).padding,
-    }));
-    await scroller.click({ position: { x: 10, y: 400 } });
-    measurements["1440"] = await measure();
-    expect((measurements["1440"] as { scrollWidth: number }).scrollWidth).toBeLessThanOrEqual((measurements["1440"] as { clientWidth: number }).clientWidth);
-    // A 256px sidebar remains expanded, and no card's content exceeds its own width.
-    const sidebar = page.locator('[data-slot="sidebar-gap"]').first();
-    measurements.sidebarWidth = (await sidebar.boundingBox())!.width;
-    expect(measurements.sidebarWidth).toBe(256);
+    // The board keeps its fixed column widths: 280px populated, 200px empty.
+    const widths = async () => page.locator("[data-board-column]").evaluateAll((columns) =>
+      columns.map((col) => col.getBoundingClientRect().width));
+    measurements["1440"] = await widths();
+    expect(measurements["1440"]).toEqual([280, 280, 280, 280, 280]);
+    // Cards keep their pre-B2 content: no chip or meta row is squeezed by a narrow column.
     for (const card of await page.locator("[data-board-card]").all()) {
       expect(await card.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     }
-    const hiddenColumns = page.locator("[data-board-hidden-columns]");
+    const hiddenColumns = page.getByText("隐藏的列", { exact: true }).locator("xpath=../..");
     await expect(hiddenColumns).toContainText("已完成");
     await expect(hiddenColumns).toContainText("已取消");
-    measurements.hiddenColumns = await hiddenColumns.evaluate((element) => ({
-      padding: getComputedStyle(element).padding,
-      rows: Array.from(element.children).filter((child) => child.tagName === "DIV").map((row) => {
-        const [label, count] = Array.from(row.children);
-        return {
-          height: row.getBoundingClientRect().height,
-          labelCountGap: count!.getBoundingClientRect().left - label!.getBoundingClientRect().right,
-        };
-      }),
-    }));
-    const hiddenLayout = measurements.hiddenColumns as { padding: string; rows: { height: number; labelCountGap: number }[] };
-    expect(hiddenLayout.padding).toBe("8px 16px");
-    expect(hiddenLayout.rows).toHaveLength(2);
-    for (const row of hiddenLayout.rows) {
-      expect(row.labelCountGap).toBeGreaterThanOrEqual(8);
-      expect(row.height).toBe(await page.getByRole("button", { name: "显示", exact: true }).evaluate((button) => button.getBoundingClientRect().height));
-    }
-    await capture("11-board-footer-1440-light.png");
+    expect(await hiddenColumns.evaluate((element) => element.closest("[data-board-scroller]") !== null)).toBe(true);
     await capture("01-board-1440-light.png");
     await page.evaluate(() => { localStorage.setItem("theme", "dark"); });
     await page.reload();
@@ -131,12 +106,10 @@ test("B2: five populated columns fit at 1440, measured comments fold, and Chines
     await expect(column("blocked")).toContainText(titles[4]!);
     await expect(page.locator("html")).not.toHaveClass(/dark/);
     await page.setViewportSize({ width: 1280, height: 800 });
-    measurements["1280"] = await measure();
-    expect((measurements["1280"] as { scrollWidth: number }).scrollWidth).toBeGreaterThan((measurements["1280"] as { clientWidth: number }).clientWidth);
     await capture("03-board-1280.png");
     await page.setViewportSize({ width: 1920, height: 1080 });
-    measurements["1920"] = await measure();
-    expect((measurements["1920"] as { widths: number[] }).widths.every((width) => width <= 320)).toBe(true);
+    measurements["1920"] = await widths();
+    expect(measurements["1920"]).toEqual([280, 280, 280, 280, 280]);
     await capture("04-board-1920.png");
     await page.setViewportSize({ width: 1440, height: 900 });
     const card = column("todo").locator("[data-board-card]").first();
@@ -146,16 +119,11 @@ test("B2: five populated columns fit at 1440, measured comments fold, and Chines
     await page.mouse.down();
     await page.mouse.move(start.x + start.width / 2 + 12, start.y + start.height / 2, { steps: 4 });
     await page.mouse.move(target.x + 60, target.y + 160, { steps: 12 });
-    const overlay = page.locator("[data-board-drag-overlay]");
-    await expect(overlay).toBeVisible();
-    const overlayWidth = await overlay.evaluate((element) => element.clientWidth);
-    expect(Math.abs(overlayWidth - start.width)).toBeLessThanOrEqual(1);
-    measurements.drag = { sourceCardWidth: start.width, overlayWidth };
     await capture("05-board-drag.png");
     await page.mouse.up();
     await expect(column("in_progress")).toContainText(issue.title);
-    await expect(column("todo")).toHaveCSS("width", "168px");
-    // Drop into a compact empty column as well.
+    await expect(column("todo")).toHaveCSS("width", "200px");
+    // Drop into an empty column as well.
     const moved = column("in_progress").locator("[data-board-card]").filter({ hasText: issue.title });
     const movedBox = (await moved.boundingBox())!;
     const empty = (await column("todo").boundingBox())!;
@@ -164,6 +132,7 @@ test("B2: five populated columns fit at 1440, measured comments fold, and Chines
     await page.mouse.move(empty.x + 60, empty.y + 150, { steps: 20 });
     await page.mouse.up();
     await expect(column("todo")).toContainText(issue.title);
+    await expect(column("todo")).toHaveCSS("width", "280px");
 
     await page.goto(`/${workspace.slug}/issues/${issue.identifier}`);
     const body = page.locator(`[data-comment-content="${longComment.id}"]`);

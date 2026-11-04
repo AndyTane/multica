@@ -31,6 +31,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 	"github.com/multica-ai/multica/server/internal/daemon/repocache"
+	"github.com/multica-ai/multica/server/internal/managedkit"
 	"github.com/multica-ai/multica/server/internal/selfexec"
 	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/agent"
@@ -385,11 +386,13 @@ type repoCacheBackend interface {
 
 // Daemon is the local agent runtime that polls for and executes tasks.
 type Daemon struct {
-	cfg        Config
-	client     *Client
-	repoCache  repoCacheBackend
-	skillCache *SkillBundleCache
-	logger     *slog.Logger
+	managedVerifying atomic.Bool
+	managedClientMu  sync.Mutex
+	cfg              Config
+	client           *Client
+	repoCache        repoCacheBackend
+	skillCache       *SkillBundleCache
+	logger           *slog.Logger
 
 	// terminalReports is the durable outbox for complete/fail callbacks. The
 	// sender hook is production-wired through Client and overridable in focused
@@ -2085,6 +2088,15 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.cancelFunc = cancel
 	d.setLifecycleCtx(ctx)
 	d.rootCtx = ctx
+	if root := d.managedClientRoot(); root != "" {
+		j := managedkit.LoadJournal(root)
+		if managedkit.RecoveryPending(j) && j.Offer.Version == d.cfg.CLIVersion {
+			d.claimMu.Lock()
+			d.pauseClaims = true
+			d.claimMu.Unlock()
+			d.managedVerifying.Store(true)
+		}
+	}
 
 	// Bind health port early to detect another running daemon.
 	healthLn, err := d.listenHealth()
@@ -4577,6 +4589,7 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 	if resp == nil {
 		return
 	}
+	go d.handleManagedClient(ctx, runtimeID, resp.ManagedClientUpdate)
 	if resp.PendingUpdate != nil || resp.PendingModelList != nil || resp.PendingLocalSkills != nil || resp.PendingLocalSkillImport != nil {
 		d.logger.Debug("heartbeat: pending actions",
 			"runtime_id", runtimeID,
@@ -5015,6 +5028,10 @@ func (d *Daemon) reportRuntimeResultWithRetry(ctx context.Context, kind, runtime
 
 // handleUpdate performs the CLI update when triggered by the server via heartbeat.
 func (d *Daemon) handleUpdate(ctx context.Context, runtimeID string, update *PendingUpdate) {
+	if d.managedClientRoot() != "" {
+		d.reportUpdateResult(ctx, runtimeID, update.ID, map[string]any{"status": "failed", "error": "受管客户端跟随实际服务端版本；请通过服务端升级并查看 daemon status"})
+		return
+	}
 	// Desktop-managed daemons share their CLI binary with the Electron app,
 	// which is responsible for shipping and replacing it. Letting the daemon
 	// self-update would just get overwritten on the next Desktop launch and

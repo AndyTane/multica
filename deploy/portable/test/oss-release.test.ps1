@@ -7,6 +7,7 @@ $portable = Split-Path -Parent $PSScriptRoot
 $work = Join-Path ([IO.Path]::GetTempPath()) ('uworkers-oss-test-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 $checks = New-Object 'System.Collections.Generic.List[string]'
+$keepaliveRecordPath = ''
 function Check([bool]$Ok, [string]$Message) { if (-not $Ok) { throw ('FAILED: '+$Message) }; $checks.Add($Message) }
 function Must-Fail([scriptblock]$Action, [string]$Message) {
     $failed = $false; try { & $Action | Out-Null } catch { $failed = $true }
@@ -199,6 +200,11 @@ $path = Join-Path $PSScriptRoot 'deployment.json'; $cfg = Get-Content -Raw $path
 $installPath=Join-Path $PSScriptRoot 'data/install-report.json'
 if (-not $ReportPath -and (Test-Path $installPath)) { $r=Get-Content -Raw $installPath | ConvertFrom-Json; $r | Add-Member NoteProperty lanExposed $false -Force; [IO.File]::WriteAllText($installPath,($r|ConvertTo-Json)) }
 [IO.File]::WriteAllText($ReportPath,(@{fromVersion='v1.0.0';toVersion='v1.0.1'}|ConvertTo-Json))
+if ($env:FAKE_UPGRADE_KEEPALIVE -eq '1') {
+    $exe=Join-Path $env:SystemRoot 'System32/ping.exe'
+    $child=Start-Process -FilePath $exe -ArgumentList @('-n','21','127.0.0.1') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $PSScriptRoot 'keepalive.out') -RedirectStandardError (Join-Path $PSScriptRoot 'keepalive.err') -PassThru
+    [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'keepalive.json'),(@{pid=$child.Id;executable=$exe;startedAt=$child.StartTime.ToUniversalTime().ToString('o')}|ConvertTo-Json))
+}
 '@
     Text (Join-Path $root 'deployment.json') '{"Version":"v1.0.0","ApiPort":18080,"WebPort":13000,"PublicOrigin":"https://localhost:13443"}'
     Text (Join-Path $root 'data/install-report.json') '{"profile":"fixture","boardUrl":"https://localhost:13443","lanExposed":false}'
@@ -251,7 +257,15 @@ if (-not $ReportPath -and (Test-Path $installPath)) { $r=Get-Content -Raw $insta
     $entrySuccessRoot=Join-Path $work ('升级 with spaces '+[char]0x4E2D); Copy-Item -LiteralPath $root -Destination $entrySuccessRoot -Recurse
     Text (Join-Path $entrySuccessRoot 'deployment.json') '{"Version":"v1.0.0","ApiPort":18080,"WebPort":13000,"PublicOrigin":"https://server.invalid:13443"}'
     Text (Join-Path $entrySuccessRoot 'data/install-report.json') '{"profile":"fixture","boardUrl":"https://server.invalid:13443","lanExposed":true}'
+    $keepaliveRecordPath=Join-Path $entrySuccessRoot 'keepalive.json'
+    $env:FAKE_UPGRADE_KEEPALIVE='1'
     & $update -Root $entrySuccessRoot -Ossutil $fake -DestinationDirectory (Join-Path $work 'update-entry-success') -ConfirmUpgrade
+    $keepaliveRecord=Read-ReleaseJson $keepaliveRecordPath
+    $keepalive=Get-Process -Id $keepaliveRecord.pid -ErrorAction SilentlyContinue
+    Check ($null -ne $keepalive -and -not $keepalive.HasExited) 'Update completes final checks while the native service child remains running'
+    if ($keepalive.Path -ne $keepaliveRecord.executable -or $keepalive.StartTime.ToUniversalTime().Ticks -ne ([DateTime]$keepaliveRecord.startedAt).ToUniversalTime().Ticks) { throw 'Refusing to stop an unowned test child' }
+    $keepalive.Kill(); $keepalive.WaitForExit()
+    $env:FAKE_UPGRADE_KEEPALIVE=''
     Check ((Read-ReleaseJson (Join-Path $entrySuccessRoot 'deployment.json')).Version -eq 'v1.0.1') 'Update applies through real engine in Unicode and space path'
     Check ((Get-Content (Join-Path $entrySuccessRoot 'trace.txt')) -contains 'Ready https://server.invalid:13443/readyz') 'Apply checks readiness after restoring original listener'
     Check ((Read-ReleaseJson (Join-Path $entrySuccessRoot 'data/install-report.json')).profile -eq 'fixture' -and (Read-ReleaseJson (Join-Path $entrySuccessRoot 'data/install-report.json')).lanExposed) 'Update restores original LAN listener metadata after loopback upgrade'
@@ -282,8 +296,14 @@ if (-not $ReportPath -and (Test-Path $installPath)) { $r=Get-Content -Raw $insta
     }
     Write-Host ('PASS: '+$checks.Count+' checks; PowerShell '+$PSVersionTable.PSVersion+'; fake OSS and isolated fake lifecycle only.')
 } finally {
+    if ($keepaliveRecordPath -and (Test-Path -LiteralPath $keepaliveRecordPath)) {
+        $record=Read-ReleaseJson $keepaliveRecordPath
+        $child=Get-Process -Id $record.pid -ErrorAction SilentlyContinue
+        if ($child -and $child.Path -eq $record.executable -and $child.StartTime.ToUniversalTime().Ticks -eq ([DateTime]$record.startedAt).ToUniversalTime().Ticks) { $child.Kill(); $child.WaitForExit() }
+    }
     foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name],'Process') }
     $env:FAKE_DAEMON_BUSY = ''; $env:FAKE_UPGRADE_FAIL = ''
+    $env:FAKE_UPGRADE_KEEPALIVE = ''
     # Keep failed fixtures for diagnosis; successful fixtures are bounded to our own path.
     Write-Host ('Test fixture: '+$work)
 }

@@ -92,8 +92,9 @@ function LoginPageContent() {
   });
   const cliCallbackRaw = searchParams.get("cli_callback");
   const cliState = searchParams.get("cli_state") || "";
+  const invalidCliCallback = cliCallbackRaw !== null && !validateCliCallback(cliCallbackRaw);
   const platform = searchParams.get("platform");
-  const isDesktopHandoff = platform === "desktop" && !cliCallbackRaw;
+  const isDesktopHandoff = platform === "desktop" && cliCallbackRaw === null;
   // `next` carries a protected URL the user was originally headed to
   // (e.g. /invite/{id}). With URL-driven workspaces there is no legacy
   // "/issues" default — if `next` is absent we decide after login based on
@@ -131,7 +132,7 @@ function LoginPageContent() {
       settledLoggedOutRef.current = true;
       return;
     }
-    if (cliCallbackRaw) return;
+    if (cliCallbackRaw !== null) return;
     if (isDesktopHandoff) {
       // Desktop opened the browser for login but the web session is already
       // authenticated — mint a bearer token from the cookie session and hand
@@ -202,6 +203,28 @@ function LoginPageContent() {
   ]
     .filter(Boolean)
     .join(",") || undefined;
+
+  if (invalidCliCallback) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Card className="w-full max-w-sm" role="alert">
+          <CardHeader className="text-center">
+            <CardTitle className="text-display-sm">
+              {t(($) => $.web.callback.failed_title)}
+            </CardTitle>
+            <CardDescription>
+              {t(($) => $.web.callback.invalid_cli_callback)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <a href={paths.login()} className="text-primary underline-offset-4 hover:underline">
+              {t(($) => $.web.callback.back_to_login)}
+            </a>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // While the desktop handoff is in progress (or has produced a token/error),
   // render a dedicated screen instead of flashing the login form or redirecting

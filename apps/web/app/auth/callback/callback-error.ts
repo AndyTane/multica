@@ -4,6 +4,7 @@ export type CallbackError =
   | {
       kind:
         | "missing_code"
+        | "invalid_cli_callback"
         | "access_denied"
         | "login_failed"
         | "account_disabled"
