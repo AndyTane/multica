@@ -96,6 +96,7 @@ import { IssuePropertyPills } from "./issue-property-pills";
 import { LocalDirectoryHint } from "../../projects/components/local-directory-hint";
 import { useNewRunIds } from "./use-run-comment-motion";
 import { AgentRunComment, CommentCard } from "./comment-card";
+import { CommentBodySession } from "./comment-body";
 import { EMPTY_COMMENT_RUNS, buildCommentRunView, orderTimelineWithRuns, type CommentRun } from "./comment-runs";
 import { issueTasksOptions } from "@multica/core/issues/queries";
 import { SourceContextBadge } from "./source-context-viewer";
@@ -1437,9 +1438,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     [isPeek, restoreScrollRef],
   );
   const [pendingPostedCommentId, setPendingPostedCommentId] = useState<string | null>(null);
+  const commentBodyPage = useMemo(() => ({ issueId, choices: new Map<string, boolean>() }), [issueId]);
+  const commentBodyChoices = commentBodyPage.choices;
+  const commentBodySession = useMemo(() => ({ choices: commentBodyChoices, postedId: pendingPostedCommentId }), [commentBodyChoices, pendingPostedCommentId]);
   const scrollToTimelineBottom = useCallback((commentId: string) => {
+    commentBodyChoices.set(commentId, true);
     setPendingPostedCommentId(commentId);
-  }, []);
+  }, [commentBodyChoices]);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   // User preference: pin the bottom comment bar to the scroll viewport. Off
   // below `md` regardless of the preference — see the hook.
@@ -3127,6 +3132,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const titleSizeClass = isPeek ? "text-title-lg font-semibold" : "text-display-sm font-bold";
 
   const detailContent = (
+    <CommentBodySession.Provider value={commentBodySession}>
     <CurrentIssueRenderContextProvider value={currentIssueRenderContext}>
     <div className="relative flex h-full min-w-0 flex-1 flex-col">
         {/* In-page find bar — floats over the top-right of the content column
@@ -3900,6 +3906,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         )}
       </div>
     </CurrentIssueRenderContextProvider>
+    </CommentBodySession.Provider>
   );
 
   // Hosts the one viewer this issue's files page through — see

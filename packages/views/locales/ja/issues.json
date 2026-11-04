@@ -541,6 +541,9 @@
     "wakeup_chip_system": "システムルール"
   },
   "comment": {
+    "expand_body": "Show full comment",
+    "collapse_body": "Show less",
+    "attachment_count": "{{count}} attachments",
     "add_reaction": "リアクションを追加",
     "collapse_thread": "スレッドを折りたたむ",
     "expand_thread": "スレッドを展開",

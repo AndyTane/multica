@@ -119,16 +119,16 @@ beforeEach(() => {
 });
 
 describe("issue renderer create entrypoints", () => {
-  it("narrows a settled empty column and restores its width while loading or populated", () => {
+  it("narrows a settled empty column and distributes space while loading or populated", () => {
     const props = { group: { id: "todo", title: "Todo", status: "todo" }, issueIds: [] as string[], issueMap: new Map() };
     const view = render(<BoardColumn {...props} />);
-    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "200px" });
+    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "168px", flex: "0 0 168px" });
     view.rerender(<BoardColumn {...props} isLoading />);
-    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "280px" });
+    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ flex: "1 0 200px", minWidth: "200px", maxWidth: "320px" });
     view.rerender(<BoardColumn {...props} issueIds={["pending-issue"]} totalCount={1} />);
-    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "280px" });
+    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ flex: "1 0 200px", minWidth: "200px", maxWidth: "320px" });
     view.rerender(<BoardColumn {...props} />);
-    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "200px" });
+    expect(view.container.querySelector('[data-board-column="todo"]')).toHaveStyle({ width: "168px", flex: "0 0 168px" });
   });
   it("does not offer creation into an archived board/list status", () => {
     const onCreateIssue = vi.fn();

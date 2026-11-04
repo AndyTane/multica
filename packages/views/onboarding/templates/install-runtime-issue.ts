@@ -24,7 +24,7 @@ import { docsHref } from "../../common/docs-locale";
  */
 export const INSTALL_RUNTIME_ISSUE_TITLE = {
   en: "Connect a runtime to start with Siman",
-  zh: "连接运行时，和 Siman 开始",
+  zh: "连接运行环境，和 Siman 开始",
   ko: "runtime을 연결하고 Siman과 시작하기",
   ja: "runtime を接続して Siman と始める",
 } as const;
@@ -73,20 +73,20 @@ Siman will turn one real goal into an issue, start it with the right agent, and 
 
 const zh = `欢迎来到 U Workers。
 
-智能体需要先连上运行时才能执行工作。运行时还没准备好时,你也可以先把 U Workers 当作轻量项目管理工具体验起来。
+智能体需要先连上运行环境才能执行工作。运行环境还没准备好时,你也可以先把 U Workers 当作轻量项目管理工具体验起来。
 
 ## 先体验项目管理功能
 
-运行时安装前,你可以先做这些事:
+运行环境安装前,你可以先做这些事:
 
 1. 为当前工作创建一个项目。
 2. 新建几个任务,并在 backlog、todo、in_progress、done 之间流转。
 3. 给任务加优先级、标签、评论和订阅。
 4. 用收件箱追踪分配给你的事项和 @mention。
 
-这样你先熟悉项目管理层。连上运行时后,智能体会直接在这些任务上开始工作。
+这样你先熟悉项目管理层。连上运行环境后,智能体会直接在这些任务上开始工作。
 
-## 安装第一个 Agent 运行时
+## 安装第一个 Agent 运行环境
 
 完整文档:${docsHref("install-agent-runtime")}
 
@@ -104,12 +104,12 @@ Windows 用户请先安装 [Git for Windows](https://gitforwindows.org/)，Kimi 
 3. 在你想让 Kimi 工作的项目目录里启动一次:
    kimi
 4. 首次启动后输入 /login，按提示完成 Kimi Code 或 API key 配置。
-5. 等 U Workers 识别到它。运行中的守护进程每隔几分钟会重新检查一次新装的 CLI，通常不需要重启。
+5. 等 U Workers 识别到它。运行中的后台连接每隔几分钟会重新检查一次新装的 CLI，通常不需要重启。
    想立刻生效:
    u-workers daemon restart
-   桌面端请打开任意一个本机 runtime 并点 Restart。退出再打开 app 是不够的 —— 守护进程会继续在后台运行。
-6. 回到 Runtimes 页面刷新。你应该能看到一个在线的 Kimi 运行时。
-7. 打开"运行时"页面。页面会显示 **和 Siman 开始**；点击后会创建 Siman，并进入引导式的首次对话。
+   桌面端请打开任意一个本机 runtime 并点 Restart。退出再打开 app 是不够的 —— 后台连接会继续在后台运行。
+6. 回到 Runtimes 页面刷新。你应该能看到一个在线的 Kimi 运行环境。
+7. 打开"运行环境"页面。页面会显示 **和 Siman 开始**；点击后会创建 Siman，并进入引导式的首次对话。
 
 Kimi CLI 官方文档:https://moonshotai.github.io/kimi-cli/zh/guides/getting-started.html
 

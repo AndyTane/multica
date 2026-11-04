@@ -210,6 +210,18 @@ beforeEach(() => {
 });
 
 describe("comment edit — draft snapshot", () => {
+  it("keeps the complete long body open after entering and cancelling edit", async () => {
+    const measure = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ height: 400 } as DOMRect);
+    try {
+      renderCard();
+      expect(screen.getByRole("button", { name: "Show full comment" })).toBeVisible();
+      await startEditing();
+      expect(screen.queryByRole("button", { name: "Show full comment" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+    } finally { measure.mockRestore(); }
+  });
+
   it("does not feed the persisted edit draft back as a new editor default", async () => {
     renderCard();
     await startEditing();
