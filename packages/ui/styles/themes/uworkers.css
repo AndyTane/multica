@@ -3,7 +3,7 @@
  * Keep upstream tokens, components, typography scales and geometry intact.
  */
 
-:root {
+:not([data-ui-theme="classic"]):root {
   --app-shell: oklch(1 0 0);
   --page-canvas: oklch(0.971 0.003 286);
   --surface: oklch(1 0 0);
@@ -55,7 +55,7 @@
   --info: oklch(0.49 0.18 250);
 }
 
-.dark {
+:root:not([data-ui-theme="classic"]).dark {
   --app-shell: oklch(0.227 0.004 286);
   --page-canvas: oklch(0 0 0);
   --surface: oklch(0.227 0.004 286);
@@ -111,15 +111,15 @@
  * styles regardless of route-chunk order; no global font scale changes.
  * Headings, code, tables and controls retain their upstream typography.
  */
-:root .rich-text-editor,
-:root .markdown-content {
+:root:not([data-ui-theme="classic"]) .rich-text-editor,
+:root:not([data-ui-theme="classic"]) .markdown-content {
   font-size: 15px;
   line-height: 24px;
 }
 
-:root .rich-text-editor p,
-:root .rich-text-editor li,
-:root .markdown-content p,
-:root .markdown-content li {
+:root:not([data-ui-theme="classic"]) .rich-text-editor p,
+:root:not([data-ui-theme="classic"]) .rich-text-editor li,
+:root:not([data-ui-theme="classic"]) .markdown-content p,
+:root:not([data-ui-theme="classic"]) .markdown-content li {
   line-height: inherit;
 }

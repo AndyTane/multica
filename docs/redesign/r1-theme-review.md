@@ -1,12 +1,28 @@
 # UWorkers 可选主题评审
 
-按 CLAWSTA-134 更新后的主题接入方案实施。运行时新增 `packages/ui/styles/themes/uworkers.css`，Web、Desktop 各加一行 import；上游令牌、组件、页面、布局和现有测试保持 main 原样。分支 `feat/redesign-r1-theme`，基线 `27351108c5b0f40cad32f356bc1e9dd8b35c0f9b`。
+按 CLAWSTA-134 的独立主题方案及 R1-F3 开关要求实施。主题在 `packages/ui/styles/themes/uworkers.css`，Web、Desktop 共用新增的界面风格行；上游接入点仅限下表五个文件，上游令牌、语言包和测试保持 main 原样。分支 `feat/redesign-r1-theme`，基线 `27351108c5b0f40cad32f356bc1e9dd8b35c0f9b`。
 
 ## 接入与关闭
 
-两个 globals.css 均在现有 import 最后引用共享主题。Desktop 使用仓库相对路径，避免修改 UI 包的 exports。移除该端的一行 import 即恢复上游外观。阅读区用现有 `.rich-text-editor`、`.markdown-content` 类名，增加根选择器的优先级，避免路由 CSS 加载先后影响覆盖；只调整阅读字号和段落/列表行高。
+两个 globals.css 均在现有 import 最后引用共享主题。Desktop 使用仓库相对路径，避免修改 UI 包的 exports。设置 → 偏好 → 主题下的「界面风格」可即时切换 UWorkers / 原版，选择独立存于本设备 `multica-ui-theme`；选择原版在 html 设置 `data-ui-theme="classic"`，选 UWorkers 删除属性。没有属性时默认 UWorkers；所有可选主题规则均受该属性约束，原版不会残留阅读字号或颜色覆盖。浅色、深色、跟随系统仍用原来的 `theme` 存储，互不覆盖。移除 CSS import 也可撤掉整个主题。阅读区只调整已有类的字号和段落/列表行高。
 
 控件、表格、标题和代码使用原有字号，字体栈、全局 14px 阶梯、圆角、侧栏、面板外环、间距和 DOM 均保留。任务描述及评论正文、Markdown 段落使用 15px/24px。不接入 UI Lab 的上游令牌编辑器；关闭主题后仍完整恢复它编辑的原始主题。
+
+## 和上游的差异账
+
+浅色根选择器写为 `:not([data-ui-theme="classic"]):root`，与 `:root:not([data-ui-theme="classic"])` 语义及优先级相同；仅调整条件顺序，以兼容现有对比度测试的选择器读取。全部既有测试（包括 R1 的 54 项）原样保留。
+
+以下是相对 `27351108c` 的全部既有文件改动，均只新增接入行，无删除。新增组件、脚本、主题、测试和评审文档独立存放。
+
+| 上游文件 | 新增行数 | 用途 |
+|---|---:|---|
+| `apps/web/app/globals.css` | 1 | 引入可选主题 |
+| `apps/desktop/src/renderer/src/globals.css` | 1 | 引入同一可选主题 |
+| `packages/views/settings/components/preferences-tab.tsx` | 2 | import 和主题行下的 `<UiThemeRow />` |
+| `apps/web/app/layout.tsx` | 2 | import 和 head 中的内联防闪屏脚本 |
+| `apps/desktop/src/renderer/index.html` | 1 | head 中同步加载防闪屏脚本 |
+
+防闪屏的唯一维护源是 `packages/ui/components/common/ui-theme-script.tsx` 中的 `UI_THEME_BOOTSTRAP`。Web 直接内联执行；Desktop public 中的 `ui-theme-init.js` 是该字符串的静态生成副本，同步脚本不等待 React 或模块加载。新增单测逐字校验生成副本；更新源后执行 `node packages/ui/scripts/generate-ui-theme-init.mjs` 生成。存储不可用时仍能即时切换，本次会话继续使用所选外观。
 
 ## 数值判断
 
@@ -159,7 +175,7 @@ WCAG 2.x 相对亮度，按 8-bit sRGB 计算；半透明选中底先与真实�
 
 ## 暂留的写死颜色
 
-这批不改 TSX，也不通过全局重定义 Tailwind 色板来间接改变用户数据或品牌色。以下界面反馈在新底色上仍沿用旧的黄/绿/蓝，可在下一批单独评估：
+不改这些颜色组件的 TSX，也不通过全局重定义 Tailwind 色板来间接改变用户数据或品牌色。以下界面反馈在新底色上仍沿用旧的黄/绿/蓝，可在下一批单独评估：
 
 - `agents/components/agent-detail-page.tsx`：未绑定运行时的 amber 警告横幅。
 - `chat/components/offline-banner.tsx`：离线横幅的 amber 背景、边框和文字。
@@ -177,4 +193,15 @@ PR 的 How to Test 记录本次最终命令和结果；遇到现有测试失败�
 
 R1-F2 只重截 R1 浅色的 6 张原图，另附 `CLAWSTA-134-R1-F2-light.zip`；main 与深色原图沿用 R1-F1。按评审要求，本批重跑独立主题对比度、typecheck、lint，不重复 E2E。
 
-主题关闭的看板另作本地开关验证，不收入 PR 截图。关闭时同时核对根变量、阅读/控件计算样式和所有既有运行时源码与 main 的一致性。
+R1-F3 新增四张 Web 设置组合图、两张原版看板、四张真实 Desktop renderer 设置图和刷新连拍，均为 1440×900 生产构建。看板在独立测试进程恢复界面实际保存的风格选择；与干净 `27351108c` 独立 checkout 同轮重建的两张 main 原图逐字节相同。该 checkout 的共享包链接、未修改源码及无主题 CSS 均有校验。
+
+F1 历史原图也继续保留对照：深色完全相同，浅色在工作中按钮圆角有 15 个低灰阶像素差异。诊断已核对按钮及至 html 的 9 层祖先，全部计算样式、变量和尺寸相同；本轮采用成对的独立生产采集作零容差验收，不伪报历史图片完全相同。原图、哈希、边界及采集方法均附在证据包中。
+
+本轮实跑结果：
+
+- 新开关 14/14、原偏好测试 17/17、原对比度 54/54，既有测试原样保留。
+- typecheck 强制重跑 10/10、lint 强制重跑 7/7；Web 与 Desktop 生产构建均通过。
+- 真实界面点击立即生效且不导航；系统浅深色切换与风格独立。Web 与 Desktop 原版刷新恢复通过。
+- settings E2E 两项失败，与已验收的 F1 main 用例、状态和报错行完全一致（Save 26:55；Composio 104:11）。不改测试，不跑其他产品 E2E 或旧 desktop 打包套件。
+
+`CLAWSTA-134-R1-F3-style-switch.zip` 解压打开 `index.html`；`board-comparison.json` 为原图逐字节结果，`source-proof.json` 为上游差异账验证，`reload-light/` 与 `reload-dark/` 为未经编辑的浏览器合成连拍及每帧属性/首次绘制记录。Desktop 使用真实生产 renderer/preload 的隔离离屏夹具，原生智能体和升级 IPC 被截断。
