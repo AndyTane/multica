@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     One-step installer for the U Workers portable package.
@@ -84,6 +84,7 @@ param(
     [switch]$NoBrowser,
     [switch]$NoStartup,
     [switch]$NoLanAccess,
+    [string]$ClientReleaseDirectory = '',
     [switch]$Force
 )
 
@@ -803,6 +804,14 @@ $report = [ordered]@{
     durationSeconds = [math]::Round(((Get-Date) - $startedAt).TotalSeconds, 1)
 }
 $reportPath = Write-PortableInstallReport -Root $root -Report $report
+if ($ClientReleaseDirectory) {
+    . (Join-Path $root 'oss-release-common.ps1')
+    $clientRelease=Read-ReleaseJson (Join-Path $ClientReleaseDirectory 'release.json')
+    if (-not ([string]$clientRelease.commit).StartsWith([string]$manifest.commit)) { throw 'Client cache source differs from the installed server.' }
+    $clientCache=Initialize-PortableClientCache $root $ClientReleaseDirectory $manifest.version $clientRelease.commit
+    Wait-PortableHttp -Uri ($result.ServerUrl+'/readyz') -RootCAPath $result.RootCA.Path -TimeoutSec 120 -Description 'client distribution readiness' | Out-Null
+    Enable-PortableClientCache $clientCache $manifest.version $clientRelease.commit
+} else { Write-Host '客户端自动升级缓存尚未就绪；可在升级时准备同版客户端包。' }
 $report.runtimes = @($runtimes | ForEach-Object { [ordered]@{ name = $_.name; provider = $_.provider; status = $_.status; id = $_.id } })
 Write-PortableInstallReport -Root $root -Report $report | Out-Null
 

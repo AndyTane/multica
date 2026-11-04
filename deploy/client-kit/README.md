@@ -13,6 +13,8 @@
 
 ## 换新版与设置
 
+带自动升级能力的 Kit 只需按上表换一次。此后跟随实际服务端版本，在任务空闲后自动升级；离线电脑下次连接补升。Status.cmd 显示进度与回退原因。可运行 `client.ps1 -Action PauseUpdate` 暂停、`-Action ResumeUpdate` 恢复。保留原目录的 connection.json、证书、kit-install.json、current.json、programs 和 .managed；原登录与模型配置不写入程序包。根目录程序是恢复入口，当前运行版本以 Status.cmd 为准。
+
 Import 只读取旧包 `connection.json` 的服务地址、profile 和公开证书，不搬运账号或私钥，不启停后台连接，不修改旧包。相对证书复制到新包 `certificates` 并重写引用；绝对证书路径继续引用原文件，请保留该文件。新包已有设置时会先确认，取消或校验失败保留原设置。
 
 Connect 保留已有非空设置。需要更换地址时，可用下列命令显式指定；现有设置更换须 `-ReplaceSettings`。调用脚本默认不等待输入，只有双击的交互入口会提示填写。示例：

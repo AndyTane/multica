@@ -8,6 +8,7 @@ class FakeClient {
         string root=Environment.GetEnvironmentVariable("KIT_TEST_ROOT");
         if (String.IsNullOrEmpty(root)) return 90;
         foreach (string key in Environment.GetEnvironmentVariables().Keys) {
+            if (key=="U_WORKERS_KIT_ROOT" && Environment.GetEnvironmentVariable(key)==root) continue;
             if (key.StartsWith("MULTICA_") || key.StartsWith("U_WORKERS_")) { File.AppendAllText(Path.Combine(root,"calls.txt"),"unexpected-env:"+key+Environment.NewLine); return 91; }
         }
         File.AppendAllText(Path.Combine(root,"calls.txt"),String.Join("|",args)+Environment.NewLine);

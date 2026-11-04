@@ -85,8 +85,14 @@ foreach ($name in @('Apply-Upgrade.ps1','oss-release-common.ps1')) {
 }
 Write-ReleaseJson (Join-Path $destination 'fetch-result.json') @{version=$Version;sha256=$release.package.sha256;verified=$true;applied=$false}
 if ($Apply -or $CheckOnly) {
+    $clientArgs=@{}
+    if ($Apply -and $release.clientKit) {
+        $clientStage=$destination+'-client'
+        $null=& $PSCommandPath -Version $Version -ClientKit -Ossutil $Ossutil -DestinationDirectory $clientStage
+        $clientArgs.ClientReleaseDirectory=$clientStage
+    }
     # Use the reviewed bootstrap entry, not a command/path supplied in JSON.
-    & (Join-Path $PSScriptRoot 'Apply-Upgrade.ps1') -Root $Root -Profile $Profile -PublicOrigin $PublicOrigin -NoLanAccess:$NoLanAccess -CheckOnly:$CheckOnly -UpgradeDirectory $unpacked
+    & (Join-Path $PSScriptRoot 'Apply-Upgrade.ps1') -Root $Root -Profile $Profile -PublicOrigin $PublicOrigin -NoLanAccess:$NoLanAccess -CheckOnly:$CheckOnly -UpgradeDirectory $unpacked @clientArgs
     Write-ReleaseJson (Join-Path $destination 'fetch-result.json') @{version=$Version;sha256=$release.package.sha256;verified=$true;applied=[bool](-not $CheckOnly);checked=[bool]$CheckOnly}
 }
 Write-Host ('升级包 '+$Version+' 已校验，文件与说明在下载目录。原有权限保留。')
