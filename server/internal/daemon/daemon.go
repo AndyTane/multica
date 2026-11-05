@@ -33,6 +33,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/daemon/repocache"
 	"github.com/multica-ai/multica/server/internal/managedkit"
 	"github.com/multica-ai/multica/server/internal/selfexec"
+	"github.com/multica-ai/multica/server/internal/tlsx"
 	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	"github.com/multica-ai/multica/server/pkg/protocol"
@@ -173,8 +174,8 @@ func taskScopedAuthToken(task Task) (string, error) {
 	return token, nil
 }
 
-func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesRoot, serverURL string, healthPort, slot int, tempDir string) map[string]string {
-	return map[string]string{
+func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesRoot, serverURL, rootCAFile string, healthPort, slot int, tempDir string) map[string]string {
+	env := map[string]string{
 		"MULTICA_TOKEN":        token,
 		cli.TaskConfigRootEnv:  configRoot,
 		TaskWorkspacesRootEnv:  workspacesRoot,
@@ -189,6 +190,10 @@ func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesR
 		"TMP":                  tempDir,
 		"TEMP":                 tempDir,
 	}
+	if rootCAFile != "" {
+		env[tlsx.RootCAEnv] = rootCAFile
+	}
+	return env
 }
 
 // taskRunner executes a single agent task and returns the result.
@@ -8495,7 +8500,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		taskLog.Error("task auth token invalid; refusing to start agent", "error", err)
 		return TaskResult{}, err
 	}
-	agentEnv := taskMulticaEnvironment(task, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, d.cfg.HealthPort, slot, taskTempDir)
+	rootCAFile, err := prepareTaskClientTrust(env.MulticaConfigRoot, tlsx.EnvPath())
+	if err != nil {
+		return TaskResult{}, asEnvironmentSetupFailure(err)
+	}
+	agentEnv := taskMulticaEnvironment(task, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, rootCAFile, d.cfg.HealthPort, slot, taskTempDir)
 	if checkoutMode := repoCheckoutModeFor(provider, runtime.GOOS); checkoutMode != "" {
 		agentEnv[repoCheckoutModeEnv] = checkoutMode
 	}
