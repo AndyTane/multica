@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DEFAULT_EXECUTION_TIMEOUTS, type ExecutionTimeouts } from "@multica/core/agents/execution-timeouts";
 import { renderWithI18n } from "../../test/i18n";
@@ -59,6 +59,92 @@ describe("run timeout settings", () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith({ ...value, idleSeconds: 1800, toolIdleSeconds: 0 }));
     expect(screen.queryByText(/Source:/)).toBeNull();
     expect(screen.queryByText(/Explicit tool-call/)).toBeNull();
+  });
+  it("accepts exact decimal hours in both duration inputs", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn(async () => {});
+    renderWithI18n(<ExecutionTimeoutsSection scope="workspace" value={DEFAULT_EXECUTION_TIMEOUTS} canEdit onSave={save} />);
+    for (const [label, text] of [["No-message wait duration", "1.1"], ["No-message wait during tools duration", "0.07"]] as const) {
+      const input = screen.getByLabelText(label);
+      await user.clear(input);
+      await user.type(input, text);
+      await user.tab();
+      expect(input).toHaveValue(Number(text));
+      expect(input).toHaveAttribute("aria-invalid", "false");
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ ...DEFAULT_EXECUTION_TIMEOUTS, idleSeconds: 3960, toolIdleSeconds: 252 }));
+  });
+  it.each(["workspace", "agent"] as const)("clears the old success message on either %s duration edit", async (scope) => {
+    function SavedPolicy() {
+      const [value, setValue] = useState<ExecutionTimeouts | null>(DEFAULT_EXECUTION_TIMEOUTS);
+      return <ExecutionTimeoutsSection scope={scope} value={value} canEdit onSave={async (next) => { setValue(next); }} />;
+    }
+    renderWithI18n(<SavedPolicy />);
+    for (const label of ["No-message wait duration", "No-message wait during tools duration"]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value: "3" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
+      fireEvent.change(screen.getByLabelText(label), { target: { value: "4" } });
+      expect(screen.queryByText("Saved")).toBeNull();
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
+    }
+  });
+  it("keeps invalid decimal drafts visible and blocks saving them", () => {
+    const save = vi.fn();
+    renderWithI18n(<ExecutionTimeoutsSection scope="workspace" value={DEFAULT_EXECUTION_TIMEOUTS} canEdit onSave={save} />);
+    const input = screen.getByLabelText("No-message wait duration");
+    fireEvent.change(input, { target: { value: "0.0001" } });
+    expect(input).toHaveValue(0.0001);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(save).not.toHaveBeenCalled();
+  });
+  it("waits for the submission to finish before showing success after a cache refresh", async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    function SavedPolicy() {
+      const [value, setValue] = useState<ExecutionTimeouts | null>(DEFAULT_EXECUTION_TIMEOUTS);
+      return <ExecutionTimeoutsSection scope="workspace" value={value} canEdit onSave={async (next) => { setValue(next); await pending; }} />;
+    }
+    renderWithI18n(<SavedPolicy />);
+    fireEvent.change(screen.getByLabelText("No-message wait duration"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByText("Saving…")).toBeInTheDocument();
+    expect(screen.queryByText("Saved")).toBeNull();
+    expect(screen.getByLabelText("No-message wait duration")).toBeDisabled();
+    await act(async () => { finish(); });
+    expect(screen.getByText("Saved")).toBeInTheDocument();
+    expect(screen.getByLabelText("No-message wait duration")).toBeEnabled();
+  });
+  it("retains the failed draft and error when the agent cache rolls back, then retries", async () => {
+    let fail!: (error: Error) => void;
+    const pending = new Promise<void>((_resolve, reject) => { fail = reject; });
+    let rejectFirst = true;
+    function SavedPolicy() {
+      const [value, setValue] = useState<ExecutionTimeouts | null>(DEFAULT_EXECUTION_TIMEOUTS);
+      return <ExecutionTimeoutsSection scope="agent" value={value} canEdit onSave={async (next) => {
+        setValue(next);
+        if (rejectFirst) {
+          try { await pending; }
+          catch (error) { setValue(DEFAULT_EXECUTION_TIMEOUTS); throw error; }
+        }
+      }} />;
+    }
+    renderWithI18n(<SavedPolicy />);
+    fireEvent.change(screen.getByLabelText("No-message wait duration"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await act(async () => { fail(new Error("Save failed after optimistic update")); });
+    expect(screen.getByRole("alert")).toHaveTextContent("Save failed after optimistic update");
+    expect(screen.getByLabelText("No-message wait duration")).toHaveValue(3);
+    expect(screen.queryByText("Saved")).toBeNull();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    rejectFirst = false;
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
+    expect(screen.getByLabelText("No-message wait duration")).toHaveValue(3);
   });
   it("shows inherited values, restores inheritance, and hides OpenCode fields on DSH", async () => {
     const save = vi.fn(async () => {});

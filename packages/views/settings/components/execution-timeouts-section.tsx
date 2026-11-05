@@ -10,6 +10,7 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { useT } from "../../i18n";
+import { hoursToSeconds } from "./duration-hours";
 import { SettingsCard, SettingsRow, SettingsSaveState, SettingsSection, type SettingsSaveStatus } from "./settings-layout";
 
 interface Props {
@@ -42,7 +43,7 @@ function DurationField({ label, value, zeroLabel, disabled, onChange }: {
   const id = useId();
   const [text, setText] = useState(() => value === 0 ? "" : String(value / 3600));
   useEffect(() => {
-    setText((current) => Number(current || "0") * 3600 === value ? current : value === 0 ? "" : String(value / 3600));
+    setText((current) => Object.is(hoursToSeconds(current), value) ? current : value === 0 ? "" : String(value / 3600));
   }, [value]);
   const valid = Number.isInteger(value) && value >= 0 && value <= MAX_TIMEOUT_SECONDS;
   return (
@@ -53,7 +54,7 @@ function DurationField({ label, value, zeroLabel, disabled, onChange }: {
             aria-invalid={!valid} disabled={disabled} min={0} step="any" placeholder={zeroLabel}
             className="w-14 appearance-none px-2 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             value={text}
-            onChange={(e) => { setText(e.target.value); onChange(e.target.value === "" ? 0 : Number(e.target.value) * 3600); }}
+            onChange={(e) => { setText(e.target.value); onChange(hoursToSeconds(e.target.value)); }}
             onBlur={() => { if (value === 0) setText(""); }} />
           <span className="text-body text-muted-foreground">{t(($) => $.execution_timeouts.hours)}</span>
         </div>
@@ -75,10 +76,12 @@ export function ExecutionTimeoutsSection({ scope, value: storedValue, inherited:
   const [status, setStatus] = useState<SettingsSaveStatus>("idle");
   const [error, setError] = useState("");
   useEffect(() => {
+    // Optimistic cache updates and rollbacks must not erase the submitted draft.
+    if (serverSupported && (status === "saving" || status === "error")) return;
     setEnabled(value !== null);
     setDraft(value ?? inherited ?? NEW_EXECUTION_TIMEOUTS);
     setStatus((current) =>
-      (current === "saving" || current === "saved") && savedKey === JSON.stringify(enabled ? draft : null)
+      current === "saved" && savedKey === JSON.stringify(enabled ? draft : null)
         ? "saved" : "idle",
     );
     setError("");
@@ -97,6 +100,11 @@ export function ExecutionTimeoutsSection({ scope, value: storedValue, inherited:
     setStatus("saving"); setError("");
     try { await onSave(policy); setStatus("saved"); }
     catch (err) { setStatus("error"); setError(err instanceof Error ? err.message : t(($) => $.auto_save.failed)); }
+  }
+  function updateDuration(key: "idleSeconds" | "toolIdleSeconds", seconds: number) {
+    setDraft((current) => ({ ...current, [key]: seconds }));
+    setStatus("idle");
+    setError("");
   }
   return (
     <SettingsSection title={t(($) => $.execution_timeouts.title)} anchor="execution-timeouts"
@@ -117,10 +125,10 @@ export function ExecutionTimeoutsSection({ scope, value: storedValue, inherited:
         {(enabled || effective) && <>
           <DurationField label={t(($) => $.execution_timeouts.idle)} value={shown.idleSeconds}
             zeroLabel={t(($) => $.execution_timeouts.off)} disabled={disabled}
-            onChange={(n) => setDraft({ ...draft, idleSeconds: n })} />
+            onChange={(n) => updateDuration("idleSeconds", n)} />
           <DurationField label={t(($) => $.execution_timeouts.tool_idle)} value={shown.toolIdleSeconds}
             zeroLabel={t(($) => $.execution_timeouts.unlimited)} disabled={disabled}
-            onChange={(n) => setDraft({ ...draft, toolIdleSeconds: n })} />
+            onChange={(n) => updateDuration("toolIdleSeconds", n)} />
         </>}
       </SettingsCard>
       {error && <p role="alert" className="text-body text-destructive">{error}</p>}
