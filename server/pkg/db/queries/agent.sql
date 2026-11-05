@@ -124,14 +124,30 @@ RETURNING *;
 -- Distinguish "field omitted" (preserve) from "explicit clear" via
 -- ClearAgentComposioToolkitAllowlist below, mirroring the
 -- thinking_level / mcp_config two-query pattern: COALESCE can't restore NULL.
+-- Only an execution_timeouts-only object is a partial runtime_config write.
+-- Other objects retain replacement semantics, including omitted gateway keys.
+-- Older editors omit execution_timeouts: carry only that reserved key forward.
 UPDATE agent SET
     name = COALESCE(sqlc.narg('name'), name),
     description = COALESCE(sqlc.narg('description'), description),
     avatar_url = COALESCE(sqlc.narg('avatar_url'), avatar_url),
     runtime_config = CASE
         WHEN sqlc.narg('runtime_config')::jsonb IS NULL THEN runtime_config
-        WHEN sqlc.narg('runtime_config')::jsonb->'execution_timeouts' = 'null'::jsonb THEN (COALESCE(runtime_config, '{}'::jsonb) || sqlc.narg('runtime_config')::jsonb) - 'execution_timeouts'
-        ELSE (COALESCE(runtime_config, '{}'::jsonb) || sqlc.narg('runtime_config')::jsonb)
+        ELSE
+            (CASE
+                WHEN sqlc.narg('runtime_config')::jsonb ? 'execution_timeouts'
+                     AND sqlc.narg('runtime_config')::jsonb - 'execution_timeouts' = '{}'::jsonb
+                    THEN COALESCE(runtime_config, '{}'::jsonb) - 'execution_timeouts'
+                ELSE sqlc.narg('runtime_config')::jsonb - 'execution_timeouts'
+            END)
+            || (CASE
+                WHEN sqlc.narg('runtime_config')::jsonb->'execution_timeouts' = 'null'::jsonb THEN '{}'::jsonb
+                WHEN sqlc.narg('runtime_config')::jsonb ? 'execution_timeouts'
+                    THEN jsonb_build_object('execution_timeouts', sqlc.narg('runtime_config')::jsonb->'execution_timeouts')
+                WHEN runtime_config ? 'execution_timeouts'
+                    THEN jsonb_build_object('execution_timeouts', runtime_config->'execution_timeouts')
+                ELSE '{}'::jsonb
+            END)
     END,
     runtime_mode = COALESCE(sqlc.narg('runtime_mode'), runtime_mode),
     runtime_id = COALESCE(sqlc.narg('runtime_id'), runtime_id),

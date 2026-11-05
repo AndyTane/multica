@@ -60,9 +60,6 @@ func TestExecutionTimeoutSettingsPersistence(t *testing.T) {
 	}
 	updateWS(`{"execution_timeouts":`+timeoutPolicyJSON+`}`, http.StatusOK)
 	updateAgent(`{"execution_timeouts":`+strings.Replace(timeoutPolicyJSON, "7200", "0", 1)+`}`, http.StatusOK)
-	// Old clients omit the reserved key and must not erase the saved policy.
-	updateWS(`{"github_pr_merge_enabled":true}`, http.StatusOK)
-	updateAgent(`{"model_hint":"preserve"}`, http.StatusOK)
 	read := func() (map[string]any, map[string]any) {
 		t.Helper()
 		var ws, rc []byte
@@ -76,6 +73,14 @@ func TestExecutionTimeoutSettingsPersistence(t *testing.T) {
 	ws, rc := read()
 	if ws["unrelated"] == nil || ws["execution_timeouts"] == nil || rc["gateway"] == nil || rc["context_compaction"] == nil || rc["execution_timeouts"] == nil {
 		t.Fatalf("partial update lost settings: %+v %+v", ws, rc)
+	}
+	// Existing editors replace ordinary keys, but an omitted reserved key
+	// must not erase the policy saved by the new timeout editor.
+	updateWS(`{"github_pr_merge_enabled":true}`, http.StatusOK)
+	updateAgent(`{"model_hint":"preserve"}`, http.StatusOK)
+	ws, rc = read()
+	if ws["execution_timeouts"] == nil || rc["execution_timeouts"] == nil || ws["unrelated"] != nil || rc["gateway"] != nil || rc["context_compaction"] != nil {
+		t.Fatalf("replacement contract violated: %+v %+v", ws, rc)
 	}
 	updateAgent(`{"execution_timeouts":null}`, http.StatusOK)
 	_, rc = read()

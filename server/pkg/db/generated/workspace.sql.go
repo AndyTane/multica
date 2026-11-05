@@ -440,8 +440,21 @@ UPDATE workspace SET
     context = COALESCE($4, context),
     settings = CASE
         WHEN $5::jsonb IS NULL THEN settings
-        WHEN $5::jsonb->'execution_timeouts' = 'null'::jsonb THEN (COALESCE(settings, '{}'::jsonb) || $5::jsonb) - 'execution_timeouts'
-        ELSE (COALESCE(settings, '{}'::jsonb) || $5::jsonb)
+        ELSE
+            (CASE
+                WHEN $5::jsonb ? 'execution_timeouts'
+                     AND $5::jsonb - 'execution_timeouts' = '{}'::jsonb
+                    THEN COALESCE(settings, '{}'::jsonb) - 'execution_timeouts'
+                ELSE $5::jsonb - 'execution_timeouts'
+            END)
+            || (CASE
+                WHEN $5::jsonb->'execution_timeouts' = 'null'::jsonb THEN '{}'::jsonb
+                WHEN $5::jsonb ? 'execution_timeouts'
+                    THEN jsonb_build_object('execution_timeouts', $5::jsonb->'execution_timeouts')
+                WHEN settings ? 'execution_timeouts'
+                    THEN jsonb_build_object('execution_timeouts', settings->'execution_timeouts')
+                ELSE '{}'::jsonb
+            END)
     END,
     repos = COALESCE($6, repos),
     issue_prefix = COALESCE($7, issue_prefix),
@@ -462,6 +475,8 @@ type UpdateWorkspaceParams struct {
 	AvatarUrl   pgtype.Text `json:"avatar_url"`
 }
 
+// Timeout-only writes patch settings. All other objects replace ordinary keys;
+// preserve only execution_timeouts when an older settings editor omits it.
 func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error) {
 	row := q.db.QueryRow(ctx, updateWorkspace,
 		arg.ID,
