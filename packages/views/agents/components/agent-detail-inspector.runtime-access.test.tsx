@@ -13,6 +13,11 @@ import { renderWithI18n } from "../../test/i18n";
 const mockInitiateListModels = vi.hoisted(() => vi.fn());
 const mockGetListModelsResult = vi.hoisted(() => vi.fn());
 
+vi.mock("@multica/core/paths", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/paths")>()),
+  useCurrentWorkspace: () => null,
+}));
+
 vi.mock("@multica/core/api", () => ({
   api: {
     initiateListModels: (...args: unknown[]) =>
@@ -33,6 +38,7 @@ vi.mock("./inspector/runtime-picker", () => ({
 import { AgentDetailInspector } from "./agent-detail-inspector";
 
 const agent = {
+  execution_timeouts_supported: true,
   id: "agent-1",
   workspace_id: "workspace-1",
   name: "Lambda",

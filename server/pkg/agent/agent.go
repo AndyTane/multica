@@ -24,6 +24,12 @@ type Backend interface {
 
 // ExecOptions configures a single execution.
 type ExecOptions struct {
+	// ExecutionTimeouts is immutable per execution and replaces local watchdog budgets.
+	ExecutionTimeouts *ExecutionTimeouts
+	// OpenCodeShellTimeout sets this subprocess's shell default, without mutating user env.
+	OpenCodeShellTimeout time.Duration
+	// DisableSemanticInactivity preserves explicit zero platform policy on Codex.
+	DisableSemanticInactivity bool
 	// EnableTaskSupplement installs provider hooks only for runs whose daemon/server
 	// capability handshake enabled additional messages.
 	EnableTaskSupplement bool

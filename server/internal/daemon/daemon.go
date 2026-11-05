@@ -8689,18 +8689,22 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		taskModelSelection{Model: model, ThinkingLevel: thinkingLevel, ServiceTier: serviceTier}, taskLog)
 	model, thinkingLevel, serviceTier = selection.Model, selection.ThinkingLevel, selection.ServiceTier
 
+	runConfig := executionConfigForTask(d.cfg, task.ExecutionTimeouts)
 	var idleWatchdogTimeout time.Duration
 	if provider == "opencode" || provider == "codearts" {
-		idleWatchdogTimeout = d.cfg.OpenCodeIdleWatchdog
+		idleWatchdogTimeout = runConfig.OpenCodeIdleWatchdog
 	}
 	execOpts := agent.ExecOptions{
+		ExecutionTimeouts:          task.ExecutionTimeouts,
+		OpenCodeShellTimeout:       openCodeShellTimeout(task.ExecutionTimeouts, provider),
+		DisableSemanticInactivity:  task.ExecutionTimeouts != nil && (runConfig.AgentIdleWatchdog == 0 || runConfig.AgentToolWatchdog == 0),
 		EnableTaskSupplement:       taskSupplementNegotiated,
 		Cwd:                        env.WorkDir,
 		Model:                      model,
 		ThreadName:                 deriveTaskThreadName(task),
-		Timeout:                    d.cfg.AgentTimeout,
-		SemanticInactivityTimeout:  d.cfg.CodexSemanticInactivityTimeout,
-		FirstTurnNoProgressTimeout: d.cfg.CodexFirstTurnNoProgressTimeout,
+		Timeout:                    runConfig.AgentTimeout,
+		SemanticInactivityTimeout:  runConfig.CodexSemanticInactivityTimeout,
+		FirstTurnNoProgressTimeout: runConfig.CodexFirstTurnNoProgressTimeout,
 		IdleWatchdogTimeout:        idleWatchdogTimeout,
 		HandshakeTimeout:           d.cfg.CodexHandshakeTimeout,
 		TurnInterruptTimeout:       d.cfg.CodexTurnInterruptTimeout,
@@ -8791,6 +8795,20 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	})
 	defer d.clearActiveRepoCheckoutTask(agentToken)
 
+	timeoutSource := task.ExecutionTimeoutsSource
+	if timeoutSource == "" {
+		timeoutSource = "client"
+		if task.ExecutionTimeouts != nil {
+			timeoutSource = "server"
+		}
+	}
+	taskLog.Info("execution timeout budgets",
+		"source", timeoutSource,
+		"idle_watchdog", effectiveIdleWatchdog(runConfig, execOpts.IdleWatchdogTimeout),
+		"tool_watchdog", runConfig.AgentToolWatchdog,
+		"run_timeout", execOpts.Timeout,
+		"opencode_shell_timeout", execOpts.OpenCodeShellTimeout,
+	)
 	taskLog.Debug("invoking backend",
 		"provider", provider,
 		"model", model,
@@ -8800,8 +8818,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		"mcp_config", len(mcpConfig) > 0,
 		"inline_system_prompt", execOpts.SystemPrompt != "",
 		"resume_session", execOpts.ResumeSessionID != "",
+		"execution_timeouts_source", task.ExecutionTimeoutsSource,
+		"tool_watchdog", runConfig.AgentToolWatchdog,
 		"timeout", execOpts.Timeout,
-		"idle_watchdog", execOpts.IdleWatchdogTimeout,
+		"idle_watchdog", effectiveIdleWatchdog(runConfig, execOpts.IdleWatchdogTimeout),
 	)
 
 	// Shared across the resume-retry below so the retry's transcript rows
@@ -8989,7 +9009,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		// goes through the FailTask path that forwards session info.
 		comment := result.Error
 		if comment == "" {
-			comment = fmt.Sprintf("%s timed out after %s", provider, d.cfg.AgentTimeout)
+			comment = fmt.Sprintf("%s timed out after %s", provider, execOpts.Timeout)
 		}
 		failureReason := "timeout"
 		if reason, ok := classifyResumeUnsafeTimeout(provider, comment); ok {
@@ -9015,7 +9035,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		// operators can tell idle-stop apart from a real timeout.
 		comment := result.Error
 		if comment == "" {
-			comment = idleWatchdogReason(d.cfg.AgentIdleWatchdog)
+			comment = idleWatchdogReason(runConfig.AgentIdleWatchdog)
 		}
 		return TaskResult{
 			Status:        "blocked",
@@ -9373,7 +9393,11 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 	var drainCtx context.Context
 	var drainCancel context.CancelFunc
 	if opts.Timeout > 0 {
-		drainCtx, drainCancel = context.WithTimeout(agentCtx, opts.Timeout+30*time.Second)
+		drainTimeout := opts.Timeout + 30*time.Second
+		if drainTimeout < opts.Timeout {
+			drainTimeout = opts.Timeout
+		}
+		drainCtx, drainCancel = context.WithTimeout(agentCtx, drainTimeout)
 	} else {
 		drainCtx, drainCancel = context.WithCancel(agentCtx)
 	}
@@ -9398,13 +9422,11 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 	// idleWatchdogThreshold records (as nanos) which silence budget actually
 	// tripped the watchdog — the idle window or the larger in-flight-tool
 	// window — so the failure message reports the real duration.
-	idleWindow := d.cfg.AgentIdleWatchdog
+	runConfig := executionConfigForTask(d.cfg, opts.ExecutionTimeouts)
+	idleWindow := effectiveIdleWatchdog(runConfig, opts.IdleWatchdogTimeout)
 	// A provider may opt into a shorter per-run no-message budget. The global
 	// zero remains authoritative so MULTICA_AGENT_IDLE_WATCHDOG=0 still disables
 	// the entire watchdog suite. Tool calls continue to use AgentToolWatchdog.
-	if idleWindow > 0 && opts.IdleWatchdogTimeout > 0 && opts.IdleWatchdogTimeout < idleWindow {
-		idleWindow = opts.IdleWatchdogTimeout
-	}
 	var idleWatchdogThreshold atomic.Int64
 	idleWatchdogThreshold.Store(int64(idleWindow))
 	watchdogToolCount := inFlightTools.Load
@@ -9436,7 +9458,7 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 	watchdogCtx, stopWatchdog := context.WithCancel(agentCtx)
 	defer stopWatchdog()
 	if idleWindow > 0 {
-		go d.runIdleWatchdog(watchdogCtx, idleWindow, d.cfg.AgentToolWatchdog, &lastActivityAt, watchdogToolCount, &idleWatchdogFired, &idleWatchdogThreshold, agentCancel, session.Messages, session.InterruptBackgroundTools, terminalObserved, taskLog)
+		go d.runIdleWatchdog(watchdogCtx, idleWindow, runConfig.AgentToolWatchdog, &lastActivityAt, watchdogToolCount, &idleWatchdogFired, &idleWatchdogThreshold, agentCancel, session.Messages, session.InterruptBackgroundTools, terminalObserved, taskLog)
 	}
 
 	// drainFinished closes after the drain goroutine has flushed the last

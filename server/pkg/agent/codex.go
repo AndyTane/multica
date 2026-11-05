@@ -1086,7 +1086,7 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 
 	timeout := opts.Timeout
 	semanticInactivityTimeout := opts.SemanticInactivityTimeout
-	if semanticInactivityTimeout == 0 {
+	if semanticInactivityTimeout == 0 && !opts.DisableSemanticInactivity {
 		semanticInactivityTimeout = defaultCodexSemanticInactivityTimeout
 	}
 	handshakeTimeout, threadHandshakeTimeout := resolveCodexHandshakeTimeouts(opts)
@@ -1737,8 +1737,16 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 		lastSemanticActivityDescription := "turn/start"
 		semanticTimer := time.NewTimer(semanticInactivityTimeout)
 		defer semanticTimer.Stop()
+		semanticTimerC := semanticTimer.C
+		if opts.DisableSemanticInactivity {
+			semanticTimer.Stop()
+			semanticTimerC = nil
+		}
 
 		firstTurnNoProgressTimeout := codexFirstTurnNoProgressTimeout(semanticInactivityTimeout, opts.FirstTurnNoProgressTimeout)
+		if opts.DisableSemanticInactivity {
+			firstTurnNoProgressTimeout = 0
+		}
 		var firstTurnNoProgressTimer *time.Timer
 		var firstTurnNoProgressTimerC <-chan time.Time
 		firstTurnStarted := false
@@ -1759,12 +1767,16 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 			case activity := <-semanticActivityCh:
 				lastSemanticActivity = time.Now()
 				lastSemanticActivityDescription = activity
-				resetTimer(semanticTimer, semanticInactivityTimeout)
+				if !opts.DisableSemanticInactivity {
+					resetTimer(semanticTimer, semanticInactivityTimeout)
+				}
 				if activity == "status:running" && !firstTurnStarted {
 					firstTurnStarted = true
 					firstItemWait.start(time.Now(), c.activeTurnID())
-					firstTurnNoProgressTimer = time.NewTimer(firstTurnNoProgressTimeout)
-					firstTurnNoProgressTimerC = firstTurnNoProgressTimer.C
+					if !opts.DisableSemanticInactivity {
+						firstTurnNoProgressTimer = time.NewTimer(firstTurnNoProgressTimeout)
+						firstTurnNoProgressTimerC = firstTurnNoProgressTimer.C
+					}
 				} else if firstTurnStarted && !firstTurnProgressObserved && isCodexFirstTurnProgressActivity(activity) {
 					firstTurnProgressObserved = true
 					if activity == "error:terminal" {
@@ -1794,7 +1806,7 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 					"timeout", firstTurnNoProgressTimeout.String(),
 					"last_activity", lastSemanticActivityDescription,
 				)
-			case <-semanticTimer.C:
+			case <-semanticTimerC:
 				waitingForTurn = false
 				finishFirstItemWait("semantic_inactivity_timeout")
 				finalStatus = "timeout"

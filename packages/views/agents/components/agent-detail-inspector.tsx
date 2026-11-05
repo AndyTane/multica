@@ -37,6 +37,9 @@ import {
 import { RuntimePicker } from "./inspector/runtime-picker";
 import { ThinkingSettingField } from "./inspector/thinking-prop-row";
 import { ServiceTierSettingField } from "./inspector/service-tier-setting-field";
+import { useCurrentWorkspace } from "@multica/core/paths";
+import { readExecutionTimeouts, executionTimeoutsPatch, supportsExecutionTimeouts, supportsServerExecutionTimeouts } from "@multica/core/agents/execution-timeouts";
+import { ExecutionTimeoutsSection } from "../../settings/components/execution-timeouts-section";
 
 interface InspectorProps {
   agent: Agent;
@@ -73,6 +76,7 @@ export function AgentDetailInspector({
 }: InspectorProps) {
   const { t } = useT("agents");
   const { t: ts } = useT("settings");
+  const workspace = useCurrentWorkspace();
   const update = useCallback(
     (data: Record<string, unknown>) => onUpdate(agent.id, data),
     [agent.id, onUpdate],
@@ -312,6 +316,13 @@ export function AgentDetailInspector({
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
+      <ExecutionTimeoutsSection key={agent.id} scope="agent" canEdit={canEdit}
+        serverSupported={supportsServerExecutionTimeouts(agent)}
+        value={readExecutionTimeouts(agent.runtime_config)}
+        inherited={readExecutionTimeouts(workspace?.settings)}
+        invalid={agent.runtime_config?.execution_timeouts != null && !readExecutionTimeouts(agent.runtime_config)}
+        provider={runtime?.provider} clientSupported={runtime ? supportsExecutionTimeouts(runtime.metadata) : undefined}
+        onSave={(policy) => update({ runtime_config: executionTimeoutsPatch(policy) })} />
     </div>
   );
 }

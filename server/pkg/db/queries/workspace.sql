@@ -45,11 +45,30 @@ VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: UpdateWorkspace :one
+-- Timeout-only writes patch settings. All other objects replace ordinary keys;
+-- preserve only execution_timeouts when an older settings editor omits it.
 UPDATE workspace SET
     name = COALESCE(sqlc.narg('name'), name),
     description = COALESCE(sqlc.narg('description'), description),
     context = COALESCE(sqlc.narg('context'), context),
-    settings = COALESCE(sqlc.narg('settings'), settings),
+    settings = CASE
+        WHEN sqlc.narg('settings')::jsonb IS NULL THEN settings
+        ELSE
+            (CASE
+                WHEN sqlc.narg('settings')::jsonb ? 'execution_timeouts'
+                     AND sqlc.narg('settings')::jsonb - 'execution_timeouts' = '{}'::jsonb
+                    THEN COALESCE(settings, '{}'::jsonb) - 'execution_timeouts'
+                ELSE sqlc.narg('settings')::jsonb - 'execution_timeouts'
+            END)
+            || (CASE
+                WHEN sqlc.narg('settings')::jsonb->'execution_timeouts' = 'null'::jsonb THEN '{}'::jsonb
+                WHEN sqlc.narg('settings')::jsonb ? 'execution_timeouts'
+                    THEN jsonb_build_object('execution_timeouts', sqlc.narg('settings')::jsonb->'execution_timeouts')
+                WHEN settings ? 'execution_timeouts'
+                    THEN jsonb_build_object('execution_timeouts', settings->'execution_timeouts')
+                ELSE '{}'::jsonb
+            END)
+    END,
     repos = COALESCE(sqlc.narg('repos'), repos),
     issue_prefix = COALESCE(sqlc.narg('issue_prefix'), issue_prefix),
     avatar_url = COALESCE(sqlc.narg('avatar_url'), avatar_url),

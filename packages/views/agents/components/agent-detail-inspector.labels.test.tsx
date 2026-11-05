@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { Agent } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 import { AgentDetailInspector } from "./agent-detail-inspector";
+
+vi.mock("@multica/core/paths", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/paths")>()),
+  useCurrentWorkspace: () => null,
+}));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
@@ -37,6 +42,7 @@ vi.mock("./inspector/service-tier-setting-field", () => ({
 }));
 
 const agent = {
+  execution_timeouts_supported: true,
   id: "agent-1",
   workspace_id: "workspace-1",
   name: "Lambda",
@@ -47,6 +53,17 @@ const agent = {
 describe("AgentDetailInspector labels", () => {
   afterEach(() => {
     cleanup();
+  });
+
+  it("wires an explicit timeout override to the existing agent update mutation", async () => {
+    const update = vi.fn(async () => {});
+    renderWithI18n(<AgentDetailInspector agent={agent} runtime={null} runtimes={[]} members={[]}
+      currentUserId="user-1" canEdit onUpdate={update} />);
+    fireEvent.click(screen.getByRole("switch", { name: "Use workspace defaults" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith("agent-1", {
+      runtime_config: { execution_timeouts: { idle_seconds: 7200, tool_idle_seconds: 7200, run_seconds: 0, opencode_idle_seconds: 0 } },
+    }));
   });
 
   // Agent labels were removed from the product (MUL-5600). Label Settings no

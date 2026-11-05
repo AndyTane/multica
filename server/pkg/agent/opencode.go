@@ -172,6 +172,9 @@ func (b *opencodeBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	}
 
 	env := buildEnv(b.cfg.Env)
+	if opts.OpenCodeShellTimeout > 0 {
+		env = append(env, fmt.Sprintf("OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS=%d", opts.OpenCodeShellTimeout.Milliseconds()))
+	}
 	// Keep daemon-mode runs non-interactive without relying on
 	// OPENCODE_PERMISSION. OpenCode deep-merges that env override into user
 	// config while preserving existing key order, so a pre-existing

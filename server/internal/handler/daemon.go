@@ -3532,6 +3532,14 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// shared context. Empty string when the owner hasn't set one; the daemon
 	// skips rendering the heading in that case.
 	if ws, err := h.Queries.GetWorkspace(r.Context(), parseUUID(resp.WorkspaceID)); err == nil {
+		policy, source, policyErr := resolveClaimExecutionTimeouts(r, ws.Settings, agent.RuntimeConfig)
+		if policyErr != nil {
+			return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, h.failClaimedTaskBeforeLaunch(
+				r.Context(), task, policyErr.Error(), taskfailure.ReasonAgentRuntimeVersionUnsupported,
+				"execution_timeouts_unavailable", http.StatusConflict, policyErr.Error())
+		}
+		resp.ExecutionTimeouts = policy
+		resp.ExecutionTimeoutsSource = source
 		resp.WorkspaceSlug = ws.Slug
 		if issueNumber > 0 {
 			resp.IssueIdentifier = service.IssueIdentifier(ws.IssuePrefix, issueNumber)
@@ -3540,11 +3548,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			resp.WorkspaceContext = ws.Context.String
 		}
 	} else {
-		slog.Warn("task claim: failed to load workspace for context injection",
-			"task_id", uuidToString(task.ID),
-			"workspace_id", resp.WorkspaceID,
-			"error", err,
-		)
+		return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, h.rejectClaimSourceLoad(r.Context(), task, err, "workspace timeout policy", resp.WorkspaceID)
 	}
 
 	// Workspace status catalog (MUL-6460): active CUSTOM statuses only, so the

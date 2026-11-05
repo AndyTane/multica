@@ -52,8 +52,9 @@ type AgentConversationStarter struct {
 }
 
 type AgentResponse struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
+	ExecutionTimeoutsSupported bool   `json:"execution_timeouts_supported"`
+	ID                         string `json:"id"`
+	WorkspaceID                string `json:"workspace_id"`
 	// RuntimeID is the empty string when the agent is unbound — it kept its
 	// configuration and history when its runtime was deleted, and needs a new
 	// runtime before it can run again (MUL-5559). The wire type stays a string
@@ -209,39 +210,40 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 	composioAllowlist := a.ComposioToolkitAllowlist
 
 	return AgentResponse{
-		ID:                       uuidToString(a.ID),
-		WorkspaceID:              uuidToString(a.WorkspaceID),
-		RuntimeID:                uuidToString(a.RuntimeID),
-		RuntimeBound:             a.RuntimeID.Valid,
-		Name:                     a.Name,
-		Description:              a.Description,
-		Instructions:             a.Instructions,
-		ConversationStarters:     conversationStarters,
-		SystemKey:                a.SystemKey.String,
-		SystemInstructions:       systemInstructionsFor(a),
-		AvatarURL:                h.resolveAvatarURLPtr(textToPtr(a.AvatarUrl)),
-		RuntimeMode:              a.RuntimeMode,
-		RuntimeConfig:            rc,
-		CustomArgs:               customArgs,
-		McpConfig:                mcpConfig,
-		HasCustomEnv:             envKeyCount > 0,
-		CustomEnvKeyCount:        envKeyCount,
-		Visibility:               a.Visibility,
-		PermissionMode:           a.PermissionMode,
-		InvocationTargets:        []AgentInvocationTargetDTO{},
-		Status:                   a.Status,
-		MaxConcurrentTasks:       a.MaxConcurrentTasks,
-		Model:                    a.Model.String,
-		ThinkingLevel:            a.ThinkingLevel.String,
-		ServiceTier:              a.ServiceTier.String,
-		ComposioToolkitAllowlist: composioAllowlist,
-		OwnerID:                  uuidToPtr(a.OwnerID),
-		Skills:                   []AgentSkillSummary{},
-		DisabledRuntimeSkills:    decodeDisabledRuntimeSkills(a.DisabledRuntimeSkills),
-		CreatedAt:                timestampToString(a.CreatedAt),
-		UpdatedAt:                timestampToString(a.UpdatedAt),
-		ArchivedAt:               timestampToPtr(a.ArchivedAt),
-		ArchivedBy:               uuidToPtr(a.ArchivedBy),
+		ExecutionTimeoutsSupported: true,
+		ID:                         uuidToString(a.ID),
+		WorkspaceID:                uuidToString(a.WorkspaceID),
+		RuntimeID:                  uuidToString(a.RuntimeID),
+		RuntimeBound:               a.RuntimeID.Valid,
+		Name:                       a.Name,
+		Description:                a.Description,
+		Instructions:               a.Instructions,
+		ConversationStarters:       conversationStarters,
+		SystemKey:                  a.SystemKey.String,
+		SystemInstructions:         systemInstructionsFor(a),
+		AvatarURL:                  h.resolveAvatarURLPtr(textToPtr(a.AvatarUrl)),
+		RuntimeMode:                a.RuntimeMode,
+		RuntimeConfig:              rc,
+		CustomArgs:                 customArgs,
+		McpConfig:                  mcpConfig,
+		HasCustomEnv:               envKeyCount > 0,
+		CustomEnvKeyCount:          envKeyCount,
+		Visibility:                 a.Visibility,
+		PermissionMode:             a.PermissionMode,
+		InvocationTargets:          []AgentInvocationTargetDTO{},
+		Status:                     a.Status,
+		MaxConcurrentTasks:         a.MaxConcurrentTasks,
+		Model:                      a.Model.String,
+		ThinkingLevel:              a.ThinkingLevel.String,
+		ServiceTier:                a.ServiceTier.String,
+		ComposioToolkitAllowlist:   composioAllowlist,
+		OwnerID:                    uuidToPtr(a.OwnerID),
+		Skills:                     []AgentSkillSummary{},
+		DisabledRuntimeSkills:      decodeDisabledRuntimeSkills(a.DisabledRuntimeSkills),
+		CreatedAt:                  timestampToString(a.CreatedAt),
+		UpdatedAt:                  timestampToString(a.UpdatedAt),
+		ArchivedAt:                 timestampToPtr(a.ArchivedAt),
+		ArchivedBy:                 uuidToPtr(a.ArchivedBy),
 	}
 }
 
@@ -360,9 +362,11 @@ type TaskCancellationActor struct {
 }
 
 type AgentTaskResponse struct {
-	StartClaimSupported      bool                   `json:"start_claim_supported,omitempty"`
-	CancelledByCommentChange bool                   `json:"cancelled_by_comment_change,omitempty"`
-	CancelledBy              *TaskCancellationActor `json:"cancelled_by,omitempty"`
+	ExecutionTimeouts        *agent.ExecutionTimeouts `json:"execution_timeouts,omitempty"`
+	ExecutionTimeoutsSource  string                   `json:"execution_timeouts_source,omitempty"`
+	StartClaimSupported      bool                     `json:"start_claim_supported,omitempty"`
+	CancelledByCommentChange bool                     `json:"cancelled_by_comment_change,omitempty"`
+	CancelledBy              *TaskCancellationActor   `json:"cancelled_by,omitempty"`
 
 	ID                   string                 `json:"id"`
 	AgentID              string                 `json:"agent_id"`
@@ -1532,6 +1536,13 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	// drop it rather than persisting a literal "***" as a real bearer token.
 	preserveMaskedGatewayToken(req.RuntimeConfig, nil)
 	rc, _ := json.Marshal(req.RuntimeConfig)
+	if !allowExecutionTimeoutWrite(w, r, rawFields["runtime_config"]) {
+		return
+	}
+	if _, err := agent.ParseExecutionTimeouts(rawFields["runtime_config"]); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if _, err := agent.ParseContextCompaction(rc); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1975,6 +1986,13 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		// and silently destroys the real secret (issue #3260).
 		preserveMaskedGatewayToken(req.RuntimeConfig, existing.RuntimeConfig)
 		rc, _ := json.Marshal(req.RuntimeConfig)
+		if !allowExecutionTimeoutWrite(w, r, rawFields["runtime_config"]) {
+			return
+		}
+		if _, err := agent.ParseExecutionTimeouts(rawFields["runtime_config"]); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		if _, err := agent.ParseContextCompaction(rc); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return

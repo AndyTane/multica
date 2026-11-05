@@ -8716,7 +8716,24 @@ UPDATE agent SET
     name = COALESCE($2, name),
     description = COALESCE($3, description),
     avatar_url = COALESCE($4, avatar_url),
-    runtime_config = COALESCE($5, runtime_config),
+    runtime_config = CASE
+        WHEN $5::jsonb IS NULL THEN runtime_config
+        ELSE
+            (CASE
+                WHEN $5::jsonb ? 'execution_timeouts'
+                     AND $5::jsonb - 'execution_timeouts' = '{}'::jsonb
+                    THEN COALESCE(runtime_config, '{}'::jsonb) - 'execution_timeouts'
+                ELSE $5::jsonb - 'execution_timeouts'
+            END)
+            || (CASE
+                WHEN $5::jsonb->'execution_timeouts' = 'null'::jsonb THEN '{}'::jsonb
+                WHEN $5::jsonb ? 'execution_timeouts'
+                    THEN jsonb_build_object('execution_timeouts', $5::jsonb->'execution_timeouts')
+                WHEN runtime_config ? 'execution_timeouts'
+                    THEN jsonb_build_object('execution_timeouts', runtime_config->'execution_timeouts')
+                ELSE '{}'::jsonb
+            END)
+    END,
     runtime_mode = COALESCE($6, runtime_mode),
     runtime_id = COALESCE($7, runtime_id),
     visibility = COALESCE($8, visibility),
@@ -8766,6 +8783,9 @@ type UpdateAgentParams struct {
 // Distinguish "field omitted" (preserve) from "explicit clear" via
 // ClearAgentComposioToolkitAllowlist below, mirroring the
 // thinking_level / mcp_config two-query pattern: COALESCE can't restore NULL.
+// Only an execution_timeouts-only object is a partial runtime_config write.
+// Other objects retain replacement semantics, including omitted gateway keys.
+// Older editors omit execution_timeouts: carry only that reserved key forward.
 func (q *Queries) UpdateAgent(ctx context.Context, arg UpdateAgentParams) (Agent, error) {
 	row := q.db.QueryRow(ctx, updateAgent,
 		arg.ID,
