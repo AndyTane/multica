@@ -1926,8 +1926,8 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 			}
 			if compactionDue(opts, tokens) {
 				outputMu.Lock()
-				output := codexDeliverableOutput(finalAnswer, lastAgentMessage)
-				outputBeforeCompaction = &output
+				deliverable := codexDeliverableOutput(output)
+				outputBeforeCompaction = &deliverable
 				outputMu.Unlock()
 				c.quarantineNotifications.Store(true)
 				if compactErr := c.compactForRun(runCtx, opts, "after the task", tokens); compactErr != nil {
