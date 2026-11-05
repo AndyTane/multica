@@ -321,7 +321,7 @@ export function AgentDetailInspector({
         value={readExecutionTimeouts(agent.runtime_config)}
         inherited={readExecutionTimeouts(workspace?.settings)}
         invalid={agent.runtime_config?.execution_timeouts != null && !readExecutionTimeouts(agent.runtime_config)}
-        provider={runtime?.provider} clientSupported={supportsExecutionTimeouts(runtime?.metadata)}
+        provider={runtime?.provider} clientSupported={runtime ? supportsExecutionTimeouts(runtime.metadata) : undefined}
         onSave={(policy) => update({ runtime_config: executionTimeoutsPatch(policy) })} />
     </div>
   );

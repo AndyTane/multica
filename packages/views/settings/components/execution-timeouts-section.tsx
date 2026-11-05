@@ -112,7 +112,7 @@ export function ExecutionTimeoutsSection({ scope, value: storedValue, inherited:
       <p className="text-caption text-muted-foreground">{source}</p>
       {!serverSupported && <p role="status" className="text-body text-muted-foreground">{t(($) => $.execution_timeouts.server_upgrade_required)}</p>}
       {serverSupported && invalid && <p role="alert" className="text-body text-destructive">{t(($) => $.execution_timeouts.invalid_saved)}</p>}
-      {serverSupported && scope === "agent" && (value || inherited) && !clientSupported &&
+      {serverSupported && scope === "agent" && (value || inherited) && clientSupported === false &&
         <p role="status" className="text-body text-warning-foreground">{t(($) => $.execution_timeouts.upgrade_required)}</p>}
       <SettingsCard>
         <SettingsRow label={<label htmlFor={id}>{scope === "agent" ? t(($) => $.execution_timeouts.inherit) : t(($) => $.execution_timeouts.manage)}</label>}>

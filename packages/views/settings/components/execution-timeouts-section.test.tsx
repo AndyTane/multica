@@ -7,6 +7,10 @@ import { ExecutionTimeoutsSection } from "./execution-timeouts-section";
 
 afterEach(cleanup);
 describe("run timeout settings", () => {
+  it("does not label an unbound runtime as an outdated client", () => {
+    renderWithI18n(<ExecutionTimeoutsSection scope="agent" value={DEFAULT_EXECUTION_TIMEOUTS} canEdit onSave={vi.fn()} />);
+    expect(screen.queryByText(/Client upgrade required/)).toBeNull();
+  });
   it("shows client fallback and prevents edits against a legacy server", () => {
     const save = vi.fn();
     renderWithI18n(<ExecutionTimeoutsSection scope="workspace" value={DEFAULT_EXECUTION_TIMEOUTS} canEdit serverSupported={false} onSave={save} />);
