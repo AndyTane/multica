@@ -19,7 +19,7 @@ type OpenCodeSelection struct {
 	ConfigHome string `json:"configHome"`
 }
 
-func OpenCodeEnvironment(root, profile string) (map[string]string, error) {
+func ReadOpenCodeSelection(root, profile string) (*OpenCodeSelection, error) {
 	if root == "" {
 		return nil, nil
 	}
@@ -50,6 +50,14 @@ func OpenCodeEnvironment(root, profile string) (map[string]string, error) {
 	if selected == nil {
 		return nil, nil
 	}
+	return selected, nil
+}
+
+func OpenCodeEnvironment(root, profile string) (map[string]string, error) {
+	selected, err := ReadOpenCodeSelection(root, profile)
+	if err != nil || selected == nil {
+		return nil, err
+	}
 	if selected.Disabled {
 		return map[string]string{"MULTICA_OPENCODE_PATH": filepath.Join(root, ".managed", "opencode-disabled")}, nil
 	}
@@ -57,13 +65,8 @@ func OpenCodeEnvironment(root, profile string) (map[string]string, error) {
 		if !filepath.IsAbs(entry.path) || strings.HasPrefix(entry.path, `\\`) {
 			return nil, fmt.Errorf("OpenCode %s must be a local absolute path; retry Connect.cmd", entry.label)
 		}
-		info, err := os.Stat(entry.path)
-		if err != nil || !info.Mode().IsRegular() {
-			return nil, fmt.Errorf("OpenCode %s unavailable: %s; retry Connect.cmd or use -SkipOpenCode", entry.label, entry.path)
-		}
-		if entry.label == "config" && info.Size() > 4<<20 {
-			return nil, errors.New("OpenCode config exceeds 4 MiB")
-		}
+		// File availability and syntax are engine readiness, not client liveness.
+		// Keep the selected reference even when the user must repair the file.
 	}
 	env := map[string]string{"MULTICA_OPENCODE_PATH": selected.Executable, "OPENCODE_CONFIG": selected.ConfigPath}
 	for key, value := range map[string]string{"OPENCODE_CONFIG_DIR": selected.ConfigDir, "XDG_CONFIG_HOME": selected.ConfigHome} {

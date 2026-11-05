@@ -75,8 +75,12 @@ func TestLoadConfigUsesKitOpenCodeSelection(t *testing.T) {
 	if err := os.WriteFile(config, []byte(`{"private":"DO_NOT_PRINT",broken`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, err = LoadConfig(Overrides{Profile: "office"})
-	if err == nil || strings.Contains(err.Error(), "DO_NOT_PRINT") {
-		t.Fatalf("invalid selected config should be rejected without content: %v", err)
+	cfg, err = LoadConfig(Overrides{Profile: "office"})
+	if err != nil {
+		t.Fatal("engine configuration must not terminate the client", err)
+	}
+	problem := (&Daemon{cfg: cfg}).openCodeDiagnostic(executable)
+	if problem.State != "invalid_config" || strings.Contains(problem.Message, "DO_NOT_PRINT") {
+		t.Fatalf("invalid selected config should remain pending without content: %+v", problem)
 	}
 }

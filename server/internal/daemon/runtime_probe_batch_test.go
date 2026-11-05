@@ -339,6 +339,10 @@ func newBatchFixture(t *testing.T) *batchFixture {
 	var runtimeSeq atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/api/daemon/client-heartbeat":
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "connected", "workspace_id": body["workspace_id"], "daemon_id": body["daemon_id"]})
 		case r.URL.Path == "/api/daemon/workspaces":
 			fx.mu.Lock()
 			list := append([]WorkspaceInfo(nil), fx.workspaces...)

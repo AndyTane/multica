@@ -16,7 +16,7 @@ function Reset([string]$State) {
     [IO.File]::WriteAllText((Join-Path $work 'state.txt'),$State)
     [IO.File]::WriteAllText((Join-Path $work 'calls.txt'),'')
 }
-$names=@('KIT_TEST_ROOT','KIT_BAD_JSON','KIT_STATUS_FAIL','KIT_START_FAIL','KIT_SERVER_FAIL','MULTICA_TOKEN','U_WORKERS_TASK_ID')
+$names=@('KIT_TEST_ROOT','KIT_BAD_JSON','KIT_STATUS_FAIL','KIT_START_FAIL','KIT_SERVER_FAIL','MULTICA_TOKEN','U_WORKERS_TASK_ID','MULTICA_DSH_WEB_CONFIG','KIT_EXPECT_DSH_WEB_CONFIG')
 $saved=@{}; foreach ($name in $names) { $saved[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
 try {
     $env:KIT_TEST_ROOT=$work; $env:KIT_BAD_JSON=''; $env:KIT_STATUS_FAIL=''; $env:KIT_START_FAIL=''; $env:KIT_SERVER_FAIL=''
@@ -51,6 +51,9 @@ try {
     Check ((Get-Content (Join-Path $work 'state.txt')) -eq 'stopped') 'explicit stop targets configured profile'
     & $client -Action Connect
     Check (@(Calls | Where-Object { $_ -eq '--profile|office|connect|--server-url|https://server.invalid:13443' }).Count -eq 1) 'first connect uses configured server'
+    $env:MULTICA_DSH_WEB_CONFIG=Join-Path $work 'selected-dsh-web.json';$env:KIT_EXPECT_DSH_WEB_CONFIG=$env:MULTICA_DSH_WEB_CONFIG
+    Reset 'stopped'; & $client -Action Reconnect
+    Check ((Get-Content (Join-Path $work 'runtime-env.txt') -Encoding UTF8)[2] -eq $env:MULTICA_DSH_WEB_CONFIG -and $env:MULTICA_TOKEN -eq 'FAKE_PARENT_ONLY') 'explicit DSH bridge file survives launch while parent task credentials stay excluded'
     [IO.File]::WriteAllText((Join-Path $work 'connection.json'),'{"profile":"../bad","serverUrl":"","rootCa":""}')
     Fail { & $client -Action Reconnect } 'invalid profile rejected before lifecycle command'
     $result=@{powershell=$PSVersionTable.PSVersion.ToString();passed=$checks.Count;checks=@($checks);transport='fake CLI; no agents or network'}

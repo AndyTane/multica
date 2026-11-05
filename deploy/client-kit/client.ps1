@@ -45,12 +45,16 @@ $canPrompt = $Interactive -and -not $NonInteractive
 # User launchers must not inherit a task's credentials or daemon identity.
 $saved = @{}
 $runtimeSaved = @{}
-foreach ($name in @('OPENCODE_CONFIG','OPENCODE_CONFIG_DIR','XDG_CONFIG_HOME')) { $runtimeSaved[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
+foreach ($name in @('OPENCODE_CONFIG','OPENCODE_CONFIG_DIR','XDG_CONFIG_HOME','MULTICA_DSH_WEB_CONFIG','U_WORKERS_DSH_WEB_CONFIG','MULTICA_DSH_NODE_PATH','U_WORKERS_DSH_NODE_PATH')) { $runtimeSaved[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
 foreach ($entry in Get-ChildItem Env:) {
     if ($entry.Name -match '^(MULTICA_|U_WORKERS_)') {
         $saved[$entry.Name] = $entry.Value
         Remove-Item -LiteralPath ('Env:'+$entry.Name)
     }
+}
+# These user-selected file references are runtime settings, not task identity.
+foreach($name in @('MULTICA_DSH_WEB_CONFIG','U_WORKERS_DSH_WEB_CONFIG','MULTICA_DSH_NODE_PATH','U_WORKERS_DSH_NODE_PATH')) {
+    if($runtimeSaved[$name]){[Environment]::SetEnvironmentVariable($name,$runtimeSaved[$name],'Process')}
 }
 $env:U_WORKERS_KIT_ROOT = $kitRoot
 function Quote-Argument([string]$Value) {
@@ -89,7 +93,8 @@ function Get-ClientStatus {
     return $status
 }
 function Initialize-ClientOpenCode {
-    Set-ClientOpenCode -Directory $kitRoot -Profile $settings.profile -CanPrompt $canPrompt -OpenCodePath $OpenCodePath -OpenCodeConfig $OpenCodeConfig -SearchDirectory $SearchDirectory -WorkDirectory $WorkDirectory -SkipOpenCode:$SkipOpenCode
+    try { Set-ClientOpenCode -Directory $kitRoot -Profile $settings.profile -CanPrompt $canPrompt -OpenCodePath $OpenCodePath -OpenCodeConfig $OpenCodeConfig -SearchDirectory $SearchDirectory -WorkDirectory $WorkDirectory -SkipOpenCode:$SkipOpenCode }
+    catch { if($_.Exception.Message -like '*已取消连接*'){throw}; Write-Host $_.Exception.Message -ForegroundColor Yellow; Write-Host 'OpenCode 待配置，客户端继续连接；原选择保留。' }
 }
 try {
     if ($needsRecovery) {
@@ -217,8 +222,15 @@ try {
     # Authenticated read distinguishes server access from local process liveness.
     try { $null=Invoke-Client @('workspace','list','--output','json') -Capture }
     catch { throw '本机已运行，但服务器访问未通过。请检查服务地址与网络，再检查原 profile 的登录；登录过期时双击 Connect.cmd。' }
-    Write-Host '服务器访问已验证，请在网页运行时列表确认本机在线。' -ForegroundColor Green
-    if (@($status.agents).Count -eq 0) { Write-Host '尚未检测到智能体 CLI，请安装并登录后再分配任务。' -ForegroundColor Yellow }
+    if ($status.execution) {
+        if ($status.execution.state -eq 'pending_configuration') {Write-Host '已连接；待配置，暂不能接任务。' -ForegroundColor Yellow}
+        else {Write-Host '已连接；执行环境已就绪。' -ForegroundColor Green}
+        foreach($item in @($status.execution.diagnostics)) {
+            Write-Host ($item.provider+'：'+$item.message)
+            Write-Host ('完整配置路径：'+$item.config_path+'（'+$(if($item.config_exists){'文件已存在'}else{'待创建或选择'})+'）')
+            Write-Host $item.repair
+        }
+    } else {Write-Host '服务器访问已验证；当前客户端未提供引擎就绪详情。请在网页确认运行环境。' -ForegroundColor Green}
 } finally {
     Remove-Item Env:MULTICA_OPENCODE_PATH -ErrorAction SilentlyContinue
     if (-not $saved.ContainsKey('U_WORKERS_KIT_ROOT')) { Remove-Item Env:U_WORKERS_KIT_ROOT -ErrorAction SilentlyContinue }

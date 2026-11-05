@@ -1190,6 +1190,9 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	// in the WS path and would be redundant noise on the HTTP path where the
 	// caller already knows which runtime it asked about.
 	resp := map[string]any{"status": ack.Status}
+	if ack.ManagedClientUpdate != nil {
+		resp["managed_client_update"] = ack.ManagedClientUpdate
+	}
 	if ack.PendingUpdate != nil {
 		resp["pending_update"] = ack.PendingUpdate
 	}
@@ -1380,9 +1383,9 @@ func (h *Handler) processHeartbeat(ctx context.Context, runtimeID string, suppor
 
 	ack := &protocol.DaemonHeartbeatAckPayload{
 		ManagedClientUpdate: h.managedClientOffer(),
-		RuntimeID:          runtimeID,
-		Status:             "ok",
-		ServerCapabilities: []string{protocol.DaemonCapabilityRPCV1},
+		RuntimeID:           runtimeID,
+		Status:              "ok",
+		ServerCapabilities:  []string{protocol.DaemonCapabilityRPCV1},
 	}
 
 	probeUpdateCtx, cancelProbeUpdate := context.WithTimeout(ctx, heartbeatHasPendingTimeout)

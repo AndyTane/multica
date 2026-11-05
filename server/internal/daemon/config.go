@@ -106,6 +106,7 @@ var DefaultGCArtifactPatterns = []string{"node_modules", ".next", ".turbo"}
 
 // Config holds all daemon configuration.
 type Config struct {
+	OpenCodeSelectionIssue         string
 	ServerBaseURL                  string
 	DaemonID                       string
 	LegacyDaemonIDs                []string // historical daemon_ids this machine may have registered under; reported at register time so the server can merge old runtime rows
@@ -190,9 +191,6 @@ type Overrides struct {
 	RuntimeName                    string
 	Profile                        string // profile name (empty = default)
 	HealthPort                     int    // health check port (0 = use default)
-	// AllowNoAgents is reserved for read-only local configuration probes. Daemon
-	// startup keeps the default false and still refuses to run with no agent CLI.
-	AllowNoAgents bool
 	// DisableAutoUpdate, when true, forces the auto-update poller off. There
 	// is no symmetric "force on" override because the env/default already
 	// resolves to enabled; the flag exists so users can opt out from the CLI.
@@ -208,19 +206,10 @@ type Overrides struct {
 // and optional CLI flag overrides.
 func LoadConfig(overrides Overrides) (Config, error) {
 	kitEnv, err := managedkit.OpenCodeEnvironment(os.Getenv("U_WORKERS_KIT_ROOT"), overrides.Profile)
+	selectionIssue := ""
 	if err != nil {
-		return Config{}, err
-	}
-	if configPath := kitEnv["OPENCODE_CONFIG"]; configPath != "" {
-		raw, readErr := os.ReadFile(configPath)
-		if readErr != nil {
-			return Config{}, fmt.Errorf("OpenCode config unavailable: %s", configPath)
-		}
-		cfg, parseErr := unmarshalRuntimeMcpConfig(raw, "jsonc")
-		if parseErr != nil || cfg == nil {
-			// Parser errors may contain secret-bearing fragments of the config.
-			return Config{}, fmt.Errorf("invalid OpenCode JSON/JSONC config: %s; correct the file and retry Connect.cmd", configPath)
-		}
+		selectionIssue = "invalid OpenCode selection"
+		kitEnv = map[string]string{"MULTICA_OPENCODE_PATH": filepath.Join(os.Getenv("U_WORKERS_KIT_ROOT"), ".managed", "opencode-disabled")}
 	}
 	for key, value := range kitEnv {
 		if err := os.Setenv(key, value); err != nil {
@@ -299,9 +288,6 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	// Discover installed agent CLIs. Extracted so the periodic workspace sync
 	// can re-run the same discovery on a live daemon (MUL-5439).
 	agents := probeAgentCLIs()
-	if len(agents) == 0 && !overrides.AllowNoAgents {
-		return Config{}, fmt.Errorf("no agent CLI found: install claude, codebuddy, codearts, codex, copilot, opencode, deveco, openclaw, hermes, pi, omp, cursor-agent, kimi, reasonix, dsh, kiro-cli, agy, qodercli, qoderclicn, traecli, grok, qwen, qwenpaw, mcode, dim, or zeroclaw and ensure it is on PATH")
-	}
 
 	claudeArgs, err := shellArgsFromEnv("MULTICA_CLAUDE_ARGS")
 	if err != nil {
@@ -655,6 +641,7 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	}
 
 	return Config{
+		OpenCodeSelectionIssue:          selectionIssue,
 		ServerBaseURL:                   serverBaseURL,
 		DaemonID:                        daemonID,
 		LegacyDaemonIDs:                 legacyDaemonIDs,

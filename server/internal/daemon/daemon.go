@@ -60,12 +60,8 @@ var ErrRepoNotConfigured = errors.New("repo is not configured for this workspace
 var ErrNoRuntimesToRegister = errors.New("no agent runtimes could be registered")
 
 // errNoWorkspaceRuntimesRegistered is returned by syncWorkspacesFromAPI when a
-// round left every workspace without a runtime. At startup that is normally
-// fatal — a daemon hosting nothing has nothing to do, and failing loudly beats
-// idling — which is why it is a sentinel rather than a bare string: exactly one
-// caller is allowed to make an exception to it, and only for the one situation
-// where the daemon knows the answer is on its way. See
-// startupMayProceedWithoutRuntimes.
+// round could not track any authorized workspace because registration failed.
+// Empty engine discovery instead tracks the workspace with no execution rows.
 var errNoWorkspaceRuntimesRegistered = errors.New("failed to register runtimes")
 
 // errTaskPrepareTimeout distinguishes the daemon's dispatched -> running
@@ -386,13 +382,15 @@ type repoCacheBackend interface {
 
 // Daemon is the local agent runtime that polls for and executes tasks.
 type Daemon struct {
-	managedVerifying atomic.Bool
-	managedClientMu  sync.Mutex
-	cfg              Config
-	client           *Client
-	repoCache        repoCacheBackend
-	skillCache       *SkillBundleCache
-	logger           *slog.Logger
+	managedVerifying   atomic.Bool
+	connectionVerified atomic.Int64
+	connectionFailed   atomic.Bool
+	managedClientMu    sync.Mutex
+	cfg                Config
+	client             *Client
+	repoCache          repoCacheBackend
+	skillCache         *SkillBundleCache
+	logger             *slog.Logger
 
 	// terminalReports is the durable outbox for complete/fail callbacks. The
 	// sender hook is production-wired through Client and overridable in focused
@@ -2197,6 +2195,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	// readiness wait blocks on, so success is reported only after startup
 	// actually completed, not merely because the health port came up.
 	d.ready.Store(true)
+	go d.clientConnectionLoop(ctx)
 	d.logger.Debug("background loops launched (workspace-sync, terminal-report-replay, task-wakeup, heartbeat, gc, auto-update, token-renewal); health now reporting ready")
 	err = d.pollLoop(ctx, taskWakeups)
 	d.logger.Debug("daemon main loop returning", "error", err)
@@ -2393,6 +2392,7 @@ const (
 	// Deterministic like the two above — the same binary keeps refusing until
 	// someone installs the profile — and the reason carries that repair.
 	builtinProbeMissingProfile
+	builtinProbeMissingConfig
 	// builtinProbeIncompatibleProfile: something answered `--probe`, with a
 	// protocol version this daemon does not drive — a bundle older than the
 	// check, or a newer one this build has yet to catch up with. Reported, and
@@ -2423,7 +2423,7 @@ const (
 // learned this round.
 func demotableBuiltinProbeVerdict(verdict builtinProbeVerdict) bool {
 	switch verdict {
-	case builtinProbeBelowMinimum, builtinProbeNotExecutable, builtinProbeMissingProfile:
+	case builtinProbeBelowMinimum, builtinProbeNotExecutable, builtinProbeMissingProfile, builtinProbeMissingConfig:
 		return true
 	}
 	return false
@@ -2538,6 +2538,12 @@ func newRuntimeVerdict(verdict builtinProbeVerdict, reason, execPath string, ins
 // not installed" apart from "CLI installed but dropped at registration", which
 // was previously only visible in the daemon log (MUL-5439).
 func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry AgentEntry) (string, string, builtinProbeVerdict) {
+	if name == "opencode" {
+		problem := d.openCodeDiagnostic(entry.Path)
+		if problem.State != "configured" {
+			return "", problem.Message + " " + problem.ConfigPath, builtinProbeMissingConfig
+		}
+	}
 	var (
 		lastErr  error
 		attempts int
@@ -2987,7 +2993,7 @@ func (d *Daemon) registerRuntimesForWorkspaceBatchLocked(ctx context.Context, wo
 		// disabled-everywhere state" so duplicate change notifications are a
 		// no-op instead of a re-empty-register loop. Initial-registration
 		// callers that don't care about the sig discard it via _.
-		return nil, profileSig, ErrNoRuntimesToRegister
+		return &RegisterResponse{}, profileSig, nil
 	}
 
 	req := map[string]any{
@@ -3172,6 +3178,13 @@ func (d *Daemon) appendProfileRuntimes(ctx context.Context, workspaceID string, 
 				}
 			} else {
 				resolved = r
+			}
+		}
+		if profile.ProtocolFamily == "opencode" && len(profile.FixedArgs) == 0 && (profile.CommandName == "opencode" || strings.EqualFold(filepath.Base(resolved), "opencode.exe")) {
+			problem := d.openCodeDiagnostic(resolved)
+			if problem.State != "configured" {
+				*failedProfiles = append(*failedProfiles, map[string]string{"profile_id": profile.ID, "command_name": profile.CommandName, "reason": problem.Message + " " + problem.ConfigPath})
+				continue
 			}
 		}
 		// Best-effort version detection; an empty version is acceptable. The
@@ -4044,30 +4057,21 @@ const DefaultTokenRenewalInterval = 3 * 24 * time.Hour
 func (d *Daemon) preflightAuth(ctx context.Context) error {
 	d.tryRenewToken(ctx)
 	err := d.syncWorkspacesFromAPI(ctx, false)
-	if d.startupMayProceedWithoutRuntimes(err) {
-		d.logger.Warn("starting with no runtimes registered: an automatic DSH runtime profile install is still running; " +
-			"the runtime registers when it finishes")
-		return nil
+	if err == nil {
+		d.connectionVerified.Store(time.Now().UnixNano())
+		d.mu.Lock()
+		ids := make([]string, 0, len(d.workspaces))
+		for id := range d.workspaces {
+			ids = append(ids, id)
+		}
+		d.mu.Unlock()
+		for _, id := range ids {
+			if e := d.clientConnectionTick(ctx, id, true); e != nil {
+				return e
+			}
+		}
 	}
 	return err
-}
-
-// startupMayProceedWithoutRuntimes reports whether a startup that registered
-// nothing may continue anyway.
-//
-// Exactly one situation qualifies: the daemon has just started installing the
-// DSH runtime profile itself. On a host whose only provider is a dsh without
-// that profile, failing here is a deadlock rather than a fail-fast — the probe
-// starts the install, this error kills the process milliseconds later, the
-// install's process tree dies with it, and the next start repeats all of it.
-// The feature exists precisely for that host, so on it the feature could never
-// once complete.
-//
-// Nothing else is forgiven. An unreachable server, a rejected token, and a
-// genuinely empty machine all still fail startup, because for those the daemon
-// has no reason to believe the answer is coming.
-func (d *Daemon) startupMayProceedWithoutRuntimes(err error) bool {
-	return errors.Is(err, errNoWorkspaceRuntimesRegistered) && d.dshInstallInFlight.Load()
 }
 
 // trackedWorkspaceCount reports how many workspaces the daemon currently hosts.
@@ -4439,7 +4443,7 @@ func (d *Daemon) syncWorkspacesFromAPI(ctx context.Context, reconcileProfiles bo
 	// just upgraded, and a state file removed by repo cache GC.
 	d.publishTrackedCoAuthoredByState()
 
-	if len(d.allRuntimeIDs()) == 0 && registered == 0 && len(workspaces) > 0 {
+	if d.trackedWorkspaceCount() == 0 && registered == 0 && len(workspaces) > 0 {
 		return fmt.Errorf("%w for any of the %d workspace(s)", errNoWorkspaceRuntimesRegistered, len(workspaces))
 	}
 	if registered > 0 || removed > 0 {
@@ -5441,7 +5445,7 @@ func (d *Daemon) runBatchPoller(pollerCtx, parentCtx context.Context, sem chan i
 			return
 		}
 
-		runtimeIDs := d.allRuntimeIDs()
+		runtimeIDs := d.claimableRuntimeIDs()
 		if len(runtimeIDs) == 0 {
 			if err := sleepWithContextOrWakeup(pollerCtx, d.cfg.PollInterval, wakeup); err != nil {
 				return
@@ -8577,6 +8581,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		agentEnv["REASONIX_STATE_HOME"] = reasonixStateHome
 	}
 	if provider == "dsh" {
+		applyDshBridgePaths(agentEnv)
 		dshSessionRoot, err := prepareDshTaskSessionRoot(d.cfg.Profile, task.RuntimeID, task.AgentID)
 		if err != nil {
 			return TaskResult{}, fmt.Errorf("prepare dsh session root: %w", err)

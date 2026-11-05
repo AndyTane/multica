@@ -28,7 +28,8 @@ $currentHasCliState =
     (Test-Path -LiteralPath (Join-Path $currentConfigDirectory 'profiles'))
 $configDirectory = if ($currentHasCliState) { $currentConfigDirectory } elseif (Test-Path -LiteralPath $legacyConfigDirectory) { $legacyConfigDirectory } else { $currentConfigDirectory }
 New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
-$configFile = Join-Path $configDirectory 'dsh-web.json'
+$configFile = if($env:MULTICA_DSH_WEB_CONFIG){[IO.Path]::GetFullPath($env:MULTICA_DSH_WEB_CONFIG)}else{Join-Path $configDirectory 'dsh-web.json'}
+New-Item -ItemType Directory -Path (Split-Path -Parent $configFile) -Force | Out-Null
 @{ origin = $origin.GetLeftPart([UriPartial]::Authority); accessLog = $AccessLog } |
     ConvertTo-Json | Set-Content -LiteralPath $configFile -Encoding utf8
 
