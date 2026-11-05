@@ -126,7 +126,9 @@ func init() {
 // still run. Commands that depend on the trust anchor fail loudly on their own
 // when the TLS handshake cannot be verified.
 func bootstrapClientTrust(cmd *cobra.Command) {
-	if tlsx.EnvPath() == "" {
+	// A surviving task marker without its private root must never make trust
+	// bootstrap discover the owner's profile before the API identity guard runs.
+	if tlsx.EnvPath() == "" && requireTaskLocalConfigRoot() == nil {
 		cfg, err := cli.LoadCLIConfigForProfile(resolveProfile(cmd))
 		if err == nil && strings.TrimSpace(cfg.RootCAFile) != "" {
 			if setErr := os.Setenv(tlsx.RootCAEnv, cfg.RootCAFile); setErr != nil {
