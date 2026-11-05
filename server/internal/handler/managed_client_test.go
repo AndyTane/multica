@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
@@ -40,4 +41,57 @@ func TestManagedClientPackageAuthorization(t *testing.T) {
 	testHandler.cfg.ServerVersion = offer.Version
 	_ = os.WriteFile(filepath.Join(dir, "client-kit.zip"), []byte(strings.Repeat("x", len(data))), 0600)
 	testutil.Call(t, testHandler.DaemonClientPackage, newRequest(http.MethodGet, path, nil)).Want(http.StatusServiceUnavailable)
+}
+
+func TestClientControlWorkspaceAndMachineAuthorization(t *testing.T) {
+	if testHandler == nil {
+		t.Fatal("isolated database required")
+	}
+	for _, tc := range []struct {
+		name, workspace, daemon string
+		status                  int
+	}{
+		{"member", testWorkspaceID, "machine", 200},
+		{"foreign workspace", uuid.NewString(), "machine", 404},
+		{"invalid workspace", "bad", "machine", 400},
+		{"missing identity", testWorkspaceID, "", 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testutil.Call(t, testHandler.DaemonClientHeartbeat, newRequest(http.MethodPost, "/api/daemon/client-heartbeat", map[string]any{"workspace_id": tc.workspace, "daemon_id": tc.daemon})).Want(tc.status)
+		})
+	}
+	body := map[string]any{"workspace_id": testWorkspaceID, "daemon_id": "machine"}
+	testutil.Call(t, testHandler.DaemonClientHeartbeat, newDaemonTokenRequest(http.MethodPost, "/api/daemon/client-heartbeat", body, testWorkspaceID, "machine")).Want(200)
+	testutil.Call(t, testHandler.DaemonClientHeartbeat, newDaemonTokenRequest(http.MethodPost, "/api/daemon/client-heartbeat", body, testWorkspaceID, "other-machine")).Want(404)
+	testutil.Call(t, testHandler.DaemonClientHeartbeat, newDaemonTokenRequest(http.MethodPost, "/api/daemon/client-heartbeat", body, uuid.NewString(), "machine")).Want(404)
+}
+
+func TestClientControlRetiresOnlyOwnUnavailableBuiltin(t *testing.T) {
+	if testHandler == nil {
+		t.Fatal("isolated database required")
+	}
+	otherUser := dbfx.User(t, "Other engine owner", "other-"+uuid.NewString()+"@example.test")
+	ids := map[string]string{}
+	for name, cols := range map[string]testutil.Cols{
+		"missing":       {"daemon_id": "control-machine", "provider": "opencode"},
+		"available":     {"daemon_id": "control-machine", "provider": "codex"},
+		"other machine": {"daemon_id": "different-machine", "provider": "opencode"},
+		"other owner":   {"daemon_id": "control-machine", "provider": "pi", "owner_id": otherUser},
+	} {
+		ids[name] = dbfx.Runtime(t, name, cols)
+	}
+	testutil.Call(t, testHandler.DaemonClientHeartbeat, newRequest(http.MethodPost, "/api/daemon/client-heartbeat", map[string]any{"workspace_id": testWorkspaceID, "daemon_id": "control-machine", "unavailable_builtin_providers": []string{"opencode", "pi"}})).Want(200)
+	for name, id := range ids {
+		rt, err := testHandler.Queries.GetAgentRuntime(context.Background(), parseUUID(id))
+		if err != nil {
+			t.Fatal("runtime record deleted", err)
+		}
+		want := "online"
+		if name == "missing" {
+			want = "offline"
+		}
+		if rt.Status != want {
+			t.Fatalf("%s = %s", name, rt.Status)
+		}
+	}
 }

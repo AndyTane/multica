@@ -191,6 +191,19 @@ func (d *Daemon) downloadManagedClient(ctx context.Context, runtimeID string, o 
 		return fmt.Errorf("managed updates require HTTPS")
 	}
 	path := "/api/daemon/client-package?runtime_id=" + url.QueryEscape(runtimeID) + "&sha256=" + o.SHA256
+	if runtimeID == "" {
+		d.mu.Lock()
+		workspaceID := ""
+		for id := range d.workspaces {
+			workspaceID = id
+			break
+		}
+		d.mu.Unlock()
+		if workspaceID == "" {
+			return fmt.Errorf("managed updates require an authorized workspace")
+		}
+		path = "/api/daemon/client-package?workspace_id=" + url.QueryEscape(workspaceID) + "&daemon_id=" + url.QueryEscape(d.cfg.DaemonID) + "&sha256=" + o.SHA256
+	}
 	downloadCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	req, err := http.NewRequestWithContext(downloadCtx, http.MethodGet, strings.TrimRight(d.cfg.ServerBaseURL, "/")+path, nil)

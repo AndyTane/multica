@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/multica-ai/multica/server/internal/brand"
 	"github.com/multica-ai/multica/server/internal/dshweb"
 	"github.com/multica-ai/multica/server/internal/envcompat"
 )
@@ -44,6 +45,14 @@ func run(node string, args []string, stdin io.Reader, stdout, stderr io.Writer) 
 	}
 	defer discard()
 	cmd := exec.Command(node, bridgeArgs(script, args)...)
+	if os.Getenv("MULTICA_DSH_WEB_CONFIG") == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return 0, err
+		}
+		root := brand.ConfigRoot(home, func(p string) bool { _, e := os.Stat(p); return e == nil })
+		cmd.Env = append(os.Environ(), "MULTICA_DSH_WEB_CONFIG="+filepath.Join(root, "dsh-web.json"))
+	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdin, stdout, stderr
 	if err := cmd.Run(); err != nil {
 		var exit *exec.ExitError

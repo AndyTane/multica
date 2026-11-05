@@ -87,7 +87,7 @@ func (d *Daemon) agentDiscoveryLoop(ctx context.Context) {
 			// removed a minute after startup stayed live for three minutes and
 			// the server routed a chat task straight into it.
 			mismatch := d.dshRuntimeProfileMismatch()
-			force := mismatch.forcesEveryTick() || (mismatch != dshMismatchNone && mismatch != lastMismatch)
+			force := mismatch.forcesEveryTick() || (mismatch != dshMismatchNone && mismatch != lastMismatch) || d.openCodeRuntimeNeedsRepair()
 			lastMismatch = mismatch
 			d.convergeAgentRuntimes(ctx, &backoff, &nextRetry, now, force)
 		case <-d.agentDiscoveryKick:
@@ -841,15 +841,17 @@ func (d *Daemon) convergeRuntimeRegistrations(ctx context.Context) {
 	// left to do. demoteUnusableRuntimes owns the claim barrier and the
 	// seq-stamped hold, so running it here is safe.
 	//
-	// Restricted to dsh on purpose. Every other provider is demoted from
-	// refreshAgentVersions alone, on its own ten-minute cadence, and that is the
-	// schedule their verdicts were tuned against; letting a converge round
-	// condemn them too would move Claude Code, Codex and the rest onto a
-	// different one as a side effect of a DSH fix. dsh is the only provider with
-	// a precondition that can change without any version changing, which is why
-	// it is the only one that needs a round it can be forced into.
-	if dshDemotable := dshOnlyVerdicts(demotable); len(dshDemotable) > 0 {
-		d.demoteUnusableRuntimes(ctx, dshDemotable)
+	// DSH profiles and OpenCode configuration can change without a CLI version
+	// change. Other providers retain their existing version-refresh cadence.
+	setupDemotable := dshOnlyVerdicts(demotable)
+	if verdict, ok := demotable["opencode"]; ok && d.openCodeRuntimeNeedsRepair() {
+		if setupDemotable == nil {
+			setupDemotable = map[string]runtimeVerdict{}
+		}
+		setupDemotable["opencode"] = verdict
+	}
+	if len(setupDemotable) > 0 {
+		d.demoteUnusableRuntimes(ctx, setupDemotable)
 	}
 	if len(builtins) == 0 {
 		return

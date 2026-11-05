@@ -9,7 +9,7 @@
 | 换新版 | 将新包解压到独立目录，双击新包 **Import.cmd** 选择旧包目录，仅需一次。等任务空闲，用旧包 **Stop.cmd** 停止，再用新包 **Reconnect.cmd** 重连。 |
 | 停止 | **Stop.cmd**，先等本机任务空闲。 |
 
-看到“服务器访问已验证”后，到网页的运行环境列表确认本机在线。尚未连接属于正常停止状态；“连接中”请稍后查看；本机已运行但服务器访问未通过时，先检查服务器和网络，再检查原 profile 的登录。登录过期时用 Connect.cmd。所选智能体 CLI 需另外安装并登录。
+看到“已连接；执行环境已就绪”后，可在网页分配任务。“已连接；待配置，暂不能接任务”表示登录和连接正常，但执行引擎尚未配齐；客户端保持在线，仍能完成升级，不因此回退。Status.cmd 会显示缺少的程序或配置、当前电脑的完整路径及补齐步骤。尚未连接属于正常停止状态；“连接中”请稍后查看；服务器访问未通过时，检查网络和原 profile 的登录，登录过期用 Connect.cmd。
 
 ## OpenCode 程序和配置
 
@@ -17,7 +17,7 @@
 
 配置支持 `opencode.json` 和 `opencode.jsonc`。已有 `OPENCODE_CONFIG` 优先用于文件选择，`OPENCODE_CONFIG_DIR`、`XDG_CONFIG_HOME` 继续生效；否则查找用户配置目录、工作目录及祖先项目、程序附近、Kit 和 Documents/Desktop/Downloads。多个候选列出路径供选择，不改写配置。缺少配置时显示当前用户可使用的完整保存路径，放好后按 R 重试，或输入其他配置路径。
 
-程序和配置路径按 profile 保存在原 Kit 的 `opencode-selection.json`，重连和自动升级继续使用。文件只含路径；模型配置和密钥留在原位置。Status.cmd 可查看保存的路径。若原文件移动或损坏，提示修正原路径或重新选择，不静默换安装。运行中的连接不更换程序；先等任务空闲，再 Stop、选择和 Reconnect。
+程序和配置路径按 profile 保存在原 Kit 的 `opencode-selection.json`，重连和自动升级继续使用。文件只含路径；模型配置和密钥留在原位置。若原文件移动、不可读或格式错误，保持待配置和原选择，不静默换安装。任务空闲后 Stop，再明确指定程序和配置并 Reconnect，即可重新检测。主动跳过的 OpenCode 只有明确重新选择后才启用。
 
 指定工具/项目目录或直接选择文件：
 
@@ -30,6 +30,10 @@
 脚本调用默认不等待输入。多个候选或显式选择不可用时，返回完整候选和指定方式；首次未指定 OpenCode 且未找到程序/配置时，说明缺项并让其他运行环境继续连接，不把 OpenCode 报为就绪。双击 Connect/Reconnect 保留窗口和重试提示。选择基础配置不会改变 OpenCode 自身的配置叠加规则，项目配置仍按任务目录生效（[官方配置说明](https://docs.opencode.ai/docs/config/)）。
 
 ## 换新版与设置
+
+OpenCode 与 DeepSeek Harness 任选其一，不需要都安装。DSH CLI 的 `DSH_HOME/profiles/multica/package.json`（未覆盖时在当前用户 `.dsh` 下）是 **U Workers 接入 profile 清单**，不是模型配置，不要手写空文件。模型和服务商在 DSH 自身设置中配置；接入 profile 按 DSH 接入说明安装。若使用 DSH 网页模式，Status.cmd 另列 `MULTICA_DSH_WEB_CONFIG` 或当前 CLI 配置根目录下的 `dsh-web.json`，通过 `scripts/configure-dsh-web.ps1` 设置网页地址与访问日志路径并探测绑定。补齐后，任务空闲时 Stop → Reconnect。
+
+本地文件可读、格式正确和版本探测通过，不代表模型账号或网络已验证；模型访问以实际任务为准。待配置时不注册可用执行引擎，也不领取其任务。只有真正的进程启动失败、包或安装身份不符、鉴权确认失败等才触发恢复保护。
 
 带自动升级能力的 Kit 只需按上表换一次。此后跟随实际服务端版本，在任务空闲后自动升级；离线电脑下次连接补升。Status.cmd 显示进度与回退原因。可运行 `client.ps1 -Action PauseUpdate` 暂停、`-Action ResumeUpdate` 恢复。保留原目录的 connection.json、证书、kit-install.json、current.json、programs 和 .managed；原登录与模型配置不写入程序包。根目录程序是恢复入口，当前运行版本以 Status.cmd 为准。
 

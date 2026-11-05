@@ -161,8 +161,7 @@ func runDaemonProbeRuntimes(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	cfg, err := daemon.LoadConfig(daemon.Overrides{
-		Profile:       resolveProfile(cmd),
-		AllowNoAgents: true,
+		Profile: resolveProfile(cmd),
 	})
 	if err != nil {
 		return err
@@ -1483,6 +1482,19 @@ func printDaemonStatusReport(w io.Writer, label string, health map[string]any) {
 	}
 	if version, ok := health["cli_version"].(string); ok && version != "" {
 		rows = append(rows, row{"Version", version})
+	}
+	if connection, ok := health["connection"].(map[string]any); ok {
+		rows = append(rows, row{"Connection", fmt.Sprint(connection["state"])})
+	}
+	if execution, ok := health["execution"].(map[string]any); ok {
+		rows = append(rows, row{"Execution", fmt.Sprint(execution["message"])})
+		if diagnostics, ok := execution["diagnostics"].([]any); ok {
+			for _, value := range diagnostics {
+				if diagnostic, ok := value.(map[string]any); ok {
+					rows = append(rows, row{fmt.Sprint(diagnostic["provider"]), fmt.Sprintf("%v\n  %v\n  %v", diagnostic["message"], diagnostic["config_path"], diagnostic["repair"])})
+				}
+			}
+		}
 	}
 	// Answers "why is a daemon running that I never started?" — the reporter's
 	// ask in #6694. Only rendered when the daemon names a manager, so a

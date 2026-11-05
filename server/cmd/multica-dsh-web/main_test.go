@@ -25,6 +25,10 @@ import (
 // TestMain lets the test binary impersonate Node when a test needs a chosen
 // child exit code: run() launches os.Executable() as the "node" program.
 func TestMain(m *testing.M) {
+	if os.Getenv("MULTICA_DSH_WEB_TEST_DUMP_CONFIG") == "1" {
+		fmt.Fprint(os.Stdout, os.Getenv("MULTICA_DSH_WEB_CONFIG"))
+		os.Exit(0)
+	}
 	if value, ok := os.LookupEnv("MULTICA_DSH_WEB_TEST_FAKE_NODE_EXIT"); ok {
 		code, err := strconv.Atoi(value)
 		if err != nil {
@@ -34,6 +38,33 @@ func TestMain(m *testing.M) {
 		os.Exit(code)
 	}
 	os.Exit(m.Run())
+}
+
+func TestBridgeConfigFollowsCurrentUserAndExplicitOverride(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, "cache"))
+	t.Setenv("MULTICA_DSH_WEB_TEST_DUMP_CONFIG", "1")
+	self, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, explicit := range []string{"", filepath.Join(home, "external", "dsh-web.json")} {
+		t.Setenv("MULTICA_DSH_WEB_CONFIG", explicit)
+		var out bytes.Buffer
+		if code, e := run(self, nil, strings.NewReader(""), &out, &out); e != nil || code != 0 {
+			t.Fatal(code, e)
+		}
+		want := explicit
+		if want == "" {
+			want = filepath.Join(home, ".u-workers", "dsh-web.json")
+		}
+		if out.String() != want {
+			t.Fatalf("bridge config = %q, want %q", out.String(), want)
+		}
+	}
 }
 
 func TestBridgeArgsKeepUserArgumentsAfterScript(t *testing.T) {

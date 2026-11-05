@@ -224,7 +224,7 @@ function Assert-OpenCodeConfig([string]$Path) {
     } catch { throw ('配置无效：'+$Path+'。请修正 JSON/JSONC 格式后重试；配置内容未输出。') }
 }
 function Select-OpenCodePath {
-    param([string[]]$Candidates,[string]$Kind,[bool]$CanPrompt,[string]$Expected,[scriptblock]$Prompt={param($text) Read-Host $text},[scriptblock]$Retry,[hashtable]$Sources=@{})
+    param([string[]]$Candidates,[string]$Kind,[bool]$CanPrompt,[string]$Expected,[scriptblock]$Prompt={param($text) Read-Host $text},[scriptblock]$Retry,[hashtable]$Sources=@{},[switch]$AllowPending)
     $items=@($Candidates | Where-Object { $_ })
     while ($true) {
         if ($items.Count -eq 1) {
@@ -232,7 +232,7 @@ function Select-OpenCodePath {
             if ($Kind -eq '配置') {
                 try { Assert-OpenCodeConfig $path } catch {
                     Write-Host $_.Exception.Message
-                    if (-not $CanPrompt) { throw }; $items=@(); continue
+                    if ($AllowPending) { return '' }; if (-not $CanPrompt) { throw }; $items=@(); continue
                 }
             }
             Write-Host ('OpenCode '+$Kind+'：'+$path); return $path
@@ -246,12 +246,13 @@ function Select-OpenCodePath {
         } else {
             Write-Host ('未找到 OpenCode '+$Kind+'。')
             if ($Expected) { Write-Host ('请在此路径放置配置后重试：'+$Expected) }
+            if ($AllowPending) { Write-Host '客户端继续连接；缺配置只影响接任务。补齐后空闲时 Stop.cmd → Reconnect.cmd 重新检测。'; return '' }
         }
-        if (-not $CanPrompt) { throw ('请用 Connect.cmd 选择，或显式传 -OpenCodePath / -OpenCodeConfig；只用其他运行环境可传 -SkipOpenCode。') }
+        if (-not $CanPrompt) { if ($AllowPending) {Write-Host '多个安装尚未选择；客户端继续连接，空闲后用 Connect.cmd 明确选择。';return ''}; throw ('请用 Connect.cmd 选择，或显式传 -OpenCodePath / -OpenCodeConfig；只用其他运行环境可传 -SkipOpenCode。') }
         $answer=[string](& $Prompt '输入编号或完整文件/目录路径；R 重新检查，S 跳过 OpenCode，Q 取消连接')
         $answer=$answer.Trim().Trim('"')
         if ($answer -eq 'Q' -or -not $answer) { throw '已取消连接，原选择保留。' }
-        if ($answer -eq 'S') { return '' }
+        if ($answer -eq 'S') { $script:OpenCodeSelectionSkipped=$true; return '' }
         if ($answer -eq 'R') {
             if ($Retry) { $items=@(& $Retry | Where-Object { $_ }) }
             elseif ($Expected -and (Test-Path -LiteralPath $Expected -PathType Leaf)) { $items=@($Expected) }
@@ -286,6 +287,7 @@ function Read-OpenCodeSelections([string]$Directory) {
 }
 function Set-ClientOpenCode {
     param([string]$Directory,[string]$Profile,[bool]$CanPrompt,[string]$OpenCodePath,[string]$OpenCodeConfig,[string[]]$SearchDirectory,[string]$WorkDirectory,[switch]$SkipOpenCode)
+    $script:OpenCodeSelectionSkipped=$false
     $prior=@(Read-OpenCodeSelections $Directory)
     $old=@($prior | Where-Object { $_.profile -ceq $Profile }) | Select-Object -First 1
     $selected=[ordered]@{profile=$Profile;disabled=[bool]$SkipOpenCode;executable='';configPath='';configDir='';configHome=''}
@@ -299,8 +301,8 @@ function Set-ClientOpenCode {
         if (-not $CanPrompt -and -not $explicit -and $candidates.Count -eq 0) {
             Write-Host '未找到 OpenCode 程序；其他运行环境继续连接。安装后可用 Connect.cmd 重新选择。'; $selected.disabled=$true; $implicitSkip=$true
         } else {
-            $selected.executable=Select-OpenCodePath $candidates '程序' $CanPrompt -Retry { if ($explicit) { Find-OpenCodeFiles @($explicit) } else { Find-OpenCodeFiles (Get-OpenCodeRoots $Directory $SearchDirectory) } }
-            if (-not $selected.executable) { $selected.disabled=$true }
+            $selected.executable=Select-OpenCodePath $candidates '程序' $CanPrompt -AllowPending -Retry { if ($explicit) { Find-OpenCodeFiles @($explicit) } else { Find-OpenCodeFiles (Get-OpenCodeRoots $Directory $SearchDirectory) } }
+            if (-not $selected.executable) { $selected.disabled=$true; $implicitSkip=-not $script:OpenCodeSelectionSkipped }
         }
         if (-not $selected.disabled) {
             $configHome=if ($env:XDG_CONFIG_HOME) {$env:XDG_CONFIG_HOME} else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.config' }
@@ -321,8 +323,8 @@ function Set-ClientOpenCode {
                 Write-Host ('未找到 OpenCode 配置。请在此路径放置配置后重试：'+$expected)
                 $selected.configPath=''
                 $implicitSkip=$true
-            } else { $selected.configPath=Select-OpenCodePath $configs '配置' $CanPrompt $expected -Sources $sources -Retry { if ($explicitConfig) {Find-OpenCodeFiles @($explicitConfig) -Config} elseif ($env:OPENCODE_CONFIG_DIR) {Find-OpenCodeFiles @($env:OPENCODE_CONFIG_DIR) -Config -Depth 0} else {Find-OpenCodeFiles (Get-OpenCodeConfigRoots $selected.executable $Directory $WorkDirectory $SearchDirectory) -Config -Depth 2} } }
-            if (-not $selected.configPath) { $selected.disabled=$true }
+            } else { $selected.configPath=Select-OpenCodePath $configs '配置' $CanPrompt $expected -AllowPending -Sources $sources -Retry { if ($explicitConfig) {Find-OpenCodeFiles @($explicitConfig) -Config} elseif ($env:OPENCODE_CONFIG_DIR) {Find-OpenCodeFiles @($env:OPENCODE_CONFIG_DIR) -Config -Depth 0} else {Find-OpenCodeFiles (Get-OpenCodeConfigRoots $selected.executable $Directory $WorkDirectory $SearchDirectory) -Config -Depth 2} } }
+            if (-not $selected.configPath) { if($script:OpenCodeSelectionSkipped){$selected.disabled=$true}else{$implicitSkip=$true; $selected.configPath=if($explicitConfig){$explicitConfig}else{$expected}} }
             $selected.configDir=if ($env:OPENCODE_CONFIG_DIR) {[IO.Path]::GetFullPath($env:OPENCODE_CONFIG_DIR)} elseif ($old) {[string]$old.configDir} else {''}
             $selected.configHome=if ($env:XDG_CONFIG_HOME) {[IO.Path]::GetFullPath($env:XDG_CONFIG_HOME)} elseif ($old) {[string]$old.configHome} else {''}
         }

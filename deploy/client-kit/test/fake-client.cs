@@ -9,11 +9,12 @@ class FakeClient {
         if (String.IsNullOrEmpty(root)) return 90;
         foreach (string key in Environment.GetEnvironmentVariables().Keys) {
             if (key=="U_WORKERS_KIT_ROOT" && Environment.GetEnvironmentVariable(key)==root) continue;
+            if (key=="MULTICA_DSH_WEB_CONFIG" && Environment.GetEnvironmentVariable(key)==Environment.GetEnvironmentVariable("KIT_EXPECT_DSH_WEB_CONFIG")) continue;
             if (key=="MULTICA_OPENCODE_PATH" && (Path.GetFullPath(Environment.GetEnvironmentVariable(key))==Path.GetFullPath(Path.Combine(root,".managed/opencode-disabled")) || Environment.GetEnvironmentVariable(key)==Environment.GetEnvironmentVariable("KIT_EXPECT_OPENCODE_PATH"))) continue;
             if (key.StartsWith("MULTICA_") || key.StartsWith("U_WORKERS_")) { File.AppendAllText(Path.Combine(root,"calls.txt"),"unexpected-env:"+key+Environment.NewLine); return 91; }
         }
         File.AppendAllText(Path.Combine(root,"calls.txt"),String.Join("|",args)+Environment.NewLine);
-        File.WriteAllLines(Path.Combine(root,"runtime-env.txt"),new [] { Environment.GetEnvironmentVariable("MULTICA_OPENCODE_PATH") ?? "", Environment.GetEnvironmentVariable("OPENCODE_CONFIG") ?? "" });
+        File.WriteAllLines(Path.Combine(root,"runtime-env.txt"),new [] { Environment.GetEnvironmentVariable("MULTICA_OPENCODE_PATH") ?? "", Environment.GetEnvironmentVariable("OPENCODE_CONFIG") ?? "", Environment.GetEnvironmentVariable("MULTICA_DSH_WEB_CONFIG") ?? "" });
         if (args.Length>1 && args[0]=="--profile") args=args.Skip(2).ToArray();
         string state=Path.Combine(root,"state.txt");
         if (args.Length<2) return 92;

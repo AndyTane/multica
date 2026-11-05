@@ -2,57 +2,11 @@ package daemon
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"testing"
 	"time"
 )
-
-// A host whose only provider is a dsh without the Multica runtime profile is
-// the exact host the automatic install exists for, and it is the one host on
-// which the install could never once finish.
-//
-// The sequence, from a real Windows daemon.log, is 32 milliseconds long: the
-// probe reports the missing profile and starts the install, registration finds
-// nothing to register, Run returns that error, and the process exits — killing
-// the install's process tree with it. Every restart repeats it. Allowing
-// startup to continue while that install is in flight is what breaks the loop.
-func TestStartupMayProceedWithoutRuntimes(t *testing.T) {
-	registerFailure := fmt.Errorf("%w for any of the %d workspace(s)", errNoWorkspaceRuntimesRegistered, 1)
-
-	t.Run("an in-flight install earns the exception", func(t *testing.T) {
-		d := &Daemon{}
-		d.dshInstallInFlight.Store(true)
-		if !d.startupMayProceedWithoutRuntimes(registerFailure) {
-			t.Fatal("startup refused to continue while the install that would fix it is running")
-		}
-	})
-
-	t.Run("nothing else does", func(t *testing.T) {
-		d := &Daemon{}
-		// The same failure with no install running: a genuinely empty machine
-		// still fails fast, which is the documented contract.
-		if d.startupMayProceedWithoutRuntimes(registerFailure) {
-			t.Error("a machine with nothing installed was allowed to start")
-		}
-
-		// An install in flight does not forgive unrelated failures. A rejected
-		// token or an unreachable server must still stop startup, or the
-		// daemon idles forever on a problem it cannot solve.
-		d.dshInstallInFlight.Store(true)
-		for name, err := range map[string]error{
-			"auth":    errors.New("list workspaces: 401 unauthorized"),
-			"network": errors.New("list workspaces: connection refused"),
-			"none":    nil,
-		} {
-			if d.startupMayProceedWithoutRuntimes(err) {
-				t.Errorf("%s failure was treated as the install bootstrap", name)
-			}
-		}
-	})
-}
 
 // The other half of the bootstrap. A daemon that started with nothing
 // registered tracks no workspace, and every converge path iterates the

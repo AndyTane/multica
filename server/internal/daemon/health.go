@@ -21,6 +21,8 @@ import (
 
 // HealthResponse is returned by the daemon's local health endpoint.
 type HealthResponse struct {
+	Connection          ConnectionStatus   `json:"connection"`
+	Execution           ExecutionReadiness `json:"execution"`
 	ManagedClientUpdate *managedkit.Status `json:"managed_client_update,omitempty"`
 	Status              string             `json:"status"`
 	PID                 int                `json:"pid"`
@@ -336,8 +338,9 @@ func (d *Daemon) healthHandler(startedAt time.Time) http.HandlerFunc {
 		}
 
 		// "starting" until preflight (PAT renew + initial workspace sync +
-		// runtime registration) completes; "running" once the daemon can
-		// actually claim tasks. The health port is bound before preflight for
+		// runtime registration) completes; "running" means authenticated client
+		// startup succeeded. Execution readiness is reported separately. Bind
+		// the health port before preflight for
 		// liveness/diagnostics, so callers must not treat a reachable endpoint
 		// as ready — they gate on this status. Consumers that only know
 		// "running" (older CLI/desktop) safely treat "starting" as not-ready.
@@ -347,6 +350,8 @@ func (d *Daemon) healthHandler(startedAt time.Time) http.HandlerFunc {
 		}
 
 		resp := HealthResponse{
+			Connection:            d.connectionStatus(),
+			Execution:             d.executionReadiness(),
 			Status:                status,
 			PID:                   os.Getpid(),
 			OS:                    runtime.GOOS,

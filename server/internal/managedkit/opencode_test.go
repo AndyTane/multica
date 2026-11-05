@@ -41,8 +41,8 @@ func TestOpenCodeEnvironment(t *testing.T) {
 	if err := os.Remove(executable); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := OpenCodeEnvironment(root, "office"); err == nil {
-		t.Fatal("missing saved program silently accepted")
+	if env, err := OpenCodeEnvironment(root, "office"); err != nil || env["MULTICA_OPENCODE_PATH"] != executable {
+		t.Fatal("missing saved program must retain its reference for pending configuration", err)
 	}
 	if _, err := OpenCodeEnvironment(root, "other"); err != nil {
 		t.Fatal("unrelated runtime blocked", err)

@@ -65,7 +65,7 @@ try {
     $state=@(Read-OpenCodeSelections $kit)
     Check ($state.Count -eq 1 -and $state[0].configPath -eq $config -and $env:OPENCODE_CONFIG -eq $config -and $env:MULTICA_OPENCODE_PATH -eq $one) 'nondefault JSONC selection exported to actual child environment and persisted'
     $prior=(Get-FileHash (Join-Path $kit 'opencode-selection.json')).Hash
-    Reject {Set-ClientOpenCode -Directory $kit -Profile office -CanPrompt $false -OpenCodePath (Join-Path $testRoot 'missing.exe')} '显式传'
+    Set-ClientOpenCode -Directory $kit -Profile office -CanPrompt $false -OpenCodePath (Join-Path $testRoot 'missing.exe')
     Check ((Get-FileHash (Join-Path $kit 'opencode-selection.json')).Hash -eq $prior) 'unavailable explicit installation never silently switches or changes selection'
     $env:OPENCODE_CONFIG=''; $env:MULTICA_OPENCODE_PATH=''
     Set-ClientOpenCode -Directory $kit -Profile office -CanPrompt $false
@@ -103,12 +103,13 @@ try {
         Set-ClientOpenCode -Directory $kit -Profile auto -CanPrompt $false
         Check ($env:MULTICA_OPENCODE_PATH -eq $one -and $env:OPENCODE_CONFIG -eq $config) 'default launcher auto-discovers program outside PATH and nondefault JSONC'
         $env:PATH=Split-Path -Parent $two
-        Reject {Set-ClientOpenCode -Directory $kit -Profile multiple -CanPrompt $false} '显式传'
+        Set-ClientOpenCode -Directory $kit -Profile multiple -CanPrompt $false
+        Check (@(Read-OpenCodeSelections $kit|Where-Object {$_.profile -eq 'multiple'}).Count -eq 0) 'multiple unselected installations remain pending without silently choosing'
         $env:OPENCODE_CONFIG=''
         function Get-OpenCodeConfigRoots {param($Executable,$Directory,$WorkDirectory,$SearchDirectory) @((Join-Path $testRoot 'not configured'))}
         $env:PATH=''
         Set-ClientOpenCode -Directory $kit -Profile missing -CanPrompt $false
-        Check (@(Read-OpenCodeSelections $kit|Where-Object {$_.profile -eq 'missing'}).Count -eq 0 -and $env:MULTICA_OPENCODE_PATH -like '*opencode-disabled') 'unconfigured OpenCode stays unavailable without persisting an implicit skip'
+        Check (@(Read-OpenCodeSelections $kit|Where-Object {$_.profile -eq 'missing'}).Count -eq 0 -and $env:OPENCODE_CONFIG -eq $expected) 'unconfigured OpenCode keeps the missing reference without persisting an implicit skip'
     } finally {${function:Get-OpenCodeRoots}=$originalRoots;${function:Get-OpenCodeConfigRoots}=$originalConfigs}
     [IO.File]::WriteAllText((Join-Path $kit 'opencode-selection.json'),'broken')
     & (Join-Path $kit 'client.ps1') -Action Status -NonInteractive
