@@ -1535,6 +1535,7 @@
     "manage": "Gérer sur le serveur",
     "idle": "Attente sans message",
     "disabled": "Désactiver la surveillance",
+    "off": "Arrêt",
     "tool_idle": "Attente sans message pendant les outils",
     "unlimited": "Illimité",
     "run": "Durée totale maximale",

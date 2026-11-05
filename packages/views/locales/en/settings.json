@@ -1535,6 +1535,7 @@
     "manage": "Manage on server",
     "idle": "No-message wait",
     "disabled": "Disable monitoring",
+    "off": "Off",
     "tool_idle": "No-message wait during tools",
     "unlimited": "Unlimited",
     "run": "Total run limit",

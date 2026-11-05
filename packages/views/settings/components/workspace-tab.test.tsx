@@ -150,7 +150,6 @@ describe("WorkspaceTab — automatic updates", () => {
     const user = setupUser();
     render(<WorkspaceTab />, { wrapper: I18nWrapper });
     await user.click(screen.getByRole("switch", { name: "Manage on server" }));
-    await user.selectOptions(screen.getByLabelText("OpenCode no-message wait"), "zero");
     await user.click(screen.getByRole("button", { name: /^Save$/ }));
     await waitFor(() => expect(mockUpdateWorkspace).toHaveBeenCalledWith("workspace-1", {
       settings: { execution_timeouts: { idle_seconds: 7200, tool_idle_seconds: 7200, run_seconds: 0, opencode_idle_seconds: 0 } },

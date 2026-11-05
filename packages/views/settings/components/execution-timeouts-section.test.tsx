@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { DEFAULT_EXECUTION_TIMEOUTS, type ExecutionTimeouts } from "@multica/core/agents/execution-timeouts";
 import { renderWithI18n } from "../../test/i18n";
 import { ExecutionTimeoutsSection } from "./execution-timeouts-section";
@@ -14,7 +15,6 @@ describe("run timeout settings", () => {
   it("shows client fallback and prevents edits against a legacy server", () => {
     const save = vi.fn();
     renderWithI18n(<ExecutionTimeoutsSection scope="workspace" value={DEFAULT_EXECUTION_TIMEOUTS} canEdit serverSupported={false} onSave={save} />);
-    expect(screen.getByText(/no server policy/)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Server upgrade required");
     expect(screen.getByRole("switch")).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
@@ -32,16 +32,33 @@ describe("run timeout settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(screen.getByText("Source: workspace default")).toBeInTheDocument();
+    expect(screen.getByLabelText("No-message wait duration")).toHaveValue(2);
   });
-  it("enables a complete policy and explicitly follows the general OpenCode wait", async () => {
+  it("creates a policy that follows the general wait without a hidden ten-minute override", async () => {
     const save = vi.fn(async () => {});
     renderWithI18n(<ExecutionTimeoutsSection scope="workspace" value={null} canEdit onSave={save} />);
-    expect(screen.getByText(/no server policy/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "Manage on server" }));
-    fireEvent.change(screen.getByLabelText("OpenCode no-message wait"), { target: { value: "zero" } });
+    expect(screen.getAllByRole("spinbutton")).toHaveLength(2);
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByText("OpenCode extensions")).toBeNull();
+    expect(screen.queryByText("Total run limit")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(save).toHaveBeenCalledWith({ ...DEFAULT_EXECUTION_TIMEOUTS, opencodeIdleSeconds: 0 }));
+  });
+  it("saves fractional hours and zero while preserving existing hidden policy values", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn(async () => {});
+    const value = { ...DEFAULT_EXECUTION_TIMEOUTS, runSeconds: 14400, opencodeIdleSeconds: 1800, opencodeShellSeconds: 5400 };
+    renderWithI18n(<ExecutionTimeoutsSection scope="workspace" value={value} canEdit onSave={save} />);
+    await user.clear(screen.getByLabelText("No-message wait duration"));
+    await user.type(screen.getByLabelText("No-message wait duration"), "0.5");
+    await user.tab();
+    expect(screen.getByLabelText("No-message wait duration")).toHaveValue(0.5);
+    fireEvent.change(screen.getByLabelText("No-message wait during tools duration"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith({ ...value, idleSeconds: 1800, toolIdleSeconds: 0 }));
+    expect(screen.queryByText(/Source:/)).toBeNull();
+    expect(screen.queryByText(/Explicit tool-call/)).toBeNull();
   });
   it("shows inherited values, restores inheritance, and hides OpenCode fields on DSH", async () => {
     const save = vi.fn(async () => {});

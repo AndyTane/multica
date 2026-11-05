@@ -62,7 +62,7 @@ describe("AgentDetailInspector labels", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Use workspace defaults" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(update).toHaveBeenCalledWith("agent-1", {
-      runtime_config: { execution_timeouts: { idle_seconds: 7200, tool_idle_seconds: 7200, run_seconds: 0, opencode_idle_seconds: 600 } },
+      runtime_config: { execution_timeouts: { idle_seconds: 7200, tool_idle_seconds: 7200, run_seconds: 0, opencode_idle_seconds: 0 } },
     }));
   });
 
