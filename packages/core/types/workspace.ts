@@ -1,3 +1,5 @@
+import type { ExecutionTimeoutsWire } from "../agents/execution-timeouts";
+
 export type MemberRole = "owner" | "admin" | "member";
 
 export interface WorkspaceRepo {
@@ -6,12 +8,14 @@ export interface WorkspaceRepo {
 }
 
 export interface Workspace {
+  /** Read-only server capability; absent on servers that cannot apply policies. */
+  execution_timeouts_supported?: boolean;
   id: string;
   name: string;
   slug: string;
   description: string | null;
   context: string | null;
-  settings: Record<string, unknown>;
+  settings: Record<string, unknown> & { execution_timeouts?: ExecutionTimeoutsWire | null };
   repos: WorkspaceRepo[];
   issue_prefix: string;
   avatar_url: string | null;

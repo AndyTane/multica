@@ -19,6 +19,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/logger"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
+	"github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -95,17 +96,18 @@ func normalizeIssuePrefix(raw string) (string, bool) {
 const issuePrefixFormatError = "issue prefix must be 1-10 uppercase letters or digits"
 
 type WorkspaceResponse struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Slug        string  `json:"slug"`
-	Description *string `json:"description"`
-	Context     *string `json:"context"`
-	Settings    any     `json:"settings"`
-	Repos       any     `json:"repos"`
-	IssuePrefix string  `json:"issue_prefix"`
-	AvatarURL   *string `json:"avatar_url"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	ExecutionTimeoutsSupported bool    `json:"execution_timeouts_supported"`
+	ID                         string  `json:"id"`
+	Name                       string  `json:"name"`
+	Slug                       string  `json:"slug"`
+	Description                *string `json:"description"`
+	Context                    *string `json:"context"`
+	Settings                   any     `json:"settings"`
+	Repos                      any     `json:"repos"`
+	IssuePrefix                string  `json:"issue_prefix"`
+	AvatarURL                  *string `json:"avatar_url"`
+	CreatedAt                  string  `json:"created_at"`
+	UpdatedAt                  string  `json:"updated_at"`
 }
 
 func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
@@ -124,17 +126,18 @@ func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
 		repos = []any{}
 	}
 	return WorkspaceResponse{
-		ID:          uuidToString(w.ID),
-		Name:        w.Name,
-		Slug:        w.Slug,
-		Description: textToPtr(w.Description),
-		Context:     textToPtr(w.Context),
-		Settings:    settings,
-		Repos:       repos,
-		IssuePrefix: w.IssuePrefix,
-		AvatarURL:   h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
-		CreatedAt:   timestampToString(w.CreatedAt),
-		UpdatedAt:   timestampToString(w.UpdatedAt),
+		ExecutionTimeoutsSupported: true,
+		ID:                         uuidToString(w.ID),
+		Name:                       w.Name,
+		Slug:                       w.Slug,
+		Description:                textToPtr(w.Description),
+		Context:                    textToPtr(w.Context),
+		Settings:                   settings,
+		Repos:                      repos,
+		IssuePrefix:                w.IssuePrefix,
+		AvatarURL:                  h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
+		CreatedAt:                  timestampToString(w.CreatedAt),
+		UpdatedAt:                  timestampToString(w.UpdatedAt),
 	}
 }
 
@@ -381,9 +384,19 @@ func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UpdateWorkspaceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	rawFields, err := decodeJSONBodyWithRawFields(r.Body, &req)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+	if raw, ok := rawFields["settings"]; ok {
+		if !allowExecutionTimeoutWrite(w, r, raw) {
+			return
+		}
+		if _, err := agent.ParseExecutionTimeouts(raw); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	params := db.UpdateWorkspaceParams{

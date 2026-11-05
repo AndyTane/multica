@@ -49,7 +49,11 @@ UPDATE workspace SET
     name = COALESCE(sqlc.narg('name'), name),
     description = COALESCE(sqlc.narg('description'), description),
     context = COALESCE(sqlc.narg('context'), context),
-    settings = COALESCE(sqlc.narg('settings'), settings),
+    settings = CASE
+        WHEN sqlc.narg('settings')::jsonb IS NULL THEN settings
+        WHEN sqlc.narg('settings')::jsonb->'execution_timeouts' = 'null'::jsonb THEN (COALESCE(settings, '{}'::jsonb) || sqlc.narg('settings')::jsonb) - 'execution_timeouts'
+        ELSE (COALESCE(settings, '{}'::jsonb) || sqlc.narg('settings')::jsonb)
+    END,
     repos = COALESCE(sqlc.narg('repos'), repos),
     issue_prefix = COALESCE(sqlc.narg('issue_prefix'), issue_prefix),
     avatar_url = COALESCE(sqlc.narg('avatar_url'), avatar_url),

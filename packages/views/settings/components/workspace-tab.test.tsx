@@ -11,6 +11,7 @@ const mockInvalidateQueries = vi.hoisted(() => vi.fn());
 const mockToastSuccess = vi.hoisted(() => vi.fn());
 const workspaceRef = vi.hoisted(() => ({
   current: {
+    execution_timeouts_supported: true,
     id: "workspace-1",
     name: "Test Workspace",
     slug: "test-workspace",
@@ -107,6 +108,7 @@ describe("WorkspaceTab — automatic updates", () => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     workspaceRef.current = {
+      execution_timeouts_supported: true,
       id: "workspace-1",
       name: "Test Workspace",
       slug: "test-workspace",
@@ -140,7 +142,20 @@ describe("WorkspaceTab — automatic updates", () => {
     expect(screen.getByText("TES")).toBeInTheDocument();
     expect(screen.getByText("test-workspace")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Slug" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Save$/ })).toBeNull();
+    // The timeout policy has its own explicit save; ordinary fields auto-save.
+    expect(screen.getByRole("button", { name: /^Save$/ })).toBeDisabled();
+  });
+
+  it("saves the timeout policy as a settings patch and refreshes the workspace cache", async () => {
+    const user = setupUser();
+    render(<WorkspaceTab />, { wrapper: I18nWrapper });
+    await user.click(screen.getByRole("switch", { name: "Manage on server" }));
+    await user.selectOptions(screen.getByLabelText("OpenCode no-message wait"), "zero");
+    await user.click(screen.getByRole("button", { name: /^Save$/ }));
+    await waitFor(() => expect(mockUpdateWorkspace).toHaveBeenCalledWith("workspace-1", {
+      settings: { execution_timeouts: { idle_seconds: 7200, tool_idle_seconds: 7200, run_seconds: 0, opencode_idle_seconds: 0 } },
+    }));
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["workspaces"] });
   });
 
   it("auto-saves ordinary workspace fields silently, without invalidating issue caches", async () => {

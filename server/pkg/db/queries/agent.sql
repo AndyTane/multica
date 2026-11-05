@@ -128,7 +128,11 @@ UPDATE agent SET
     name = COALESCE(sqlc.narg('name'), name),
     description = COALESCE(sqlc.narg('description'), description),
     avatar_url = COALESCE(sqlc.narg('avatar_url'), avatar_url),
-    runtime_config = COALESCE(sqlc.narg('runtime_config'), runtime_config),
+    runtime_config = CASE
+        WHEN sqlc.narg('runtime_config')::jsonb IS NULL THEN runtime_config
+        WHEN sqlc.narg('runtime_config')::jsonb->'execution_timeouts' = 'null'::jsonb THEN (COALESCE(runtime_config, '{}'::jsonb) || sqlc.narg('runtime_config')::jsonb) - 'execution_timeouts'
+        ELSE (COALESCE(runtime_config, '{}'::jsonb) || sqlc.narg('runtime_config')::jsonb)
+    END,
     runtime_mode = COALESCE(sqlc.narg('runtime_mode'), runtime_mode),
     runtime_id = COALESCE(sqlc.narg('runtime_id'), runtime_id),
     visibility = COALESCE(sqlc.narg('visibility'), visibility),

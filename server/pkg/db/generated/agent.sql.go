@@ -8716,7 +8716,11 @@ UPDATE agent SET
     name = COALESCE($2, name),
     description = COALESCE($3, description),
     avatar_url = COALESCE($4, avatar_url),
-    runtime_config = COALESCE($5, runtime_config),
+    runtime_config = CASE
+        WHEN $5::jsonb IS NULL THEN runtime_config
+        WHEN $5::jsonb->'execution_timeouts' = 'null'::jsonb THEN (COALESCE(runtime_config, '{}'::jsonb) || $5::jsonb) - 'execution_timeouts'
+        ELSE (COALESCE(runtime_config, '{}'::jsonb) || $5::jsonb)
+    END,
     runtime_mode = COALESCE($6, runtime_mode),
     runtime_id = COALESCE($7, runtime_id),
     visibility = COALESCE($8, visibility),

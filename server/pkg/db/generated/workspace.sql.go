@@ -438,7 +438,11 @@ UPDATE workspace SET
     name = COALESCE($2, name),
     description = COALESCE($3, description),
     context = COALESCE($4, context),
-    settings = COALESCE($5, settings),
+    settings = CASE
+        WHEN $5::jsonb IS NULL THEN settings
+        WHEN $5::jsonb->'execution_timeouts' = 'null'::jsonb THEN (COALESCE(settings, '{}'::jsonb) || $5::jsonb) - 'execution_timeouts'
+        ELSE (COALESCE(settings, '{}'::jsonb) || $5::jsonb)
+    END,
     repos = COALESCE($6, repos),
     issue_prefix = COALESCE($7, issue_prefix),
     avatar_url = COALESCE($8, avatar_url),
