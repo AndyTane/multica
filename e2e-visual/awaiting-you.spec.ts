@@ -15,6 +15,7 @@ test("23 real review cards: themes, widths, badges, send-back and undo", async (
   await client.connect();
   const api = new TestApiClient();
   const agentIds: string[] = [];
+  const memberUserIds: string[] = [];
   const output = join(process.cwd(), "e2e-visual/__out__/clawsta-151");
   mkdirSync(output, { recursive: true });
   let workspace: { id: string; slug: string } | undefined;
@@ -27,6 +28,13 @@ test("23 real review cards: themes, widths, badges, send-back and undo", async (
     const userId: string = login.user.id;
     await client.query(`UPDATE workspace SET issue_prefix='CLAWSTA' WHERE id=$1`, [ws.id]);
     const actors = new Map<string, string>();
+    for (const card of demo.cards) {
+      if (card.assignee_type !== "member" || !card.assignee_id || actors.has(card.assignee_id)) continue;
+      if (card.assignee_name === login.user.name) { actors.set(card.assignee_id, userId); continue; }
+      const member = await client.query(`INSERT INTO "user"(name,email) VALUES($1,$2) RETURNING id`, [card.assignee_name ?? "成员", `review-member-${Date.now()}-${memberUserIds.length}@example.test`]);
+      memberUserIds.push(member.rows[0].id); actors.set(card.assignee_id, member.rows[0].id);
+      await client.query(`INSERT INTO member(workspace_id,user_id,role) VALUES($1,$2,'member')`, [ws.id, member.rows[0].id]);
+    }
     for (const card of demo.cards) {
       if (card.assignee_type !== "agent" || !card.assignee_id || actors.has(card.assignee_id)) continue;
       const actor = await client.query(`INSERT INTO agent(workspace_id,name,description,owner_id,runtime_mode,runtime_config,visibility,permission_mode,max_concurrent_tasks) VALUES($1,$2,'',$3,'cloud','{}','private','private',1) RETURNING id`, [ws.id, card.assignee_name ?? "交付负责人", userId]);
@@ -93,6 +101,10 @@ test("23 real review cards: themes, widths, badges, send-back and undo", async (
   } finally {
     await api.cleanup();
     if (agentIds.length) await client.query(`DELETE FROM agent WHERE id=ANY($1::uuid[])`, [agentIds]);
+    if (memberUserIds.length) {
+      await client.query(`DELETE FROM member WHERE workspace_id=$1 AND user_id=ANY($2::uuid[])`, [workspace?.id, memberUserIds]);
+      await client.query(`DELETE FROM "user" WHERE id=ANY($1::uuid[])`, [memberUserIds]);
+    }
     await client.end();
   }
 });
