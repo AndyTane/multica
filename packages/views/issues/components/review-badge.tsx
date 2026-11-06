@@ -9,10 +9,14 @@ import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 
 export function ReviewBadge({ issue, actionOnly = false }: { issue: Issue; actionOnly?: boolean }) {
+  if (issue.status !== "in_review" || !["user", "specialist"].includes(String(issue.metadata?.review_by))) return null;
+  return <ReviewBadgeContent issue={issue} actionOnly={actionOnly} />;
+}
+
+function ReviewBadgeContent({ issue, actionOnly }: { issue: Issue; actionOnly: boolean }) {
   const { t } = useT("issues");
   const userId = useAuthStore((s) => s.user?.id ?? "");
   const { getActorName } = useActorName();
-  if (issue.status !== "in_review" || !["user", "specialist"].includes(String(issue.metadata.review_by))) return null;
   const mine = isAwaitingMe(issue, userId);
   if (actionOnly) return mine && typeof issue.metadata.review_action === "string"
     ? <span className="mt-1 block truncate text-caption text-foreground">{issue.metadata.review_action}</span> : null;
