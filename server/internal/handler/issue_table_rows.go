@@ -392,7 +392,7 @@ func (h *Handler) ListIssueTableRows(w http.ResponseWriter, r *http.Request) {
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at,
-	       i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
+	       i.updated_at, i.status_changed_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
 	       i.revision, i.duplicate_of_issue_id,
 	       %s AS direct_child_count, i.table_sort_key
 	FROM page i
@@ -431,6 +431,7 @@ SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 			&row.issue.DueDate,
 			&row.issue.CreatedAt,
 			&row.issue.UpdatedAt,
+			&row.issue.StatusChangedAt,
 			&row.issue.LastActivityAt,
 			&row.issue.Number,
 			&row.issue.ProjectID,

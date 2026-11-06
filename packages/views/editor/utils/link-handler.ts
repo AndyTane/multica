@@ -38,6 +38,7 @@ function matchesAppOrigin(target: URL, origins?: AppOrigins): boolean {
  * as intentional. Only "/issues/..." style paths get auto-prefixed.
  */
 const WORKSPACE_ROUTE_SEGMENTS = new Set([
+  "awaiting",
   "usage",
   "issues",
   "projects",

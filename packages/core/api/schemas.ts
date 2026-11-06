@@ -1322,6 +1322,7 @@ export const CommentSubIssueTaskResponseSchema = z.object({
 }).loose();
 
 export const IssueSchema = z.object({
+  status_changed_at: z.iso.datetime({ offset: true }).optional().catch(undefined),
   id: z.string(),
   workspace_id: z.string(),
   number: z.number(),

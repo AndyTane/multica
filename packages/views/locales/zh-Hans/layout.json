@@ -11,7 +11,8 @@
     "usage": "统计",
     "runtimes": "运行环境",
     "skills": "技能",
-    "settings": "设置"
+    "settings": "设置",
+    "awaiting": "等我处理"
   },
   "tab": {
     "issue": "任务",

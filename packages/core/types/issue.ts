@@ -221,6 +221,8 @@ export interface Issue {
   labels?: Label[];
   created_at: string;
   updated_at: string;
+  /** Time of the current status transition; older servers omit it. */
+  status_changed_at?: string;
   /** Monotonic server revision; absent when connected to an older backend. */
   revision?: number;
   /**

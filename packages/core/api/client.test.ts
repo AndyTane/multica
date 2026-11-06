@@ -93,7 +93,7 @@ describe("ApiClient agent conversation-starter compatibility", () => {
 describe("ApiClient edit guards", () => {
   it("serializes field baselines for issue and comment writes", async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-      new Response("{}", {
+      new Response(JSON.stringify({ id: "issue-1", workspace_id: "ws-1", number: 1, identifier: "MUL-1", title: "Latest", description: null, status: "in_review", priority: "none", assignee_type: null, assignee_id: null, creator_type: "member", creator_id: "user-1", parent_issue_id: null, project_id: null, position: 0, start_date: null, due_date: null, created_at: "2026-11-06T00:00:00Z", updated_at: "2026-11-06T00:00:00Z" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
@@ -101,12 +101,14 @@ describe("ApiClient edit guards", () => {
     vi.stubGlobal("fetch", fetchMock);
     const client = new ApiClient("https://api.example.test");
 
-    await client.updateIssue("issue-1", { title: "Latest", title_base: "Original" });
+    await client.updateIssue("issue-1", { title: "Latest", title_base: "Original", status: "in_review", expected_revision: 3, review_metadata: { review_by: "user" } });
     await client.updateComment("comment-1", "Latest", [], undefined, "Original");
 
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
       title: "Latest",
       title_base: "Original",
+      review_metadata: { review_by: "user" },
+      expected_revision: 3,
     });
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({
       content: "Latest",

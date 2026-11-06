@@ -1399,5 +1399,33 @@
     "overview_close": "关闭",
     "overview_empty": "没有这类产物。",
     "group_comment_by": "{{name}} 的评论"
+  },
+  "awaiting": {
+    "title": "等我处理",
+    "empty": "没有等你处理的事",
+    "missing_action": "交付方没写要你做什么",
+    "approve": "通过",
+    "reject": "打回",
+    "undo": "撤销",
+    "approved": "已通过 {{identifier}}",
+    "changed": "任务已有变化",
+    "failed": "操作失败，请重试",
+    "reason": "说一下哪里要改",
+    "partial": "意见已发送，状态未更新",
+    "retry_status": "重试状态更新",
+    "conflict": "任务已有变化，请重新打开任务处理",
+    "retry": "重试",
+    "you": "等你",
+    "other": "等 {{name}}",
+    "specialist": "等验收",
+    "specialist_hint": "等 {{name}} 验收",
+    "wait": "已等 {{time}}",
+    "minutes": "{{count}} 分钟",
+    "hours": "{{count}} 小时",
+    "days": "{{count}} 天",
+    "just_now": "不到 1 分钟",
+    "recipient": "意见将交回 {{name}}",
+    "unassigned": "当前没有交付负责人",
+    "preview_failed": "无法确认接收人，请重试"
   }
 }

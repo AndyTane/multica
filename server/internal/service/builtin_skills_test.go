@@ -431,16 +431,16 @@ func TestPlatformSkillCoversPlatformContracts(t *testing.T) {
 				"--resolve-properties",
 				"display_values",
 				"`value` keeps the stored ids",
+				"review_action",
+				"review_user",
+				"review_agent",
+				"LAST",
+				"120 Unicode code points",
 			},
 			notWant: []string{
 				"--no-start",
-				// MUL-6966 phase 1: this reference must not teach the KV bag
-				// at all — not as a section, not as a command, and not as a
-				// named key inside a warning. A blanket ban on the vocabulary
-				// is the contract; anything that needs the word back needs
-				// this decision revisited first.
-				"metadata",
-				"Metadata",
+				// Review delivery now has four reserved keys (CLAWSTA-151).
+				// Keep the retired ad-hoc PR and run-state recommendations out.
 				"pr_url",
 				// A curated key list is the "recommended fields" concept the
 				// owner ruled out on MUL-5442.

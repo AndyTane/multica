@@ -1399,5 +1399,33 @@
     "overview_close": "닫기",
     "overview_empty": "이 유형의 산출물이 없습니다.",
     "group_comment_by": "{{name}}의 댓글"
+  },
+  "awaiting": {
+    "title": "Waiting on you",
+    "empty": "Nothing waiting on you",
+    "missing_action": "The deliverer did not say what to do",
+    "approve": "Approve",
+    "reject": "Send back",
+    "undo": "Undo",
+    "approved": "Approved {{identifier}}",
+    "changed": "This task has changed",
+    "failed": "Something went wrong. Try again.",
+    "reason": "What needs changing?",
+    "partial": "Feedback sent, status not updated",
+    "retry_status": "Retry status update",
+    "conflict": "This task has changed. Open it to continue.",
+    "retry": "Retry",
+    "you": "Waiting on you",
+    "other": "Waiting on {{name}}",
+    "specialist": "Awaiting review",
+    "specialist_hint": "Awaiting {{name}}’s review",
+    "wait": "Waiting {{time}}",
+    "minutes": "{{count}} min",
+    "hours": "{{count}} hr",
+    "days": "{{count}} days",
+    "just_now": "less than a minute",
+    "recipient": "Feedback goes back to {{name}}",
+    "unassigned": "No deliverer assigned",
+    "preview_failed": "Could not confirm the recipient. Try again."
   }
 }
