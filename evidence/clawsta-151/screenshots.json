@@ -1,0 +1,62 @@
+[
+  {
+    "file": "approved-dark.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "0ab2ce40dae196a40cf1f7fbf595d279fb6b1b33f693e8d0d6c3addf83b30890"
+  },
+  {
+    "file": "approved-light.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "3a6517a7af3af0f320d7a02488ed76dd7574ccf4ac9b0dee4b62fbf5a3dff520"
+  },
+  {
+    "file": "awaiting-1024-dark.png",
+    "width": 1024,
+    "height": 900,
+    "sha256": "ad338e5f564188a2e7457359cf8e89df08d55ec7939c340286056188094dd2ca"
+  },
+  {
+    "file": "awaiting-1024-light.png",
+    "width": 1024,
+    "height": 900,
+    "sha256": "cba781f1fb04982dc1e2182440bf8333160ffa969b3ce47c228947d0be545705"
+  },
+  {
+    "file": "awaiting-1280-dark.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "44cb5ae726861137c9437560804882ffa50fb4c78b5db17f206c5326ae89fc06"
+  },
+  {
+    "file": "awaiting-1280-light.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "5b9e0b3b3922629253b79c1e0ddd22a20ac09d84eac9127b4dbe5f5eeaa7a407"
+  },
+  {
+    "file": "board-dark.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "923cce779c9901c6095ca126e5aac7d5fd78b05d206fd31215e09e5409f21f7e"
+  },
+  {
+    "file": "board-light.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "9a314fc245bea19e97140c21cd1bda4b7c6c426878d0e476b48a2068683e3c9c"
+  },
+  {
+    "file": "send-back-dark.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "7bf5f62a729ecedccda5a2a7565fa65e3fdff2a038c1442d222b0491d1d60809"
+  },
+  {
+    "file": "send-back-light.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "c85968fb11a103c466d2a17bd0815b66ec2d70662d2517d22d6fb618ee68710b"
+  }
+]
