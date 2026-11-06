@@ -16,7 +16,8 @@ test("23 real review cards: themes, widths, badges, send-back and undo", async (
   const api = new TestApiClient();
   const agentIds: string[] = [];
   const memberUserIds: string[] = [];
-  const output = join(process.cwd(), "e2e-visual/__out__/clawsta-151");
+  const r2 = process.env.CLAWSTA151_REVIEW_ROUND === "R2";
+  const output = join(process.cwd(), "e2e-visual/__out__/clawsta-151", ...(r2 ? ["r2"] : []));
   mkdirSync(output, { recursive: true });
   let workspace: { id: string; slug: string } | undefined;
   try {
@@ -68,6 +69,32 @@ test("23 real review cards: themes, widths, badges, send-back and undo", async (
         await expect(list.getByRole("listitem")).toHaveCount(2, { timeout: 90_000 });
         await expect(list.getByRole("listitem").first()).toContainText("CLAWSTA-143");
         await expect(page.locator(`a[href="/${ws.slug}/awaiting"]`)).toContainText("2");
+        if (r2) {
+          if (theme === "light") {
+            await page.setViewportSize({ width: 1024, height: 900 });
+            await page.screenshot({ path: join(output, "awaiting-1024-light.png"), animations: "disabled" });
+          }
+          await page.setViewportSize({ width: 1280, height: 900 });
+          await list.getByRole("button", { name: "打回", exact: true }).first().click();
+          const textbox = page.getByRole("textbox", { name: "打回意见" });
+          await textbox.fill("编译结束后补一张产物截图。");
+          await page.screenshot({ path: join(output, `send-back-${theme}.png`), animations: "disabled" });
+          if (theme === "light") {
+            const issueId = byNumber.get(143);
+            const before = await client.query(`SELECT status,revision,(SELECT count(*) FROM comment WHERE issue_id=$1) AS comments,(SELECT count(*) FROM agent_task_queue WHERE issue_id=$1) AS runs FROM issue WHERE id=$1`, [issueId]);
+            await textbox.fill("/note 请修复编译错误");
+            await page.getByRole("button", { name: "打回", exact: true }).last().click();
+            await expect(page.getByRole("alert")).toHaveText("以 /note 开头的意见只做记录，不会交给 协调负责人");
+            await expect(textbox).toHaveValue("/note 请修复编译错误");
+            await expect(textbox).toBeEditable();
+            await expect(list.getByRole("listitem")).toHaveCount(2);
+            const after = await client.query(`SELECT status,revision,(SELECT count(*) FROM comment WHERE issue_id=$1) AS comments,(SELECT count(*) FROM agent_task_queue WHERE issue_id=$1) AS runs FROM issue WHERE id=$1`, [issueId]);
+            expect(after.rows).toEqual(before.rows);
+            await page.screenshot({ path: join(output, "note-not-delivered-light.png"), animations: "disabled" });
+          }
+          expect(errors).toEqual([]);
+          continue;
+        }
         for (const width of [1280, 1024]) {
           await page.setViewportSize({ width, height: 900 });
           await page.screenshot({ path: join(output, `awaiting-${width}-${theme}.png`), animations: "disabled" });
