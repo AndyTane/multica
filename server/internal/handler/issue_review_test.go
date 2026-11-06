@@ -161,6 +161,28 @@ func TestReviewRestorePreservesLargeUnrelatedNumbers(t *testing.T) {
 	}
 }
 
+func TestReviewPRCompletionClearsKeys(t *testing.T) {
+	t.Setenv("GITHUB_WEBHOOK_SECRET", "review-completion-test")
+	const installationID int64 = 885151
+	issue := prAutoCompleteTestIssue(t, "Review PR completion", installationID)
+	setWorkspacePRMergeStatusForTest(t, "done")
+	dbfx.Exec(t, `UPDATE issue SET status='in_review',metadata='{"review_by":"user","review_action":"Check","keep":true}'::jsonb WHERE id=$1`, issue.ID)
+	dbfx.Exec(t, `UPDATE issue SET status_changed_at=now()-interval '1 hour' WHERE id=$1`, issue.ID)
+	before, err := testHandler.Queries.GetIssue(context.Background(), parseUUID(issue.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	firePRWebhook(t, "review-completion-test", installationID, 1, issue.Identifier+": review", "", "fix/review", "merged")
+	current, err := testHandler.Queries.GetIssue(context.Background(), parseUUID(issue.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := parseIssueMetadata(current.Metadata)
+	if current.Status != "done" || len(metadata) != 1 || metadata["keep"] != true || !current.StatusChangedAt.Time.After(before.StatusChangedAt.Time) {
+		t.Fatalf("PR completion snapshot: %s %s %s", current.Status, current.Metadata, current.StatusChangedAt.Time)
+	}
+}
+
 func TestReviewLateMetadataWaitsForStatusLock(t *testing.T) {
 	id := dbfx.Issue(t, "Concurrent review", testutil.Cols{"status": "in_review", "metadata": `{"review_by":"user"}`})
 	ctx := context.Background()
