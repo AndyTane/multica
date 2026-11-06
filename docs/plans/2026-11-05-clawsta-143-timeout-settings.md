@@ -144,3 +144,72 @@
 - 回归至少覆盖 1.1→3960、0.07→252、0.5→1800、0、负数、真实非整秒（如 0.0001 小时）及超范围拒绝；保存 3 小时后编辑为 4 时成功提示消失，未提交重读仍为 3，提交成功重读为 4。两个输入及两入口需能证明共享修复接入正确；做受影响专项、类型/lint与必要真实路由验证，复用隔离夹具，不重跑无关整仓或整套主题矩阵。
 - 本批不改主题/布局、管理开关、继承产品语义或后端计时。管理开关只是已答复的问题与建议，尚无删除指令。B1、主题与窄屏已关闭，无新证据不重开。保留原整仓失败边界，不修改本维护者任务书内容，可原样同步到实现分支。
 - 交付写完整 base..head、本批 d1cc73b3..head、实际验证及 F1/F2 前后证据；回复本 issue 并有效 @ 后端架构师。后端接收后交原前端负责人仅复审新增差异和 F1/F2，执行者自测不替代专业通过。仍为未发布 0.2.14 候选，不合并、发布、改现场或声称真实四十分钟编译验收。
+
+
+---
+
+# CLAWSTA-143 R2：合入上游 OpenCode ACP 修复，下线超时设置界面
+
+负责人：前端负责人（本批由 Tane 授权统筹）。执行：高级开发执行专家。后端代码验收：后端架构师（由前端负责人在候选返回后转交）。界面验收：前端负责人。
+
+## 目标
+
+合入上游修复后，OpenCode 运行长工具（如四十多分钟的编译）时，平台按“工具执行等待”计时（默认 2 小时），不再按 10 分钟无消息误杀。修复的根因是工具开始事件缺失。同一版本撤掉网页上的运行超时设置入口；服务端集中下发能力保留。
+
+## 基线
+
+- UWorkers main `390423760c4202c6dcb80fe146a035213c5947c5`（含 #45 超时策略、#46 任务 CLI 证书传递）。
+- 来源仓库 `https://github.com/AndyTane/multica.git`，分支 `tane/main`。
+
+## 范围
+
+### A. 合入（按顺序 cherry-pick，保留原作者与原提交信息，冲突说明写入提交信息）
+
+1. `da77e0a42` fix(daemon): preserve host temp for Windows Claude Git Bash (#8985)
+2. `2f48e39ad` MUL-7697 keep host TMP/TEMP for every Windows task (#9197)
+3. `a928595bf` MUL-7851 don't count host sleep as idle-watchdog silence (#9201)
+4. `b3f9b84f3` MUL-6945/6944 preserve Git content during artifact GC (#7893)
+5. `5c12d6f7d` MUL-8453 retry tasks interrupted by shutdown (#9778)
+6. `00053eaa3` MUL-8174 fix OpenCode resume after host clock rollback (#9460)
+7. `ffda9492f` MUL-8186 treat process exit as terminal signal on OpenCode 2.x (#9463)
+8. `9306302d1` MUL-8307 drive OpenCode over ACP (#9619)
+
+不要整体合并 `tane/main`（试合有 17 处冲突，范围超出本批）。如果上面某个提交还依赖未列出的提交，先停下来，在 issue 上列出依赖，不要自行扩大范围。
+
+已知冲突（前端负责人试合确认）：
+
+- `server/internal/daemon/daemon.go` 的 `taskMulticaEnvironment` 签名和调用：同时保留 UWorkers 的 `rootCAFile`（#46）和上游的 `provider` 参数，以及 Windows TMP/TEMP 逻辑。`daemon_test.go` 同步改。
+- `server/pkg/agent/opencode.go`：上游把环境组装抽成 `openCodeEnvironment(cfg, opts)`。UWorkers 的 `OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS`（来自 `opts.OpenCodeShellTimeout`）必须并进这个函数。
+- **必须修的坑**：`opencode_acp.go` 在 2.x 上只传 `ExecOptions{Cwd: opts.Cwd}` 给 `openCodeEnvironment`，会丢掉 `OpenCodeShellTimeout`。要保证 run 传输、ACP 1.x 和 ACP 2.x 三条路径都带上这个环境变量，并分别补测试。
+- 保留 UWorkers 已有的去品牌改动（c42abfdcd）：合入后用户可见的文案、日志和提示里不能重新出现 Multica 字样。内部环境变量名不受此限。
+
+### B. 下线超时设置界面
+
+- 移除工作区设置 → 常规里的“运行超时”区块，以及智能体详情 → 设置 → 通用里的继承/覆盖设置。
+- 只服务这两个入口的组件、辅助函数、前端类型、文案（五种语言）和测试一起删掉，不留死代码。删之前用 grep 确认没有其他引用。
+- **不能误删已存数据**：工作区和智能体的其他设置保存时，已存在的 `execution_timeouts` 键必须原样保留，不能因为前端不再认识它就被覆盖掉。补一条前端或接口测试。
+- 服务端校验、合成、随任务下发、客户端逐轮应用和能力声明全部保留不动。不改数据库结构。
+
+### C. 不在本批
+
+- OpenCode 自己的命令默认超时（1.18.3 未带 timeout 时为 2 分钟）要不要由服务端统一下发默认值，由后端架构师在后端验收时决定。本批不改默认值，只保证 A 里的传递正确。
+- 整仓旧失败、CI 额度问题，不在本批整治。
+
+## 验收
+
+1. Go：`server/pkg/agent/...` 和 `server/internal/daemon/...` 中与本批相关的测试全部通过（包括上游带来的 ACP、2.x 和 watchdog 测试，以及 UWorkers 的 execution_timeouts 测试），新增测试见 A 和 B。整仓失败按原样记录，不要说成“基线”。
+2. 前端：受影响包的类型检查、单测和生产构建通过；grep 证明两个入口和相关文案已清除。
+3. **Windows 真机（必须实测，不能用替身）**：用本机内置 OpenCode（当前 1.18.3）在隔离 daemon 中实测：
+   - 日志确认走的是 ACP 传输。
+   - 把 OpenCode 无消息等待临时调成 1 分钟，让智能体运行一条带足够 timeout、静默约 3 分钟的命令。工具开始时有 tool_use 事件，任务不被误杀，正常完成。
+   - 在长命令执行中取消任务，确认 opencode 进程和它的子进程（包括那条命令）全部结束，没有残留。
+   - 证明 `OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS` 在 ACP 路径下确实生效（下发一个值，看命令按这个值超时或不超时）。
+4. 真实页面：本地生产构建起服务，截图确认两个入口已消失，相邻设置的布局和保存不受影响（浅色和深色各一张）。
+5. 测试结束后关闭临时服务和进程，不动正在服务的 daemon，也不改现场安装。
+
+## 交付
+
+- 新分支和草稿 PR，目标 main。不合并、不打 tag、不发布。发布（v0.2.15，从 v0.2.14 做差量，三件套同号，校验后再切 stable）在双专业验收通过后另行投递。
+- 在 issue 原线程回复并有效 @ 前端负责人，写明：base..head、每个 cherry-pick 的冲突处理、测试命令和结果、Windows 实测证据（日志、进程清单、截图）以及证据包 SHA-256。
+- 把本任务书作为新的一节追加到 `docs/plans/2026-11-05-clawsta-143-timeout-settings.md`，随 PR 提交。
+- 禁止使用 `git add -A`、`git add .`、`git stash`、`git checkout --`、`git reset --hard`；不提交 `.multica/`；凭据不写入任何文件。

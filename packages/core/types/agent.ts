@@ -1,5 +1,4 @@
 import type { ChatSession } from "./chat";
-import type { ExecutionTimeoutsWire } from "../agents/execution-timeouts";
 import type { Label } from "./label";
 
 export type AgentStatus = "idle" | "working" | "blocked" | "error" | "offline";
@@ -524,9 +523,7 @@ export interface Agent {
   system_instructions?: string;
   avatar_url: string | null;
   runtime_mode: AgentRuntimeMode;
-  runtime_config: Record<string, unknown> & { execution_timeouts?: ExecutionTimeoutsWire | null };
-  /** Read-only server capability; absent on legacy servers. */
-  execution_timeouts_supported?: boolean;
+  runtime_config: Record<string, unknown>;
   custom_args: string[];
   /**
    * Coarse metadata signalling whether the agent has any custom env

@@ -57,8 +57,6 @@ import {
   type SettingsSaveStatus,
 } from "./settings-layout";
 import { useAutoSave } from "./use-auto-save";
-import { readExecutionTimeouts, executionTimeoutsPatch, supportsServerExecutionTimeouts } from "@multica/core/agents/execution-timeouts";
-import { ExecutionTimeoutsSection } from "./execution-timeouts-section";
 
 interface WorkspaceDetailsDraft {
   name: string;
@@ -478,16 +476,6 @@ export function WorkspaceTab() {
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
-      <ExecutionTimeoutsSection key={workspace.id} scope="workspace"
-        serverSupported={supportsServerExecutionTimeouts(workspace)}
-        value={readExecutionTimeouts(workspace.settings)} canEdit={canManageWorkspace}
-        invalid={workspace.settings?.execution_timeouts != null && !readExecutionTimeouts(workspace.settings)}
-        onSave={async (policy) => {
-          const updated = await api.updateWorkspace(workspace.id, { settings: executionTimeoutsPatch(policy) });
-          qc.setQueryData(workspaceKeys.list(), (old: Workspace[] | undefined) =>
-            old?.map((ws) => ws.id === updated.id ? updated : ws));
-          await qc.invalidateQueries({ queryKey: workspaceKeys.list() });
-        }} />
 
       {/* Danger Zone — gated on the member query settling so the owner-only
           Delete button and the sole-owner Leave guidance don't flash in

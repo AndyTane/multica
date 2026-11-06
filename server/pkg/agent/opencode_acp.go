@@ -297,6 +297,14 @@ func acpNameValues(v any) []map[string]any {
 	return out
 }
 
+func openCodeACPEnvironment(cfg Config, opts ExecOptions) ([]string, error) {
+	if opencodeUsesV2Contract(cfg) {
+		// 2.x receives MCP via session/new; keep all other per-run options.
+		opts.McpConfig = nil
+	}
+	return openCodeEnvironment(cfg, opts)
+}
+
 func (b *opencodeBackend) executeACP(ctx context.Context, execPath, prompt string, opts ExecOptions) (*Session, error) {
 	usesV2 := opencodeUsesV2Contract(b.cfg)
 	cwd := opts.Cwd
@@ -310,15 +318,13 @@ func (b *opencodeBackend) executeACP(ctx context.Context, execPath, prompt strin
 
 	// 1.x: MCP rides OPENCODE_CONFIG_CONTENT exactly as on the run transport.
 	// 2.x: MCP goes into session/new, and the env carries none.
-	envOpts := opts
 	mcpServers := []any{}
 	if usesV2 {
-		envOpts = ExecOptions{Cwd: opts.Cwd}
 		if mcpServers, err = opencodeACPMcpServers(opts.McpConfig, b.cfg); err != nil {
 			return nil, err
 		}
 	}
-	env, err := openCodeEnvironment(b.cfg, envOpts)
+	env, err := openCodeACPEnvironment(b.cfg, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +517,7 @@ func (b *opencodeBackend) executeACP(ctx context.Context, execPath, prompt strin
 
 		initResult, err := c.request(runCtx, "initialize", map[string]any{
 			"protocolVersion": 1,
-			"clientInfo":      map[string]any{"name": "multica-agent-sdk", "version": "0.2.0"},
+			"clientInfo":      map[string]any{"name": "u-workers-agent-sdk", "version": "0.2.0"},
 			"clientCapabilities": map[string]any{
 				"fs":       map[string]any{"readTextFile": false, "writeTextFile": false},
 				"terminal": false,

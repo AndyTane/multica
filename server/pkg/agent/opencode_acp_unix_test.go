@@ -20,6 +20,7 @@ import (
 // must not be billed to this turn.
 func fakeOpencodeACPScript() string {
 	return `#!/bin/sh
+printf '%s' "$OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS" > "$FAKE_LOG.shell-timeout"
 if [ "$1" = "export" ] || [ "$1" = "session" ]; then
   printf '%s\n' "$*" >> "$FAKE_LOG.export"
   printf '%s' '{"info":{"id":"ses_fake"},"messages":[{"info":{"role":"assistant","time":{"created":1},"tokens":{"input":999,"output":999,"cache":{"read":0,"write":0}}}},{"info":{"role":"assistant","time":{"created":9999999999999},"tokens":{"input":40,"output":7,"cache":{"read":3,"write":0}}}}]}'
@@ -94,11 +95,12 @@ func TestOpencodeACPStreamsToolStartAndSumsTurnUsage(t *testing.T) {
 			defer cancel()
 			mcp := `{"mcpServers":{"probe":{"command":"node","args":["s.js"]}}}`
 			session, err := backend.Execute(ctx, "do it", ExecOptions{
-				Cwd:           t.TempDir(),
-				Model:         "opencode/picked",
-				ThinkingLevel: "high",
-				McpConfig:     []byte(mcp),
-				Timeout:       15 * time.Second,
+				Cwd:                  t.TempDir(),
+				Model:                "opencode/picked",
+				ThinkingLevel:        "high",
+				McpConfig:            []byte(mcp),
+				Timeout:              15 * time.Second,
+				OpenCodeShellTimeout: 41 * time.Minute,
 			})
 			if err != nil {
 				t.Fatalf("execute: %v", err)
@@ -108,6 +110,10 @@ func TestOpencodeACPStreamsToolStartAndSumsTurnUsage(t *testing.T) {
 				msgs = append(msgs, m)
 			}
 			res := <-session.Result
+			value, err := os.ReadFile(logPath + ".shell-timeout")
+			if err != nil || string(value) != "2460000" {
+				t.Fatalf("ACP child shell timeout = %q, err=%v", value, err)
+			}
 			if res.Status != "completed" || res.SessionID != "ses_fake" {
 				t.Fatalf("result = %+v", res)
 			}
