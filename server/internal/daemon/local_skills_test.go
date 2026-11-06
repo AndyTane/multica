@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -56,7 +57,7 @@ func writeTestClaudePlugin(t *testing.T, home, id, name string, enabled bool) st
 	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	installed := `{"version":2,"plugins":{"` + id + `":[{"scope":"user","installPath":"` + installPath + `"}]}}`
+	installed := fmt.Sprintf(`{"version":2,"plugins":{%q:[{"scope":"user","installPath":%q}]}}`, id, installPath)
 	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), []byte(installed), 0o644); err != nil {
 		t.Fatal(err)
 	}
