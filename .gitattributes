@@ -1,6 +1,7 @@
 # Ensure shell scripts always use LF line endings (needed for Docker on Windows)
 *.sh text eol=lf
 *.mjs text eol=lf
+scripts/agent-cli-command-names.txt text eol=lf
 docker/entrypoint.sh text eol=lf
 
 # Default behavior
