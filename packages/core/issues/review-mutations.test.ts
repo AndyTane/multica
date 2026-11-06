@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api";
-import type { CommentTriggerPreview, Issue, Squad } from "../types";
+import type { CommentTriggerPreview, Issue } from "../types";
 import { ReviewFeedbackDeliveryError, sendReviewFeedback } from "./review-mutations";
 
-vi.mock("../api", () => ({ api: { previewCommentTriggers: vi.fn(), createComment: vi.fn(), getSquad: vi.fn() } }));
+vi.mock("../api", () => ({ api: { previewCommentTriggers: vi.fn(), createComment: vi.fn() } }));
 const issue = { id: "i1", assignee_type: "agent", assignee_id: "owner" } as Issue;
-const preview = (id = "owner", source = "issue_assignee"): CommentTriggerPreview => ({ agents: [{ id, name: id, source, reason: "" }] });
+const preview = (id = "owner", source = "issue_assignee", squad_id?: string): CommentTriggerPreview => ({ agents: [{ id, name: id, source, squad_id, reason: "" }] });
 const outgoing = (content: string, type = "agent") => `${content}\n\n[@${type}](mention://${type}/owner)`;
 
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(api.createComment).mockResolvedValue({ id: "c1", issue_revision: 8 } as never); });
@@ -57,25 +57,27 @@ describe("review feedback delivery", () => {
     const squadIssue = { ...issue, assignee_type: "squad" } as Issue;
     vi.mocked(api.previewCommentTriggers).mockResolvedValueOnce(preview("leader"));
     await sendReviewFeedback(squadIssue, "Fix this");
-    expect(api.getSquad).not.toHaveBeenCalled();
     vi.mocked(api.createComment).mockClear();
-    vi.mocked(api.previewCommentTriggers).mockResolvedValue(preview("other-leader", "mention_squad_leader"));
-    vi.mocked(api.getSquad).mockResolvedValue({ leader_id: "leader" } as Squad);
+    vi.mocked(api.previewCommentTriggers).mockResolvedValue(preview("leader", "mention_squad_leader", "other-squad"));
     await expect(sendReviewFeedback(squadIssue, "Fix this")).rejects.toBeInstanceOf(ReviewFeedbackDeliveryError);
-    expect(api.getSquad).toHaveBeenCalledWith("owner");
     expect(api.createComment).not.toHaveBeenCalled();
   });
 
   it("accepts the appended squad mention only when its own leader is in the final preview", async () => {
     vi.mocked(api.previewCommentTriggers).mockResolvedValueOnce(preview("other-leader", "mention_squad_leader"))
-      .mockResolvedValueOnce({ agents: [...preview("other-leader", "mention_squad_leader").agents, ...preview("leader", "mention_squad_leader").agents] });
-    vi.mocked(api.getSquad).mockResolvedValue({ leader_id: "leader" } as Squad);
+      .mockResolvedValueOnce({ agents: [...preview("other-leader", "mention_squad_leader", "other-squad").agents, ...preview("leader", "mention_squad_leader", "owner").agents] });
     await sendReviewFeedback({ ...issue, assignee_type: "squad" }, "Fix this");
     expect(api.createComment).toHaveBeenCalledExactlyOnceWith("i1", outgoing("Fix this", "squad"));
   });
 
   it("rejects a blocked squad mention even when another squad shares the leader", async () => {
-    vi.mocked(api.previewCommentTriggers).mockResolvedValueOnce({ agents: [] }).mockResolvedValueOnce({ ...preview("leader", "mention_squad_leader"), blocked: [{ target_type: "squad", target_id: "owner", status: "blocked", reason_code: "invoke_forbidden" }] });
+    vi.mocked(api.previewCommentTriggers).mockResolvedValueOnce({ agents: [] }).mockResolvedValueOnce({ ...preview("leader", "mention_squad_leader", "other-squad"), blocked: [{ target_type: "squad", target_id: "owner", status: "blocked", reason_code: "invoke_forbidden" }] });
+    await expect(sendReviewFeedback({ ...issue, assignee_type: "squad" }, "Fix this")).rejects.toBeInstanceOf(ReviewFeedbackDeliveryError);
+    expect(api.createComment).not.toHaveBeenCalled();
+  });
+
+  it("does not guess the squad from a legacy preview with no squad ID", async () => {
+    vi.mocked(api.previewCommentTriggers).mockResolvedValue(preview("leader", "mention_squad_leader"));
     await expect(sendReviewFeedback({ ...issue, assignee_type: "squad" }, "Fix this")).rejects.toBeInstanceOf(ReviewFeedbackDeliveryError);
     expect(api.createComment).not.toHaveBeenCalled();
   });

@@ -907,6 +907,9 @@ func TestPreviewCommentTriggers_AllPlusExplicitSquadMentionStillTriggers(t *test
 	if preview.Agents[0].Source != string(commentTriggerSourceMentionSquadLeader) {
 		t.Fatalf("preview source = %q, want %q", preview.Agents[0].Source, commentTriggerSourceMentionSquadLeader)
 	}
+	if preview.Agents[0].SquadID == nil || *preview.Agents[0].SquadID != squadID {
+		t.Fatalf("preview must identify the mentioned squad, got %+v", preview.Agents[0])
+	}
 
 	postCommentForTriggerPreviewTest(t, issueID, map[string]any{"content": content})
 	if got := countQueuedCommentTriggerTasks(t, issueID, leaderID); got != 1 {

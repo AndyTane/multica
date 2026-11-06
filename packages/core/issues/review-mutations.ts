@@ -32,17 +32,8 @@ export async function sendReviewFeedback(issue: Issue, content: string) {
     if (!reachesAssignee(preview)) {
       outgoing += `\n\n[@${issue.assignee_type}](mention://${issue.assignee_type}/${issue.assignee_id})`;
       const finalPreview = await api.previewCommentTriggers(issue.id, outgoing);
-      let delivered = reachesAssignee(finalPreview);
-      if (!delivered && issue.assignee_type === "squad" && finalPreview.agents.some((a) => a.source === "mention_squad_leader")) {
-        // The preview lists executable agents, not squad IDs. Resolve only the
-        // assigned squad, and reject a blocked mention even if another squad
-        // happens to share its leader.
-        const blocked = finalPreview.blocked?.some((target) => target.target_type === "squad" && target.target_id === issue.assignee_id);
-        if (!blocked) {
-          const squad = await api.getSquad(issue.assignee_id);
-          delivered = finalPreview.agents.some((a) => a.source === "mention_squad_leader" && a.id === squad.leader_id);
-        }
-      }
+      const delivered = reachesAssignee(finalPreview) || (issue.assignee_type === "squad"
+        && finalPreview.agents.some((a) => a.source === "mention_squad_leader" && a.squad_id === issue.assignee_id));
       if (!delivered) throw new ReviewFeedbackDeliveryError(/^\/note(?:\s|$)/i.test(content.trim()));
     }
   }

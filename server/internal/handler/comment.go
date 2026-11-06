@@ -1525,6 +1525,7 @@ type CommentTriggerAgentResponse struct {
 	Name      string  `json:"name"`
 	AvatarURL *string `json:"avatar_url,omitempty"`
 	Source    string  `json:"source"`
+	SquadID   *string `json:"squad_id,omitempty"`
 	Reason    string  `json:"reason"`
 }
 
@@ -1581,13 +1582,18 @@ func commentAgentTriggerReason(trigger commentAgentTrigger) string {
 }
 
 func (h *Handler) commentAgentTriggerToResponse(trigger commentAgentTrigger) CommentTriggerAgentResponse {
-	return CommentTriggerAgentResponse{
+	response := CommentTriggerAgentResponse{
 		ID:        uuidToString(trigger.Agent.ID),
 		Name:      trigger.Agent.Name,
 		AvatarURL: h.resolveAvatarURLPtr(textToPtr(trigger.Agent.AvatarUrl)),
 		Source:    string(trigger.Source),
 		Reason:    commentAgentTriggerReason(trigger),
 	}
+	if trigger.Squad != nil {
+		id := uuidToString(trigger.Squad.ID)
+		response.SquadID = &id
+	}
+	return response
 }
 
 func (h *Handler) PreviewCommentTriggers(w http.ResponseWriter, r *http.Request) {
