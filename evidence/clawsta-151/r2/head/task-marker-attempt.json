@@ -1,0 +1,6 @@
+{
+  "status": "cancelled",
+  "reason": "CLI tests detect inherited task marker from the agent workspace; rerun in the baseline checkout",
+  "officialCheckout": "D:/UWorkers/clawsta151-r2-compare",
+  "commit": "770133d35"
+}

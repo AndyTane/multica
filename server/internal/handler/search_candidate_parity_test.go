@@ -334,8 +334,9 @@ func runSearchForParity(t *testing.T, label, query string, args []any) []searchP
 }
 
 // buildLegacySearchQueryForParity is the parent commit's buildSearchQuery copied
-// verbatim except for its name and the duplicate_of_issue_id column, which both
-// queries project so one scanner reads them (MUL-7349). Keeping the original implementation here avoids
+// with the current read-only projection (duplicate_of_issue_id and the additive
+// status timestamp), so both queries share one row decoder. Keeping the original
+// matching and ranking here avoids
 // proving parity against a re-derived oracle that could share the new query's
 // assumptions. This remains test-only; production has no legacy fallback path.
 func buildLegacySearchQueryForParity(phrase string, terms []string, queryNum int, hasNum bool, includeClosed bool, terminalStatusKeys []string) (string, []any) {

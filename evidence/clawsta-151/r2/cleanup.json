@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-11-06T15:34:18.0126617Z",
+  "nativeRoot": "D:/UWorkers/clawsta151-r1",
+  "database": "uworkers_clawsta151_r1",
+  "databaseStopped": true,
+  "isolatedPorts": [
+    15651,
+    18651,
+    13651
+  ],
+  "remainingListeners": 0,
+  "activeTaskTestRunners": 0,
+  "protectedMulticaDaemonPid": 83428,
+  "protectedDaemonStatus": "running"
+}

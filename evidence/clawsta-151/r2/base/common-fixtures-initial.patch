@@ -1,0 +1,151 @@
+diff --git a/apps/desktop/scripts/package.test.mjs b/apps/desktop/scripts/package.test.mjs
+index 50e2dee94..17b00f6cd 100644
+--- a/apps/desktop/scripts/package.test.mjs
++++ b/apps/desktop/scripts/package.test.mjs
+@@ -1,3 +1,4 @@
++// @vitest-environment node
+ import { execFileSync } from "node:child_process";
+ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+ import { tmpdir } from "node:os";
+diff --git a/server/cmd/multica/cmd_agent_test.go b/server/cmd/multica/cmd_agent_test.go
+index fbb995e92..78af06772 100644
+--- a/server/cmd/multica/cmd_agent_test.go
++++ b/server/cmd/multica/cmd_agent_test.go
+@@ -316,7 +316,7 @@ func TestNewAPIClient_LeftoverMarkerActionableError(t *testing.T) {
+ 
+ 	if _, err := newAPIClient(testCmd()); err == nil {
+ 		t.Fatal("newAPIClient(): expected error for leftover daemon-task marker, got nil")
+-	} else if !strings.Contains(err.Error(), execenv.TaskContextMarkerRelPath) {
++	} else if !strings.Contains(err.Error(), filepath.FromSlash(execenv.TaskContextMarkerRelPath)) {
+ 		t.Fatalf("error should name the marker path; got %q", err.Error())
+ 	} else if !strings.Contains(err.Error(), "leftover") {
+ 		t.Fatalf("error should hint it may be a leftover; got %q", err.Error())
+diff --git a/server/internal/daemon/execenv/openclaw_config_test.go b/server/internal/daemon/execenv/openclaw_config_test.go
+index 515fad8ed..8921dba28 100644
+--- a/server/internal/daemon/execenv/openclaw_config_test.go
++++ b/server/internal/daemon/execenv/openclaw_config_test.go
+@@ -360,6 +360,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
+ 				home := t.TempDir()
+ 				path := filepath.Join(home, ".openclaw", "openclaw.json")
+ 				t.Setenv("HOME", home)
++				t.Setenv("USERPROFILE", home)
+ 				return path
+ 			},
+ 		},
+@@ -368,6 +369,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
+ 				home := t.TempDir()
+ 				path := filepath.Join(home, ".clawdbot", "clawdbot.json")
+ 				t.Setenv("HOME", home)
++				t.Setenv("USERPROFILE", home)
+ 				return path
+ 			},
+ 		},
+@@ -376,6 +378,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
+ 				home := t.TempDir()
+ 				path := filepath.Join(home, ".moltbot", "moltbot.json")
+ 				t.Setenv("HOME", home)
++				t.Setenv("USERPROFILE", home)
+ 				return path
+ 			},
+ 		},
+@@ -384,6 +387,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
+ 				home := t.TempDir()
+ 				path := filepath.Join(home, ".moldbot", "moldbot.json")
+ 				t.Setenv("HOME", home)
++				t.Setenv("USERPROFILE", home)
+ 				return path
+ 			},
+ 		},
+@@ -421,6 +425,7 @@ func TestOpenclawActiveConfigPathFallbackFreshInstallUsesCanonicalPath(t *testin
+ 	clearOpenclawPathEnv(t)
+ 	home := t.TempDir()
+ 	t.Setenv("HOME", home)
++	t.Setenv("USERPROFILE", home)
+ 	stub := installOpenclawStub(t, map[string]openclawResponse{
+ 		"config file": {err: openclawConfigFileUnsupportedErr()},
+ 	})
+@@ -442,6 +447,7 @@ func TestOpenclawActiveConfigPathFallbackOpenclawConfigPathHardOverride(t *testi
+ 	clearOpenclawPathEnv(t)
+ 	home := t.TempDir()
+ 	t.Setenv("HOME", home)
++	t.Setenv("USERPROFILE", home)
+ 	explicitPath := filepath.Join(t.TempDir(), "missing-openclaw.json")
+ 	t.Setenv("OPENCLAW_CONFIG_PATH", explicitPath)
+ 	legacyPath := filepath.Join(home, ".clawdbot", "clawdbot.json")
+@@ -656,6 +662,7 @@ func TestPrepareOpenclawConfigExpandsTilde(t *testing.T) {
+ 
+ 	fakeHome := t.TempDir()
+ 	t.Setenv("HOME", fakeHome)
++	t.Setenv("USERPROFILE", fakeHome)
+ 	if err := os.MkdirAll(filepath.Join(fakeHome, ".openclaw"), 0o755); err != nil {
+ 		t.Fatalf("mkdir home/.openclaw: %v", err)
+ 	}
+diff --git a/server/internal/handler/agent_work_dir_test.go b/server/internal/handler/agent_work_dir_test.go
+index f69ef63ea..fed56eb18 100644
+--- a/server/internal/handler/agent_work_dir_test.go
++++ b/server/internal/handler/agent_work_dir_test.go
+@@ -1,6 +1,7 @@
+ package handler
+ 
+ import (
++	"path/filepath"
+ 	"testing"
+ 
+ 	"github.com/jackc/pgx/v5/pgtype"
+@@ -245,7 +246,7 @@ func TestStableIDSuffixMatchesDaemon(t *testing.T) {
+ 		TaskID:          taskID,
+ 		IssueIdentifier: "MUL-6063",
+ 	})
+-	expected := workspacesRoot + "/asset-feed-" + taskDirSegment(workspaceID) + "/mul-6063-" + taskDirSegment(taskID)
++	expected := filepath.Join(workspacesRoot, "asset-feed-"+taskDirSegment(workspaceID), "mul-6063-"+taskDirSegment(taskID))
+ 	if daemonRoot != expected {
+ 		t.Fatalf("daemon PredictRootDir = %q, handler-side suffix expectation = %q", daemonRoot, expected)
+ 	}
+diff --git a/server/internal/handler/config_test.go b/server/internal/handler/config_test.go
+index b488de960..4aadbcb87 100644
+--- a/server/internal/handler/config_test.go
++++ b/server/internal/handler/config_test.go
+@@ -447,7 +447,7 @@ func TestGetConfigOmitsServerVersionOnOfficialCloud(t *testing.T) {
+ }
+ 
+ func TestGetConfigExposesFrontendFeatureFlags(t *testing.T) {
+-	h := &Handler{}
++	h := &Handler{Queries: testHandler.Queries}
+ 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
+ 	w := httptest.NewRecorder()
+ 	h.GetConfig(w, req)
+@@ -511,7 +511,7 @@ func TestGetConfigExposesFrontendFeatureFlags(t *testing.T) {
+ }
+ 
+ func TestGetConfigExposesEnabledPluginsV1Flag(t *testing.T) {
+-	h := &Handler{}
++	h := &Handler{Queries: testHandler.Queries}
+ 	withPluginsV1Flag(t, h, true)
+ 
+ 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
+diff --git a/server/internal/storage/local_atomic_test.go b/server/internal/storage/local_atomic_test.go
+index fdcd0a4c8..3cac0bcf2 100644
+--- a/server/internal/storage/local_atomic_test.go
++++ b/server/internal/storage/local_atomic_test.go
+@@ -6,6 +6,7 @@ import (
+ 	"io"
+ 	"os"
+ 	"path/filepath"
++	"runtime"
+ 	"strings"
+ 	"testing"
+ )
+@@ -77,7 +78,12 @@ func TestLocalStorageUploadsAreWorldReadable(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("stat %s: %v", key, err)
+ 		}
+-		if info.Mode().Perm() != 0644 {
++		// Windows exposes a synthetic writable mode instead of POSIX group bits.
++		if runtime.GOOS == "windows" {
++			if info.Mode().Perm()&0200 == 0 {
++				t.Fatalf("%s must remain writable, mode = %o", key, info.Mode().Perm())
++			}
++		} else if info.Mode().Perm() != 0644 {
+ 			t.Fatalf("%s mode = %o, want 0644", key, info.Mode().Perm())
+ 		}
+ 	}

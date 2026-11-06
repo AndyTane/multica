@@ -1,0 +1,9 @@
+
+ RUN  v4.1.0 D:/UWorkers/clawsta151-r2-compare/packages/views
+
+
+ Test Files  2 passed (2)
+      Tests  17 passed (17)
+   Start at  23:31:16
+   Duration  16.44s (transform 1.78s, setup 1.16s, import 7.32s, tests 156ms, environment 6.81s)
+

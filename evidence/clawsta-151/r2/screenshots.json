@@ -1,0 +1,26 @@
+[
+  {
+    "file": "awaiting-1024-light.png",
+    "width": 1024,
+    "height": 900,
+    "sha256": "23bd5df6c0a5ba1b03e0f867ece5aa881fcb5a675b3fbd68cd799f18aa6d8493"
+  },
+  {
+    "file": "note-not-delivered-light.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "4cf46e1b11391f7aeb1d082d97d7600cb89ba27b63cb917897ab9e431c16ef16"
+  },
+  {
+    "file": "send-back-dark.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "1af628c776d6c58cd9fbd4bb0ab91bfc35293231caf6b90110b9fd95486bb79f"
+  },
+  {
+    "file": "send-back-light.png",
+    "width": 1280,
+    "height": 900,
+    "sha256": "e28d11462cc48d4ae9507a654b71250b6b32c11d7560ee444400e7eef713ac3f"
+  }
+]

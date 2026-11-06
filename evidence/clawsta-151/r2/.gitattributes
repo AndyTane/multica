@@ -1,0 +1,5 @@
+# Keep evidence bytes identical across Windows and Linux checkouts.
+* -text
+*.patch -whitespace
+*.log -whitespace linguist-generated=true
+*.log.gz linguist-generated=true

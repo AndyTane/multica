@@ -1,0 +1,99 @@
+{
+  "label": "head",
+  "commit": "90a25d7176e9ba37abcf240c15b87b01b772fe19",
+  "node": "v24.21.0",
+  "steps": [
+    {
+      "name": "typecheck",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\node_modules\\turbo\\bin\\turbo typecheck --filter=!@multica/mobile --concurrency=1 --continue=always --force",
+      "code": 0,
+      "seconds": 1142
+    },
+    {
+      "name": "lint",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\node_modules\\turbo\\bin\\turbo lint --filter=!@multica/mobile --concurrency=1 --continue=always --force",
+      "code": 0,
+      "seconds": 208
+    },
+    {
+      "name": "views-repeat1",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run common/avatar-upload-control.test.tsx auth/registration-page.test.tsx modals/create-project.test.tsx settings/components/mcp-tab.test.tsx agents/components/create-agent-dialog.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 138,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "web-repeat1",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\apps\\web\\node_modules\\vitest\\vitest.mjs run app/join/page.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 11,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "views-repeat2",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run common/avatar-upload-control.test.tsx auth/registration-page.test.tsx modals/create-project.test.tsx settings/components/mcp-tab.test.tsx agents/components/create-agent-dialog.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 106,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "web-repeat2",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\apps\\web\\node_modules\\vitest\\vitest.mjs run app/join/page.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 10,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "views-repeat3",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run common/avatar-upload-control.test.tsx auth/registration-page.test.tsx modals/create-project.test.tsx settings/components/mcp-tab.test.tsx agents/components/create-agent-dialog.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 101,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "web-repeat3",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\apps\\web\\node_modules\\vitest\\vitest.mjs run app/join/page.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 9,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "frontend",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\node_modules\\turbo\\bin\\turbo test --filter=!@multica/mobile --concurrency=1 --continue=always --force -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 1,
+      "seconds": 5643,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice"
+    },
+    {
+      "name": "startup-repeat1",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 20,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice"
+    },
+    {
+      "name": "startup-repeat2",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 17,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice"
+    },
+    {
+      "name": "startup-repeat3",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 16,
+      "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+      "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice"
+    }
+  ]
+}
