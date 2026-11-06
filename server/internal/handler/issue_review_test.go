@@ -79,6 +79,7 @@ func TestReviewValidation(t *testing.T) {
 		{"review_action", strings.Repeat("文😀", 60), 200},
 		{"review_action", strings.Repeat("文😀", 60) + "a", 400},
 		{"review_action", " \t ", 400}, {"review_action", true, 400},
+		{"review_action", nil, 400}, {"review_action", map[string]any{"text": "invalid"}, 400},
 		{"review_by", "nobody", 400}, {"review_by", 1, 400},
 		{"review_user", "bad", 400}, {"review_user", foreignUser, 400},
 		{"review_agent", foreignAgent, 400}, {"review_agent", agent, 200},
@@ -88,7 +89,10 @@ func TestReviewValidation(t *testing.T) {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			before, _ := testHandler.Queries.GetIssue(context.Background(), parseUUID(id))
 			req := withURLParams(newRequest("PUT", "/api/issues/"+id+"/metadata/"+tc.key, map[string]any{"value": tc.value}), "id", id, "key", tc.key)
-			testutil.Call(t, testHandler.SetIssueMetadataKey, req).Want(tc.want)
+			response := testutil.Call(t, testHandler.SetIssueMetadataKey, req).Want(tc.want)
+			if tc.want == 400 && !strings.Contains(response.Body.String(), tc.key) {
+				t.Fatalf("field error must name %s: %s", tc.key, response.Body.String())
+			}
 			after, _ := testHandler.Queries.GetIssue(context.Background(), parseUUID(id))
 			if tc.want == 400 && (before.Revision != after.Revision || string(before.Metadata) != string(after.Metadata)) {
 				t.Fatal("invalid write changed issue")

@@ -86,6 +86,7 @@ export function AwaitingRow({ issue }: { issue: Issue }) {
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setConflict(true); setError(t(($) => $.awaiting.conflict));
+        toast.error(t(($) => $.awaiting.changed));
       } else setError(t(($) => feedback ? $.awaiting.partial : $.awaiting.failed));
     } finally { setSending(false); }
   }

@@ -168,7 +168,11 @@ func (h *Handler) SetIssueMetadataKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateIssueMetadataValue(req.Value); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		message := err.Error()
+		if isReviewKey(key) {
+			message = key + " " + message
+		}
+		writeError(w, http.StatusBadRequest, message)
 		return
 	}
 

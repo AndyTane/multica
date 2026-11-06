@@ -82,6 +82,7 @@ describe("review actions", () => {
     vi.mocked(api.updateIssue).mockRejectedValueOnce(new ApiError("Conflict", 409, "Conflict"));
     fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
     await screen.findByText("This task has changed. Open it to continue.");
+    expect(toastError).toHaveBeenLastCalledWith("This task has changed");
     expect((screen.getByRole("button", { name: "Retry status update" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
