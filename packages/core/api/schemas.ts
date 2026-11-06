@@ -1166,6 +1166,7 @@ const CommentTriggerPreviewAgentSchema = z.object({
   name: z.string().default(""),
   avatar_url: z.string().optional(),
   source: z.string().default(""),
+  squad_id: z.string().optional(),
   reason: z.string().default(""),
 }).loose();
 
@@ -1322,6 +1323,7 @@ export const CommentSubIssueTaskResponseSchema = z.object({
 }).loose();
 
 export const IssueSchema = z.object({
+  status_changed_at: z.iso.datetime({ offset: true }).optional().catch(undefined),
   id: z.string(),
   workspace_id: z.string(),
   number: z.number(),

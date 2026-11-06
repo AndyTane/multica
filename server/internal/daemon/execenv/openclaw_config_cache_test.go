@@ -107,7 +107,11 @@ func TestOpenclawDiscoveryCacheHitProducesSameWrapper(t *testing.T) {
 		}
 		// The workspace override is env-root specific; normalise it away so the
 		// comparison is about the discovered content, not the temp path.
-		return []byte(strings.ReplaceAll(string(raw), workDir, "<WORKDIR>"))
+		encodedWorkDir, err := json.Marshal(workDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return []byte(strings.ReplaceAll(string(raw), string(encodedWorkDir), `"<WORKDIR>"`))
 	}
 
 	cold := read()

@@ -1,0 +1,845 @@
+diff --git a/.gitattributes b/.gitattributes
+index 5528041db..1696b944d 100644
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -1,5 +1,7 @@
+ # Ensure shell scripts always use LF line endings (needed for Docker on Windows)
+ *.sh text eol=lf
++*.mjs text eol=lf
++scripts/agent-cli-command-names.txt text eol=lf
+ docker/entrypoint.sh text eol=lf
+ 
+ # Default behavior
+diff --git a/apps/desktop/scripts/package.test.mjs b/apps/desktop/scripts/package.test.mjs
+index 50e2dee94..17b00f6cd 100644
+--- a/apps/desktop/scripts/package.test.mjs
++++ b/apps/desktop/scripts/package.test.mjs
+@@ -1,3 +1,4 @@
++// @vitest-environment node
+ import { execFileSync } from "node:child_process";
+ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+ import { tmpdir } from "node:os";
+diff --git a/server/cmd/migrate/migrate_agent_task_history_index_test.go b/server/cmd/migrate/migrate_agent_task_history_index_test.go
+index 5d5b258c2..d4ab01c3d 100644
+--- a/server/cmd/migrate/migrate_agent_task_history_index_test.go
++++ b/server/cmd/migrate/migrate_agent_task_history_index_test.go
+@@ -39,7 +39,7 @@ func TestAgentTaskHistoryIndexMigrationAndPagePlans(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	_, history, ok := strings.Cut(string(source), "-- name: ListAgentTasks :many\n")
++	_, history, ok := strings.Cut(strings.ReplaceAll(string(source), "\r\n", "\n"), "-- name: ListAgentTasks :many\n")
+ 	if !ok {
+ 		t.Fatal("ListAgentTasks query missing")
+ 	}
+diff --git a/server/cmd/multica/cmd_agent_test.go b/server/cmd/multica/cmd_agent_test.go
+index fbb995e92..78af06772 100644
+--- a/server/cmd/multica/cmd_agent_test.go
++++ b/server/cmd/multica/cmd_agent_test.go
+@@ -316,7 +316,7 @@ func TestNewAPIClient_LeftoverMarkerActionableError(t *testing.T) {
+ 
+ 	if _, err := newAPIClient(testCmd()); err == nil {
+ 		t.Fatal("newAPIClient(): expected error for leftover daemon-task marker, got nil")
+-	} else if !strings.Contains(err.Error(), execenv.TaskContextMarkerRelPath) {
++	} else if !strings.Contains(err.Error(), filepath.FromSlash(execenv.TaskContextMarkerRelPath)) {
+ 		t.Fatalf("error should name the marker path; got %q", err.Error())
+ 	} else if !strings.Contains(err.Error(), "leftover") {
+ 		t.Fatalf("error should hint it may be a leftover; got %q", err.Error())
+diff --git a/server/cmd/multica/cmd_attachment_test.go b/server/cmd/multica/cmd_attachment_test.go
+index bd779e399..e001a7a90 100644
+--- a/server/cmd/multica/cmd_attachment_test.go
++++ b/server/cmd/multica/cmd_attachment_test.go
+@@ -69,7 +69,14 @@ func TestRunAttachmentDownloadWritesBasenameIntoOutputDir(t *testing.T) {
+ 	if strings.Contains(out, "../") {
+ 		t.Fatalf("stdout path should use sanitized basename, got %q", out)
+ 	}
+-	if !strings.Contains(out, `"filename": "report.txt"`) || !strings.Contains(out, dest) {
++	var result struct {
++		Filename string `json:"filename"`
++		Path     string `json:"path"`
++	}
++	if err := json.Unmarshal([]byte(out), &result); err != nil {
++		t.Fatalf("decode download result: %v", err)
++	}
++	if result.Filename != "report.txt" || result.Path != dest {
+ 		t.Fatalf("stdout = %q, want JSON with sanitized file path", out)
+ 	}
+ 	if !strings.Contains(errOut, "Downloaded:") || !strings.Contains(errOut, dest) {
+diff --git a/server/cmd/multica/cmd_runtime_profile_test.go b/server/cmd/multica/cmd_runtime_profile_test.go
+index 3e471b6f3..336058c59 100644
+--- a/server/cmd/multica/cmd_runtime_profile_test.go
++++ b/server/cmd/multica/cmd_runtime_profile_test.go
+@@ -277,10 +277,11 @@ func TestRunRuntimeProfileDeleteConflictSurfacesServerMessage(t *testing.T) {
+ 
+ func TestRunRuntimeProfileSetAndUnsetPath(t *testing.T) {
+ 	redirectTestHome(t, t.TempDir())
++	commandPath := filepath.Join(t.TempDir(), "company-codex")
+ 
+ 	// set-path
+ 	setCmd := newProfileSetPathTestCmd()
+-	_ = setCmd.Flags().Set("path", "/opt/bin/company-codex")
++	_ = setCmd.Flags().Set("path", commandPath)
+ 	if err := runRuntimeProfileSetPath(setCmd, []string{"prof-1"}); err != nil {
+ 		t.Fatalf("runRuntimeProfileSetPath: %v", err)
+ 	}
+@@ -289,8 +290,8 @@ func TestRunRuntimeProfileSetAndUnsetPath(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("LoadCLIConfig: %v", err)
+ 	}
+-	if got := cfg.ProfileCommandOverrides["prof-1"]; got != "/opt/bin/company-codex" {
+-		t.Fatalf("override after set = %q, want /opt/bin/company-codex", got)
++	if got := cfg.ProfileCommandOverrides["prof-1"]; got != commandPath {
++		t.Fatalf("override after set = %q, want %q", got, commandPath)
+ 	}
+ 
+ 	// unset-path
+@@ -319,6 +320,7 @@ func TestRunRuntimeProfileSetPathRejectsRelative(t *testing.T) {
+ func TestRunRuntimeProfileSetPathPreservesExistingConfig(t *testing.T) {
+ 	home := t.TempDir()
+ 	redirectTestHome(t, home)
++	commandPath := filepath.Join(t.TempDir(), "company-codex")
+ 
+ 	// Seed an existing config with unrelated fields.
+ 	seed := cli.CLIConfig{ServerURL: "https://api.multica.ai", WorkspaceID: "ws-123", Token: "mul_xyz"}
+@@ -327,7 +329,7 @@ func TestRunRuntimeProfileSetPathPreservesExistingConfig(t *testing.T) {
+ 	}
+ 
+ 	cmd := newProfileSetPathTestCmd()
+-	_ = cmd.Flags().Set("path", "/opt/bin/company-codex")
++	_ = cmd.Flags().Set("path", commandPath)
+ 	if err := runRuntimeProfileSetPath(cmd, []string{"prof-1"}); err != nil {
+ 		t.Fatalf("runRuntimeProfileSetPath: %v", err)
+ 	}
+@@ -339,7 +341,7 @@ func TestRunRuntimeProfileSetPathPreservesExistingConfig(t *testing.T) {
+ 	if cfg.ServerURL != "https://api.multica.ai" || cfg.WorkspaceID != "ws-123" || cfg.Token != "mul_xyz" {
+ 		t.Errorf("set-path clobbered existing config: %#v", cfg)
+ 	}
+-	if cfg.ProfileCommandOverrides["prof-1"] != "/opt/bin/company-codex" {
++	if cfg.ProfileCommandOverrides["prof-1"] != commandPath {
+ 		t.Errorf("override not written: %#v", cfg.ProfileCommandOverrides)
+ 	}
+ }
+diff --git a/server/cmd/multica/local_path_link_lint_test.go b/server/cmd/multica/local_path_link_lint_test.go
+index 7222de9ec..f048cf628 100644
+--- a/server/cmd/multica/local_path_link_lint_test.go
++++ b/server/cmd/multica/local_path_link_lint_test.go
+@@ -3,6 +3,7 @@ package main
+ import (
+ 	"os"
+ 	"path/filepath"
++	"strconv"
+ 	"strings"
+ 	"testing"
+ )
+@@ -249,7 +250,7 @@ func TestGuardLocalPathLinksOnlyFiresInAgentContext(t *testing.T) {
+ 		if err == nil {
+ 			t.Fatal("expected a hard failure inside agent context")
+ 		}
+-		if !strings.Contains(err.Error(), shot) {
++		if !strings.Contains(err.Error(), strconv.Quote(shot)) {
+ 			t.Errorf("error should name the offending target, got: %v", err)
+ 		}
+ 	})
+diff --git a/server/cmd/server/integration_test.go b/server/cmd/server/integration_test.go
+index 70fb7f759..f067184c5 100644
+--- a/server/cmd/server/integration_test.go
++++ b/server/cmd/server/integration_test.go
+@@ -4,6 +4,7 @@ import (
+ 	"bytes"
+ 	"context"
+ 	"encoding/json"
++	"errors"
+ 	"fmt"
+ 	"io"
+ 	"net/http"
+@@ -15,6 +16,7 @@ import (
+ 
+ 	"github.com/golang-jwt/jwt/v5"
+ 	"github.com/gorilla/websocket"
++	"github.com/jackc/pgx/v5"
+ 	"github.com/jackc/pgx/v5/pgxpool"
+ 
+ 	"github.com/multica-ai/multica/server/internal/analytics"
+@@ -281,7 +283,32 @@ func TestConfigRouteIsPublic(t *testing.T) {
+ 
+ // ---- Auth ----
+ 
++func enableIntegrationRegistration(t *testing.T) {
++	t.Helper()
++	ctx := context.Background()
++	queries := db.New(testPool)
++	previous, err := queries.GetInstanceSetting(ctx, "open_registration")
++	existed := !errors.Is(err, pgx.ErrNoRows)
++	if err != nil && existed {
++		t.Fatalf("read registration fixture: %v", err)
++	}
++	t.Cleanup(func() {
++		if existed {
++			_, err = queries.UpsertInstanceSetting(ctx, db.UpsertInstanceSettingParams{Key: "open_registration", Value: previous})
++		} else {
++			_, err = testPool.Exec(ctx, `DELETE FROM instance_setting WHERE key = 'open_registration'`)
++		}
++		if err != nil {
++			t.Errorf("restore registration fixture: %v", err)
++		}
++	})
++	if _, err := queries.UpsertInstanceSetting(ctx, db.UpsertInstanceSettingParams{Key: "open_registration", Value: []byte(`{"enabled":true}`)}); err != nil {
++		t.Fatalf("enable registration fixture: %v", err)
++	}
++}
++
+ func TestSendCodeAndVerify(t *testing.T) {
++	enableIntegrationRegistration(t)
+ 	const email = "integration-sendcode@multica.ai"
+ 	ctx := context.Background()
+ 
+@@ -365,6 +392,7 @@ func TestSendCodeAndVerify(t *testing.T) {
+ }
+ 
+ func TestVerifyCodeNewUserHasNoWorkspace(t *testing.T) {
++	enableIntegrationRegistration(t)
+ 	const email = "new-integration-verify@multica.ai"
+ 	ctx := context.Background()
+ 
+diff --git a/server/internal/cli/config_test.go b/server/internal/cli/config_test.go
+index 1c0aa3d6c..79cbb2a5b 100644
+--- a/server/internal/cli/config_test.go
++++ b/server/internal/cli/config_test.go
+@@ -4,6 +4,7 @@ import (
+ 	"encoding/json"
+ 	"os"
+ 	"path/filepath"
++	"runtime"
+ 	"strings"
+ 	"testing"
+ 
+@@ -401,7 +402,7 @@ func TestCLIConfig_TaskRootOverridesOwnerHome(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("stat task config directory %q: %v", dir, err)
+ 		}
+-		if got := info.Mode().Perm(); got != 0o700 {
++		if got := info.Mode().Perm(); runtime.GOOS != "windows" && got != 0o700 {
+ 			t.Errorf("task config directory %q mode = %#o, want 0700", dir, got)
+ 		}
+ 	}
+@@ -409,7 +410,7 @@ func TestCLIConfig_TaskRootOverridesOwnerHome(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("stat task config file: %v", err)
+ 	}
+-	if got := info.Mode().Perm(); got != 0o600 {
++	if got := info.Mode().Perm(); runtime.GOOS != "windows" && got != 0o600 {
+ 		t.Errorf("task config file mode = %#o, want 0600", got)
+ 	}
+ }
+diff --git a/server/internal/daemon/agent_path_selfheal_test.go b/server/internal/daemon/agent_path_selfheal_test.go
+index 84ca26e12..57b42c713 100644
+--- a/server/internal/daemon/agent_path_selfheal_test.go
++++ b/server/internal/daemon/agent_path_selfheal_test.go
+@@ -336,7 +336,14 @@ func TestResolveAgentEntry_NoCommandNoHeal(t *testing.T) {
+ func TestRefreshHealedVersion_KeepsHealedPairCurrentAfterInPlaceUpgrade(t *testing.T) {
+ 	d := newSelfHealTestDaemon()
+ 	healed := filepath.Join(t.TempDir(), "codex")
+-	writeExecStub(t, healed)
++	if runtime.GOOS == "windows" {
++		healed += ".cmd"
++		if err := os.WriteFile(healed, []byte("@echo off\r\nexit /b 0\r\n"), 0o755); err != nil {
++			t.Fatal(err)
++		}
++	} else {
++		writeExecStub(t, healed)
++	}
+ 
+ 	// State after a self-heal: path + the version detected for it at that time.
+ 	d.resolvedPaths["codex"] = healedAgent{path: healed, version: "1.0.0"}
+diff --git a/server/internal/daemon/config_test.go b/server/internal/daemon/config_test.go
+index 6bb44ef3f..43e1a22c7 100644
+--- a/server/internal/daemon/config_test.go
++++ b/server/internal/daemon/config_test.go
+@@ -1356,6 +1356,9 @@ func TestLoadConfig_SkipsLoginShellWhenLookPathSucceeds(t *testing.T) {
+ }
+ 
+ func TestLoadConfig_UsesCodexDesktopAppBundleFallback(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("macOS app-bundle executable bits are not available on Windows")
++	}
+ 	pathDir := t.TempDir()
+ 	fakeCodex := filepath.Join(pathDir, "Codex.app", "Contents", "Resources", "codex")
+ 	if err := os.MkdirAll(filepath.Dir(fakeCodex), 0o755); err != nil {
+@@ -1398,6 +1401,9 @@ func TestLoadConfig_UsesCodexDesktopAppBundleFallback(t *testing.T) {
+ // Multica must resolve the bundled CLI under ChatGPT.app (and prefer it over
+ // the legacy Codex.app path when both exist).
+ func TestLoadConfig_UsesChatGPTAppBundleCodexPath(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("macOS app-bundle executable bits are not available on Windows")
++	}
+ 	pathDir := t.TempDir()
+ 	fakeChatGPT := filepath.Join(pathDir, "ChatGPT.app", "Contents", "Resources", "codex")
+ 	fakeLegacy := filepath.Join(pathDir, "Codex.app", "Contents", "Resources", "codex")
+@@ -1440,6 +1446,9 @@ func TestLoadConfig_UsesChatGPTAppBundleCodexPath(t *testing.T) {
+ // Resources/codex-cli/bin/codex. Discovery must use that path when the older
+ // flat Resources/codex file is absent.
+ func TestLoadConfig_UsesNestedChatGPTCodexCLIPath(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("macOS app-bundle executable bits are not available on Windows")
++	}
+ 	pathDir := t.TempDir()
+ 	nested := filepath.Join(pathDir, "ChatGPT.app", "Contents", "Resources", "codex-cli", "bin", "codex")
+ 	if err := os.MkdirAll(filepath.Dir(nested), 0o755); err != nil {
+@@ -1506,6 +1515,9 @@ func TestProbeAgentCLIsIgnoresNonExecutableCodexBundle(t *testing.T) {
+ // When both the nested CLI and the older flat binary exist, the nested path
+ // is the current ChatGPT.app layout and must win.
+ func TestLoadConfig_PrefersNestedChatGPTCodexCLIPath(t *testing.T) {
++	if runtime.GOOS == "windows" {
++		t.Skip("macOS app-bundle executable bits are not available on Windows")
++	}
+ 	pathDir := t.TempDir()
+ 	nested := filepath.Join(pathDir, "ChatGPT.app", "Contents", "Resources", "codex-cli", "bin", "codex")
+ 	flat := filepath.Join(pathDir, "ChatGPT.app", "Contents", "Resources", "codex")
+diff --git a/server/internal/daemon/dsh_bundle_paths_test.go b/server/internal/daemon/dsh_bundle_paths_test.go
+index e816dee0f..f90325528 100644
+--- a/server/internal/daemon/dsh_bundle_paths_test.go
++++ b/server/internal/daemon/dsh_bundle_paths_test.go
+@@ -236,6 +236,7 @@ func TestDshPluginPathDirs_FindsBothLayouts(t *testing.T) {
+ 
+ 	t.Run("generational", func(t *testing.T) {
+ 		home := t.TempDir()
++		t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+ 		appData := dshDesktopAppDataDir(runtime.GOOS, os.Getenv, home)
+ 		if appData == "" {
+ 			t.Skip("no app-data location on this platform")
+@@ -252,6 +253,7 @@ func TestDshPluginPathDirs_FindsBothLayouts(t *testing.T) {
+ 
+ 	t.Run("flat", func(t *testing.T) {
+ 		home := t.TempDir()
++		t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+ 		appData := dshDesktopAppDataDir(runtime.GOOS, os.Getenv, home)
+ 		if appData == "" {
+ 			t.Skip("no app-data location on this platform")
+diff --git a/server/internal/daemon/execenv/local_worktree_test.go b/server/internal/daemon/execenv/local_worktree_test.go
+index 6543ddf1d..40df8dc0e 100644
+--- a/server/internal/daemon/execenv/local_worktree_test.go
++++ b/server/internal/daemon/execenv/local_worktree_test.go
+@@ -59,7 +59,7 @@ func buildTestRepoTemplate() (string, error) {
+ 	if err != nil {
+ 		return "", err
+ 	}
+-	for name, content := range map[string]string{"tracked.txt": "original\n", "keep.txt": "keep\n"} {
++	for name, content := range map[string]string{"tracked.txt": "original\n", "keep.txt": "keep\n", ".gitattributes": "* -text\n"} {
+ 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+ 			return dir, err
+ 		}
+@@ -68,6 +68,8 @@ func buildTestRepoTemplate() (string, error) {
+ 		{"init", "-b", "main"},
+ 		{"config", "user.name", "Test User"},
+ 		{"config", "user.email", "test@test.com"},
++		// Keep fixture bytes stable regardless of the host's checkout defaults.
++		{"config", "core.autocrlf", "false"},
+ 		// git commit forks a DETACHED `git maintenance run --auto` and
+ 		// returns without waiting for it. That background process creates
+ 		// and removes lock files under .git/ after this function is done,
+@@ -272,7 +274,7 @@ func TestFinalizeCommitsLeftoversAboveTheUserBaseline(t *testing.T) {
+ 	if _, err := os.Stat(wt.Path); !os.IsNotExist(err) {
+ 		t.Errorf("worktree directory still present after Finalize: %v", err)
+ 	}
+-	if list := gitRun(t, repo, "worktree", "list"); strings.Contains(list, wt.Path) {
++	if list := gitRun(t, repo, "worktree", "list"); strings.Contains(filepath.ToSlash(list), filepath.ToSlash(wt.Path)) {
+ 		t.Errorf("worktree still registered in user's repo:\n%s", list)
+ 	}
+ 	// The user's own checkout must be untouched by any of it.
+@@ -507,13 +509,13 @@ func TestPrepareLocalWorktreePrunesStaleRegistrations(t *testing.T) {
+ 	if err := os.RemoveAll(orphan); err != nil {
+ 		t.Fatalf("remove orphan worktree dir: %v", err)
+ 	}
+-	if list := gitRun(t, repo, "worktree", "list"); !strings.Contains(list, orphan) {
++	if list := gitRun(t, repo, "worktree", "list"); !strings.Contains(filepath.ToSlash(list), filepath.ToSlash(orphan)) {
+ 		t.Fatalf("precondition failed: orphan not registered:\n%s", list)
+ 	}
+ 
+ 	prepareForTest(t, repo)
+ 
+-	if list := gitRun(t, repo, "worktree", "list"); strings.Contains(list, orphan) {
++	if list := gitRun(t, repo, "worktree", "list"); strings.Contains(filepath.ToSlash(list), filepath.ToSlash(orphan)) {
+ 		t.Errorf("stale registration not pruned:\n%s", list)
+ 	}
+ }
+@@ -559,7 +561,7 @@ func TestFinalizeKeepsWorktreeWhenCommitFails(t *testing.T) {
+ 		t.Errorf("agent work was destroyed despite the commit failure, got %q", got)
+ 	}
+ 	// And it stays discoverable through git rather than only a log line.
+-	if list := gitRun(t, repo, "worktree", "list"); !strings.Contains(list, wt.Path) {
++	if list := gitRun(t, repo, "worktree", "list"); !strings.Contains(filepath.ToSlash(list), filepath.ToSlash(wt.Path)) {
+ 		t.Errorf("preserved worktree is no longer registered, so the user cannot find it:\n%s", list)
+ 	}
+ 	if !strings.Contains(err.Error(), wt.Path) {
+@@ -738,7 +740,7 @@ func TestFinalizeAbortRefusesToCommitAndKeepsWorktree(t *testing.T) {
+ 	if got := readFile(t, filepath.Join(wt.Path, "agent-output.txt")); got != "real work\n" {
+ 		t.Errorf("agent work was destroyed: %q", got)
+ 	}
+-	if list := gitRun(t, repo, "worktree", "list"); !strings.Contains(list, wt.Path) {
++	if list := gitRun(t, repo, "worktree", "list"); !strings.Contains(filepath.ToSlash(list), filepath.ToSlash(wt.Path)) {
+ 		t.Errorf("preserved worktree is no longer registered:\n%s", list)
+ 	}
+ }
+@@ -784,7 +786,7 @@ func TestDiscardRemovesWorktreeAndBranch(t *testing.T) {
+ 	if _, err := os.Stat(wt.Path); !os.IsNotExist(err) {
+ 		t.Errorf("worktree directory survived Discard: %v", err)
+ 	}
+-	if list := gitRun(t, repo, "worktree", "list"); strings.Contains(list, wt.Path) {
++	if list := gitRun(t, repo, "worktree", "list"); strings.Contains(filepath.ToSlash(list), filepath.ToSlash(wt.Path)) {
+ 		t.Errorf("worktree still registered after Discard:\n%s", list)
+ 	}
+ 	if out, err := gitTry(t, repo, "rev-parse", "--verify", wt.Branch); err == nil {
+diff --git a/server/internal/daemon/execenv/openclaw_config_cache_test.go b/server/internal/daemon/execenv/openclaw_config_cache_test.go
+index 62f506c2f..977949950 100644
+--- a/server/internal/daemon/execenv/openclaw_config_cache_test.go
++++ b/server/internal/daemon/execenv/openclaw_config_cache_test.go
+@@ -107,7 +107,11 @@ func TestOpenclawDiscoveryCacheHitProducesSameWrapper(t *testing.T) {
+ 		}
+ 		// The workspace override is env-root specific; normalise it away so the
+ 		// comparison is about the discovered content, not the temp path.
+-		return []byte(strings.ReplaceAll(string(raw), workDir, "<WORKDIR>"))
++		encodedWorkDir, err := json.Marshal(workDir)
++		if err != nil {
++			t.Fatal(err)
++		}
++		return []byte(strings.ReplaceAll(string(raw), string(encodedWorkDir), `"<WORKDIR>"`))
+ 	}
+ 
+ 	cold := read()
+diff --git a/server/internal/daemon/execenv/openclaw_config_test.go b/server/internal/daemon/execenv/openclaw_config_test.go
+index 515fad8ed..8921dba28 100644
+--- a/server/internal/daemon/execenv/openclaw_config_test.go
++++ b/server/internal/daemon/execenv/openclaw_config_test.go
+@@ -360,6 +360,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
+ 				home := t.TempDir()
+ 				path := filepath.Join(home, ".openclaw", "openclaw.json")
+ 				t.Setenv("HOME", home)
++				t.Setenv("USERPROFILE", home)
+ 				return path
+ 			},
+ 		},
+@@ -368,6 +369,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
+ 				home := t.TempDir()
+ 				path := filepath.Join(home, ".clawdbot", "clawdbot.json")
+ 				t.Setenv("HOME", home)
++				t.Setenv("USERPROFILE", home)
+ 				return path
+ 			},
+ 		},
+@@ -376,6 +378,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
+ 				home := t.TempDir()
+ 				path := filepath.Join(home, ".moltbot", "moltbot.json")
+ 				t.Setenv("HOME", home)
++				t.Setenv("USERPROFILE", home)
+ 				return path
+ 			},
+ 		},
+@@ -384,6 +387,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
+ 				home := t.TempDir()
+ 				path := filepath.Join(home, ".moldbot", "moldbot.json")
+ 				t.Setenv("HOME", home)
++				t.Setenv("USERPROFILE", home)
+ 				return path
+ 			},
+ 		},
+@@ -421,6 +425,7 @@ func TestOpenclawActiveConfigPathFallbackFreshInstallUsesCanonicalPath(t *testin
+ 	clearOpenclawPathEnv(t)
+ 	home := t.TempDir()
+ 	t.Setenv("HOME", home)
++	t.Setenv("USERPROFILE", home)
+ 	stub := installOpenclawStub(t, map[string]openclawResponse{
+ 		"config file": {err: openclawConfigFileUnsupportedErr()},
+ 	})
+@@ -442,6 +447,7 @@ func TestOpenclawActiveConfigPathFallbackOpenclawConfigPathHardOverride(t *testi
+ 	clearOpenclawPathEnv(t)
+ 	home := t.TempDir()
+ 	t.Setenv("HOME", home)
++	t.Setenv("USERPROFILE", home)
+ 	explicitPath := filepath.Join(t.TempDir(), "missing-openclaw.json")
+ 	t.Setenv("OPENCLAW_CONFIG_PATH", explicitPath)
+ 	legacyPath := filepath.Join(home, ".clawdbot", "clawdbot.json")
+@@ -656,6 +662,7 @@ func TestPrepareOpenclawConfigExpandsTilde(t *testing.T) {
+ 
+ 	fakeHome := t.TempDir()
+ 	t.Setenv("HOME", fakeHome)
++	t.Setenv("USERPROFILE", fakeHome)
+ 	if err := os.MkdirAll(filepath.Join(fakeHome, ".openclaw"), 0o755); err != nil {
+ 		t.Fatalf("mkdir home/.openclaw: %v", err)
+ 	}
+diff --git a/server/internal/daemon/execenv/openclaw_shim_windows_test.go b/server/internal/daemon/execenv/openclaw_shim_windows_test.go
+index def58e457..160dd8d7f 100644
+--- a/server/internal/daemon/execenv/openclaw_shim_windows_test.go
++++ b/server/internal/daemon/execenv/openclaw_shim_windows_test.go
+@@ -114,7 +114,9 @@ func TestWindowsOpenclawShimMissingNodeSurfacesCmdStderr(t *testing.T) {
+ 	msg := err.Error()
+ 	t.Logf("observed error: %s", msg)
+ 
+-	if !strings.Contains(strings.ToLower(msg), "not recognized") {
++	// cmd.exe localizes its diagnostic; pin the captured stderr branch and the
++	// missing command rather than requiring an English Windows installation.
++	if !strings.Contains(msg, "stderr:") || !strings.Contains(strings.ToLower(msg), "node") {
+ 		t.Errorf("expected cmd.exe's own stderr to reach Go's pipe; if this now fails, "+
+ 			"the platform behaviour changed and the shim diagnostic is carrying this case instead\ngot: %s", msg)
+ 	}
+diff --git a/server/internal/daemon/execenv/reply_instructions_shell_test.go b/server/internal/daemon/execenv/reply_instructions_shell_test.go
+index 7fdf807bd..df653e071 100644
+--- a/server/internal/daemon/execenv/reply_instructions_shell_test.go
++++ b/server/internal/daemon/execenv/reply_instructions_shell_test.go
+@@ -61,6 +61,13 @@ func stubMultica(t *testing.T, exitCode int) string {
+ 	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
+ 		t.Fatal(err)
+ 	}
++	if runtime.GOOS == "windows" {
++		// Git Bash resolves an extensionless shell stub, while PowerShell uses
++		// the .cmd above. Both shells must stay inside the test fixture.
++		if err := os.WriteFile(filepath.Join(dir, "multica"), []byte("#!/bin/sh\nexit "+strconv.Itoa(exitCode)+"\n"), 0o755); err != nil {
++			t.Fatal(err)
++		}
++	}
+ 	return dir
+ }
+ 
+diff --git a/server/internal/daemon/health_test.go b/server/internal/daemon/health_test.go
+index 9176ebcbc..63cdc6a5d 100644
+--- a/server/internal/daemon/health_test.go
++++ b/server/internal/daemon/health_test.go
+@@ -12,6 +12,7 @@ import (
+ 	"os"
+ 	"path/filepath"
+ 	"runtime"
++	"strconv"
+ 	"strings"
+ 	"sync"
+ 	"testing"
+@@ -362,7 +363,7 @@ func TestRepoCheckoutUsesTaskScopedProjectRefByDefault(t *testing.T) {
+ 	d.registerTaskRepos(workspaceID, "task-1", []RepoData{{URL: repoURL, Ref: "release/v2"}})
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","agent_name":"Other Agent","task_id":"task-1"}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"agent_name":"Other Agent","task_id":"task-1"}`)
+ 	d.repoCheckoutHandler().ServeHTTP(rec, authorizedRepoCheckoutRequest(body))
+ 
+ 	if rec.Code != http.StatusOK {
+@@ -391,7 +392,7 @@ func TestRepoCheckoutRejectsMissingTaskCredential(t *testing.T) {
+ 	d.logger = captureLogger(&logs)
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","task_id":"task-1"}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"task_id":"task-1"}`)
+ 	d.repoCheckoutHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/repo/checkout", body))
+ 
+ 	if rec.Code != http.StatusUnauthorized {
+@@ -441,7 +442,7 @@ func TestRepoCheckoutRejectsUnknownTaskCredential(t *testing.T) {
+ 	d.logger = captureLogger(&logs)
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","task_id":"task-1"}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"task_id":"task-1"}`)
+ 	req := httptest.NewRequest(http.MethodPost, "/repo/checkout", body)
+ 	req.Header.Set("Authorization", "Bearer mat_not_an_active_task")
+ 	d.repoCheckoutHandler().ServeHTTP(rec, req)
+@@ -529,7 +530,7 @@ func TestRepoCheckoutRejectsAnotherTaskWorkdir(t *testing.T) {
+ 	otherWorkDir := t.TempDir()
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + otherWorkDir + `","task_id":"task-1"}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(otherWorkDir) + `,"task_id":"task-1"}`)
+ 	d.repoCheckoutHandler().ServeHTTP(rec, authorizedRepoCheckoutRequest(body))
+ 
+ 	if rec.Code != http.StatusForbidden {
+@@ -564,7 +565,7 @@ func TestRepoCheckoutRejectsUnresolvableWorkdirWithTheReason(t *testing.T) {
+ 	missing := filepath.Join(workDir, "does-not-exist")
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + missing + `","task_id":"task-1"}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(missing) + `,"task_id":"task-1"}`)
+ 	d.repoCheckoutHandler().ServeHTTP(rec, authorizedRepoCheckoutRequest(body))
+ 
+ 	if rec.Code != http.StatusForbidden {
+@@ -589,7 +590,7 @@ func TestRepoCheckoutExplicitRefOverridesProjectDefault(t *testing.T) {
+ 	d.registerTaskRepos(workspaceID, "task-1", []RepoData{{URL: repoURL, Ref: "release/v2"}})
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","task_id":"task-1","ref":"hotfix"}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"task_id":"task-1","ref":"hotfix"}`)
+ 	d.repoCheckoutHandler().ServeHTTP(rec, authorizedRepoCheckoutRequest(body))
+ 
+ 	if rec.Code != http.StatusOK {
+@@ -610,7 +611,7 @@ func TestRepoCheckoutForwardsIsolatedMode(t *testing.T) {
+ 	d := newRepoCheckoutTestDaemon(t, workspaceID, repoURL, workDir, cache)
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","task_id":"task-1","checkout_mode":"isolated"}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"task_id":"task-1","checkout_mode":"isolated"}`)
+ 	d.repoCheckoutHandler().ServeHTTP(rec, authorizedRepoCheckoutRequest(body))
+ 
+ 	if rec.Code != http.StatusOK {
+@@ -634,8 +635,8 @@ func TestRepoCheckoutForwardsFresh(t *testing.T) {
+ 		body string
+ 		want bool
+ 	}{
+-		{body: `{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","task_id":"task-1"}`, want: false},
+-		{body: `{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","task_id":"task-1","fresh":true}`, want: true},
++		{body: `{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"task_id":"task-1"}`, want: false},
++		{body: `{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"task_id":"task-1","fresh":true}`, want: true},
+ 	} {
+ 		rec := httptest.NewRecorder()
+ 		d.repoCheckoutHandler().ServeHTTP(rec, authorizedRepoCheckoutRequest(strings.NewReader(tc.body)))
+@@ -658,7 +659,7 @@ func TestRepoCheckoutRejectsUnknownMode(t *testing.T) {
+ 	d := newRepoCheckoutTestDaemon(t, workspaceID, repoURL, workDir, cache)
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","task_id":"task-1","checkout_mode":"unsafe"}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"task_id":"task-1","checkout_mode":"unsafe"}`)
+ 	d.repoCheckoutHandler().ServeHTTP(rec, authorizedRepoCheckoutRequest(body))
+ 
+ 	if rec.Code != http.StatusBadRequest {
+@@ -679,7 +680,7 @@ func TestRepoCheckoutReturnsRetryableBusyToCapableClient(t *testing.T) {
+ 	d := newRepoCheckoutTestDaemon(t, workspaceID, repoURL, workDir, cache)
+ 
+ 	rec := httptest.NewRecorder()
+-	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":"` + workDir + `","task_id":"task-1","retry_busy":true}`)
++	body := strings.NewReader(`{"url":"` + repoURL + `","workspace_id":"` + workspaceID + `","workdir":` + strconv.Quote(workDir) + `,"task_id":"task-1","retry_busy":true}`)
+ 	d.repoCheckoutHandler().ServeHTTP(rec, authorizedRepoCheckoutRequest(body))
+ 
+ 	if rec.Code != http.StatusServiceUnavailable {
+diff --git a/server/internal/daemon/local_skills_test.go b/server/internal/daemon/local_skills_test.go
+index 3ddc4b8eb..2732a4129 100644
+--- a/server/internal/daemon/local_skills_test.go
++++ b/server/internal/daemon/local_skills_test.go
+@@ -1,6 +1,7 @@
+ package daemon
+ 
+ import (
++	"fmt"
+ 	"os"
+ 	"path/filepath"
+ 	"reflect"
+@@ -56,7 +57,7 @@ func writeTestClaudePlugin(t *testing.T, home, id, name string, enabled bool) st
+ 	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+ 		t.Fatal(err)
+ 	}
+-	installed := `{"version":2,"plugins":{"` + id + `":[{"scope":"user","installPath":"` + installPath + `"}]}}`
++	installed := fmt.Sprintf(`{"version":2,"plugins":{%q:[{"scope":"user","installPath":%q}]}}`, id, installPath)
+ 	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), []byte(installed), 0o644); err != nil {
+ 		t.Fatal(err)
+ 	}
+@@ -688,7 +689,7 @@ func TestListRuntimeLocalSkills_CodexUsesSharedCODEXHOME(t *testing.T) {
+ 	if skills[0].Key != "debugger" {
+ 		t.Fatalf("key = %q, want debugger", skills[0].Key)
+ 	}
+-	if skills[0].SourcePath != filepath.Join(codexHome, "skills", "debugger") {
++	if skills[0].SourcePath != filepath.ToSlash(filepath.Join(codexHome, "skills", "debugger")) {
+ 		t.Fatalf("source_path = %q", skills[0].SourcePath)
+ 	}
+ }
+diff --git a/server/internal/handler/agent_work_dir_test.go b/server/internal/handler/agent_work_dir_test.go
+index f69ef63ea..fed56eb18 100644
+--- a/server/internal/handler/agent_work_dir_test.go
++++ b/server/internal/handler/agent_work_dir_test.go
+@@ -1,6 +1,7 @@
+ package handler
+ 
+ import (
++	"path/filepath"
+ 	"testing"
+ 
+ 	"github.com/jackc/pgx/v5/pgtype"
+@@ -245,7 +246,7 @@ func TestStableIDSuffixMatchesDaemon(t *testing.T) {
+ 		TaskID:          taskID,
+ 		IssueIdentifier: "MUL-6063",
+ 	})
+-	expected := workspacesRoot + "/asset-feed-" + taskDirSegment(workspaceID) + "/mul-6063-" + taskDirSegment(taskID)
++	expected := filepath.Join(workspacesRoot, "asset-feed-"+taskDirSegment(workspaceID), "mul-6063-"+taskDirSegment(taskID))
+ 	if daemonRoot != expected {
+ 		t.Fatalf("daemon PredictRootDir = %q, handler-side suffix expectation = %q", daemonRoot, expected)
+ 	}
+diff --git a/server/internal/handler/config_test.go b/server/internal/handler/config_test.go
+index b488de960..4aadbcb87 100644
+--- a/server/internal/handler/config_test.go
++++ b/server/internal/handler/config_test.go
+@@ -447,7 +447,7 @@ func TestGetConfigOmitsServerVersionOnOfficialCloud(t *testing.T) {
+ }
+ 
+ func TestGetConfigExposesFrontendFeatureFlags(t *testing.T) {
+-	h := &Handler{}
++	h := &Handler{Queries: testHandler.Queries}
+ 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
+ 	w := httptest.NewRecorder()
+ 	h.GetConfig(w, req)
+@@ -511,7 +511,7 @@ func TestGetConfigExposesFrontendFeatureFlags(t *testing.T) {
+ }
+ 
+ func TestGetConfigExposesEnabledPluginsV1Flag(t *testing.T) {
+-	h := &Handler{}
++	h := &Handler{Queries: testHandler.Queries}
+ 	withPluginsV1Flag(t, h, true)
+ 
+ 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
+diff --git a/server/internal/handler/source_context_integration_test.go b/server/internal/handler/source_context_integration_test.go
+index 42b7ec4e1..8f5b9cb03 100644
+--- a/server/internal/handler/source_context_integration_test.go
++++ b/server/internal/handler/source_context_integration_test.go
+@@ -680,6 +680,21 @@ func TestCommentSourceContextLifecycle(t *testing.T) {
+ 	if _, err := cleanupTx.Exec(ctx, `LOCK TABLE issue_source_context_object_intent IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+ 		t.Fatalf("lock target intent table: %v", err)
+ 	}
++	// A reused test database may contain due intents from other fixtures. Keep
++	// their schedules unchanged while the bounded sweep exercises this context.
++	if _, err := cleanupTx.Exec(ctx, `
++		CREATE TEMP TABLE other_source_context_cleanup_schedule ON COMMIT DROP AS
++		SELECT storage_key, next_attempt_at FROM issue_source_context_object_intent
++		WHERE source_context_id IS DISTINCT FROM $1
++	`, contextID); err != nil {
++		t.Fatalf("snapshot other intent schedules: %v", err)
++	}
++	if _, err := cleanupTx.Exec(ctx, `
++		UPDATE issue_source_context_object_intent SET next_attempt_at = 'infinity'::timestamptz
++		WHERE storage_key IN (SELECT storage_key FROM other_source_context_cleanup_schedule)
++	`); err != nil {
++		t.Fatalf("isolate target intent sweep: %v", err)
++	}
+ 	if _, err := cleanupTx.Exec(ctx, `
+ 		UPDATE issue_source_context_object_intent
+ 		SET created_at = now() - interval '2 hours', next_attempt_at = '-infinity'::timestamptz
+@@ -697,6 +712,13 @@ func TestCommentSourceContextLifecycle(t *testing.T) {
+ 	if err != nil || cleaned < 3 {
+ 		t.Fatalf("cleanup target delete intents = %d, err=%v", cleaned, err)
+ 	}
++	if _, err := cleanupTx.Exec(ctx, `
++		UPDATE issue_source_context_object_intent AS intent SET next_attempt_at = schedule.next_attempt_at
++		FROM other_source_context_cleanup_schedule AS schedule
++		WHERE intent.storage_key = schedule.storage_key
++	`); err != nil {
++		t.Fatalf("restore other intent schedules: %v", err)
++	}
+ 	if err := cleanupTx.Commit(ctx); err != nil {
+ 		t.Fatalf("commit isolated target intent cleanup: %v", err)
+ 	}
+diff --git a/server/internal/service/builtin_skills_test.go b/server/internal/service/builtin_skills_test.go
+index 16feb7942..552d063f9 100644
+--- a/server/internal/service/builtin_skills_test.go
++++ b/server/internal/service/builtin_skills_test.go
+@@ -431,16 +431,16 @@ func TestPlatformSkillCoversPlatformContracts(t *testing.T) {
+ 				"--resolve-properties",
+ 				"display_values",
+ 				"`value` keeps the stored ids",
++				"review_action",
++				"review_user",
++				"review_agent",
++				"LAST",
++				"120 Unicode code points",
+ 			},
+ 			notWant: []string{
+ 				"--no-start",
+-				// MUL-6966 phase 1: this reference must not teach the KV bag
+-				// at all — not as a section, not as a command, and not as a
+-				// named key inside a warning. A blanket ban on the vocabulary
+-				// is the contract; anything that needs the word back needs
+-				// this decision revisited first.
+-				"metadata",
+-				"Metadata",
++				// Review delivery now has four reserved keys (CLAWSTA-151).
++				// Keep the retired ad-hoc PR and run-state recommendations out.
+ 				"pr_url",
+ 				// A curated key list is the "recommended fields" concept the
+ 				// owner ruled out on MUL-5442.
+@@ -765,7 +765,11 @@ func named(skills []AgentSkillData, name string) bool {
+ 
+ // allBuiltinSkillsForTest includes every built-in regardless of agent scope.
+ func allBuiltinSkillsForTest() []AgentSkillData {
+-	return (&TaskService{}).AllBuiltinSkills()
++	skills := (&TaskService{}).AllBuiltinSkills()
++	for i := range skills {
++		skills[i].Content = strings.ReplaceAll(skills[i].Content, "\r\n", "\n")
++	}
++	return skills
+ }
+ 
+ func findSkill(t *testing.T, name string) (AgentSkillData, bool) {
+diff --git a/server/internal/storage/local_atomic_test.go b/server/internal/storage/local_atomic_test.go
+index fdcd0a4c8..3cac0bcf2 100644
+--- a/server/internal/storage/local_atomic_test.go
++++ b/server/internal/storage/local_atomic_test.go
+@@ -6,6 +6,7 @@ import (
+ 	"io"
+ 	"os"
+ 	"path/filepath"
++	"runtime"
+ 	"strings"
+ 	"testing"
+ )
+@@ -77,7 +78,12 @@ func TestLocalStorageUploadsAreWorldReadable(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("stat %s: %v", key, err)
+ 		}
+-		if info.Mode().Perm() != 0644 {
++		// Windows exposes a synthetic writable mode instead of POSIX group bits.
++		if runtime.GOOS == "windows" {
++			if info.Mode().Perm()&0200 == 0 {
++				t.Fatalf("%s must remain writable, mode = %o", key, info.Mode().Perm())
++			}
++		} else if info.Mode().Perm() != 0644 {
+ 			t.Fatalf("%s mode = %o, want 0644", key, info.Mode().Perm())
+ 		}
+ 	}
+diff --git a/server/pkg/agent/browser_mcp_config_test.go b/server/pkg/agent/browser_mcp_config_test.go
+index 2305875ca..7dde48eea 100644
+--- a/server/pkg/agent/browser_mcp_config_test.go
++++ b/server/pkg/agent/browser_mcp_config_test.go
+@@ -29,7 +29,7 @@ func withBrowserMcpTestHost(t *testing.T, goos string, env map[string]string, ex
+ }
+ 
+ func TestHardenBrowserMcpConfigNoopOffWindows(t *testing.T) {
+-	t.Parallel()
++	withBrowserMcpTestHost(t, "linux", nil, nil)
+ 
+ 	raw := json.RawMessage(`{"mcpServers":{"playwright":{"command":"node","args":["@playwright/mcp","--headless"]}}}`)
+ 	got, err := hardenBrowserMcpConfig(raw, t.TempDir())
+diff --git a/server/pkg/agent/exec_format_test.go b/server/pkg/agent/exec_format_test.go
+index f1520cea5..6c6235aee 100644
+--- a/server/pkg/agent/exec_format_test.go
++++ b/server/pkg/agent/exec_format_test.go
+@@ -49,6 +49,10 @@ func TestExplainExecErrorNamesPackageAndRepairCommand(t *testing.T) {
+ 
+ 	explained := ExplainExecError(enoexecError(execPath))
+ 	msg := explained.Error()
++	repair := "cd '" + root + "' && node install.cjs"
++	if runtime.GOOS == "windows" {
++		repair = "Set-Location '" + root + "'; node install.cjs"
++	}
+ 
+ 	if !errors.Is(explained, syscall.ENOEXEC) {
+ 		t.Fatalf("ENOEXEC must survive wrapping so callers can still branch on it; got %v", explained)
+@@ -57,7 +61,7 @@ func TestExplainExecErrorNamesPackageAndRepairCommand(t *testing.T) {
+ 		execPath,
+ 		"@anthropic-ai/claude-code",
+ 		"postinstall",
+-		"cd '" + root + "' && node install.cjs",
++		repair,
+ 	} {
+ 		if !strings.Contains(msg, want) {
+ 			t.Errorf("diagnosis is missing %q:\n%s", want, msg)
+@@ -75,7 +79,11 @@ func TestExplainExecErrorReadsRepairCommandFromManifest(t *testing.T) {
+ 	if !strings.Contains(msg, "opencode-ai") {
+ 		t.Errorf("diagnosis should name the owning package:\n%s", msg)
+ 	}
+-	if want := "cd '" + root + "' && node ./postinstall.mjs"; !strings.Contains(msg, want) {
++	want := "cd '" + root + "' && node ./postinstall.mjs"
++	if runtime.GOOS == "windows" {
++		want = "Set-Location '" + root + "'; node ./postinstall.mjs"
++	}
++	if !strings.Contains(msg, want) {
+ 		t.Errorf("diagnosis is missing %q:\n%s", want, msg)
+ 	}
+ }
+@@ -137,6 +145,9 @@ func TestExplainExecErrorQuotesPathsForTheShell(t *testing.T) {
+ 	// A single quote inside the path has to be closed, escaped, and reopened,
+ 	// or the command the user pastes runs against a different directory.
+ 	want := `cd '` + strings.ReplaceAll(root, "'", `'\''`) + `' && node install.cjs`
++	if runtime.GOOS == "windows" {
++		want = "Set-Location '" + strings.ReplaceAll(root, "'", "''") + "'; node install.cjs"
++	}
+ 	if !strings.Contains(msg, want) {
+ 		t.Errorf("repair command is not shell-safe, want %q in:\n%s", want, msg)
+ 	}

@@ -1,0 +1,9 @@
+
+ RUN  v4.1.0 C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice/packages/views
+
+
+ Test Files  2 passed (2)
+      Tests  17 passed (17)
+   Start at  23:31:06
+   Duration  18.73s (transform 2.10s, setup 1.05s, import 8.26s, tests 173ms, environment 8.04s)
+

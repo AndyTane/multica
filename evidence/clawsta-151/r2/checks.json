@@ -1,0 +1,1284 @@
+{
+  "baseProductCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+  "testedHead": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+  "environment": {
+    "os": "windows/amd64",
+    "node": "v24.21.0",
+    "go": "go1.26.9 windows/amd64",
+    "database": "uworkers_clawsta151_r1",
+    "port": 15651,
+    "GOMAXPROCS": 4,
+    "CGO_ENABLED": 0
+  },
+  "base": {
+    "frontend": {
+      "packages": {
+        "core": {
+          "filesPassed": 174,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 2288,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "docs": {
+          "filesPassed": 3,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 16,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "views": {
+          "filesPassed": 477,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 5983,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "ui-lab": {
+          "filesPassed": 8,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 46,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "desktop": {
+          "filesPassed": 63,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 687,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "web": {
+          "filesPassed": 26,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 323,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        }
+      },
+      "unhandledErrors": 1,
+      "startupFiles": [
+        "autopilots/components/schedule-editor/describe.test.ts"
+      ],
+      "turboFiveOfSix": true,
+      "fullRun": {
+        "files": 751,
+        "tests": 9343
+      },
+      "uniqueCoverage": {
+        "files": 752,
+        "tests": 9359
+      },
+      "fullRunExit": 1,
+      "assertionFailures": 0,
+      "missingFileTests": 16,
+      "retries": [
+        {
+          "name": "startup-repeat1",
+          "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+          "code": 0,
+          "seconds": 22,
+          "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+          "checkout": "D:/UWorkers/clawsta151-r2-compare",
+          "label": "base",
+          "files": 2,
+          "tests": 17
+        },
+        {
+          "name": "startup-repeat2",
+          "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+          "code": 0,
+          "seconds": 18,
+          "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+          "checkout": "D:/UWorkers/clawsta151-r2-compare",
+          "label": "base",
+          "files": 2,
+          "tests": 17
+        },
+        {
+          "name": "startup-repeat3",
+          "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+          "code": 0,
+          "seconds": 16,
+          "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+          "checkout": "D:/UWorkers/clawsta151-r2-compare",
+          "label": "base",
+          "files": 2,
+          "tests": 17
+        }
+      ],
+      "sharedFailureClass": "@multica/views: Vitest forks worker bootstrap timeout (60s)"
+    },
+    "go": {
+      "packageCount": 95,
+      "packages": [
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/backfill_delegated_failure_settled",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/backfill_codex_usage_cache",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/backfill_task_usage_hourly",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/backfill_issue_last_activity",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/maintenance",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/local-auth",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/migrate",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/multica-dsh-web",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/multica",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/u-workers-setup",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/e2e/secondmachine",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/agentconfig",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/analytics",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/attribution",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/attributionbackfill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/server",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/brand",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/auth",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/chatoriginbackfill",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/chattitle",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/channelmedia",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/cloudruntime",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/cli",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemon",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemon/processtree",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemon/repocache",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemonws",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/database",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemon/execenv",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/dbreader",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/delegatedrecoverybackfill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/dispatch",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/dshweb",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/dbstartup",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/entitlement/entitlementtest",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/envcompat",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/entitlement",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/events",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/featureflags",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/handler/configpolicy",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/channel",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/channel/engine",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/composio",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/dingtalk",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/ghsnapshot",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/lark",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/slack",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/telegram",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/handler",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/vcs",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issueactivitybackfill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issueguard",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issueposition",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issueproperty",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issuestatus",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/logger",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/wecom",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/managedkit",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/metrics",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/middleware",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/migrations",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/privacy",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/profiling",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/realtime",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/runtimeapps",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/scheduler",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/seatcapacity",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/selfexec",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/selfhosttelemetry",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/maintenance",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/skill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/storage",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/service",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/taskusagebackfill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/testutil",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/util",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/tlsx",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/util/secretbox",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/wintrust",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/awakeclock",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/composio",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/db/generated",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/dbid",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/eventcontract",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/featureflag",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/llm",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/plugincontract",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/protocol",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/publicapi/v1",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/redact",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/remotemcp",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/remotemcp/remotemcptest",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/skillbundle",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/taskfailure",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/agent",
+          "status": "fail"
+        }
+      ],
+      "failedRecords": 446,
+      "topLevel": {
+        "pass": 8733,
+        "fail": 341,
+        "skip": 334
+      }
+    },
+    "latestStages": {
+      "typecheck": {
+        "name": "typecheck",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\node_modules\\turbo\\bin\\turbo typecheck --filter=!@multica/mobile --concurrency=1 --continue=always --force",
+        "code": 0,
+        "seconds": 2679
+      },
+      "lint": {
+        "name": "lint",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\node_modules\\turbo\\bin\\turbo lint --filter=!@multica/mobile --concurrency=1 --continue=always --force",
+        "code": 0,
+        "seconds": 165
+      },
+      "frontend": {
+        "name": "frontend",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\node_modules\\turbo\\bin\\turbo test --filter=!@multica/mobile --concurrency=1 --continue=always --force -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 1,
+        "seconds": 5649,
+        "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare",
+        "label": "base"
+      },
+      "migrate": {
+        "name": "migrate",
+        "command": "go run ./cmd/migrate up",
+        "code": 0,
+        "seconds": 43
+      },
+      "go": {
+        "name": "go",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 ./...",
+        "code": 1,
+        "seconds": 1351
+      },
+      "desktop": {
+        "name": "desktop",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\apps\\desktop\\node_modules\\vitest\\vitest.mjs run scripts/package.test.mjs --maxWorkers=1 --testTimeout=30000",
+        "code": 0,
+        "seconds": 16
+      },
+      "fixtures": {
+        "name": "fixtures",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestAgentTaskHistoryIndexMigrationAndPagePlans|TestRunAttachmentDownloadWritesBasenameIntoOutputDir|TestRunRuntimeProfileSetAndUnsetPath|TestRunRuntimeProfileSetPathPreservesExistingConfig|TestGuardLocalPathLinksOnlyFiresInAgentContext|TestCLIConfig_TaskRootOverridesOwnerHome|TestRefreshHealedVersion_KeepsHealedPairCurrentAfterInPlaceUpgrade|TestLoadConfig_UsesCodexDesktopAppBundleFallback|TestLoadConfig_UsesChatGPTAppBundleCodexPath|TestLoadConfig_UsesNestedChatGPTCodexCLIPath|TestLoadConfig_PrefersNestedChatGPTCodexCLIPath|TestRepoCheckout.*|TestListRuntimeLocalSkills_ClaudeEnabledPlugin|TestListRuntimeLocalMcpServersClaudeEnabledPlugin|TestMergeRuntimeAndAgentMcpConfigClaudeCombinesAndAgentWins|TestDshPluginPathDirs.*|TestPrepareLocalWorktreeSubdirectory|TestPrepareLocalWorktreeReplaysUncommittedWork|TestPrepareLocalWorktreeConcurrentTasks|TestPrepareLocalWorktreeSkipsMulticaSidecars|TestConflictResolvedByTheAgentIsDeliveredAndNotReplayedAgain|TestFinalizeRefusesWhenAFollowUpResetsPastTheUserEditsItReplayed|TestConcurrentIsolatedPreparesOnOneRepo|TestOpenclawDiscoveryCacheHitProducesSameWrapper|TestWindowsOpenclawShimMissingNodeSurfacesCmdStderr)$ ./cmd/migrate ./cmd/multica ./internal/cli ./internal/daemon ./internal/daemon/execenv",
+        "code": 0,
+        "seconds": 153
+      },
+      "repeat1": {
+        "name": "repeat1",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestGitHubPRAddressIndexMigrationUpDownUp|TestHandleRuntimeGone_DistinctDeletionsWithinCoalesceWindowBothRecover)$ ./cmd/migrate ./internal/daemon",
+        "code": 1,
+        "seconds": 41
+      },
+      "repeat2": {
+        "name": "repeat2",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestGitHubPRAddressIndexMigrationUpDownUp|TestHandleRuntimeGone_DistinctDeletionsWithinCoalesceWindowBothRecover)$ ./cmd/migrate ./internal/daemon",
+        "code": 1,
+        "seconds": 36
+      },
+      "repeat3": {
+        "name": "repeat3",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestGitHubPRAddressIndexMigrationUpDownUp|TestHandleRuntimeGone_DistinctDeletionsWithinCoalesceWindowBothRecover)$ ./cmd/migrate ./internal/daemon",
+        "code": 1,
+        "seconds": 56
+      },
+      "startup-repeat1": {
+        "name": "startup-repeat1",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 22,
+        "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare",
+        "label": "base"
+      },
+      "startup-repeat2": {
+        "name": "startup-repeat2",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 18,
+        "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare",
+        "label": "base"
+      },
+      "startup-repeat3": {
+        "name": "startup-repeat3",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 16,
+        "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare",
+        "label": "base"
+      }
+    }
+  },
+  "head": {
+    "frontend": {
+      "packages": {
+        "core": {
+          "filesPassed": 176,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 2316,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "docs": {
+          "filesPassed": 3,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 16,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "views": {
+          "filesPassed": 479,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 6006,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "web": {
+          "filesPassed": 26,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 323,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "ui-lab": {
+          "filesPassed": 8,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 46,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        },
+        "desktop": {
+          "filesPassed": 63,
+          "filesFailed": 0,
+          "filesSkipped": 0,
+          "testsPassed": 687,
+          "testsFailed": 0,
+          "testsSkipped": 0
+        }
+      },
+      "unhandledErrors": 1,
+      "startupFiles": [
+        "editor/extensions/file-card.test.tsx"
+      ],
+      "turboFiveOfSix": true,
+      "fullRun": {
+        "files": 755,
+        "tests": 9394
+      },
+      "uniqueCoverage": {
+        "files": 756,
+        "tests": 9395
+      },
+      "fullRunExit": 1,
+      "assertionFailures": 0,
+      "missingFileTests": 1,
+      "retries": [
+        {
+          "name": "startup-repeat1",
+          "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+          "code": 0,
+          "seconds": 20,
+          "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+          "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+          "label": "head",
+          "files": 2,
+          "tests": 17
+        },
+        {
+          "name": "startup-repeat2",
+          "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+          "code": 0,
+          "seconds": 17,
+          "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+          "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+          "label": "head",
+          "files": 2,
+          "tests": 17
+        },
+        {
+          "name": "startup-repeat3",
+          "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+          "code": 0,
+          "seconds": 16,
+          "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+          "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+          "label": "head",
+          "files": 2,
+          "tests": 17
+        }
+      ],
+      "sharedFailureClass": "@multica/views: Vitest forks worker bootstrap timeout (60s)"
+    },
+    "go": {
+      "packageCount": 95,
+      "packages": [
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/backfill_codex_usage_cache",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/backfill_delegated_failure_settled",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/backfill_task_usage_hourly",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/backfill_issue_last_activity",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/local-auth",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/maintenance",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/multica",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/multica-dsh-web",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/server",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/u-workers-setup",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/e2e/secondmachine",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/agentconfig",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/analytics",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/attribution",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/attributionbackfill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/cmd/migrate",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/brand",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/auth",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/chatoriginbackfill",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/chattitle",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/channelmedia",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/cloudruntime",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/cli",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemon",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemon/processtree",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemon/repocache",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemonws",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/database",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/dbreader",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/dbstartup",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/delegatedrecoverybackfill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/dispatch",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/dshweb",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/entitlement",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/entitlement/entitlementtest",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/daemon/execenv",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/envcompat",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/events",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/featureflags",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/handler/configpolicy",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/channel",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/channel/engine",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/composio",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/dingtalk",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/ghsnapshot",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/lark",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/slack",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/telegram",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/vcs",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/integrations/wecom",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issueactivitybackfill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issueguard",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issueposition",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issueproperty",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/issuestatus",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/logger",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/handler",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/managedkit",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/metrics",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/middleware",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/maintenance",
+          "status": "fail"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/privacy",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/profiling",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/migrations",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/runtimeapps",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/realtime",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/scheduler",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/selfexec",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/seatcapacity",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/selfhosttelemetry",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/skill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/storage",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/taskusagebackfill",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/testutil",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/tlsx",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/util",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/util/secretbox",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/wintrust",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/internal/service",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/awakeclock",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/composio",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/db/generated",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/dbid",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/eventcontract",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/featureflag",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/llm",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/plugincontract",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/protocol",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/publicapi/v1",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/redact",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/remotemcp",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/remotemcp/remotemcptest",
+          "status": "skip"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/skillbundle",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/taskfailure",
+          "status": "pass"
+        },
+        {
+          "package": "github.com/multica-ai/multica/server/pkg/agent",
+          "status": "fail"
+        }
+      ],
+      "failedRecords": 390,
+      "topLevel": {
+        "pass": 8784,
+        "fail": 295,
+        "skip": 338
+      }
+    },
+    "latestStages": {
+      "typecheck": {
+        "name": "typecheck",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\node_modules\\turbo\\bin\\turbo typecheck --filter=!@multica/mobile --concurrency=1 --continue=always --force",
+        "code": 0,
+        "seconds": 1142
+      },
+      "lint": {
+        "name": "lint",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\node_modules\\turbo\\bin\\turbo lint --filter=!@multica/mobile --concurrency=1 --continue=always --force",
+        "code": 0,
+        "seconds": 208
+      },
+      "views-repeat1": {
+        "name": "views-repeat1",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run common/avatar-upload-control.test.tsx auth/registration-page.test.tsx modals/create-project.test.tsx settings/components/mcp-tab.test.tsx agents/components/create-agent-dialog.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 138,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "web-repeat1": {
+        "name": "web-repeat1",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\apps\\web\\node_modules\\vitest\\vitest.mjs run app/join/page.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 11,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "views-repeat2": {
+        "name": "views-repeat2",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run common/avatar-upload-control.test.tsx auth/registration-page.test.tsx modals/create-project.test.tsx settings/components/mcp-tab.test.tsx agents/components/create-agent-dialog.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 106,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "web-repeat2": {
+        "name": "web-repeat2",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\apps\\web\\node_modules\\vitest\\vitest.mjs run app/join/page.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 10,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "views-repeat3": {
+        "name": "views-repeat3",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run common/avatar-upload-control.test.tsx auth/registration-page.test.tsx modals/create-project.test.tsx settings/components/mcp-tab.test.tsx agents/components/create-agent-dialog.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 101,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "web-repeat3": {
+        "name": "web-repeat3",
+        "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\apps\\web\\node_modules\\vitest\\vitest.mjs run app/join/page.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 9,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "frontend": {
+        "name": "frontend",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\node_modules\\turbo\\bin\\turbo test --filter=!@multica/mobile --concurrency=1 --continue=always --force -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 1,
+        "seconds": 5643,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+        "label": "head"
+      },
+      "startup-repeat1": {
+        "name": "startup-repeat1",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 20,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+        "label": "head"
+      },
+      "startup-repeat2": {
+        "name": "startup-repeat2",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 17,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+        "label": "head"
+      },
+      "startup-repeat3": {
+        "name": "startup-repeat3",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 16,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+        "label": "head"
+      },
+      "go": {
+        "name": "go",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 ./...",
+        "code": 1,
+        "seconds": 553,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "parity-repeat1": {
+        "name": "parity-repeat1",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestBuildSearchQuery_CandidateFirstParity|TestCommentSourceContextLifecycle)$ ./internal/handler",
+        "code": 0,
+        "seconds": 14,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "parity-repeat2": {
+        "name": "parity-repeat2",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestBuildSearchQuery_CandidateFirstParity|TestCommentSourceContextLifecycle)$ ./internal/handler",
+        "code": 0,
+        "seconds": 8,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "parity-repeat3": {
+        "name": "parity-repeat3",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestBuildSearchQuery_CandidateFirstParity|TestCommentSourceContextLifecycle)$ ./internal/handler",
+        "code": 0,
+        "seconds": 9,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "volatile1": {
+        "name": "volatile1",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestDimBackendUsesOwnedProcessTree|TestDetectBuiltinRuntimes_ProbesRunConcurrently|TestOpenclawDiscoveryCacheConcurrentPreparations|TestPrepareOpenclawConfigWorstCaseCLIBudgets)$ ./internal/daemon ./internal/daemon/execenv ./pkg/agent",
+        "code": 1,
+        "seconds": 41,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "volatile2": {
+        "name": "volatile2",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestDimBackendUsesOwnedProcessTree|TestDetectBuiltinRuntimes_ProbesRunConcurrently|TestOpenclawDiscoveryCacheConcurrentPreparations|TestPrepareOpenclawConfigWorstCaseCLIBudgets)$ ./internal/daemon ./internal/daemon/execenv ./pkg/agent",
+        "code": 1,
+        "seconds": 38,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "volatile3": {
+        "name": "volatile3",
+        "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestDimBackendUsesOwnedProcessTree|TestDetectBuiltinRuntimes_ProbesRunConcurrently|TestOpenclawDiscoveryCacheConcurrentPreparations|TestPrepareOpenclawConfigWorstCaseCLIBudgets)$ ./internal/daemon ./internal/daemon/execenv ./pkg/agent",
+        "code": 1,
+        "seconds": 39,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "D:/UWorkers/clawsta151-r2-compare"
+      },
+      "worker-repeat1": {
+        "name": "worker-repeat1",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run modals/issue-limit-upgrade-dialog.test.tsx layout/issue-page-refresh.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 28,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+        "label": "head"
+      },
+      "worker-repeat2": {
+        "name": "worker-repeat2",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run modals/issue-limit-upgrade-dialog.test.tsx layout/issue-page-refresh.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 23,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+        "label": "head"
+      },
+      "worker-repeat3": {
+        "name": "worker-repeat3",
+        "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\packages\\views\\node_modules\\vitest\\vitest.mjs run modals/issue-limit-upgrade-dialog.test.tsx layout/issue-page-refresh.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "code": 0,
+        "seconds": 25,
+        "sourceCommit": "627b81a382c0386d8c8ff7cb114da5e52d688a9e",
+        "checkout": "C:/Users/HuaWei/multica_workspaces/agent-guanc-6e7d72e80f35/clawsta-151-e30666219aea/workdir/UWorkers-nice",
+        "label": "head"
+      }
+    }
+  },
+  "newGoFailures": [],
+  "newGoPackageFailures": [],
+  "newFrontendAssertionFailures": [],
+  "newFrontendFailingPackages": []
+}

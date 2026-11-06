@@ -1,0 +1,75 @@
+{
+  "label": "base",
+  "commit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+  "node": "v24.21.0",
+  "steps": [
+    {
+      "name": "desktop",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\apps\\desktop\\node_modules\\vitest\\vitest.mjs run scripts/package.test.mjs --maxWorkers=1 --testTimeout=30000",
+      "code": 0,
+      "seconds": 16
+    },
+    {
+      "name": "go",
+      "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 ./...",
+      "code": 1,
+      "seconds": 1351
+    },
+    {
+      "name": "fixtures",
+      "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestAgentTaskHistoryIndexMigrationAndPagePlans|TestRunAttachmentDownloadWritesBasenameIntoOutputDir|TestRunRuntimeProfileSetAndUnsetPath|TestRunRuntimeProfileSetPathPreservesExistingConfig|TestGuardLocalPathLinksOnlyFiresInAgentContext|TestCLIConfig_TaskRootOverridesOwnerHome|TestRefreshHealedVersion_KeepsHealedPairCurrentAfterInPlaceUpgrade|TestLoadConfig_UsesCodexDesktopAppBundleFallback|TestLoadConfig_UsesChatGPTAppBundleCodexPath|TestLoadConfig_UsesNestedChatGPTCodexCLIPath|TestLoadConfig_PrefersNestedChatGPTCodexCLIPath|TestRepoCheckout.*|TestListRuntimeLocalSkills_ClaudeEnabledPlugin|TestListRuntimeLocalMcpServersClaudeEnabledPlugin|TestMergeRuntimeAndAgentMcpConfigClaudeCombinesAndAgentWins|TestDshPluginPathDirs.*|TestPrepareLocalWorktreeSubdirectory|TestPrepareLocalWorktreeReplaysUncommittedWork|TestPrepareLocalWorktreeConcurrentTasks|TestPrepareLocalWorktreeSkipsMulticaSidecars|TestConflictResolvedByTheAgentIsDeliveredAndNotReplayedAgain|TestFinalizeRefusesWhenAFollowUpResetsPastTheUserEditsItReplayed|TestConcurrentIsolatedPreparesOnOneRepo|TestOpenclawDiscoveryCacheHitProducesSameWrapper|TestWindowsOpenclawShimMissingNodeSurfacesCmdStderr)$ ./cmd/migrate ./cmd/multica ./internal/cli ./internal/daemon ./internal/daemon/execenv",
+      "code": 0,
+      "seconds": 153
+    },
+    {
+      "name": "repeat1",
+      "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestGitHubPRAddressIndexMigrationUpDownUp|TestHandleRuntimeGone_DistinctDeletionsWithinCoalesceWindowBothRecover)$ ./cmd/migrate ./internal/daemon",
+      "code": 1,
+      "seconds": 41
+    },
+    {
+      "name": "repeat2",
+      "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestGitHubPRAddressIndexMigrationUpDownUp|TestHandleRuntimeGone_DistinctDeletionsWithinCoalesceWindowBothRecover)$ ./cmd/migrate ./internal/daemon",
+      "code": 1,
+      "seconds": 36
+    },
+    {
+      "name": "repeat3",
+      "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 -run ^(TestGitHubPRAddressIndexMigrationUpDownUp|TestHandleRuntimeGone_DistinctDeletionsWithinCoalesceWindowBothRecover)$ ./cmd/migrate ./internal/daemon",
+      "code": 1,
+      "seconds": 56
+    },
+    {
+      "name": "frontend",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\node_modules\\turbo\\bin\\turbo test --filter=!@multica/mobile --concurrency=1 --continue=always --force -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 1,
+      "seconds": 5649,
+      "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "startup-repeat1",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 22,
+      "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "startup-repeat2",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 18,
+      "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "startup-repeat3",
+      "command": "C:\\Program Files\\nodejs\\node.exe D:\\UWorkers\\clawsta151-r2-compare\\packages\\views\\node_modules\\vitest\\vitest.mjs run autopilots/components/schedule-editor/describe.test.ts editor/extensions/file-card.test.tsx --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+      "code": 0,
+      "seconds": 16,
+      "sourceCommit": "89cb144113609c944f0d6cb0c8924c4b24be7958",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    }
+  ]
+}

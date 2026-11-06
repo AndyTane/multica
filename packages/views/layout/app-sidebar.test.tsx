@@ -136,6 +136,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
   paths: { workspace: (slug: string) => ({ issues: () => `/${slug}/issues` }) },
   useCurrentWorkspace: () => ({ id: "ws-1", name: "Acme", slug: "acme" }),
   useWorkspacePaths: () => ({
+    awaiting: () => "/acme/awaiting",
     inbox: () => "/acme/inbox",
     chat: () => "/acme/chat",
     myIssues: () => "/acme/my-issues",
@@ -177,7 +178,10 @@ vi.mock("@multica/core/inbox/queries", () => ({
   unreadWorkspaceIds: (entries: { workspace_id: string; count: number }[]) =>
     new Set(entries.filter((s) => s.count > 0).map((s) => s.workspace_id)),
 }));
-vi.mock("@multica/core/issues/queries", () => ({ issueDetailOptions: () => ({ queryKey: ["issue"] }) }));
+vi.mock("@multica/core/issues/queries", async (original) => ({
+  ...await original<typeof import("@multica/core/issues/queries")>(),
+  issueDetailOptions: () => ({ queryKey: ["issue"] }),
+}));
 vi.mock("@multica/core/issues/stores/create-mode-store", () => ({
   useCreateModeStore: { getState: () => ({ lastMode: "agent" }) },
   openCreateIssueWithPreference: vi.fn(),

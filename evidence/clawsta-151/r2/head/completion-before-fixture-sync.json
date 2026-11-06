@@ -1,0 +1,35 @@
+{
+  "label": "head",
+  "commit": "90a25d7176e9ba37abcf240c15b87b01b772fe19",
+  "node": "v24.21.0",
+  "steps": [
+    {
+      "name": "typecheck",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\node_modules\\turbo\\bin\\turbo typecheck --filter=!@multica/mobile --concurrency=1 --continue=always --force",
+      "code": 0,
+      "seconds": 1142
+    },
+    {
+      "name": "lint",
+      "command": "C:\\Program Files\\nodejs\\node.exe C:\\Users\\HuaWei\\multica_workspaces\\agent-guanc-6e7d72e80f35\\clawsta-151-e30666219aea\\workdir\\UWorkers-nice\\node_modules\\turbo\\bin\\turbo lint --filter=!@multica/mobile --concurrency=1 --continue=always --force",
+      "code": 0,
+      "seconds": 208
+    },
+    {
+      "name": "migrate",
+      "command": "go run ./cmd/migrate up",
+      "code": 0,
+      "seconds": 13,
+      "sourceCommit": "6739ce1e962be8922ad02c1286e3d68836bae1a3",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    },
+    {
+      "name": "go",
+      "command": "C:/Program Files/Git/bin/bash.exe scripts/go-test-with-agent-cli-guard.sh -- go -C server test -json -p 2 -parallel 2 -count=1 ./...",
+      "code": 1,
+      "seconds": 585,
+      "sourceCommit": "6739ce1e962be8922ad02c1286e3d68836bae1a3",
+      "checkout": "D:/UWorkers/clawsta151-r2-compare"
+    }
+  ]
+}

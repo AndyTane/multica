@@ -25,6 +25,7 @@ describe("paths.workspace() shape", () => {
       ["chat", "chat"],
       ["squads", "squads"],
       ["inbox", "inbox"],
+      ["awaiting", "awaiting"],
       ["myIssues", "my-issues"],
       ["runtimes", "runtimes"],
       ["skills", "skills"],

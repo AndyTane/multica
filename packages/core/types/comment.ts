@@ -95,6 +95,7 @@ export interface CommentTriggerPreviewAgent {
   name: string;
   avatar_url?: string;
   source: CommentTriggerSource | string;
+  squad_id?: string;
   reason: string;
 }
 

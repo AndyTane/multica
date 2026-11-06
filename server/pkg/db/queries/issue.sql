@@ -7,7 +7,7 @@
 -- "Assigned to me"), and the two filters must produce disjoint result sets.
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
-       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
+       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.status_changed_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
        i.revision, i.duplicate_of_issue_id
 FROM issue i
 WHERE i.workspace_id = $1
@@ -203,6 +203,7 @@ WITH wakeup_source AS MATERIALIZED (SELECT set_config('multica.source_task_id', 
     -- Materialized so the locking clause is never inlined away.
     SELECT
         i.*,
+        COALESCE(sqlc.narg('review_metadata')::jsonb, i.metadata) AS next_metadata,
         COALESCE(sqlc.narg('title')::text, i.title) AS next_title,
         COALESCE(sqlc.narg('description')::text, i.description) AS next_description,
         COALESCE(sqlc.narg('status')::text, i.status) AS next_status,
@@ -264,26 +265,27 @@ WITH wakeup_source AS MATERIALIZED (SELECT set_config('multica.source_task_id', 
         ROW(
             title, description, status, priority, assignee_type, assignee_id,
             position, start_date, due_date, parent_issue_id, project_id, stage,
-            duplicate_of_issue_id
+            duplicate_of_issue_id, metadata
         ) IS DISTINCT FROM ROW(
             next_title, next_description, next_status, next_priority,
             next_assignee_type, next_assignee_id, next_position, next_start_date,
             next_due_date, next_parent_issue_id, next_project_id, next_stage,
-            next_duplicate_of_issue_id
+            next_duplicate_of_issue_id, next_metadata
         ) AS did_change,
         ROW(
             title, description, status, priority, assignee_type, assignee_id,
             start_date, due_date, parent_issue_id, project_id, stage,
-            duplicate_of_issue_id
+            duplicate_of_issue_id, metadata
         ) IS DISTINCT FROM ROW(
             next_title, next_description, next_status, next_priority,
             next_assignee_type, next_assignee_id, next_start_date, next_due_date,
             next_parent_issue_id, next_project_id, next_stage,
-            next_duplicate_of_issue_id
+            next_duplicate_of_issue_id, next_metadata
         ) AS did_activity
     FROM candidate
 )
 UPDATE issue AS i SET
+    metadata = changed.next_metadata,
     title = changed.next_title,
     description = changed.next_description,
     status = changed.next_status,
@@ -509,7 +511,7 @@ DELETE FROM issue WHERE issue.id IN (SELECT target.id FROM target);
 -- filter; member-direct assignment is intentionally excluded).
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
-       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
+       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.status_changed_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
        i.revision, i.duplicate_of_issue_id
 FROM issue i
 WHERE i.workspace_id = $1

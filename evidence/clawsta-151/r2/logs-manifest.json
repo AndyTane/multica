@@ -1,0 +1,242 @@
+[
+  {
+    "file": "base/completion.json",
+    "uncompressedBytes": 5185,
+    "sha256": "f7eb6dc3c0f6a1c4a5a469d9c982897cff5136743e2feda683094577e57ac6fc"
+  },
+  {
+    "file": "base/desktop-complete.log",
+    "uncompressedBytes": 234,
+    "sha256": "dc3a823a3fda1cb5d7b589135d9b453bbac3e2ff6ebb74aa736917af77775db4"
+  },
+  {
+    "file": "base/fixtures-complete.log",
+    "uncompressedBytes": 84717,
+    "sha256": "e81fe5db603f7785b3540c9e4ac5e1ff459c4bbd0f4ba7fd64637c46c57a2fcd"
+  },
+  {
+    "file": "base/frontend-complete.log",
+    "uncompressedBytes": 704631,
+    "sha256": "81003fa017f3cffa738040d0b8bd5d861d6ecbea662677fa41596e2f7d49cc45"
+  },
+  {
+    "file": "base/frontend.log",
+    "uncompressedBytes": 709894,
+    "sha256": "22cb1732e926cee88e1bc5331489c1eb826482997b71cc16f6c6f9286ed4a21c"
+  },
+  {
+    "file": "base/go-complete.log.gz",
+    "uncompressedBytes": 23343799,
+    "sha256": "09597840141066b319f9fad91951aa3cf3eb10aea3e53452c1b9fdfdf6ff1fac"
+  },
+  {
+    "file": "base/go.log",
+    "uncompressedBytes": 110,
+    "sha256": "2415aa4ce5337dd5402b5fbd39ac5e6aeb5750a65e08250c799aff9ec77ce967"
+  },
+  {
+    "file": "base/lint.log",
+    "uncompressedBytes": 9746,
+    "sha256": "e9416304c5e72c0a4b55a8b99244496ef481f292d7a4d88c18fa1b63e34dc16e"
+  },
+  {
+    "file": "base/migrate.log",
+    "uncompressedBytes": 35251,
+    "sha256": "f841af9636d05f0d78fbc97be93da825c8571a96bd53e3b6a92a12f519b84540"
+  },
+  {
+    "file": "base/repeat1-complete.log",
+    "uncompressedBytes": 17216,
+    "sha256": "8896e15c689588e6e1454ddaea46150db38600a1758560744f195f939b31e201"
+  },
+  {
+    "file": "base/repeat2-complete.log",
+    "uncompressedBytes": 17218,
+    "sha256": "66bf3f8187388bed13a60d348a2bb12e082f9ba3136e28bb607f5392c9434a5b"
+  },
+  {
+    "file": "base/repeat3-complete.log",
+    "uncompressedBytes": 17216,
+    "sha256": "5e1c993c26e77bb34024e63a88f2b298b2bddc54bef43d728d484c69ce7fe047"
+  },
+  {
+    "file": "base/startup-repeat1-complete.log",
+    "uncompressedBytes": 240,
+    "sha256": "3e734e6fd1f632ef2766e28c49364c6f1a31f10b754d2920bccabe1da336f978"
+  },
+  {
+    "file": "base/startup-repeat2-complete.log",
+    "uncompressedBytes": 239,
+    "sha256": "064bf2da8a2312260010a911132b13b49824bce48666b0915f22f82b116c7121"
+  },
+  {
+    "file": "base/startup-repeat3-complete.log",
+    "uncompressedBytes": 239,
+    "sha256": "1fbff8c988eb0c412a08aba3f2f965060d5fb1da3b416a724030a4627514e974"
+  },
+  {
+    "file": "base/summary.json",
+    "uncompressedBytes": 1400,
+    "sha256": "486131395e540e5b530dbbae02587e1ca93b028134e9b00da54c89ad69c8e771"
+  },
+  {
+    "file": "base/typecheck.log",
+    "uncompressedBytes": 3659,
+    "sha256": "2d84d840667b54c1b14732ed8f7fff930cf23f1c9d369b28491a263e48619485"
+  },
+  {
+    "file": "head/completion-before-fixture-sync.json",
+    "uncompressedBytes": 1410,
+    "sha256": "31afad25d241416845120d9f7122064668862e7f2289611e4ead13ab61651193"
+  },
+  {
+    "file": "head/completion.json",
+    "uncompressedBytes": 6404,
+    "sha256": "3d100e45e5194e5d30a6bdd71cd99a7ba312d6dddbdd7fe84d0d751d20340119"
+  },
+  {
+    "file": "head/frontend-complete.log",
+    "uncompressedBytes": 708063,
+    "sha256": "f9971e06340c3f79482462dded9c32a6719db9b5a06472728b914c943924d34a"
+  },
+  {
+    "file": "head/frontend-worker-start-attempt.log",
+    "uncompressedBytes": 716024,
+    "sha256": "f757b99b0dceaafc01aa8651f232665f0449455c9a97d8f76db4e65089d95bb8"
+  },
+  {
+    "file": "head/frontend-workers4-second-attempt.log",
+    "uncompressedBytes": 711050,
+    "sha256": "70c4282220cb90cdb0ac495b559b953a324a7cdfb78622db2928b1406615850d"
+  },
+  {
+    "file": "head/go-before-fixture-sync.log.gz",
+    "uncompressedBytes": 23336570,
+    "sha256": "9981888e16c3d87b792f97661071ff742b2fb344a9655ba7b6b4be8997c26b39"
+  },
+  {
+    "file": "head/go-complete.log.gz",
+    "uncompressedBytes": 23356369,
+    "sha256": "e427cda5868a2f467116631bc1368e9d6230c7213f0de1a390666146b85845ee"
+  },
+  {
+    "file": "head/go-registration-state-attempt.log.gz",
+    "uncompressedBytes": 20454280,
+    "sha256": "9b931e66495314353d4c708c99425507546c3c0f9527b619c63fd7d0d8b3efb2"
+  },
+  {
+    "file": "head/go-task-marker-attempt.log.gz",
+    "uncompressedBytes": 7771206,
+    "sha256": "df22975ff09081be8a9afa01d5b223656cc60ba9a95040196928a7bbdab8b75d"
+  },
+  {
+    "file": "head/lint-complete.log",
+    "uncompressedBytes": 11352,
+    "sha256": "9d08c487023e6b5e54e1f188f7897d86c05977998253c485dd01a62dd17bb7fc"
+  },
+  {
+    "file": "head/migrate-complete.log",
+    "uncompressedBytes": 35294,
+    "sha256": "ba601e390cb060fe7993e454d5858b4732a09c9afb49f91367b97c8766cdc42b"
+  },
+  {
+    "file": "head/parity-repeat1-complete.log",
+    "uncompressedBytes": 22719,
+    "sha256": "3c0f482ddf9d5857d569cc2013fb79e9c418570ea3f65f91fece17ca48b655f5"
+  },
+  {
+    "file": "head/parity-repeat2-complete.log",
+    "uncompressedBytes": 22716,
+    "sha256": "b2d11e38a20a5eebca8fb6e8978ebcd9d696c94ec3d39090176c55a322ea3873"
+  },
+  {
+    "file": "head/parity-repeat3-complete.log",
+    "uncompressedBytes": 22698,
+    "sha256": "76c6cf371ebc8f6ed8454b6641029c32f7098687fbb170795544199c00d9c5fe"
+  },
+  {
+    "file": "head/startup-repeat1-complete.log",
+    "uncompressedBytes": 312,
+    "sha256": "084438434d63c0fb15938fc59f41b393ac37af4e66dfe5d58ecb480bb930b694"
+  },
+  {
+    "file": "head/startup-repeat2-complete.log",
+    "uncompressedBytes": 312,
+    "sha256": "6783235dc2084cc5d3aaa36e1e91a31d99a0335c6706c1d89b7206221547843a"
+  },
+  {
+    "file": "head/startup-repeat3-complete.log",
+    "uncompressedBytes": 312,
+    "sha256": "41f919c88536d180f989b20515dabd5fed9bb42d3e9edb430aaa4f40dcd6eec5"
+  },
+  {
+    "file": "head/task-marker-attempt.json",
+    "uncompressedBytes": 222,
+    "sha256": "c84e17b6743ce3da6694af6fe055b64fe4a0593b277356a84f8d9243087a9f6f"
+  },
+  {
+    "file": "head/typecheck-complete.log",
+    "uncompressedBytes": 4535,
+    "sha256": "4461366cbaf5376504306ac8736ceefadba4ad4d3acb671f912a77f63b9963a6"
+  },
+  {
+    "file": "head/views-repeat1-complete.log",
+    "uncompressedBytes": 244,
+    "sha256": "f8c7780dff4716e7ebda0c329e60dd5f18a3c18e25f29acdb6a31fbabd84877a"
+  },
+  {
+    "file": "head/views-repeat2-complete.log",
+    "uncompressedBytes": 243,
+    "sha256": "6b58f83a3cb78ea829204d1206995a9f169b5975012e9e98a1b4a17165904336"
+  },
+  {
+    "file": "head/views-repeat3-complete.log",
+    "uncompressedBytes": 243,
+    "sha256": "1a53bb528a40784a871c2540440773c0e3ad4c2934397157160ba5bc69af9e6e"
+  },
+  {
+    "file": "head/volatile1-complete.log",
+    "uncompressedBytes": 11708,
+    "sha256": "93c287502d5fc54ebac7f2c841a9be19e8122ccf07d336287fffe4538322ed4e"
+  },
+  {
+    "file": "head/volatile2-complete.log",
+    "uncompressedBytes": 11709,
+    "sha256": "bf494ee4d9cca3db03a1efd0af5f58afd0f824e06ee4a7a69ddfd1fbce34fa89"
+  },
+  {
+    "file": "head/volatile3-complete.log",
+    "uncompressedBytes": 11364,
+    "sha256": "8f045683e2e49fc47f1c8c61e3577bbf4cee149bf5ee5601dcf6c54675aa85bc"
+  },
+  {
+    "file": "head/web-repeat1-complete.log",
+    "uncompressedBytes": 232,
+    "sha256": "fcb3e1628a51ae981b31949f4047a6bb5d62eb4f806dc674f5e235c41ebc0336"
+  },
+  {
+    "file": "head/web-repeat2-complete.log",
+    "uncompressedBytes": 232,
+    "sha256": "ff6045d147212718381499c2935de22cdf2c832dbf1d90d9d6c2266ade9ed46d"
+  },
+  {
+    "file": "head/web-repeat3-complete.log",
+    "uncompressedBytes": 232,
+    "sha256": "b29a111e0397a55df267a5888bfed8a9b494101d741eaf99d643b445bae3eb3e"
+  },
+  {
+    "file": "head/worker-repeat1-complete.log",
+    "uncompressedBytes": 311,
+    "sha256": "4de6c2b9de654547b5cd25c2e71b88cbc941e83d1974d35edbd5e5bb5b9a722a"
+  },
+  {
+    "file": "head/worker-repeat2-complete.log",
+    "uncompressedBytes": 311,
+    "sha256": "c404c3b23fde1e658beff73df2b5dd1b631495760028306e2e7a6d96e5e78195"
+  },
+  {
+    "file": "head/worker-repeat3-complete.log",
+    "uncompressedBytes": 311,
+    "sha256": "1b16e69ec557242d83e424bca614938ccf0b99561bcfd473d81f22c65e67eb1d"
+  }
+]

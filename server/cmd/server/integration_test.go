@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/multica-ai/multica/server/internal/analytics"
@@ -281,7 +283,32 @@ func TestConfigRouteIsPublic(t *testing.T) {
 
 // ---- Auth ----
 
+func enableIntegrationRegistration(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	queries := db.New(testPool)
+	previous, err := queries.GetInstanceSetting(ctx, "open_registration")
+	existed := !errors.Is(err, pgx.ErrNoRows)
+	if err != nil && existed {
+		t.Fatalf("read registration fixture: %v", err)
+	}
+	t.Cleanup(func() {
+		if existed {
+			_, err = queries.UpsertInstanceSetting(ctx, db.UpsertInstanceSettingParams{Key: "open_registration", Value: previous})
+		} else {
+			_, err = testPool.Exec(ctx, `DELETE FROM instance_setting WHERE key = 'open_registration'`)
+		}
+		if err != nil {
+			t.Errorf("restore registration fixture: %v", err)
+		}
+	})
+	if _, err := queries.UpsertInstanceSetting(ctx, db.UpsertInstanceSettingParams{Key: "open_registration", Value: []byte(`{"enabled":true}`)}); err != nil {
+		t.Fatalf("enable registration fixture: %v", err)
+	}
+}
+
 func TestSendCodeAndVerify(t *testing.T) {
+	enableIntegrationRegistration(t)
 	const email = "integration-sendcode@multica.ai"
 	ctx := context.Background()
 
@@ -365,6 +392,7 @@ func TestSendCodeAndVerify(t *testing.T) {
 }
 
 func TestVerifyCodeNewUserHasNoWorkspace(t *testing.T) {
+	enableIntegrationRegistration(t)
 	const email = "new-integration-verify@multica.ai"
 	ctx := context.Background()
 

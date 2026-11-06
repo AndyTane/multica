@@ -27,9 +27,8 @@ import (
 //   - values are primitive: string / number / bool (handler)
 //   - JSONB column is an object and ≤ 8KB (DB CHECK; defense in depth)
 //
-// All mutations are single-key atomic. UpdateIssue does NOT touch metadata —
-// any whole-blob overwrite would race with concurrent agent writes (see the
-// design discussion on MUL-2017).
+// Mutations are single-key atomic. UpdateIssue only replaces reserved review
+// keys under its row lock and never accepts arbitrary metadata blobs.
 const (
 	maxIssueMetadataKeys = 50
 )
@@ -169,7 +168,11 @@ func (h *Handler) SetIssueMetadataKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateIssueMetadataValue(req.Value); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		message := err.Error()
+		if isReviewKey(key) {
+			message = key + " " + message
+		}
+		writeError(w, http.StatusBadRequest, message)
 		return
 	}
 
@@ -182,17 +185,26 @@ func (h *Handler) SetIssueMetadataKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enforce the key-count cap in the handler. The DB only guards size,
-	// and a clear 4xx for "too many keys" beats a CHECK violation that
-	// happens to fire on the size cap once enough keys accumulate.
-	existing := parseIssueMetadata(issue.Metadata)
-	if _, present := existing[key]; !present && len(existing) >= maxIssueMetadataKeys {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("metadata cannot exceed %d keys", maxIssueMetadataKeys))
-		return
-	}
-
 	queryStarted := time.Now()
 	updated, err := wakeupWrite(h, r, func(q *db.Queries) (db.SetIssueMetadataKeyRow, error) {
+		current, lockErr := q.LockIssueForDescriptionUpdate(r.Context(), db.LockIssueForDescriptionUpdateParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID})
+		if lockErr != nil {
+			return db.SetIssueMetadataKeyRow{}, lockErr
+		}
+		existing := parseIssueMetadata(current.Metadata)
+		if _, present := existing[key]; !present && len(existing) >= maxIssueMetadataKeys {
+			return db.SetIssueMetadataKeyRow{}, &reviewValidationError{"metadata cannot exceed 50 keys"}
+		}
+		if isReviewKey(key) {
+			if current.Status != "in_review" {
+				return db.SetIssueMetadataKeyRow{}, errReviewClosed
+			}
+			normalized, validateErr := validateReviewValue(r.Context(), q, current.WorkspaceID, key, req.Value)
+			if validateErr != nil {
+				return db.SetIssueMetadataKeyRow{}, validateErr
+			}
+			req.Value = normalized
+		}
 		return q.SetIssueMetadataKey(r.Context(), db.SetIssueMetadataKeyParams{
 			ID:          issue.ID,
 			WorkspaceID: issue.WorkspaceID,
@@ -201,6 +213,15 @@ func (h *Handler) SetIssueMetadataKey(w http.ResponseWriter, r *http.Request) {
 		})
 	})
 	queryDuration := time.Since(queryStarted)
+	if errors.Is(err, errReviewClosed) {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	var reviewErr *reviewValidationError
+	if errors.As(err, &reviewErr) {
+		writeError(w, http.StatusBadRequest, reviewErr.Error())
+		return
+	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			fallbackStarted := time.Now()

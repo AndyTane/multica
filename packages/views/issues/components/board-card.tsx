@@ -1,5 +1,6 @@
 "use client";
 
+import { ReviewBadge } from "./review-badge";
 import { useCallback, memo } from "react";
 import { AppLink } from "../../navigation";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
@@ -204,6 +205,7 @@ export const BoardCardContent = memo(function BoardCardContent({
           {priorityIconNode}
           <p className="text-caption text-muted-foreground truncate">{issue.identifier}</p>
           <IssueDuplicateOfMarker issue={issue} insideLink />
+          <ReviewBadge issue={issue} />
         </div>
         <IssueAgentActivityIndicator issueId={issue.id} />
       </div>
@@ -212,6 +214,8 @@ export const BoardCardContent = memo(function BoardCardContent({
       <p className="mt-1 text-body font-medium leading-snug line-clamp-2">
         {issue.title}
       </p>
+
+      <ReviewBadge issue={issue} actionOnly />
 
       {showDescription && (() => {
         const preview = descriptionPreview(issue.description!);

@@ -1,0 +1,71 @@
+• turbo 2.9.5
+
+   • Packages in scope: @multica/core, @multica/desktop, @multica/docs, @multica/eslint-config, @multica/plugin-sdk, @multica/tsconfig, @multica/ui, @multica/ui-lab, @multica/views, @multica/web
+   • Running typecheck in 10 packages
+   • Remote caching disabled
+
+@multica/docs:mdx: cache bypass, force executing f1d661f8454ac867
+@multica/docs:mdx: 
+@multica/docs:mdx: > @multica/docs@0.2.0 mdx C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\apps\docs
+@multica/docs:mdx: > fumadocs-mdx
+@multica/docs:mdx: 
+@multica/docs:mdx: [MDX] types generated
+@multica/web:mdx: cache bypass, force executing dc0bf3529a6cfc9e
+@multica/web:mdx: 
+@multica/web:mdx: > @multica/web@0.2.16 mdx C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\apps\web
+@multica/web:mdx: > fumadocs-mdx
+@multica/web:mdx: 
+@multica/web:mdx: [MDX] types generated
+@multica/core:typecheck: cache bypass, force executing f4e7c549d01b5961
+@multica/core:typecheck: 
+@multica/core:typecheck: > @multica/core@0.0.0 typecheck C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\packages\core
+@multica/core:typecheck: > tsc --noEmit
+@multica/core:typecheck: 
+@multica/ui:typecheck: cache bypass, force executing 5494894b884a519d
+@multica/ui:typecheck: 
+@multica/ui:typecheck: > @multica/ui@0.0.0 typecheck C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\packages\ui
+@multica/ui:typecheck: > tsc --noEmit
+@multica/ui:typecheck: 
+@multica/plugin-sdk:typecheck: cache bypass, force executing 1b5ff57c978caf9d
+@multica/plugin-sdk:typecheck: 
+@multica/plugin-sdk:typecheck: > @multica/plugin-sdk@0.1.0 typecheck C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\packages\plugin-sdk
+@multica/plugin-sdk:typecheck: > tsc --noEmit
+@multica/plugin-sdk:typecheck: 
+@multica/docs:typecheck: cache bypass, force executing e90a369be18a8351
+@multica/docs:typecheck: 
+@multica/docs:typecheck: > @multica/docs@0.2.0 typecheck C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\apps\docs
+@multica/docs:typecheck: > tsc --noEmit
+@multica/docs:typecheck: 
+@multica/views:typecheck: cache bypass, force executing 725c0c4d7dde846f
+@multica/views:typecheck: 
+@multica/views:typecheck: > @multica/views@0.0.0 typecheck C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\packages\views
+@multica/views:typecheck: > tsc --noEmit
+@multica/views:typecheck: 
+@multica/web:typecheck: cache bypass, force executing d03e5aee1fe732c8
+@multica/web:typecheck: 
+@multica/web:typecheck: > @multica/web@0.2.16 typecheck C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\apps\web
+@multica/web:typecheck: > tsc --noEmit
+@multica/web:typecheck: 
+@multica/ui-lab:typecheck: cache bypass, force executing a41e4269d9e0b6da
+@multica/ui-lab:typecheck: 
+@multica/ui-lab:typecheck: > @multica/ui-lab@0.0.0 typecheck C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\apps\ui-lab
+@multica/ui-lab:typecheck: > tsc --noEmit
+@multica/ui-lab:typecheck: 
+@multica/desktop:typecheck: cache bypass, force executing c4eb59e69ba25a43
+@multica/desktop:typecheck: 
+@multica/desktop:typecheck: > @multica/desktop@0.2.16 typecheck C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\apps\desktop
+@multica/desktop:typecheck: > pnpm run typecheck:node && pnpm run typecheck:web
+@multica/desktop:typecheck: 
+@multica/desktop:typecheck: 
+@multica/desktop:typecheck: > @multica/desktop@0.2.16 typecheck:node C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\apps\desktop
+@multica/desktop:typecheck: > tsc --noEmit -p tsconfig.node.json --composite false
+@multica/desktop:typecheck: 
+@multica/desktop:typecheck: 
+@multica/desktop:typecheck: > @multica/desktop@0.2.16 typecheck:web C:\Users\HuaWei\multica_workspaces\agent-guanc-6e7d72e80f35\clawsta-151-e30666219aea\workdir\UWorkers-nice\apps\desktop
+@multica/desktop:typecheck: > tsc --noEmit -p tsconfig.web.json --composite false
+@multica/desktop:typecheck: 
+
+ Tasks:    10 successful, 10 total
+Cached:    0 cached, 10 total
+  Time:    18m55.516s 
+

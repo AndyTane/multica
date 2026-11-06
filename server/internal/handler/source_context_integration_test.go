@@ -680,6 +680,21 @@ func TestCommentSourceContextLifecycle(t *testing.T) {
 	if _, err := cleanupTx.Exec(ctx, `LOCK TABLE issue_source_context_object_intent IN SHARE ROW EXCLUSIVE MODE`); err != nil {
 		t.Fatalf("lock target intent table: %v", err)
 	}
+	// A reused test database may contain due intents from other fixtures. Keep
+	// their schedules unchanged while the bounded sweep exercises this context.
+	if _, err := cleanupTx.Exec(ctx, `
+		CREATE TEMP TABLE other_source_context_cleanup_schedule ON COMMIT DROP AS
+		SELECT storage_key, next_attempt_at FROM issue_source_context_object_intent
+		WHERE source_context_id IS DISTINCT FROM $1
+	`, contextID); err != nil {
+		t.Fatalf("snapshot other intent schedules: %v", err)
+	}
+	if _, err := cleanupTx.Exec(ctx, `
+		UPDATE issue_source_context_object_intent SET next_attempt_at = 'infinity'::timestamptz
+		WHERE storage_key IN (SELECT storage_key FROM other_source_context_cleanup_schedule)
+	`); err != nil {
+		t.Fatalf("isolate target intent sweep: %v", err)
+	}
 	if _, err := cleanupTx.Exec(ctx, `
 		UPDATE issue_source_context_object_intent
 		SET created_at = now() - interval '2 hours', next_attempt_at = '-infinity'::timestamptz
@@ -696,6 +711,13 @@ func TestCommentSourceContextLifecycle(t *testing.T) {
 	testHandler.TaskService.Queries = originalQueries
 	if err != nil || cleaned < 3 {
 		t.Fatalf("cleanup target delete intents = %d, err=%v", cleaned, err)
+	}
+	if _, err := cleanupTx.Exec(ctx, `
+		UPDATE issue_source_context_object_intent AS intent SET next_attempt_at = schedule.next_attempt_at
+		FROM other_source_context_cleanup_schedule AS schedule
+		WHERE intent.storage_key = schedule.storage_key
+	`); err != nil {
+		t.Fatalf("restore other intent schedules: %v", err)
 	}
 	if err := cleanupTx.Commit(ctx); err != nil {
 		t.Fatalf("commit isolated target intent cleanup: %v", err)

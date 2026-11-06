@@ -225,6 +225,16 @@ describe("ApiClient schema fallback", () => {
       expect(issue.properties).toEqual({});
     });
 
+    it("accepts status entry timestamps and drops malformed additive timestamps", async () => {
+      const client = new ApiClient("https://api.example.test");
+      stubFetchJson({ ...validIssue, status_changed_at: "2026-11-06T12:38:49+08:00" });
+      expect((await client.getIssue("MUL-1")).status_changed_at).toBe("2026-11-06T12:38:49+08:00");
+      stubFetchJson({ ...validIssue, status_changed_at: 42 });
+      const legacy = await client.getIssue("MUL-1");
+      expect(legacy.id).toBe("issue-1");
+      expect(legacy.status_changed_at).toBeUndefined();
+    });
+
     it("rejects a 200 body that is not a usable issue (no truthy issue with an undefined id)", async () => {
       stubFetchJson({ not: "an issue" });
       const client = new ApiClient("https://api.example.test");

@@ -1356,6 +1356,9 @@ func TestLoadConfig_SkipsLoginShellWhenLookPathSucceeds(t *testing.T) {
 }
 
 func TestLoadConfig_UsesCodexDesktopAppBundleFallback(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS app-bundle executable bits are not available on Windows")
+	}
 	pathDir := t.TempDir()
 	fakeCodex := filepath.Join(pathDir, "Codex.app", "Contents", "Resources", "codex")
 	if err := os.MkdirAll(filepath.Dir(fakeCodex), 0o755); err != nil {
@@ -1398,6 +1401,9 @@ func TestLoadConfig_UsesCodexDesktopAppBundleFallback(t *testing.T) {
 // Multica must resolve the bundled CLI under ChatGPT.app (and prefer it over
 // the legacy Codex.app path when both exist).
 func TestLoadConfig_UsesChatGPTAppBundleCodexPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS app-bundle executable bits are not available on Windows")
+	}
 	pathDir := t.TempDir()
 	fakeChatGPT := filepath.Join(pathDir, "ChatGPT.app", "Contents", "Resources", "codex")
 	fakeLegacy := filepath.Join(pathDir, "Codex.app", "Contents", "Resources", "codex")
@@ -1440,6 +1446,9 @@ func TestLoadConfig_UsesChatGPTAppBundleCodexPath(t *testing.T) {
 // Resources/codex-cli/bin/codex. Discovery must use that path when the older
 // flat Resources/codex file is absent.
 func TestLoadConfig_UsesNestedChatGPTCodexCLIPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS app-bundle executable bits are not available on Windows")
+	}
 	pathDir := t.TempDir()
 	nested := filepath.Join(pathDir, "ChatGPT.app", "Contents", "Resources", "codex-cli", "bin", "codex")
 	if err := os.MkdirAll(filepath.Dir(nested), 0o755); err != nil {
@@ -1506,6 +1515,9 @@ func TestProbeAgentCLIsIgnoresNonExecutableCodexBundle(t *testing.T) {
 // When both the nested CLI and the older flat binary exist, the nested path
 // is the current ChatGPT.app layout and must win.
 func TestLoadConfig_PrefersNestedChatGPTCodexCLIPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("macOS app-bundle executable bits are not available on Windows")
+	}
 	pathDir := t.TempDir()
 	nested := filepath.Join(pathDir, "ChatGPT.app", "Contents", "Resources", "codex-cli", "bin", "codex")
 	flat := filepath.Join(pathDir, "ChatGPT.app", "Contents", "Resources", "codex")

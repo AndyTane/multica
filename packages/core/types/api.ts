@@ -51,6 +51,7 @@ export type CreateCommentSubIssueRequest =
   | CreateCommentSubIssueAgentRequest;
 
 export interface UpdateIssueRequest {
+  review_metadata?: Partial<Record<"review_by" | "review_action" | "review_user" | "review_agent", string | number | boolean>>;
   /** Legacy aggregate compare-and-swap token. New text editors use field
    * baselines so unrelated issue activity does not reject their edits. */
   expected_revision?: number;

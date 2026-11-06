@@ -483,3 +483,13 @@ without a person in between, and with `rate` when it has already started 12 runs
 in the past hour. A paused rule stays off until someone turns it back on. Still
 avoid mutually triggering continuous comment subscriptions; when waiting for a
 person's reply, filter that member explicitly.
+
+## Submitting review
+
+When entering `in_review`, distinguish a user decision from specialist acceptance. Write a concrete action and recipient; do not assume every delivery needs the user. Keep all acceptance conditions within 120 Unicode code points; shorten deliberately rather than truncating conditions.
+
+Use `multica issue metadata set <id> --key <key> --value <value> --type string`. First enter `in_review`. On resubmission delete `review_by` first and remove the other recipient key. Then write `review_action`, `review_user` (workspace member user_id) or `review_agent` (workspace agent id), and write `review_by` (`user` or `specialist`) LAST. Check each command; stop on failure and name the missing field. DELETE removes keys; empty strings and null are invalid.
+
+Resolve the requesting member user_id from trusted current task context. Never guess or hard-code a person. When the recipient cannot be established, state whose decision is missing in the delivery comment and leave review_by unset instead of broadcasting to every member. Older cards without review metadata remain usable.
+
+`review_agent` names the specialist accepting the work, not the delivering assignee. Keep assignee unchanged and arrange specialist review through the normal authorized issue/comment workflow; metadata writes never dispatch work.

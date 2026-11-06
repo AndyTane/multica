@@ -316,7 +316,7 @@ func TestNewAPIClient_LeftoverMarkerActionableError(t *testing.T) {
 
 	if _, err := newAPIClient(testCmd()); err == nil {
 		t.Fatal("newAPIClient(): expected error for leftover daemon-task marker, got nil")
-	} else if !strings.Contains(err.Error(), execenv.TaskContextMarkerRelPath) {
+	} else if !strings.Contains(err.Error(), filepath.FromSlash(execenv.TaskContextMarkerRelPath)) {
 		t.Fatalf("error should name the marker path; got %q", err.Error())
 	} else if !strings.Contains(err.Error(), "leftover") {
 		t.Fatalf("error should hint it may be a leftover; got %q", err.Error())

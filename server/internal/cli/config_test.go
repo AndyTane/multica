@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -401,7 +402,7 @@ func TestCLIConfig_TaskRootOverridesOwnerHome(t *testing.T) {
 		if err != nil {
 			t.Fatalf("stat task config directory %q: %v", dir, err)
 		}
-		if got := info.Mode().Perm(); got != 0o700 {
+		if got := info.Mode().Perm(); runtime.GOOS != "windows" && got != 0o700 {
 			t.Errorf("task config directory %q mode = %#o, want 0700", dir, got)
 		}
 	}
@@ -409,7 +410,7 @@ func TestCLIConfig_TaskRootOverridesOwnerHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat task config file: %v", err)
 	}
-	if got := info.Mode().Perm(); got != 0o600 {
+	if got := info.Mode().Perm(); runtime.GOOS != "windows" && got != 0o600 {
 		t.Errorf("task config file mode = %#o, want 0600", got)
 	}
 }

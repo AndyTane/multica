@@ -1,0 +1,4019 @@
+{
+  "added": [],
+  "rows": [
+    {
+      "package": "cmd/migrate",
+      "test": "TestAgentTaskHistoryIndexMigrationAndPagePlans",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "SQL 读取断言只匹配 LF；已兼容 CRLF。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "cmd/migrate",
+      "test": "TestGitHubPRAddressIndexMigrationUpDownUp",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "首次在大数据夹具导入时超过 90 秒；独立三次重跑均通过。",
+      "treatment": "偶发超时，保留原输出及 3 次复跑输出"
+    },
+    {
+      "package": "cmd/migrate",
+      "test": "TestEveryConcurrentUpBuildHasCleanup",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "已发布迁移 574、575、579、580 缺少 concurrentIndexCleanups 注册；与本批迁移无关。",
+      "treatment": "原有迁移重试行为，交回复审"
+    },
+    {
+      "package": "cmd/multica",
+      "test": "TestRunAttachmentDownloadWritesBasenameIntoOutputDir",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "原断言用未转义的 Windows 路径匹配 JSON；已解码 JSON 后比较。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "cmd/multica",
+      "test": "TestRunRuntimeProfileSetAndUnsetPath",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "原夹具用 /opt/... 作为绝对路径；已改用本机临时绝对路径。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "cmd/multica",
+      "test": "TestRunRuntimeProfileSetPathPreservesExistingConfig",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "原夹具用 /opt/... 作为绝对路径；已改用本机临时绝对路径。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "cmd/multica",
+      "test": "TestGuardLocalPathLinksOnlyFiresInAgentContext/agent_task_context_hard-fails",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "原断言未处理错误消息中 %q 对 Windows 路径的转义；已按引号语义检查。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "cmd/multica",
+      "test": "TestGuardLocalPathLinksOnlyFiresInAgentContext",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 1 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/cli",
+      "test": "TestCLIConfig_TaskRootOverridesOwnerHome",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "Windows 不提供 POSIX 0700/0600 权限位；保留内容与隔离断言，权限位仅在 POSIX 检查。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRefreshHealedVersion_KeepsHealedPairCurrentAfterInPlaceUpgrade",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "POSIX 无扩展名假程序在 Windows 不可发现；已改为测试自建 .cmd，避免回退到机器已安装 CLI。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestLoadConfig_UsesCodexDesktopAppBundleFallback",
+      "base": "fail",
+      "head": "skip",
+      "finalFixture": "",
+      "reason": "macOS app bundle 的可执行位夹具不适用于 Windows；已明确平台跳过。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestLoadConfig_UsesChatGPTAppBundleCodexPath",
+      "base": "fail",
+      "head": "skip",
+      "finalFixture": "",
+      "reason": "macOS app bundle 的可执行位夹具不适用于 Windows；已明确平台跳过。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestLoadConfig_UsesNestedChatGPTCodexCLIPath",
+      "base": "fail",
+      "head": "skip",
+      "finalFixture": "",
+      "reason": "macOS app bundle 的可执行位夹具不适用于 Windows；已明确平台跳过。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestLoadConfig_PrefersNestedChatGPTCodexCLIPath",
+      "base": "fail",
+      "head": "skip",
+      "finalFixture": "",
+      "reason": "macOS app bundle 的可执行位夹具不适用于 Windows；已明确平台跳过。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareCodexHomeFailsClosedWhenSandboxWriteFails",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestDshPluginPathDirs_FindsBothLayouts/flat",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "APPDATA 未隔离，两个子用例共用真实目录并串扰；已为各子用例使用临时 APPDATA。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestDshPluginPathDirs_FindsBothLayouts",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 1 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestReuseRestoresCodexHome",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareHermesHomeLinkFailureKeepsTaskLocalDB",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareHermesHomeMigrationIsAtomic",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareWorktreeModeUsesPerIssueCodexSessionStore",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestOpenclawDiscoveryCacheHitProducesSameWrapper",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "JSON 内的工作目录已转义，原归一化未命中 Windows 路径；已先编码路径再归一化。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestLockReusablePriorEnvRootRejectsIdentitySwap",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 目录替换后，原有目录身份检查仍接受该复用根；基线同样复现。",
+      "treatment": "原有目录身份/锁契约，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestLockReusablePriorEnvRootSurvivesWorkspacesRootSwap",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 对打开的目录/文件句柄施加锁，原实现的 rename/remove 在该时刻被拒绝。",
+      "treatment": "原有 Windows 文件/锁行为，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRunTaskDeclinesReuseWhenTheClaimedDirectoryIsSwappedBeforeUse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestListRuntimeLocalSkills_ClaudeEnabledPlugin",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "插件清单夹具的 installPath 未做 JSON 转义；已按字符串编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestOpenclawDiscoveryCacheConcurrentPreparations",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 对打开的目录/文件句柄施加锁，原实现的 rename/remove 在该时刻被拒绝。",
+      "treatment": "原有 Windows 文件/锁行为，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestListRuntimeLocalSkills_FollowsSymlinkedSkillDirs",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestListRuntimeLocalSkills_CodexUsesSharedCODEXHOME",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "接口 source_path 使用正斜杠，原断言写死本机反斜杠；已按接口规范归一化期望。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestListRuntimeLocalSkills_PerRootVisitedAllowsCrossRootSymlinkAlias",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareOpenclawConfigWorstCaseCLIBudgets",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "最坏路径计数为 2 个 CLI 截止时间，原断言要求 3；registry 与 schema 回退预算的既有契约不一致。",
+      "treatment": "原有预算行为/契约，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestWindowsOpenclawShimMissingNodeSurfacesCmdStderr",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "原断言要求英文 cmd.exe；已检查 stderr 分支与缺失的 node，兼容中文系统。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestHandleRuntimeGone_DistinctDeletionsWithinCoalesceWindowBothRecover",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "连续删除不同运行环境仍只注册一次；基线独立三次均复现，属于原有合并窗口行为。",
+      "treatment": "原有产品行为，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestListRuntimeLocalMcpServersClaudeEnabledPlugin",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "插件清单夹具的 installPath 未做 JSON 转义；已按字符串编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestMergeRuntimeAndAgentMcpConfigClaudeCombinesAndAgentWins",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "插件清单夹具的 installPath 未做 JSON 转义；已按字符串编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestDetectBuiltinRuntimes_ProbesRunConcurrently",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "原有探针用例要求 6 项运行时，本平台返回 5 项；独立三次均复现。",
+      "treatment": "原有运行时发现与平台夹具契约，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestCommentReplySnippetPropagatesPostFailure/posix/sh/successful_post_still_cleans_up",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "Windows 夹具只提供 .cmd，Git Bash 未命中该假 CLI；已同时提供扩展名为空的 sh 假程序，两个 shell 都使用测试进程。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestCommentReplySnippetPropagatesPostFailure/posix/sh",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 1 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRepoCheckoutUsesTaskScopedProjectRefByDefault",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "请求夹具拼接 Windows 路径时生成无效 JSON；已对路径编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestPruneWorktree_LegacyCacheFallbackSerializesWithCreateWorktree",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestCommentReplySnippetPropagatesPostFailure/windows/git-bash/successful_post_still_cleans_up",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "Windows 夹具只提供 .cmd，Git Bash 未命中该假 CLI；已同时提供扩展名为空的 sh 假程序，两个 shell 都使用测试进程。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestCommentReplySnippetPropagatesPostFailure/windows/git-bash",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 1 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestCommentReplySnippetPropagatesPostFailure",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 4 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestConflictResolvedByTheAgentIsDeliveredAndNotReplayedAgain",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestEnsureRepoReadyConcurrentMissRefreshesOnce",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestFinalizeRefusesWhenAFollowUpResetsPastTheUserEditsItReplayed",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestEnsureRepoReadyRefreshesOnMiss",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRegisterTaskReposAllowsProjectOnlyURL",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestEnsureRepoReadyCachedRepoStillRefreshesSettings",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRunTaskCancelledWaitingForThePriorWorkdirStopsInsteadOfPreparing",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestShouldReusePriorWorkdirSquadLeaderRejectsSymlinkEscape",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRunTaskReusesPriorWorkdirForFreshSession",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRunTaskSquadLeaderReusesWorkdirBeforeGCMetaWritten",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRepoCheckoutReturnsRetryableBusyToCapableClient",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "请求夹具拼接 Windows 路径时生成无效 JSON；已对路径编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRepoCheckoutForwardsFresh",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "请求夹具拼接 Windows 路径时生成无效 JSON；已对路径编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRepoCheckoutForwardsIsolatedMode",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "请求夹具拼接 Windows 路径时生成无效 JSON；已对路径编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRepoCheckoutExplicitRefOverridesProjectDefault",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "请求夹具拼接 Windows 路径时生成无效 JSON；已对路径编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRepoCheckoutRejectsUnresolvableWorkdirWithTheReason",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "请求夹具拼接 Windows 路径时生成无效 JSON；已对路径编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRepoCheckoutRejectsAnotherTaskWorkdir",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "请求夹具拼接 Windows 路径时生成无效 JSON；已对路径编码。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon",
+      "test": "TestRunTaskSquadLeaderDoesNotReuseExternalPriorWorkdir",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareQwenpawWorkspacePermissions",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityIgnoresSharedCache/linked",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityIgnoresSharedCache/isolated",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityIgnoresSharedCache",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityConcurrentTasksAndOverrides",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityMigratesExistingWorktree/worktreeConfig=false",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityMigratesExistingWorktree/worktreeConfig=true",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityMigratesExistingWorktree",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityUserConfigAndCoauthor",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityWithoutUserFailsClosed",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestIsolatedCheckoutPreservesIntentionalIdentity",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityConfigLockFailureIsRetryable",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityRejectsForeignWorktree",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCheckoutIdentityEnabledWithSharedConfigLocked",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareLocalWorktreeReplaysOnlyTheUserEditsSinceTheLastTurn",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量/补充专项为准"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestGetRemoteDefaultBranchUsesBareHeadHintForCustomDefault",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestReconcileCoAuthoredByHooksUpgradesReleasedHookInPlace",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestIsPartialClone",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeFromPartialCacheHasFileContents",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestReusedIsolatedCheckoutRepairsPromisorConfig",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateIsolatedCheckoutFromPartialCacheHasFileContents",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestIsolatedCheckoutKeepsLinkedWorktreeHoldingWork",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestIsolatedCheckoutAcrossVolumesOnWindows",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestReconcileCoAuthoredByHookInCheckoutIgnoresLinkedWorktree",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestIsolatedCheckoutIsCommittableOnWindows",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeDoesNotResurrectDisabledState",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestReconcileCoAuthoredByHookInCheckoutMigratesReleasedHook",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestFinalizeAbortRefusesToCommitAndKeepsWorktree",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "git worktree list 输出正斜杠，原断言与本机反斜杠比较；已归一化路径，保留正反注册断言。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestReconcileCoAuthoredByHooksPreservesUserHook",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeMigratesLinkedWorktreeToIsolatedMetadata",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestGetRemoteDefaultBranchFallsBackToBareHead",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestGitFetchRefreshesOriginHeadAfterDefaultChange",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestGetRemoteDefaultBranchScansForCustomDefault",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreePathCollisionDoesNotLeakBranch",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestEnsureRemoteTrackingLayoutMigratesLegacyCache",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareLocalWorktreeContinuesTheConversationBranch",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量/补充专项为准"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeFetchesDespiteAgentBranchOnRemote",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeWithUnknownRequestedRef",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeWithRequestedTagRef",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeWithRequestedCommitRef",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeDoesNotExcludeReasonixProjectConfig",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeExcludesAgentSidecars",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeWithRequestedBranchRef",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeExcludesOpenCodeSkills",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestIsolatedCheckoutCloneWithoutHardlinksIsIndependent",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeReusesIsolatedGitMetadata",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeWithIsolatedGitMetadata",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareLocalWorktreeSkipsMulticaSidecars",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareLocalWorktreePrunesStaleRegistrations",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "git worktree list 输出正斜杠，原断言与本机反斜杠比较；已归一化路径，保留正反注册断言。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestFinalizeKeepsWorktreeWhenCommitFails",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "git worktree list 输出正斜杠，原断言与本机反斜杠比较；已归一化路径，保留正反注册断言。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestSyncKeepsDistinctCachesForSegmentBoundaryColliders",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestReconcileCoAuthoredByHooksMigratesReleasedHook",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareLocalWorktreeSubdirectory",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeInstallsGatedHook",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCoAuthoredByStateStopsTrailerInExistingCheckout",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRemoveCoAuthoredByHookPreservesUserHook",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeStampsLastUsed",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareLocalWorktreeConcurrentTasks",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestGetRemoteDefaultBranchAmbiguousOriginReturnsEmpty",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeRemovesLegacyCoAuthoredByHook",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeRemovesCoAuthoredByHookWhenDisabled",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCoAuthoredByHookIdempotent",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestCreateWorktreeInstallsCoAuthoredByHook",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestFreshMigrationCarriesUnpushedBranch/another_task",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestFreshMigrationCarriesUnpushedBranch/same_task",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestFreshMigrationCarriesUnpushedBranch",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestFreshCheckoutDiscardsLocalWork/isolated",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestFreshCheckoutDiscardsLocalWork/linked",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestFreshCheckoutDiscardsLocalWork",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutMovesCleanCheckoutToNewBranch/linked",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutOnTaskBranchIsNoop/linked",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPromoteHermesMemoryStagingClassifiesRemoveFailures/unremovable_empty_store_fails_closed",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutMovesCleanCheckoutToNewBranch/isolated",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutMovesCleanCheckoutToNewBranch",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutKeepsLocalWork/linked/uncommitted_change",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestMigrateHermesTaskMemoriesFailureKeepsSource",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutOnTaskBranchIsNoop/isolated",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutOnTaskBranchIsNoop",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutKeepsLocalWork/isolated/uncommitted_change",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareHermesHomeMemoryStorePersistsAcrossTasks",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareLocalWorktreeReplaysUncommittedWork",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestHermesOverlayEnvPinsHomeAfterDotenvOverride",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutKeepsLocalWork/isolated/unpushed_commit",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutKeepsLocalWork/isolated/untracked_file",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestHermesOverlayPermissions",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutKeepsLocalWork/linked/untracked_file",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutKeepsLocalWork/linked/unpushed_commit",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 本地仓库路径的盘符、分隔符或长路径参与缓存/clone，原路径断言或 Git 操作失败；具体错误见本项原始诊断。",
+      "treatment": "原有仓库路径行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/repocache",
+      "test": "TestRepeatedCheckoutKeepsLocalWork",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 6 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestHermesExternalDirsExpandsSanitizedEnv",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "原用例将 /srv 或 /opt 视为绝对路径；Windows 将其解释为无盘符路径并相对 home 重定位。",
+      "treatment": "需明确跨平台外部目录语义，原有行为交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestHermesDerivedConfigRebasesRelativeExternalDirs",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "原用例将 /srv 或 /opt 视为绝对路径；Windows 将其解释为无盘符路径并相对 home 重定位。",
+      "treatment": "需明确跨平台外部目录语义，原有行为交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareHermesHomeOverlay",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestConcurrentIsolatedPreparesOnOneRepo",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "宿主 Git autocrlf 改写测试文件字节；测试仓库已固定属性及 autocrlf，不改宿主 Git 配置。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestWriteEnvRootOwnerAtomicallyReplacesMarker",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 的文件身份/替换观测未满足原测试要求的原子替换证据。",
+      "treatment": "原有文件身份行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestDirHasEntries",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 对普通文件执行目录检查时的错误分类走入 ENOTEMPTY 分支，原测试期望 ENOTDIR。",
+      "treatment": "原有平台错误分类，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestCleanupSidecarsSurfacesEACCESOnEmptyRecordedDir",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareDirectoryMode",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestVerifyCodexHomeRootRejectsSymlinkedHome",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestVerifyCodexHomeRootRejectsSwappedDirectory",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 对打开的目录/文件句柄施加锁，原实现的 rename/remove 在该时刻被拒绝。",
+      "treatment": "原有 Windows 文件/锁行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareCursorMcpConfigWritesProjectConfigAndApprovals",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPrepareCodexSessionsDir_LocalDirectoryUsesPerIssueStore",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "本机 Windows 无创建符号链接的权限，原用例要求共享链接或 POSIX 链接行为。",
+      "treatment": "需明确 Windows 链接/复制契约；本批不改权限或运行行为，交回复审"
+    },
+    {
+      "package": "internal/daemon/execenv",
+      "test": "TestPromoteHermesMemoryStagingClassifiesRemoveFailures",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 1 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/handler",
+      "test": "TestParseSkillArchive_RejectsUnsafeSkillMdPath",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 对 /abs、\\abs、UNC 路径的判定与原 POSIX 归档路径断言不同，未拒绝这些 SKILL.md 路径。",
+      "treatment": "原有跨平台路径校验，交回复审"
+    },
+    {
+      "package": "internal/integrations/wecom",
+      "test": "TestStreamingDecryptMatchesTheBufferedOneAtEveryPadLength",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "解密临时文件仍打开时执行 unlink；Windows 拒绝删除，上传流因此未调用。",
+      "treatment": "原有 Windows 文件生命周期行为，交回复审"
+    },
+    {
+      "package": "internal/integrations/wecom",
+      "test": "TestStreamingDecryptSurvivesADribblingReader",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "解密临时文件仍打开时执行 unlink；Windows 拒绝删除，上传流因此未调用。",
+      "treatment": "原有 Windows 文件生命周期行为，交回复审"
+    },
+    {
+      "package": "internal/integrations/wecom",
+      "test": "TestTheTempFileIsPrivateAndUnlinked",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "解密临时文件仍打开时执行 unlink；Windows 拒绝删除，上传流因此未调用。",
+      "treatment": "原有 Windows 文件生命周期行为，交回复审"
+    },
+    {
+      "package": "internal/integrations/wecom",
+      "test": "TestPeekFileRewinds",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "解密临时文件仍打开时执行 unlink；Windows 拒绝删除，上传流因此未调用。",
+      "treatment": "原有 Windows 文件生命周期行为，交回复审"
+    },
+    {
+      "package": "internal/integrations/wecom",
+      "test": "TestPeekFileHandlesAShortFile",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "解密临时文件仍打开时执行 unlink；Windows 拒绝删除，上传流因此未调用。",
+      "treatment": "原有 Windows 文件生命周期行为，交回复审"
+    },
+    {
+      "package": "internal/integrations/wecom",
+      "test": "TestIngestPrefersTheStreamingPathAndUploadsTheRightBytes",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "解密临时文件仍打开时执行 unlink；Windows 拒绝删除，上传流因此未调用。",
+      "treatment": "原有 Windows 文件生命周期行为，交回复审"
+    },
+    {
+      "package": "internal/service",
+      "test": "TestBuiltinSkillsConformToTemplate/multica-onboarding",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "测试的 frontmatter 提取器只匹配 LF；已先归一化 CRLF，再检查同一份 YAML 与触发词。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/service",
+      "test": "TestBuiltinSkillsConformToTemplate/multica-platform",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "测试的 frontmatter 提取器只匹配 LF；已先归一化 CRLF，再检查同一份 YAML 与触发词。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/service",
+      "test": "TestBuiltinSkillsConformToTemplate",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/service",
+      "test": "TestBuiltinSkillsFrontmatterIsStrictYAML/multica-onboarding",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "测试的 frontmatter 提取器只匹配 LF；已先归一化 CRLF，再检查同一份 YAML 与触发词。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/service",
+      "test": "TestBuiltinSkillsFrontmatterIsStrictYAML/multica-platform",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "测试的 frontmatter 提取器只匹配 LF；已先归一化 CRLF，再检查同一份 YAML 与触发词。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/service",
+      "test": "TestBuiltinSkillsFrontmatterIsStrictYAML",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "internal/service",
+      "test": "TestPlatformSkillDescriptionNamesEveryDomain",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "测试的 frontmatter 提取器只匹配 LF；已先归一化 CRLF，再检查同一份 YAML 与触发词。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "internal/maintenance",
+      "test": "TestInternalHTTPCreateAdvanceReplayAndConfigure",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityToolsWithSlowConsumer/cancel=false",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityToolsWithSlowConsumer/cancel=true",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityToolsWithSlowConsumer",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimBackendUsesOwnedProcessTree",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "Windows 进程树夹具未观察到辅助程序写入的后代 PID；独立三次均复现。",
+      "treatment": "原有进程启动/Job Object 夹具与运行契约，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestExplainExecErrorNamesPackageAndRepairCommand",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "原期望写死 POSIX 修复命令；Windows 实际正确输出 PowerShell 命令，已分别断言。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestExplainExecErrorReadsRepairCommandFromManifest",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "原期望写死 POSIX 修复命令；Windows 实际正确输出 PowerShell 命令，已分别断言。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestExplainExecErrorQuotesPathsForTheShell",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "原期望写死 POSIX 修复命令；Windows 实际正确输出 PowerShell 命令，已分别断言。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokSupplementTimesOutIndependentlyAndAllowsNextMessage",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokSupplementHandlesObservedNestedResultStatus/queued",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokSupplementHandlesObservedNestedResultStatus/rejected",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokSupplementHandlesObservedNestedResultStatus/in_band_error",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokSupplementHandlesObservedNestedResultStatus",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 3 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokNoUsableAuthMethodFailsBeforeSession/none",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokNoUsableAuthMethodFailsBeforeSession/unknown",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokNoUsableAuthMethodFailsBeforeSession/api",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokNoUsableAuthMethodFailsBeforeSession",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 3 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokUsesAdvertisedAPIKeyMethod",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokDrainsNotificationsAfterPromptResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokPropagatesMCPAndUsage",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokCancellation",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDiscoverGrokModelsWaitsForAdvertisedAuth",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "协议发现依赖的 POSIX 假 CLI 在 Windows 未启动，因而退回内置模型清单或没有生成 requests.jsonl。",
+      "treatment": "原有协议进程夹具的 Windows 适配，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDiscoverGrokModelsStopsOnAuthFailures/no_methods",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "协议发现依赖的 POSIX 假 CLI 在 Windows 未启动，因而退回内置模型清单或没有生成 requests.jsonl。",
+      "treatment": "原有协议进程夹具的 Windows 适配，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDiscoverGrokModelsStopsOnAuthFailures/authenticate_rejected",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "协议发现依赖的 POSIX 假 CLI 在 Windows 未启动，因而退回内置模型清单或没有生成 requests.jsonl。",
+      "treatment": "原有协议进程夹具的 Windows 适配，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDiscoverGrokModelsStopsOnAuthFailures",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendDeliversFinalAnswerWithoutNarration/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendDeliversFinalAnswerWithoutNarration/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendDeliversFinalAnswerWithoutNarration",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendDoesNotWaitForeverForReaderAfterPromptDone",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendIgnoresLateReaderOutputAfterGrace",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawSessionResumeTransientError",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendDoesNotUsePermissionEnvOverride",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendInjectsThinkingVariant",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendNeverEmitsPromptFlag",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendAnchorsDirAndPWD",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawBlockedWorkspaceAndAgentArgs",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawExtraArgsReachTheCommandLine",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawSessionLoadSendsCodingProjectDir",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawWorkspaceArgs",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawSessionNewSendsCodingProjectDir",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawSessionLoadTransientError",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawUsageModelIgnored",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawBackendUsage",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawUsesSessionLoad",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawSessionLoadNotFound",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawSessionLoad",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQwenpawSessionNew",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderDrainsNotificationsAfterPromptResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendClearsSessionIDWhenResumedSessionNotFoundAtSetModel",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendClearsSessionIDWhenResumedSessionNotFoundAtPrompt",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendAttributesUsageToACPDefaultModel",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderPromotesTerminalProviderErrorWithOutput",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderFiltersRemoteMcpWhenInitializeDoesNotAdvertiseCapability",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderForwardsMcpAuthHeaderToSessionNew",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendNonPositiveTimeoutDoesNotImposeDeadline",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendProviderErrorDetectionUsesFullOutput",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendToolTerminatedTurnFallsBackToLatestTextBlock",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendHappyPath",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendInvokesACPFlagAndFiltersBlockedArgs",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestQoderBackendSetModelFailureFailsTask",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendOverridesUserOpenCodeConfigContent",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendOmitsMCPEnvWhenEmpty",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendInjectsMCPConfigViaEnv",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeV2CancelInterruptsThroughRunConnection",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeInterruptSessionUsesRunConnection",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeV1ArgvKeepsDirAndVariant",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeV2ArgvOmitsDirAndFoldsVariant",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeV1StillDeliversMCPConfig",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeV2ExecuteRefusesMCPConfig",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendAppendsExitDetailOnMidStepCrash",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendFailsOnStreamEndingMidTool",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendBlocksDirOverride",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestOpencodeBackendQuestionDenySurvivesUserConfig",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendOmitsThinkingConfigOnResumedSessionWhenUnset",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestMcodeLoadSessionWhenCapabilityAppears",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestMcodeUnsupportedResumeRequestsFreshRetry",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestMcodeSessionNewExitAfterInitializeReportsStartupFailure",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestMcodeWaitsForSessionNewReadinessAfterInitialize",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestMcodeFreshSessionUsesACPAndForwardsMCP",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesKeepsRemoteMcpWhenCapabilityAdvertised",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesDropsRemoteMcpWhenCapabilityExplicitlyDeclined",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesCustomProfileDropsRemoteMcpWhenCapabilityOmitted",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesForwardsRemoteMcpUnderOmittedCapabilitiesException",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesResumeIncludesMcpServers",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestClaudeBackendLaunchesWrapperSubcommandFirst",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesSendsSetModelWhenExplicitProviderAndBareCurrent",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesSkipsRedundantSetModelForBareConfiguredModel",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesSendsSetModelWhenModelDiffersFromCurrent",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesSkipsRedundantSetModelWhenAlreadyCurrent",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesSetModelPreservesCustomModelIDWithColon",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesExecuteFailsClosedOnMalformedMcpConfig",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroDrainsNotificationsAfterPromptResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroFreshOversizedHistoryImageDoesNotSignalResumeRejected",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroResumedOversizedHistoryImageSignalsResumeRejected",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroLoadIncludesMcpServersFromConfig",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendUsesSessionLoadForResume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendInvokesACPWithTrustAllTools",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendClearsSessionIDWhenPromptSessionNotFound",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendPoisonedHistorySetsResumeRejected",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendClearsSessionIDWhenSetModelSessionNotFound",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendDoesNotPromoteOnTransientRetry",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendDoesNotCompleteAfterFailedCommentAddResult",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendClearsSessionIDWhenSetModelSessionNotFound",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendCompletedRetryAfterEarlierFailureIsCompleted",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendClearsSessionIDWhenResumedSessionNotFound",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendFailedFinalCommentOverridesEarlierSuccess",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendPreservesCompletionOnRealGPT56SolFrames",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendPromotesProviderErrorWithNonEmptyOutput",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendTreatsCompletedCommentAddWithNonTerminalTitleAsCompleted",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendDoesNotCompleteRunningGoalCompleteWithoutResult",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendDoesNotCompleteRunningCommentAddWithoutResult",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendTreatsCommentAddCloseErrorAsCompleted",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendDoesNotCompleteAfterFailedGoalComplete",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendTreatsGoalCompleteCloseErrorAsCompleted",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendMergesLateCumulativeUsageAfterPromptResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendAttributesUsageToACPDefaultModel",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendAttributesUsageToCurrentModel",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKiroBackendSetModelFailureFailsTask",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendWireTurnFailurePastOversizedRecord",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendWireTurnFailureFailsCompletedRun",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendReportsUsageFromWireLog",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendPropagatesACPPromptUsage",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendDropsHistoryReplayOnResume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiDrainsNotificationsAfterPromptResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendPoisonedHistoryTwoLineFormat",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendPoisonedHistoryFreshRunNoResumeRejected",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendPoisonedHistorySetsResumeRejected",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiFreshSessionIncludesMcpServers",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiResumeIncludesMcpServers",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendInvokesACPSubcommand",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendClearsSessionIDWhenSetModelSessionNotFound",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendSetsThinkingLevelOnResumedSession",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendOmitsThinkingConfigWhenUnset",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendThinkingFailureWarnsAndContinues",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendSetsThinkingLevelBeforePrompt",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendSetModelFailureFailsTask",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendIgnoresRefusalOnFreshSession",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendKeepsSessionOnRefusalWithLateActivity",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendKeepsSessionOnRefusalAfterActivity",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendKeepsProviderErrorOnRefusedResume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHermesBackendRecoversFromRefusedResume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokAttributesUsageOnResumeWithoutConfiguredModel",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokAuthFailureFailsTask",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokUsesSessionLoadForResume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokSetModelFailureFailsTask",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokBlockedArgsFiltering",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokBackendStreamsAndCompletes",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokSupplementReportsACPRejection",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokSupplementTargetsActivePrompt",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimSessionLoadRetryCancelled",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimSessionLoadRetryExhausted",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimSessionLoadRetrySucceeds",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimSetModelFailClosesSession",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimResumeReappliesConfig",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimFreshConfigFailureWithholdsSessionID",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimConfigFailClosesSession",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimDrainsLateFinalNotificationAfterPromptResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimCleanupKillsHangingChild",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimPromptMissingNotificationStillCompletes",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimResumeNotFound",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimResumeLoadsSession",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDimSessionNew",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestDevecoBackendArgvShapeAndNoPrompt",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestEnsureCodexMcpConfigWritesManagedBlock",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestBuildAntigravityArgsModel",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendIgnoresTrailingTransportErrorAfterDoneResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendIgnoresStaleActiveStepAfterDoneResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendIgnoresTrailingNetworkErrorAfterDoneResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendStreamJSONCapturesUsage",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendStreamPreservesNewlines",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendRecoversEmptyStdoutFromTranscript",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendProviderErrorSurfacesAsFailed",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendPrintTimeoutSurfacesAsTimeout",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestBuildAntigravityArgsNoCapUsesLargePrintTimeout",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestBuildAntigravityArgsBasic",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例用 POSIX 权限位或 chmod 模拟拒读/拒写/拒删；Windows 合成权限及 ACL 行为不同。",
+      "treatment": "需要 Windows 对应的权限/错误注入契约，保留失败交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawSessionNew",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestHardenBrowserMcpConfigNoopOffWindows",
+      "base": "fail",
+      "head": "pass",
+      "finalFixture": "",
+      "reason": "“非 Windows 不改配置”用例却依赖宿主平台；已复用现有主机注入，明确测试非 Windows 分支。",
+      "treatment": "测试设施修复；以 head 全量及基线专项结果为准"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityToolsStreamBeforeProcessExit",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawSessionNewMissingAliasErrorIsActionable",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendSumsCompletedStepsWhenCancelled",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawSessionNewOmitsAgentAliasWhenUnset",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendReportsStructuredFailureUsage",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawDoesNotForwardMcpServers",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawDoesNotAttemptModelSelection",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendKeepsNetworkFailureForNewerPartialResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawLegacyChoiceReturnsProtocolErrorThroughClient",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendKeepsNetworkFailureForPartialResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestAntigravityBackendKeepsNonTransportFailureAfterDoneResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawResumeNotFound",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawResumeUsesSessionResume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawPromptModelMetadataControlsUsageAttribution",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawResumeDropsReplayedHistory",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestTraecliDrainsNotificationsAfterPromptResponse",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawResumeCapabilityUnavailableReportsRejection",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestTraecliUsesSessionLoadForResume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestTraecliSetModelFailureFailsTask",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestTraecliBlockedArgsFiltering",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestTraecliBackendStreamsAndCompletes",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestValidateServiceTierCodexPerModelCatalog",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "协议发现依赖的 POSIX 假 CLI 在 Windows 未启动，因而退回内置模型清单或没有生成 requests.jsonl。",
+      "treatment": "原有协议进程夹具的 Windows 适配，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiPoisonedHistorySurfacedErrorIsUnresumable/single-line",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiPoisonedHistorySurfacedErrorIsUnresumable/two-line",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiPoisonedHistorySurfacedErrorIsUnresumable",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendThinkingConfirmationFailureWarnsAndContinues/mismatch",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendThinkingConfirmationFailureWarnsAndContinues/missing",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestKimiBackendThinkingConfirmationFailureWarnsAndContinues",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokAuthenticatesBeforeSession/new_session",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokAuthenticatesBeforeSession/resume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokAuthenticatesBeforeSession",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 2 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokPromptStopReasons/max_turn_requests",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokPromptStopReasons/end_turn",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokPromptStopReasons/max_tokens",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokPromptStopReasons/cancelled",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokPromptStopReasons/refusal",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestGrokPromptStopReasons",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 5 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsReportRejectedResume/qoder",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsReportRejectedResume/grok",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsReportRejectedResume/traecli",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsReportRejectedResume/kiro",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsReportRejectedResume/kimi",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsReportRejectedResume/hermes",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsReportRejectedResume",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 6 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawSessionNewSendsConfiguredAgentAlias/separate_value",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawSessionNewSendsConfiguredAgentAlias/long_spelling",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawSessionNewSendsConfiguredAgentAlias/inline_value",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestZeroclawSessionNewSendsConfiguredAgentAlias",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 3 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/hermes/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/traecli/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/zeroclaw/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/zeroclaw/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/dim/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/dim/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/reasonix/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/reasonix/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/kimi/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/kimi/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/hermes/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/kiro/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/qoderclicn/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/qoderclicn/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/qoder/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/qoder/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/traecli/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/kiro/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/mcode/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/mcode/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/grok/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock/grok/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsToolTerminatedTurnFallsBackToLatestTextBlock",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 22 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/hermes/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/qoderclicn/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/qoderclicn/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/qoder/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/qoder/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/kiro/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/kiro/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/mcode/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/mcode/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/grok/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/grok/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/traecli/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/traecli/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/zeroclaw/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/reasonix/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/kimi/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/kimi/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/hermes/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/reasonix/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/dim/tool_use_deferred_until_completion",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/zeroclaw/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration/dim/tool_use_emitted_at_start",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "用例的 POSIX 临时假 CLI 在 Windows 无法作为原生命令启动；需补平台对应的协议进程夹具。",
+      "treatment": "原有平台夹具边界，保留失败；涉及整套协议夹具改造，交回复审"
+    },
+    {
+      "package": "pkg/agent",
+      "test": "TestACPBackendsDeliverFinalAnswerWithoutNarration",
+      "base": "fail",
+      "head": "fail",
+      "finalFixture": "",
+      "reason": "父用例汇总失败；具体原因见下列 22 个失败子项。",
+      "treatment": "父子项分别保留，统计时不将父项重复计入叶子数"
+    }
+  ]
+}

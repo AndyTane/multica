@@ -447,7 +447,7 @@ func TestGetConfigOmitsServerVersionOnOfficialCloud(t *testing.T) {
 }
 
 func TestGetConfigExposesFrontendFeatureFlags(t *testing.T) {
-	h := &Handler{}
+	h := &Handler{Queries: testHandler.Queries}
 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
 	w := httptest.NewRecorder()
 	h.GetConfig(w, req)
@@ -511,7 +511,7 @@ func TestGetConfigExposesFrontendFeatureFlags(t *testing.T) {
 }
 
 func TestGetConfigExposesEnabledPluginsV1Flag(t *testing.T) {
-	h := &Handler{}
+	h := &Handler{Queries: testHandler.Queries}
 	withPluginsV1Flag(t, h, true)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)

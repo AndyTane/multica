@@ -79,6 +79,7 @@ import { api, ApiError } from "@multica/core/api";
 import { useConfigStore } from "@multica/core/config";
 import { pinListOptions } from "@multica/core/pins/queries";
 import { useDeletePin, useReorderPins } from "@multica/core/pins/mutations";
+import { awaitingIssuesOptions } from "@multica/core/issues";
 import { issueDetailOptions } from "@multica/core/issues/queries";
 import { projectDetailOptions } from "@multica/core/projects/queries";
 import type { PinnedItem } from "@multica/core/types";
@@ -115,6 +116,7 @@ const PINNED_PREVIEW_LIMIT = 5;
 // against the current workspace slug at render time (see AppSidebar body).
 // Only parameterless paths are valid nav destinations.
 type NavKey =
+  | "awaiting"
   | "inbox"
   | "chat"
   | "myIssues"
@@ -131,6 +133,7 @@ type NavKey =
 // Static schema (key only) — labels resolved at render via useT("layout"),
 // icons derived from the destination path via routeIconForPath.
 type NavLabelKey =
+  | "awaiting"
   | "inbox"
   | "chat"
   | "my_issues"
@@ -149,6 +152,7 @@ type NavLabelKey =
 // always agree. See route-icon-components.tsx.
 const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "inbox", labelKey: "inbox" },
+  { key: "awaiting", labelKey: "awaiting" },
   { key: "myIssues", labelKey: "my_issues" },
   { key: "chat", labelKey: "chat" },
 ];
@@ -464,6 +468,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   // for the switcher dot, so the count costs no request of its own — it used
   // to download the whole inbox list here just to count it (MUL-6967).
   const unreadCount = useInboxUnreadCount(wsId);
+  const { data: awaitingIssues = [] } = useQuery(awaitingIssuesOptions(wsId ?? "", userId ?? ""));
   // Chat tab unread badge: IM-style total of unread *messages* across chat
   // threads (countUnreadChatMessages is the shared definition — mobile's tab
   // badge derives from the same function, keeping the platforms in agreement).
@@ -790,6 +795,9 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                       >
                         <Icon />
                         <span>{t(($) => $.nav[item.labelKey])}</span>
+                        {item.key === "awaiting" && awaitingIssues.length > 0 && (
+                          <CappedNumberFlow value={awaitingIssues.length} className="ml-auto text-caption text-muted-foreground tabular-nums" />
+                        )}
                         {item.key === "inbox" && unreadCount > 0 && (
                           <CappedNumberFlow
                             value={unreadCount}

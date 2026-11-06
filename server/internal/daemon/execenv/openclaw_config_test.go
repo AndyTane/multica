@@ -360,6 +360,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
 				home := t.TempDir()
 				path := filepath.Join(home, ".openclaw", "openclaw.json")
 				t.Setenv("HOME", home)
+				t.Setenv("USERPROFILE", home)
 				return path
 			},
 		},
@@ -368,6 +369,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
 				home := t.TempDir()
 				path := filepath.Join(home, ".clawdbot", "clawdbot.json")
 				t.Setenv("HOME", home)
+				t.Setenv("USERPROFILE", home)
 				return path
 			},
 		},
@@ -376,6 +378,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
 				home := t.TempDir()
 				path := filepath.Join(home, ".moltbot", "moltbot.json")
 				t.Setenv("HOME", home)
+				t.Setenv("USERPROFILE", home)
 				return path
 			},
 		},
@@ -384,6 +387,7 @@ func TestOpenclawActiveConfigPathFallbackSources(t *testing.T) {
 				home := t.TempDir()
 				path := filepath.Join(home, ".moldbot", "moldbot.json")
 				t.Setenv("HOME", home)
+				t.Setenv("USERPROFILE", home)
 				return path
 			},
 		},
@@ -421,6 +425,7 @@ func TestOpenclawActiveConfigPathFallbackFreshInstallUsesCanonicalPath(t *testin
 	clearOpenclawPathEnv(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	stub := installOpenclawStub(t, map[string]openclawResponse{
 		"config file": {err: openclawConfigFileUnsupportedErr()},
 	})
@@ -442,6 +447,7 @@ func TestOpenclawActiveConfigPathFallbackOpenclawConfigPathHardOverride(t *testi
 	clearOpenclawPathEnv(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	explicitPath := filepath.Join(t.TempDir(), "missing-openclaw.json")
 	t.Setenv("OPENCLAW_CONFIG_PATH", explicitPath)
 	legacyPath := filepath.Join(home, ".clawdbot", "clawdbot.json")
@@ -656,6 +662,7 @@ func TestPrepareOpenclawConfigExpandsTilde(t *testing.T) {
 
 	fakeHome := t.TempDir()
 	t.Setenv("HOME", fakeHome)
+	t.Setenv("USERPROFILE", fakeHome)
 	if err := os.MkdirAll(filepath.Join(fakeHome, ".openclaw"), 0o755); err != nil {
 		t.Fatalf("mkdir home/.openclaw: %v", err)
 	}

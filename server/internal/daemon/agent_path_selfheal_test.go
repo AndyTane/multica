@@ -336,7 +336,14 @@ func TestResolveAgentEntry_NoCommandNoHeal(t *testing.T) {
 func TestRefreshHealedVersion_KeepsHealedPairCurrentAfterInPlaceUpgrade(t *testing.T) {
 	d := newSelfHealTestDaemon()
 	healed := filepath.Join(t.TempDir(), "codex")
-	writeExecStub(t, healed)
+	if runtime.GOOS == "windows" {
+		healed += ".cmd"
+		if err := os.WriteFile(healed, []byte("@echo off\r\nexit /b 0\r\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		writeExecStub(t, healed)
+	}
 
 	// State after a self-heal: path + the version detected for it at that time.
 	d.resolvedPaths["codex"] = healedAgent{path: healed, version: "1.0.0"}
