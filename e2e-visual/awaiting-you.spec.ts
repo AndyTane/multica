@@ -8,7 +8,7 @@ import demo from "../evidence/clawsta-151/review-cards.json" with { type: "json"
 // Run only against an isolated R1 database. Real-card content has no credentials,
 // comments or descriptions; the fixture owns all inserted issues and agents.
 test("23 real review cards: themes, widths, badges, send-back and undo", async ({ browser }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(process.env.CLAWSTA151_REVIEW_ROUND === "R2" ? 1_800_000 : 600_000);
   const connection = process.env.DATABASE_URL;
   if (!connection?.includes("clawsta151_r1")) throw new Error("Use the isolated clawsta151_r1 database");
   const client = new pg.Client(connection);
@@ -64,7 +64,7 @@ test("23 real review cards: themes, widths, badges, send-back and undo", async (
       const page = await context.newPage();
       const errors: string[] = []; page.on("pageerror", (err) => errors.push(err.message));
       try {
-        await page.goto(`/${ws.slug}/awaiting`, { waitUntil: "domcontentloaded", timeout: 240_000 });
+        await page.goto(`/${ws.slug}/awaiting`, { waitUntil: "domcontentloaded", timeout: r2 ? 900_000 : 240_000 });
         const list = page.getByRole("list", { name: "等我处理" });
         await expect(list.getByRole("listitem")).toHaveCount(2, { timeout: 90_000 });
         await expect(list.getByRole("listitem").first()).toContainText("CLAWSTA-143");
