@@ -689,7 +689,7 @@ func TestListRuntimeLocalSkills_CodexUsesSharedCODEXHOME(t *testing.T) {
 	if skills[0].Key != "debugger" {
 		t.Fatalf("key = %q, want debugger", skills[0].Key)
 	}
-	if skills[0].SourcePath != filepath.Join(codexHome, "skills", "debugger") {
+	if skills[0].SourcePath != filepath.ToSlash(filepath.Join(codexHome, "skills", "debugger")) {
 		t.Fatalf("source_path = %q", skills[0].SourcePath)
 	}
 }

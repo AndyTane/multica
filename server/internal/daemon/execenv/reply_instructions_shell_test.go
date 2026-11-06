@@ -61,6 +61,13 @@ func stubMultica(t *testing.T, exitCode int) string {
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if runtime.GOOS == "windows" {
+		// Git Bash resolves an extensionless shell stub, while PowerShell uses
+		// the .cmd above. Both shells must stay inside the test fixture.
+		if err := os.WriteFile(filepath.Join(dir, "multica"), []byte("#!/bin/sh\nexit "+strconv.Itoa(exitCode)+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return dir
 }
 

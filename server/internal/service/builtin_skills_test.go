@@ -765,7 +765,11 @@ func named(skills []AgentSkillData, name string) bool {
 
 // allBuiltinSkillsForTest includes every built-in regardless of agent scope.
 func allBuiltinSkillsForTest() []AgentSkillData {
-	return (&TaskService{}).AllBuiltinSkills()
+	skills := (&TaskService{}).AllBuiltinSkills()
+	for i := range skills {
+		skills[i].Content = strings.ReplaceAll(skills[i].Content, "\r\n", "\n")
+	}
+	return skills
 }
 
 func findSkill(t *testing.T, name string) (AgentSkillData, bool) {
