@@ -209,7 +209,22 @@
 
 ## 交付
 
-- 新分支和草稿 PR，目标 main。不合并、不打 tag、不发布。发布（v0.2.15，从 v0.2.14 做差量，三件套同号，校验后再切 stable）在双专业验收通过后另行投递。
+- 新分支和草稿 PR，目标 main。不合并、不打 tag、不发布。发布（v0.2.16，从 v0.2.15 做差量；v0.2.15 已由 #46 发布占用，三件套同号，校验后再切 stable）在双专业验收通过后另行投递。
 - 在 issue 原线程回复并有效 @ 前端负责人，写明：base..head、每个 cherry-pick 的冲突处理、测试命令和结果、Windows 实测证据（日志、进程清单、截图）以及证据包 SHA-256。
 - 把本任务书作为新的一节追加到 `docs/plans/2026-11-05-clawsta-143-timeout-settings.md`，随 PR 提交。
 - 禁止使用 `git add -A`、`git add .`、`git stash`、`git checkout --`、`git reset --hard`；不提交 `.multica/`；凭据不写入任何文件。
+
+## R2.1 修复批（在 PR #47 原分支上追加提交，不重开 PR）
+
+1. **版本号**：`package.json`、`apps/web/package.json` 改为 `0.2.16`；PR 内文档、计划书中“v0.2.15 / 从 v0.2.14 差量”同步改为“v0.2.16 / 从 v0.2.15 差量”。v0.2.15 已发布（#46），不得复用。
+2. **R2-B2**：缺的依赖是上游 `79d801f45`（MUL-8188 #9458）里“手动重试不复活已退役会话”这一段。只移植这一段，单独一个提交，提交信息注明来源：
+   - `server/pkg/db/queries/agent.sql` 的 `IsTaskSessionRetired` 查询，及 sqlc 生成的 `agent.sql.go`（用仓库的 sqlc 版本重新生成，不手写）；
+   - `server/internal/handler/daemon.go`：`rerunSessionRetired`（查询失败按已退役处理），在 rerun 分支里命中时不下发 `PriorSessionID`、设置 `PriorSessionResumeUnavailable`、保留原工作目录。
+   - 不移植 Kiro panic 检测、取消即退役（cancel-ack retired_session_id）、chat.sql 和 taskfailure 改动。若移植这一段还牵出别的依赖，停下来列出，不扩大范围。
+   - 验收：`TestOpenCodeClockRetirementSurvivesManualRetryOfOldTask` 及 `server/internal/handler` 全包通过（需数据库的测试按原方式起库），并补一条“未退役会话的手动重试仍然续接”的反向用例。
+3. **R2-B1 真机补验（模型来源）**：本机 OpenCode 没有配置任何模型和凭据，Zen 匿名 403 不是代码问题。使用本机已有的 Ollama（`%LOCALAPPDATA%\Programs\Ollama\ollama.exe`，模型 `qwen3-vl:4b-instruct`，已确认支持工具调用）：
+   - 自己 `ollama serve` 起服务，记录 PID，测完只停这个 PID；
+   - 写一份临时 OpenCode 配置（ollama 走 OpenAI 兼容接口 `http://127.0.0.1:11434/v1`），只通过隔离 daemon 进程的 `OPENCODE_CONFIG` 环境变量指向它。不改 `~/.config/opencode/opencode.jsonc`，不改 Client-Kit 选择文件，不动现场 daemon 和 u-workers 进程；
+   - 日志须证明仍走 ACP（临时配置不能让它退回 run 传输）；
+   - 原验收第 3 条四项全部实测。被测的是传输、计时、进程树和环境变量，模型只负责发起一条 shell 调用，所以这是真实验收，不是替身。提示词写死要执行的命令和 timeout 参数；如果 4b 模型连续三次不能正确发起工具调用，停下回报，不改用其他假实现。
+4. 交付：原线程回复并 @ 前端负责人，写明新 head、新增提交、测试结果、真机证据和新证据包 SHA-256。仍然不合并、不打 tag、不发布。
