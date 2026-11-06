@@ -2,6 +2,13 @@
 
 负责人：前端负责人（方案与前端验收）；后端架构师（B 节契约确认与后端验收）。
 
+## R1 投递
+
+- 执行：高级开发执行专家；分支 `agent/CLAWSTA-151-awaiting`，base `89cb14411`（main，v0.2.16）。
+- 范围：A 节前端全部 + B 节后端全部 + C 节测试与真实数据演示截图。发版不在 R1，验收通过后单独投递。
+- 回收：推到同一分支并开 PR（base `main`，不合并），在 CLAWSTA-151 回复 base..head、测试命令与结果、截图附件，@ 前端负责人。前端验收看真实渲染截图，后端验收由后端架构师按 B6 做。
+- 版本号：R1 不改版本号，发版批次再升。
+
 ## 本批目标（R1）
 
 用户打开 UWorkers 就能看到「等我处理」的清单：只列需要他本人动手的待审核任务，每张一句话说清要做什么，等得最久的排最前，可以直接通过或打回。看板卡片上分清「等你」和「等验收」。
@@ -33,12 +40,12 @@ CLAWSTA-143 · 运行超时界面化…（标题，单行截断） · [头像] �
 
 ### A3 通过 / 打回
 
-- **通过**：`status → done`，不弹确认框；出现 toast「已通过 CLAWSTA-143」带「撤销」（5 秒），撤销恢复 `in_review` 和原 review 元数据。行在服务端成功后移出（不做乐观删除）。
-- **打回**：按钮展开 Popover，一个必填文本框（占位「说一下哪里要改」）和「打回」按钮。提交顺序：先发评论（作者为当前用户），再 `status → in_progress`。评论须能唤醒当前负责的智能体——执行前在本仓库确认「成员在智能体负责的 issue 上评论」会不会触发该智能体；不会则评论里带负责人的 mention。失败时保留输入并提示重试。
+- **通过**：`status → done`，不弹确认框；出现 toast「已通过 CLAWSTA-143」带「撤销」（5 秒），撤销按 B4 用 `review_metadata` 原子恢复 `in_review` 和原四键；409 时提示「任务已有变化」并刷新。行在服务端成功后移出（不做乐观删除）。
+- **打回**：按钮展开 Popover，一个必填文本框（占位「说一下哪里要改」）和「打回」按钮。提交顺序：先发顶层评论（作者为当前用户，由现有成员评论接手机制交回负责人），再 `status → in_progress`。评论成功而状态失败时显示「意见已发送，状态未更新」，重试只重试状态（细则见 B4）。评论失败时保留输入并提示重试。
 
 ### A4 看板卡片与列表行
 
-只在状态类别为 `in_review` 时显示：
+只在 `issue.status === "in_review"` 时显示：
 
 - `review_by = user` 且是给当前用户的：小标签 **等你**（实心、主题强调色的浅底，`text-micro`），标题下加一行动作句（单行截断，`text-caption text-foreground`）。
 - `review_by = user` 但给的是别人：标签 `等 <成员名>`，muted，不显示动作句。
@@ -50,12 +57,12 @@ CLAWSTA-143 · 运行超时界面化…（标题，单行截断） · [头像] �
 
 ```
 isAwaitingMe(issue, meUserId) =
-  issue 状态类别 == in_review
+  issue.status == "in_review"
   && metadata.review_by == "user"
   && (metadata.review_user 缺失 || metadata.review_user == meUserId)
 ```
 
-清单与侧栏数量共用一个查询：现有列表接口 `status_category=in_review` + `metadata={"review_by":"user"}`，再用上式过滤。查询键含 `wsId`，issue 的 WebSocket 更新使其失效。
+清单与侧栏数量共用一个查询：现有列表接口 `status=in_review` + `metadata={"review_by":"user"}`，分页取完后再用上式过滤、计数、排序（不以第一页长度当总数）。查询键含 `wsId` 与当前用户；刷新时机见 B2。
 
 ## B. 数据契约（后端已确认，R1 实现依据）
 
