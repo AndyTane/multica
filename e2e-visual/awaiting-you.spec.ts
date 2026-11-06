@@ -84,7 +84,7 @@ test("23 real review cards: themes, widths, badges, send-back and undo", async (
             const before = await client.query(`SELECT status,revision,(SELECT count(*) FROM comment WHERE issue_id=$1) AS comments,(SELECT count(*) FROM agent_task_queue WHERE issue_id=$1) AS runs FROM issue WHERE id=$1`, [issueId]);
             await textbox.fill("/note 请修复编译错误");
             await page.getByRole("button", { name: "打回", exact: true }).last().click();
-            await expect(page.getByRole("alert")).toHaveText("以 /note 开头的意见只做记录，不会交给 协调负责人");
+            await expect(page.getByRole("alert").filter({ hasText: "以 /note" })).toHaveText("以 /note 开头的意见只做记录，不会交给 协调负责人");
             await expect(textbox).toHaveValue("/note 请修复编译错误");
             await expect(textbox).toBeEditable();
             await expect(list.getByRole("listitem")).toHaveCount(2);
