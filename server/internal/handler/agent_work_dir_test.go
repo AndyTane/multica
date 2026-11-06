@@ -245,7 +245,7 @@ func TestStableIDSuffixMatchesDaemon(t *testing.T) {
 		TaskID:          taskID,
 		IssueIdentifier: "MUL-6063",
 	})
-	expected := workspacesRoot + "/asset-feed-" + taskDirSegment(workspaceID) + "/mul-6063-" + taskDirSegment(taskID)
+	expected := filepath.Join(workspacesRoot, "asset-feed-"+taskDirSegment(workspaceID), "mul-6063-"+taskDirSegment(taskID))
 	if daemonRoot != expected {
 		t.Fatalf("daemon PredictRootDir = %q, handler-side suffix expectation = %q", daemonRoot, expected)
 	}

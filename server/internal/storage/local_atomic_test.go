@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -77,7 +78,12 @@ func TestLocalStorageUploadsAreWorldReadable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("stat %s: %v", key, err)
 		}
-		if info.Mode().Perm() != 0644 {
+		// Windows exposes a synthetic writable mode instead of POSIX group bits.
+		if runtime.GOOS == "windows" {
+			if info.Mode().Perm()&0200 == 0 {
+				t.Fatalf("%s must remain writable, mode = %o", key, info.Mode().Perm())
+			}
+		} else if info.Mode().Perm() != 0644 {
 			t.Fatalf("%s mode = %o, want 0644", key, info.Mode().Perm())
 		}
 	}
