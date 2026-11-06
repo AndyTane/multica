@@ -36,6 +36,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/tlsx"
 	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/agent"
+	"github.com/multica-ai/multica/server/pkg/awakeclock"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/redact"
 	"github.com/multica-ai/multica/server/pkg/skillbundle"
@@ -174,7 +175,7 @@ func taskScopedAuthToken(task Task) (string, error) {
 	return token, nil
 }
 
-func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesRoot, serverURL, rootCAFile string, healthPort, slot int, tempDir string) map[string]string {
+func taskMulticaEnvironment(task Task, provider, agentName, token, configRoot, workspacesRoot, serverURL, rootCAFile string, healthPort, slot int, tempDir string) map[string]string {
 	env := map[string]string{
 		"MULTICA_TOKEN":        token,
 		cli.TaskConfigRootEnv:  configRoot,
@@ -192,6 +193,32 @@ func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesR
 	}
 	if rootCAFile != "" {
 		env[tlsx.RootCAEnv] = rootCAFile
+	}
+	if runtime.GOOS != "windows" {
+		return env
+	}
+	// MSYS (Git Bash) resolves its `/tmp usertemp` mount from TMP/TEMP once,
+	// in the first process, and every live MSYS process of this user shares
+	// that mount table — whichever provider started it. A task-private TMP/TEMP
+	// would pin /tmp to a directory this daemon deletes when that task ends,
+	// breaking /tmp for every later task (#8824). So on Windows no task
+	// overrides TMP/TEMP; they inherit the daemon user's host temp, and only
+	// TMPDIR stays task-private.
+	delete(env, "TMP")
+	delete(env, "TEMP")
+	if provider == "claude" {
+		// Claude Code reads CLAUDE_CODE_TMPDIR for its own temp files; default
+		// it to the task dir so they stay private, unless the user set it.
+		if os.Getenv("CLAUDE_CODE_TMPDIR") == "" {
+			env["CLAUDE_CODE_TMPDIR"] = tempDir
+			if task.Agent != nil {
+				for key := range task.Agent.CustomEnv {
+					if strings.EqualFold(key, "CLAUDE_CODE_TMPDIR") {
+						delete(env, "CLAUDE_CODE_TMPDIR")
+					}
+				}
+			}
+		}
 	}
 	return env
 }
@@ -5885,13 +5912,18 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 		return
 	}
 
+	// Shutdown cancels ctx before the runner returns. Keep the final usage,
+	// server-cancellation check and acknowledgement deliverable during cleanup.
+	finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), terminalTaskReportTimeout)
+	defer finalCancel()
+
 	// Report usage before any early return — the agent accumulates tokens
 	// whether the task completes, errors, or is cancelled mid-run by the poll
 	// goroutine. Both claude.go and codex.go populate result.Usage even when
 	// runCtx is cancelled, so dropping this on the cancelled path silently
 	// under-reports billing.
 	if len(result.Usage) > 0 {
-		if usageErr := d.client.ReportTaskUsage(ctx, task.ID, result.Usage); usageErr != nil {
+		if usageErr := d.client.ReportTaskUsage(finalCtx, task.ID, result.Usage); usageErr != nil {
 			taskLog.Warn("report task usage failed", "error", usageErr)
 		}
 	}
@@ -5917,7 +5949,7 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 			ack.ErrorMessage = preserved.Error()
 			ack.FailureReason = "local_directory_error"
 		}
-		if ackErr := d.client.AckTaskCancelled(ctx, task.ID, ack); ackErr != nil {
+		if ackErr := d.client.AckTaskCancelled(finalCtx, task.ID, ack); ackErr != nil {
 			taskLog.Warn("cancel ack failed; server sweeper will finalize", "error", ackErr)
 		}
 		return
@@ -5934,27 +5966,28 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 		// shape of the failure (provider 5xx, network, process crash,
 		// …) rather than the coarse legacy "agent_error" bucket.
 		if failErr := d.reportTerminalTask(ctx, terminalTaskReport{
-			kind:           terminalTaskReportFail,
-			taskID:         task.ID,
-			errorMessage:   err.Error(),
-			branchName:     result.BranchName,
-			workDir:        result.WorkDir,
-			durableWorkDir: result.DurableWorkDir,
-			failureReason:  taskRunFailureReason(err),
+			kind:             terminalTaskReportFail,
+			taskID:           task.ID,
+			errorMessage:     err.Error(),
+			branchName:       result.BranchName,
+			workDir:          result.WorkDir,
+			durableWorkDir:   result.DurableWorkDir,
+			failureReason:    taskRunFailureReason(err),
+			retiredSessionID: result.RetiredSessionID,
 		}); failErr != nil {
 			taskLog.Error("fail task callback failed", "error", failErr)
 		}
 		return
 	}
 
-	_ = d.client.ReportProgress(ctx, task.ID, "Finishing task", 2, 2)
+	_ = d.client.ReportProgress(finalCtx, task.ID, "Finishing task", 2, 2)
 
 	// Final pre-completion check: if the server already moved the task to a
 	// terminal state (completed/failed/cancelled) or deleted the row
 	// outright, skip reporting — the complete/fail callbacks would fail
 	// anyway. Reuse shouldInterruptAgent so this guard honors the same
 	// signals as the in-flight watcher.
-	if status, err := d.client.GetTaskStatus(ctx, task.ID); shouldInterruptAgent(status, err) {
+	if status, err := d.client.GetTaskStatus(finalCtx, task.ID); shouldInterruptAgent(status, err) {
 		taskLog.Info("task cancelled during execution, discarding result",
 			"status", status, "error", err, "branch_name", result.BranchName)
 		// Same contract as the poll-cancelled path above: the transcript is
@@ -5966,10 +5999,20 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 		// completed/failed rows the complete/fail callback is the
 		// authoritative channel and a stale run's late ack must not touch
 		// them.
-		if ackErr := d.client.AckTaskCancelled(ctx, task.ID, TaskCancelAck{BranchName: result.BranchName, DurableWorkDir: result.DurableWorkDir}); ackErr != nil {
+		if ackErr := d.client.AckTaskCancelled(finalCtx, task.ID, TaskCancelAck{BranchName: result.BranchName, DurableWorkDir: result.DurableWorkDir}); ackErr != nil {
 			taskLog.Warn("cancel ack failed; server sweeper will finalize", "error", ackErr)
 		}
 		return
+	}
+
+	// Only the parent (daemon) context identifies shutdown. A cancelled agent
+	// with a live parent remains a deliberate cancellation; server terminal
+	// states and poll cancellation have already taken precedence above.
+	// Infrastructure interruptions carry a diagnostic, matching server-side orphan
+	// recovery; deliberate cancellation relies on its localized reason label.
+	if result.Status == "cancelled" && result.FailureReason == "" && errors.Is(ctx.Err(), context.Canceled) {
+		result.FailureReason = taskfailure.ReasonRuntimeRecovery.String()
+		result.Comment = "daemon shut down while task was in flight"
 	}
 
 	d.reportTaskResult(ctx, task.ID, result, taskLog)
@@ -6261,13 +6304,26 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 		}
 		taskLog.Error("local_directory: lock acquire failed", "error", err)
 		failureReason := "local_directory_error"
+		errorMessage := fmt.Sprintf("local_directory wait cancelled: %s", err.Error())
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			failureReason = "cancelled"
+			if errors.Is(ctx.Err(), context.Canceled) {
+				// Shutdown can stop the wait poller before it observes a user
+				// cancellation. Honor server terminal state before enabling retry.
+				finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), terminalTaskReportTimeout)
+				defer finalCancel()
+				if status, statusErr := d.client.GetTaskStatus(finalCtx, task.ID); shouldInterruptAgent(status, statusErr) {
+					taskLog.Info("local_directory: wait aborted by server-side terminal state", "status", status, "error", statusErr)
+					return nil, true
+				}
+				failureReason = taskfailure.ReasonRuntimeRecovery.String()
+				errorMessage = "daemon shut down while task was waiting for its local directory lock"
+			}
 		}
 		if failErr := d.reportTerminalTask(ctx, terminalTaskReport{
 			kind:          terminalTaskReportFail,
 			taskID:        task.ID,
-			errorMessage:  fmt.Sprintf("local_directory wait cancelled: %s", err.Error()),
+			errorMessage:  errorMessage,
 			failureReason: failureReason,
 		}); failErr != nil {
 			taskLog.Error("fail task after local_directory lock cancel", "error", failErr)
@@ -8504,7 +8560,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	if err != nil {
 		return TaskResult{}, asEnvironmentSetupFailure(err)
 	}
-	agentEnv := taskMulticaEnvironment(task, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, rootCAFile, d.cfg.HealthPort, slot, taskTempDir)
+	agentEnv := taskMulticaEnvironment(task, provider, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, rootCAFile, d.cfg.HealthPort, slot, taskTempDir)
 	if checkoutMode := repoCheckoutModeFor(provider, runtime.GOOS); checkoutMode != "" {
 		agentEnv[repoCheckoutModeEnv] = checkoutMode
 	}
@@ -8621,7 +8677,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// families go through New. This is the single production boundary — the
 	// daemon never calls agent.New or agent.NewRuntime directly, so the two
 	// factories stay meaning exactly one thing each.
-	backend, err := agent.ResolveBackend(provider, agent.Config{
+	backendConfig := agent.Config{
 		ExecutablePath: entry.Path,
 		LaunchPrefix:   profileFixedArgs,
 		CLIVersion:     resolvedVersion,
@@ -8632,7 +8688,27 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		DaemonVersion:  d.cfg.CLIVersion,
 		CodexVersion:   codexVersion,
 		BuiltinRuntime: !usesCustomProfileCommand,
-	})
+	}
+	// Register retirement before any fresh-session launch can fail. The check
+	// uses the backend's final binary, environment, working directory and MCP
+	// configuration, rather than the daemon's ambient OpenCode store.
+	var retiredSessionID string
+	defer func() {
+		taskResult.RetiredSessionID = retiredSessionID
+		if retiredSessionID != "" && taskResult.WorkDir == "" {
+			taskResult.WorkDir, taskResult.EnvRoot = env.WorkDir, env.RootDir
+		}
+	}()
+	retiredSessionID = gateOpenCodeResumeToSaneClock(ctx, &task, &taskCtx, provider, backendConfig, env.WorkDir, effectiveMcpConfig, taskLog)
+	if retiredSessionID != "" {
+		if freshBrief, briefErr := execenv.InjectRuntimeConfig(env.WorkDir, provider, taskCtx); briefErr != nil {
+			return TaskResult{}, fmt.Errorf("prepare fresh OpenCode session after clock check: %w", briefErr)
+		} else {
+			runtimeBrief = freshBrief
+		}
+		prompt = BuildPrompt(task, provider, promptOptions...)
+	}
+	backend, err := agent.ResolveBackend(provider, backendConfig)
 	if err != nil {
 		return TaskResult{}, fmt.Errorf("create agent backend: %w", err)
 	}
@@ -8704,21 +8780,22 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		idleWatchdogTimeout = runConfig.OpenCodeIdleWatchdog
 	}
 	execOpts := agent.ExecOptions{
-		ExecutionTimeouts:          task.ExecutionTimeouts,
-		OpenCodeShellTimeout:       openCodeShellTimeout(task.ExecutionTimeouts, provider),
-		DisableSemanticInactivity:  task.ExecutionTimeouts != nil && (runConfig.AgentIdleWatchdog == 0 || runConfig.AgentToolWatchdog == 0),
-		EnableTaskSupplement:       taskSupplementNegotiated,
-		Cwd:                        env.WorkDir,
-		Model:                      model,
-		ThreadName:                 deriveTaskThreadName(task),
-		Timeout:                    runConfig.AgentTimeout,
-		SemanticInactivityTimeout:  runConfig.CodexSemanticInactivityTimeout,
-		FirstTurnNoProgressTimeout: runConfig.CodexFirstTurnNoProgressTimeout,
-		IdleWatchdogTimeout:        idleWatchdogTimeout,
-		HandshakeTimeout:           d.cfg.CodexHandshakeTimeout,
-		TurnInterruptTimeout:       d.cfg.CodexTurnInterruptTimeout,
-		ThreadHandshakeTimeout:     d.cfg.CodexThreadHandshakeTimeout,
-		ResumeSessionID:            task.PriorSessionID,
+		ExecutionTimeouts:           task.ExecutionTimeouts,
+		OpenCodeShellTimeout:        openCodeShellTimeout(task.ExecutionTimeouts, provider),
+		OpenCodeShellDefaultTimeout: openCodeShellDefaultTimeout(task.OpenCodeShellDefaultSeconds, provider),
+		DisableSemanticInactivity:   task.ExecutionTimeouts != nil && (runConfig.AgentIdleWatchdog == 0 || runConfig.AgentToolWatchdog == 0),
+		EnableTaskSupplement:        taskSupplementNegotiated,
+		Cwd:                         env.WorkDir,
+		Model:                       model,
+		ThreadName:                  deriveTaskThreadName(task),
+		Timeout:                     runConfig.AgentTimeout,
+		SemanticInactivityTimeout:   runConfig.CodexSemanticInactivityTimeout,
+		FirstTurnNoProgressTimeout:  runConfig.CodexFirstTurnNoProgressTimeout,
+		IdleWatchdogTimeout:         idleWatchdogTimeout,
+		HandshakeTimeout:            d.cfg.CodexHandshakeTimeout,
+		TurnInterruptTimeout:        d.cfg.CodexTurnInterruptTimeout,
+		ThreadHandshakeTimeout:      d.cfg.CodexThreadHandshakeTimeout,
+		ResumeSessionID:             task.PriorSessionID,
 		// Post-gate intent: PriorSessionID here already reflects the pre-flight
 		// resume gates (a dropped resume is surfaced via the prompt instead). If it
 		// survived to here, the backend must disclose the loss when the live
@@ -8817,6 +8894,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		"tool_watchdog", runConfig.AgentToolWatchdog,
 		"run_timeout", execOpts.Timeout,
 		"opencode_shell_timeout", execOpts.OpenCodeShellTimeout,
+		"opencode_shell_default_timeout", execOpts.OpenCodeShellDefaultTimeout,
 	)
 	taskLog.Debug("invoking backend",
 		"provider", provider,
@@ -8840,15 +8918,6 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	if err != nil {
 		return TaskResult{}, err
 	}
-
-	// retiredSessionID is the session this run was told to resume and then
-	// abandoned. Captured before the retry clears task.PriorSessionID, and
-	// reported on EVERY terminal path — the retry succeeding is exactly when
-	// the abandoned id would otherwise survive, unreferenced by this task's
-	// row but still reachable through an older completed row on the issue or
-	// through the chat_session pointer (GH #6066).
-	var retiredSessionID string
-	defer func() { taskResult.RetiredSessionID = retiredSessionID }()
 
 	if shouldRetryWithFreshSession(result, task.PriorSessionID, tools, provider) {
 		firstResult := result
@@ -9086,7 +9155,16 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		// classifier a corrupt image or oversized payload baked into the
 		// conversation permanently blocks the issue: every follow-up
 		// task resumes the same poisoned session and hits the same 400.
-		failureReason, _ := classifyPoisonedError(errMsg)
+		failureReason, _ := classifyOpenCodeClockSkew(provider, errMsg)
+		if failureReason != "" && retiredSessionID == "" {
+			retiredSessionID = result.SessionID
+			if retiredSessionID == "" {
+				retiredSessionID = task.PriorSessionID
+			}
+		}
+		if failureReason == "" {
+			failureReason, _ = classifyPoisonedError(errMsg)
+		}
 		if failureReason == "" {
 			// A resume we could not read back leaves the same oversized thread
 			// recorded as this issue's resume pointer. Reaching here means the
@@ -9413,13 +9491,15 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 	defer drainCancel()
 
 	var toolCount atomic.Int32
-	// lastActivityAt records (as unix nanos) when the drain loop most
+	// lastActivityAt records (as awakeclock nanos) when the drain loop most
 	// recently received a message from the backend. The idle watchdog
 	// reads this to decide whether the agent has gone silent for too long.
+	// It is an awake-time reading, not wall time, so a host suspend is never
+	// charged to the agent as silence (GitHub #9024).
 	// Initialise to the start so a backend that never emits a single
 	// message also trips the watchdog.
 	var lastActivityAt atomic.Int64
-	lastActivityAt.Store(time.Now().UnixNano())
+	lastActivityAt.Store(int64(awakeclock.Now()))
 	// inFlightTools counts tool_use messages that haven't yet been paired
 	// with a matching tool_result. A non-zero count means the agent is
 	// legitimately waiting on a tool (e.g. `npm install`, `docker build`)
@@ -9444,7 +9524,7 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 			count, at := session.ToolActivity()
 			for {
 				previous := lastActivityAt.Load()
-				if at.UnixNano() <= previous || lastActivityAt.CompareAndSwap(previous, at.UnixNano()) {
+				if int64(at) <= previous || lastActivityAt.CompareAndSwap(previous, int64(at)) {
 					break
 				}
 			}
@@ -9601,7 +9681,7 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 				// slow downstream call (mu.Lock contention, batch resize)
 				// can't be misattributed to backend silence.
 				observedAt := time.Now().UTC()
-				lastActivityAt.Store(observedAt.UnixNano())
+				lastActivityAt.Store(int64(awakeclock.Now()))
 				switch msg.Type {
 				case agent.MessageStatus:
 					switch msg.Status {
@@ -9974,7 +10054,19 @@ func idleWatchdogTickInterval(window time.Duration) time.Duration {
 //
 // Polling rate comes from idleWatchdogTickInterval, so a run is force-stopped
 // somewhere between its budget and budget + tick, never earlier.
+//
+// Budgets are measured on awakeclock, so they count only time the host was
+// awake. lastActivityAt and every native tool timestamp are awakeclock
+// readings. A laptop that sleeps through a run resumes with its silence
+// exactly where it was before the lid closed (GitHub #9024).
 func (d *Daemon) runIdleWatchdog(agentCtx context.Context, window, toolWindow time.Duration, lastActivityAt *atomic.Int64, inFlightTools func() int32, fired *atomic.Bool, firedThreshold *atomic.Int64, cancel context.CancelFunc, messages <-chan agent.Message, interruptBackground func() bool, terminalObserved func() bool, taskLog *slog.Logger) {
+	d.runIdleWatchdogWithClock(agentCtx, window, toolWindow, lastActivityAt, inFlightTools, fired, firedThreshold, cancel, messages, interruptBackground, terminalObserved, taskLog, awakeclock.Now)
+}
+
+// runIdleWatchdogWithClock is runIdleWatchdog with the awake clock injected,
+// so tests can simulate a host suspend: wall time that passes while the
+// awake reading stands still.
+func (d *Daemon) runIdleWatchdogWithClock(agentCtx context.Context, window, toolWindow time.Duration, lastActivityAt *atomic.Int64, inFlightTools func() int32, fired *atomic.Bool, firedThreshold *atomic.Int64, cancel context.CancelFunc, messages <-chan agent.Message, interruptBackground func() bool, terminalObserved func() bool, taskLog *slog.Logger, awakeNow func() time.Duration) {
 	tickWindow := window
 	if toolWindow > 0 && toolWindow < tickWindow {
 		tickWindow = toolWindow
@@ -9998,8 +10090,8 @@ func (d *Daemon) runIdleWatchdog(agentCtx context.Context, window, toolWindow ti
 				}
 				threshold = toolWindow
 			}
-			last := time.Unix(0, lastActivityAt.Load())
-			idleFor := time.Since(last)
+			last := lastActivityAt.Load()
+			idleFor := awakeNow() - time.Duration(last)
 			if idleFor < threshold {
 				continue
 			}
@@ -10019,7 +10111,7 @@ func (d *Daemon) runIdleWatchdog(agentCtx context.Context, window, toolWindow ti
 				return
 			}
 			if toolInFlight && interruptBackground != nil && interruptBackground() {
-				lastActivityAt.Store(time.Now().UnixNano())
+				lastActivityAt.Store(int64(awakeNow()))
 				taskLog.Info("tool watchdog stopped background tools; waiting for agent result")
 				continue
 			}
@@ -10031,7 +10123,7 @@ func (d *Daemon) runIdleWatchdog(agentCtx context.Context, window, toolWindow ti
 			// callback may publish newer activity without changing the count.
 			currentToolInFlight := inFlightTools() > 0
 			currentActivity := lastActivityAt.Load()
-			if currentActivity != last.UnixNano() ||
+			if currentActivity != last ||
 				currentToolInFlight != toolInFlight || len(messages) > 0 {
 				continue
 			}

@@ -38,7 +38,6 @@ vi.mock("./inspector/runtime-picker", () => ({
 import { AgentDetailInspector } from "./agent-detail-inspector";
 
 const agent = {
-  execution_timeouts_supported: true,
   id: "agent-1",
   workspace_id: "workspace-1",
   name: "Lambda",

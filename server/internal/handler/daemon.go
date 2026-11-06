@@ -2290,6 +2290,25 @@ func (h *Handler) failClaimedTaskBeforeLaunch(
 	return &claimBuildFailure{outcome: outcome, status: status, message: claimMessage, settled: true}
 }
 
+// rerunSessionRetired reports whether a later run already retired the session
+// a manual retry would resume. The rerun path reads its exact source task, so
+// it bypasses the retired_sessions exclusion GetLastTaskSession applies; this
+// is that exclusion for the exact-source path (MUL-8188). A lookup error fails
+// closed — starting fresh in the reused workdir costs conversation context,
+// resuming an undrivable session costs the whole run.
+func (h *Handler) rerunSessionRetired(ctx context.Context, agentID pgtype.UUID, sessionID string) bool {
+	retired, err := h.Queries.IsTaskSessionRetired(ctx, db.IsTaskSessionRetiredParams{
+		AgentID:   agentID,
+		SessionID: sessionID,
+	})
+	if err != nil {
+		slog.Warn("daemon claim: retired-session lookup failed; starting the rerun fresh",
+			"agent_id", uuidToString(agentID), "error", err)
+		return true
+	}
+	return retired
+}
+
 func chatSessionResumeFallbackNeeded(priorSessionID, priorWorkDir string) bool {
 	return priorSessionID == "" || priorWorkDir == ""
 }
@@ -2928,8 +2947,13 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 				if src.WorkDir.Valid {
 					resp.PriorWorkDir = src.WorkDir.String
 				}
+				sourceSessionRetired := src.SessionID.Valid &&
+					h.rerunSessionRetired(r.Context(), task.AgentID, src.SessionID.String)
+				if sourceSessionRetired {
+					resp.PriorSessionResumeUnavailable = true
+				}
 				if !service.ResumeUnsafeFailure(src.FailureReason.String, src.Error.String) &&
-					src.SessionID.Valid && src.RuntimeID == task.RuntimeID {
+					src.SessionID.Valid && src.RuntimeID == task.RuntimeID && !sourceSessionRetired {
 					resp.PriorSessionID = src.SessionID.String
 					// The deltas date from the run we actually resume, which on
 					// this path is the operator-chosen source — routinely NOT
@@ -3540,6 +3564,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		}
 		resp.ExecutionTimeouts = policy
 		resp.ExecutionTimeoutsSource = source
+		resp.OpenCodeShellDefaultSeconds = claimOpenCodeShellDefaultSeconds(policy)
 		resp.WorkspaceSlug = ws.Slug
 		if issueNumber > 0 {
 			resp.IssueIdentifier = service.IssueIdentifier(ws.IssuePrefix, issueNumber)

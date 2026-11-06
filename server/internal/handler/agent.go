@@ -362,11 +362,12 @@ type TaskCancellationActor struct {
 }
 
 type AgentTaskResponse struct {
-	ExecutionTimeouts        *agent.ExecutionTimeouts `json:"execution_timeouts,omitempty"`
-	ExecutionTimeoutsSource  string                   `json:"execution_timeouts_source,omitempty"`
-	StartClaimSupported      bool                     `json:"start_claim_supported,omitempty"`
-	CancelledByCommentChange bool                     `json:"cancelled_by_comment_change,omitempty"`
-	CancelledBy              *TaskCancellationActor   `json:"cancelled_by,omitempty"`
+	ExecutionTimeouts           *agent.ExecutionTimeouts `json:"execution_timeouts,omitempty"`
+	ExecutionTimeoutsSource     string                   `json:"execution_timeouts_source,omitempty"`
+	OpenCodeShellDefaultSeconds *int64                   `json:"opencode_shell_default_seconds,omitempty"`
+	StartClaimSupported         bool                     `json:"start_claim_supported,omitempty"`
+	CancelledByCommentChange    bool                     `json:"cancelled_by_comment_change,omitempty"`
+	CancelledBy                 *TaskCancellationActor   `json:"cancelled_by,omitempty"`
 
 	ID                   string                 `json:"id"`
 	AgentID              string                 `json:"agent_id"`

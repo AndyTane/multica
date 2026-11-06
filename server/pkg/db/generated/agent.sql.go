@@ -4395,7 +4395,7 @@ WHERE session_id NOT IN (SELECT session_id FROM retired_sessions)
     status IN ('completed', 'cancelled')
     OR (
       status = 'failed'
-      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized')
+      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized', 'opencode_clock_skew')
       AND NOT (COALESCE(error, '') ILIKE '%400%' AND COALESCE(error, '') ILIKE '%invalid_request_error%')
       AND NOT (COALESCE(error, '') ILIKE '%image dimensions exceed max allowed size%' AND COALESCE(error, '') ILIKE '%image.source.base64.data%')
       -- A provider credential-resolution failure ("Could not resolve
@@ -5087,6 +5087,33 @@ func (q *Queries) HasTaskForIssue(ctx context.Context, issueID pgtype.UUID) (boo
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const isTaskSessionRetired = `-- name: IsTaskSessionRetired :one
+SELECT EXISTS (
+    SELECT 1 FROM agent_task_queue r
+    WHERE r.agent_id = $1
+      AND r.retired_session_id = $2::text
+) AS retired
+`
+
+type IsTaskSessionRetiredParams struct {
+	AgentID   pgtype.UUID `json:"agent_id"`
+	SessionID string      `json:"session_id"`
+}
+
+// Whether any run of this agent explicitly retired session_id. The
+// manual-retry claim path resumes from its exact source task instead of
+// GetLastTaskSession / the chat pointer, so it must consult the retired set
+// itself; without this a retry of an older, resume-safe failed run revives a
+// session a later run already proved undrivable (MUL-8188). Session ids are
+// opaque runtime-issued ids, so (agent, session) identifies the transcript
+// whether the runs were issue or chat tasks.
+func (q *Queries) IsTaskSessionRetired(ctx context.Context, arg IsTaskSessionRetiredParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isTaskSessionRetired, arg.AgentID, arg.SessionID)
+	var retired bool
+	err := row.Scan(&retired)
+	return retired, err
 }
 
 const linkTaskToIssue = `-- name: LinkTaskToIssue :exec

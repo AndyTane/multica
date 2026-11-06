@@ -29,6 +29,13 @@ func openCodeShellTimeout(policy *agent.ExecutionTimeouts, provider string) time
 	return time.Duration(*policy.OpenCodeShellSeconds) * time.Second
 }
 
+func openCodeShellDefaultTimeout(seconds *int64, provider string) time.Duration {
+	if provider != "opencode" || seconds == nil {
+		return 0
+	}
+	return time.Duration(*seconds) * time.Second
+}
+
 func effectiveIdleWatchdog(cfg Config, dedicated time.Duration) time.Duration {
 	window := cfg.AgentIdleWatchdog
 	if window > 0 && dedicated > 0 && dedicated < window {

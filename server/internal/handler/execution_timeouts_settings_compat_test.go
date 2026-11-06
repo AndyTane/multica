@@ -101,3 +101,38 @@ func assertTimeoutSettingsJSON(t *testing.T, got []byte, want string) {
 		t.Fatalf("saved settings differ: got %s, want %s", got, want)
 	}
 }
+
+// With the policy editor removed, normal forms omit the reserved key. Verify
+// both scalar autosaves and replacement settings editors keep its stored value.
+func TestExecutionTimeoutHiddenPolicySurvivesUnrelatedSaves(t *testing.T) {
+	saveTimeoutWorkspace(t)
+	ctx := context.Background()
+	runtimeID := createClaimReclaimRuntime(t, ctx, "hidden timeout policy")
+	agentID, _ := createClaimReclaimAgentAndIssue(t, ctx, runtimeID, "hidden timeout policy")
+	for _, tc := range []struct {
+		name, id, method, field, writeSQL, readSQL, ordinary, payload string
+		handler                                                       http.HandlerFunc
+	}{
+		{"workspace", testWorkspaceID, "PATCH", "settings", `UPDATE workspace SET settings=$1 WHERE id=$2`, `SELECT settings FROM workspace WHERE id=$1`, `"github_enabled":true`, `{"context":"edited after removing the timeout UI"}`, testHandler.UpdateWorkspace},
+		{"agent", agentID, "PUT", "runtime_config", `UPDATE agent SET runtime_config=$1 WHERE id=$2`, `SELECT runtime_config FROM agent WHERE id=$1`, `"mode":"gateway","gateway":{"host":"example.test"}`, `{"description":"edited after removing the timeout UI"}`, testHandler.UpdateAgent},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			initial := `{` + tc.ordinary + `,"execution_timeouts":` + timeoutPolicyJSON + `}`
+			dbfx.Exec(t, tc.writeSQL, []byte(initial), tc.id)
+			var body map[string]any
+			if err := json.Unmarshal([]byte(tc.payload), &body); err != nil {
+				t.Fatal(err)
+			}
+			req := withURLParam(newRequest(tc.method, "/", body), "id", tc.id)
+			testutil.Call(t, tc.handler, req).Want(http.StatusOK)
+			var stored []byte
+			dbfx.QueryRow(t, tc.readSQL, tc.id).Scan(&stored)
+			assertTimeoutSettingsJSON(t, stored, initial)
+			// Clearing the ordinary config must still preserve the hidden policy.
+			req = withURLParam(newRequest(tc.method, "/", map[string]any{tc.field: map[string]any{}}), "id", tc.id)
+			testutil.Call(t, tc.handler, req).Want(http.StatusOK)
+			dbfx.QueryRow(t, tc.readSQL, tc.id).Scan(&stored)
+			assertTimeoutSettingsJSON(t, stored, `{"execution_timeouts":`+timeoutPolicyJSON+`}`)
+		})
+	}
+}

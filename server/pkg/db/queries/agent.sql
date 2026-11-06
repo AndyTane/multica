@@ -1213,7 +1213,7 @@ WHERE session_id NOT IN (SELECT session_id FROM retired_sessions)
     status IN ('completed', 'cancelled')
     OR (
       status = 'failed'
-      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized')
+      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized', 'opencode_clock_skew')
       AND NOT (COALESCE(error, '') ILIKE '%400%' AND COALESCE(error, '') ILIKE '%invalid_request_error%')
       AND NOT (COALESCE(error, '') ILIKE '%image dimensions exceed max allowed size%' AND COALESCE(error, '') ILIKE '%image.source.base64.data%')
       -- A provider credential-resolution failure ("Could not resolve
@@ -2877,3 +2877,17 @@ RETURNING *;
 
 -- name: GetCommentThreadRootID :one
 SELECT comment_thread_root_id(@comment_id::uuid)::uuid AS id;
+
+-- name: IsTaskSessionRetired :one
+-- Whether any run of this agent explicitly retired session_id. The
+-- manual-retry claim path resumes from its exact source task instead of
+-- GetLastTaskSession / the chat pointer, so it must consult the retired set
+-- itself; without this a retry of an older, resume-safe failed run revives a
+-- session a later run already proved undrivable (MUL-8188). Session ids are
+-- opaque runtime-issued ids, so (agent, session) identifies the transcript
+-- whether the runs were issue or chat tasks.
+SELECT EXISTS (
+    SELECT 1 FROM agent_task_queue r
+    WHERE r.agent_id = sqlc.arg('agent_id')
+      AND r.retired_session_id = sqlc.arg('session_id')::text
+) AS retired;
