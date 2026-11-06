@@ -68,6 +68,8 @@ func buildTestRepoTemplate() (string, error) {
 		{"init", "-b", "main"},
 		{"config", "user.name", "Test User"},
 		{"config", "user.email", "test@test.com"},
+		// Keep fixture bytes stable regardless of the host's checkout defaults.
+		{"config", "core.autocrlf", "false"},
 		// git commit forks a DETACHED `git maintenance run --auto` and
 		// returns without waiting for it. That background process creates
 		// and removes lock files under .git/ after this function is done,
