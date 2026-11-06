@@ -90,8 +90,20 @@ func resolveOpenCodeExecutable(cfg Config) (string, error) {
 
 func openCodeEnvironment(cfg Config, opts ExecOptions) ([]string, error) {
 	env := buildEnv(cfg.Env)
-	if opts.OpenCodeShellTimeout > 0 {
-		env = append(env, fmt.Sprintf("OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS=%d", opts.OpenCodeShellTimeout.Milliseconds()))
+	const shellTimeoutKey = "OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS"
+	shellTimeout := opts.OpenCodeShellTimeout
+	if shellTimeout <= 0 && opts.OpenCodeShellDefaultTimeout > 0 {
+		shellTimeout = opts.OpenCodeShellDefaultTimeout
+		for _, entry := range env {
+			key, _, ok := strings.Cut(entry, "=")
+			if ok && (key == shellTimeoutKey || runtime.GOOS == "windows" && strings.EqualFold(key, shellTimeoutKey)) {
+				shellTimeout = 0 // Preserve an explicit inherited or custom environment value.
+				break
+			}
+		}
+	}
+	if shellTimeout > 0 {
+		env = append(env, fmt.Sprintf("%s=%d", shellTimeoutKey, shellTimeout.Milliseconds()))
 	}
 	// Keep daemon-mode runs non-interactive without relying on
 	// OPENCODE_PERMISSION. OpenCode deep-merges that env override into user

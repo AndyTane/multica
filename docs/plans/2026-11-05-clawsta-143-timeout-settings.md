@@ -228,3 +228,45 @@
    - 日志须证明仍走 ACP（临时配置不能让它退回 run 传输）；
    - 原验收第 3 条四项全部实测。被测的是传输、计时、进程树和环境变量，模型只负责发起一条 shell 调用，所以这是真实验收，不是替身。提示词写死要执行的命令和 timeout 参数；如果 4b 模型连续三次不能正确发起工具调用，停下回报，不改用其他假实现。
 4. 交付：原线程回复并 @ 前端负责人，写明新 head、新增提交、测试结果、真机证据和新证据包 SHA-256。仍然不合并、不打 tag、不发布。
+
+## R2.2 真机补验（只改测试观察窗口，不改产品代码）
+
+上一轮三个用例都没能正常跑完，原因在测试本身，不是模型发不出命令：每个用例的主请求约 3.5K token，CPU 预填充约 30 token/s，需要约 115 秒；测试在 session ready 后约 64～70 秒就取消，Ollama 在 43～58 秒时以 500 中止。所以这三次都不计入“模型三次发不出命令”的上限。
+
+1. 等待命令启动的观察窗口改为 **6 分钟**；每个用例的总超时按此放宽。
+2. 静默用例：先把 OpenCode 无消息等待设为 **3 分钟**，它必须长于首个回复的耗时，否则预填充期间就会被正常的无消息计时杀掉。命令改为静默约 **7 分钟**，超过 3 分钟的两倍；工具执行等待保持默认 2 小时。验收标准：命令开始时有 tool_use 事件，3 分钟后没被误杀，命令跑完后任务正常结束。
+3. 取消用例：确认命令已开始（started 文件出现）后再取消，然后核对 opencode 及其子进程（包括那条命令）全部结束。
+4. 默认时长用例：保持下发 4 秒，用一条会超过 4 秒的命令，证明命令按 4 秒被截断。
+5. 保持同一个模型、隔离配置和清理方式不变。可以把提示词改短，但必须写死要执行的命令和 timeout 参数。放宽窗口后，如果模型仍然连续三次发不出正确的命令调用，就停下回报。
+6. 交付：只追加测试或脚本提交（如果需要改动），并附新的证据包 SHA-256；在原线程回复并 @ 前端负责人。仍然不合并、不打 tag、不发布。
+
+## R2.3 命令默认时长由服务端下发（等 R2.2 真机批结束后再做，在 PR #47 原分支追加）
+
+后端架构师决议（2026-11-06，原文见其附件 `r2-backend-review.md`）。问题：OpenCode 1.18.3 对没带 timeout 的命令默认只等 2 分钟。目前 `daemon/execution_timeouts.go` 的 `openCodeShellTimeout` 在没有策略、或策略里没有 shell 字段时返回 0，于是不会注入环境变量。这样长编译会先被 OpenCode 自己截断。
+
+### 语义
+
+1. 已经明确设置的 `opencode_shell_seconds` 优先，不被推导出来的默认值覆盖。
+2. 没有设置时，取生效策略里的 `tool_idle_seconds`（需为正数）。没有服务端策略时用 **7200 秒**。`tool_idle_seconds=0` 的意思是关闭平台工具静默计时，此时命令默认仍取 7200 秒，不能变成 0 或无限。
+3. 这只是缺省值，不是上限。模型调用里明确写了 timeout 的，仍按 OpenCode 原有规则处理。
+4. 有效值必须由**服务端随领取响应下发**：单个领取和批量领取一致，每轮刷新，不改动已经在跑的那一轮。不能只在客户端写死 2 小时，也不能落库去批量改写工作区或智能体的设置。
+5. 用一个**独立的可选领取字段**承载这个推导默认，已有的 `execution_timeouts` 语义不变。不能为了填一个 shell 值就合成一份完整策略，把原来策略为空时客户端自己的其他计时配置覆盖掉。客户端收不到新字段时，保持旧行为。
+6. 优先级：服务端明确设置的 shell 值仍然高于环境变量，这一点不变。如果只有推导默认，而客户端已经明确配置了命令时长环境变量，就保留那个配置，不能把长编译已经配好的值改短。普通安装没有任何配置时收到 7200000 毫秒。只对 OpenCode 注入，其他运行时不受影响。
+
+### 必须新增的回归
+
+- 无策略 → 7200；有策略 → 跟随正数的工具等待预算；明确设置的 shell 值优先；工具等待为 0 → 7200；保留已有的环境变量配置；其他运行时不注入。
+- 单个领取和批量领取一致，下一轮会刷新。
+- run、ACP 1.x、ACP 2.x 三条路径最终拿到的环境一致。
+- 不需要真机再等两小时：R2.2 的 4 秒真机用例已经能证明环境变量机制，默认值的生成用上面这条精确链路的测试证明即可。
+
+### 交付
+
+在原分支追加提交，不另开 PR，不恢复界面，不重跑已经通过的前端和后端旧专项。新增差异交后端架构师复审。回帖写明 base..head、测试结果和证据包 SHA-256，在原线程 @ 前端负责人。仍然不合并、不打 tag、不发布。
+
+### R2.3 implementation contract
+
+- Claim JSON adds optional `opencode_shell_default_seconds` for inferred defaults only; an explicit `execution_timeouts.opencode_shell_seconds` continues on its existing path and omits the new field.
+- The common single/batch claim hydrator computes a new value on every claim: positive tool budget, otherwise 7200 seconds. It neither writes stored settings nor synthesizes a complete platform policy.
+- The daemon validates a received positive integer against the existing duration bound, then passes it as `OpenCodeShellDefaultTimeout` only for OpenCode. Missing/null fields retain the previous behavior.
+- In run and ACP 1.x/2.x, explicit server shell settings override the environment; inferred defaults fill only an absent environment key. Existing inherited/custom environment values remain intact, including Windows case-insensitive names. Model-supplied timeout arguments are untouched.

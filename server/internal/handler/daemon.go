@@ -3564,6 +3564,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		}
 		resp.ExecutionTimeouts = policy
 		resp.ExecutionTimeoutsSource = source
+		resp.OpenCodeShellDefaultSeconds = claimOpenCodeShellDefaultSeconds(policy)
 		resp.WorkspaceSlug = ws.Slug
 		if issueNumber > 0 {
 			resp.IssueIdentifier = service.IssueIdentifier(ws.IssuePrefix, issueNumber)

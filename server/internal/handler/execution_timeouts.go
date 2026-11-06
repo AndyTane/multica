@@ -29,3 +29,16 @@ func resolveClaimExecutionTimeouts(r *http.Request, workspace, runtimeConfig []b
 	}
 	return policy, source, nil
 }
+
+// Keep the inferred shell default separate from the complete platform policy:
+// a nil policy must continue to preserve the client's other timeout settings.
+func claimOpenCodeShellDefaultSeconds(policy *agent.ExecutionTimeouts) *int64 {
+	if policy != nil && policy.OpenCodeShellSeconds != nil {
+		return nil // Explicit shell settings retain their existing precedence.
+	}
+	seconds := int64(7200)
+	if policy != nil && policy.ToolIdleSeconds > 0 {
+		seconds = policy.ToolIdleSeconds
+	}
+	return &seconds
+}

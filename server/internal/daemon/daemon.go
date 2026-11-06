@@ -8780,21 +8780,22 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		idleWatchdogTimeout = runConfig.OpenCodeIdleWatchdog
 	}
 	execOpts := agent.ExecOptions{
-		ExecutionTimeouts:          task.ExecutionTimeouts,
-		OpenCodeShellTimeout:       openCodeShellTimeout(task.ExecutionTimeouts, provider),
-		DisableSemanticInactivity:  task.ExecutionTimeouts != nil && (runConfig.AgentIdleWatchdog == 0 || runConfig.AgentToolWatchdog == 0),
-		EnableTaskSupplement:       taskSupplementNegotiated,
-		Cwd:                        env.WorkDir,
-		Model:                      model,
-		ThreadName:                 deriveTaskThreadName(task),
-		Timeout:                    runConfig.AgentTimeout,
-		SemanticInactivityTimeout:  runConfig.CodexSemanticInactivityTimeout,
-		FirstTurnNoProgressTimeout: runConfig.CodexFirstTurnNoProgressTimeout,
-		IdleWatchdogTimeout:        idleWatchdogTimeout,
-		HandshakeTimeout:           d.cfg.CodexHandshakeTimeout,
-		TurnInterruptTimeout:       d.cfg.CodexTurnInterruptTimeout,
-		ThreadHandshakeTimeout:     d.cfg.CodexThreadHandshakeTimeout,
-		ResumeSessionID:            task.PriorSessionID,
+		ExecutionTimeouts:           task.ExecutionTimeouts,
+		OpenCodeShellTimeout:        openCodeShellTimeout(task.ExecutionTimeouts, provider),
+		OpenCodeShellDefaultTimeout: openCodeShellDefaultTimeout(task.OpenCodeShellDefaultSeconds, provider),
+		DisableSemanticInactivity:   task.ExecutionTimeouts != nil && (runConfig.AgentIdleWatchdog == 0 || runConfig.AgentToolWatchdog == 0),
+		EnableTaskSupplement:        taskSupplementNegotiated,
+		Cwd:                         env.WorkDir,
+		Model:                       model,
+		ThreadName:                  deriveTaskThreadName(task),
+		Timeout:                     runConfig.AgentTimeout,
+		SemanticInactivityTimeout:   runConfig.CodexSemanticInactivityTimeout,
+		FirstTurnNoProgressTimeout:  runConfig.CodexFirstTurnNoProgressTimeout,
+		IdleWatchdogTimeout:         idleWatchdogTimeout,
+		HandshakeTimeout:            d.cfg.CodexHandshakeTimeout,
+		TurnInterruptTimeout:        d.cfg.CodexTurnInterruptTimeout,
+		ThreadHandshakeTimeout:      d.cfg.CodexThreadHandshakeTimeout,
+		ResumeSessionID:             task.PriorSessionID,
 		// Post-gate intent: PriorSessionID here already reflects the pre-flight
 		// resume gates (a dropped resume is surfaced via the prompt instead). If it
 		// survived to here, the backend must disclose the loss when the live
@@ -8893,6 +8894,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		"tool_watchdog", runConfig.AgentToolWatchdog,
 		"run_timeout", execOpts.Timeout,
 		"opencode_shell_timeout", execOpts.OpenCodeShellTimeout,
+		"opencode_shell_default_timeout", execOpts.OpenCodeShellDefaultTimeout,
 	)
 	taskLog.Debug("invoking backend",
 		"provider", provider,
