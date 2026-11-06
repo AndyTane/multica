@@ -73,7 +73,7 @@ func TestOpenCodeClockRetirementSurvivesManualRetryOfOldTask(t *testing.T) {
 	dbfx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID, "status": "completed", "session_id": "ses-new", "retired_session_id": "ses-old"})
 	dbfx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID, "rerun_of_task_id": sourceID, "force_fresh_session": true, "priority": 1000})
 	got := claimTaskForRuntimeGuard(t, runtimeID, daemonID)
-	if got.PriorSessionID != "" || got.PriorWorkDir != "/clock-workdir" {
+	if got.PriorSessionID != "" || got.PriorWorkDir != "/clock-workdir" || !got.PriorSessionResumeUnavailable {
 		t.Fatalf("manual retry bypassed retirement: %+v", got)
 	}
 }
@@ -96,5 +96,32 @@ func TestOpenCodeClockFailureReleasesIssueQueue(t *testing.T) {
 	dbfx.QueryRow(t, `SELECT status FROM agent_task_queue WHERE id = $1`, nextID).Scan(&status)
 	if status != "dispatched" || got.PriorSessionID != "" {
 		t.Fatalf("queue did not recover with a clean session: %+v", got)
+	}
+}
+
+func TestManualRetryOfUnretiredSessionStillResumes(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	agentID, runtimeID, daemonID := createRuntimeGuardAgent(t, ctx)
+	issueID := dbfx.Issue(t, "manual retry preserves healthy session")
+	sourceID := dbfx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID, "status": "completed", "session_id": "ses-healthy", "work_dir": "/healthy-workdir"})
+	dbfx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID, "rerun_of_task_id": sourceID, "force_fresh_session": true, "priority": 1000})
+	got := claimTaskForRuntimeGuard(t, runtimeID, daemonID)
+	if got.PriorSessionID != "ses-healthy" || got.PriorWorkDir != "/healthy-workdir" || got.PriorSessionResumeUnavailable {
+		t.Fatalf("healthy manual retry lost continuity: %+v", got)
+	}
+}
+
+func TestRerunSessionRetiredLookupErrorStartsFresh(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	agentID, _, _ := createRuntimeGuardAgent(t, context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if !testHandler.rerunSessionRetired(ctx, parseUUID(agentID), "ses-healthy") {
+		t.Fatal("failed retirement lookup must withhold the session")
 	}
 }
