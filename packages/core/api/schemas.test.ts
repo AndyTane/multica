@@ -1648,6 +1648,12 @@ describe("AutopilotQuotaUsageSchema", () => {
 // The comment composer branches on preview.blocked to warn before sending
 // (MUL-4525 §2), so the additive field must parse and degrade gracefully.
 describe("CommentTriggerPreviewSchema.blocked", () => {
+  it("preserves squad routing provenance, accepts older previews, and rejects malformed squad IDs", () => {
+    const agent = { id: "a1", source: "mention_squad_leader", squad_id: "s1" };
+    expect(CommentTriggerPreviewSchema.parse({ agents: [agent] }).agents[0]?.squad_id).toBe("s1");
+    expect(CommentTriggerPreviewSchema.parse({ agents: [{ id: "a1" }] }).agents[0]?.squad_id).toBeUndefined();
+    expect(CommentTriggerPreviewSchema.safeParse({ agents: [{ ...agent, squad_id: 42 }] }).success).toBe(false);
+  });
   it("parses blocked mention outcomes alongside agents", () => {
     const parsed = CommentTriggerPreviewSchema.parse({
       agents: [{ id: "a1", source: "mention_agent", reason: "" }],

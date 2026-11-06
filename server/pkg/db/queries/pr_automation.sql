@@ -63,6 +63,14 @@ ORDER BY pr_number;
 -- keeps the issue where it is). Repositions and clears a duplicate mark like
 -- UpdateIssueStatus does; the target is never cancelled.
 UPDATE issue AS i SET
+    metadata = CASE
+            WHEN i.status IS DISTINCT FROM sqlc.arg('target_status')::text AND sqlc.arg('target_status')::text = 'in_review'
+                THEN i.metadata || jsonb_build_object('review_since', now())
+            WHEN i.status = 'in_review' AND sqlc.arg('target_status')::text <> 'in_review'
+                THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
+                     FROM jsonb_each(i.metadata) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
+            ELSE i.metadata
+        END,
     status = sqlc.arg('target_status')::text,
     duplicate_of_issue_id = NULL,
     position = (

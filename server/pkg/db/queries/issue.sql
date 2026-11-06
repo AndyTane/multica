@@ -182,10 +182,11 @@ INSERT INTO issue (
     workspace_id, title, description, status, priority,
     assignee_type, assignee_id, creator_type, creator_id,
     parent_issue_id, position, start_date, due_date, number, project_id,
-    stage, properties, last_activity_at, id
+    stage, properties, last_activity_at, id, metadata
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-    sqlc.narg('stage'), COALESCE(sqlc.narg('properties')::jsonb, '{}'::jsonb), now(), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
+    sqlc.narg('stage'), COALESCE(sqlc.narg('properties')::jsonb, '{}'::jsonb), now(), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    CASE WHEN $4::text = 'in_review' THEN jsonb_build_object('review_since', now()) ELSE '{}'::jsonb END
 ) RETURNING *;
 
 -- name: GetIssueByNumber :one
@@ -203,6 +204,14 @@ WITH wakeup_source AS MATERIALIZED (SELECT set_config('multica.source_task_id', 
     -- Materialized so the locking clause is never inlined away.
     SELECT
         i.*,
+        CASE
+            WHEN i.status IS DISTINCT FROM COALESCE(sqlc.narg('status')::text, i.status) AND COALESCE(sqlc.narg('status')::text, i.status) = 'in_review'
+                THEN COALESCE(sqlc.narg('review_metadata')::jsonb, i.metadata) || jsonb_build_object('review_since', now())
+            WHEN i.status = 'in_review' AND COALESCE(sqlc.narg('status')::text, i.status) <> 'in_review'
+                THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
+                     FROM jsonb_each(COALESCE(sqlc.narg('review_metadata')::jsonb, i.metadata)) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
+            ELSE COALESCE(sqlc.narg('review_metadata')::jsonb, i.metadata)
+        END AS next_metadata,
         COALESCE(sqlc.narg('title')::text, i.title) AS next_title,
         COALESCE(sqlc.narg('description')::text, i.description) AS next_description,
         COALESCE(sqlc.narg('status')::text, i.status) AS next_status,
@@ -264,26 +273,27 @@ WITH wakeup_source AS MATERIALIZED (SELECT set_config('multica.source_task_id', 
         ROW(
             title, description, status, priority, assignee_type, assignee_id,
             position, start_date, due_date, parent_issue_id, project_id, stage,
-            duplicate_of_issue_id
+            duplicate_of_issue_id, metadata
         ) IS DISTINCT FROM ROW(
             next_title, next_description, next_status, next_priority,
             next_assignee_type, next_assignee_id, next_position, next_start_date,
             next_due_date, next_parent_issue_id, next_project_id, next_stage,
-            next_duplicate_of_issue_id
+            next_duplicate_of_issue_id, next_metadata
         ) AS did_change,
         ROW(
             title, description, status, priority, assignee_type, assignee_id,
             start_date, due_date, parent_issue_id, project_id, stage,
-            duplicate_of_issue_id
+            duplicate_of_issue_id, metadata
         ) IS DISTINCT FROM ROW(
             next_title, next_description, next_status, next_priority,
             next_assignee_type, next_assignee_id, next_start_date, next_due_date,
             next_parent_issue_id, next_project_id, next_stage,
-            next_duplicate_of_issue_id
+            next_duplicate_of_issue_id, next_metadata
         ) AS did_activity
     FROM candidate
 )
 UPDATE issue AS i SET
+    metadata = changed.next_metadata,
     title = changed.next_title,
     description = changed.next_description,
     status = changed.next_status,
@@ -320,6 +330,14 @@ RETURNING i.*;
 -- next_position CASE in UpdateIssue for the policy.
 WITH wakeup_source AS MATERIALIZED (SELECT set_config('multica.source_task_id', COALESCE(sqlc.narg('source_task_id')::uuid::text, ''), true))
 UPDATE issue AS i SET
+    metadata = CASE
+            WHEN i.status IS DISTINCT FROM $2::text AND $2::text = 'in_review'
+                THEN i.metadata || jsonb_build_object('review_since', now())
+            WHEN i.status = 'in_review' AND $2::text <> 'in_review'
+                THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
+                     FROM jsonb_each(i.metadata) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
+            ELSE i.metadata
+        END,
     status = $2,
     -- Same rule as UpdateIssue: a mark only survives cancelled -> cancelled.
     -- Background writers (GitHub, task recovery) go through here, so they
@@ -410,10 +428,11 @@ INSERT INTO issue (
     workspace_id, title, description, status, priority,
     assignee_type, assignee_id, creator_type, creator_id,
     parent_issue_id, position, start_date, due_date, number, project_id,
-    origin_type, origin_id, stage, properties, last_activity_at, id
+    origin_type, origin_id, stage, properties, last_activity_at, id, metadata
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-    sqlc.narg('origin_type'), sqlc.narg('origin_id'), sqlc.narg('stage'), COALESCE(sqlc.narg('properties')::jsonb, '{}'::jsonb), now(), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
+    sqlc.narg('origin_type'), sqlc.narg('origin_id'), sqlc.narg('stage'), COALESCE(sqlc.narg('properties')::jsonb, '{}'::jsonb), now(), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
+    CASE WHEN $4::text = 'in_review' THEN jsonb_build_object('review_since', now()) ELSE '{}'::jsonb END
 ) RETURNING *;
 
 -- name: LockIssueDuplicateKey :exec

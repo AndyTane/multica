@@ -1135,6 +1135,7 @@ const CommentTriggerPreviewAgentSchema = z.object({
   name: z.string().default(""),
   avatar_url: z.string().optional(),
   source: z.string().default(""),
+  squad_id: z.string().optional(),
   reason: z.string().default(""),
 }).loose();
 

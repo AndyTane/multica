@@ -3497,8 +3497,9 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 }
 
 type UpdateIssueRequest struct {
-	ExpectedRevision *int64  `json:"expected_revision,omitempty"`
-	Title            *string `json:"title"`
+	ReviewMetadata   json.RawMessage `json:"review_metadata,omitempty"`
+	ExpectedRevision *int64          `json:"expected_revision,omitempty"`
+	Title            *string         `json:"title"`
 	// TitleBase is the title adopted by the editor before producing Title. It
 	// protects title edits without coupling them to unrelated issue mutations.
 	TitleBase   *string `json:"title_base,omitempty"`
@@ -3693,6 +3694,15 @@ func (h *Handler) updateIssueAtomically(ctx context.Context, workspaceID pgtype.
 		}
 	}
 	refreshUntouchedNullableIssueParams(&params, current, rawFields)
+	if review, present := rawFields["review_metadata"]; present {
+		if !params.ExpectedRevision.Valid || current.Revision != params.ExpectedRevision.Int64 {
+			return db.Issue{}, current, false, pgx.ErrNoRows
+		}
+		params.ReviewMetadata, err = prepareReviewMetadata(ctx, qtx, current, review)
+		if err != nil {
+			return db.Issue{}, current, false, err
+		}
+	}
 
 	issue, cancelledWakeups, err := updateIssueStoppingWakeups(ctx, qtx, params)
 	if err != nil {
@@ -3765,6 +3775,13 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	duplicateOfID, ok := parseDuplicateMark(w, &req, rawFields, prevIssue.ID)
 	if !ok {
 		return
+	}
+
+	if _, present := rawFields["review_metadata"]; present {
+		if req.Status == nil || *req.Status != "in_review" || req.ExpectedRevision == nil {
+			writeError(w, http.StatusBadRequest, "review_metadata requires status in_review and expected_revision")
+			return
+		}
 	}
 
 	// Pre-fill nullable fields (bare sqlc.narg) with current values
@@ -3964,7 +3981,7 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 
 	var issue db.Issue
 	attachmentsChanged := false
-	if req.Description != nil || req.TitleBase != nil || req.DescriptionBase != nil || len(attachmentIDs) > 0 {
+	if len(req.ReviewMetadata) > 0 || req.Description != nil || req.TitleBase != nil || req.DescriptionBase != nil || len(attachmentIDs) > 0 {
 		var lockedPrev db.Issue
 		issue, lockedPrev, attachmentsChanged, err = h.updateIssueAtomically(
 			r.Context(), prevIssue.WorkspaceID, params, rawFields, req.TitleBase, req.DescriptionBase, attachmentIDs, statusKeyForGuard,
@@ -3992,6 +4009,15 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 				writeRevisionConflict(w, "issue", current.ID, *req.ExpectedRevision, current.Revision)
 				return
 			}
+		}
+		var reviewErr *reviewValidationError
+		if errors.As(err, &reviewErr) || isCheckViolation(err) {
+			message := "metadata exceeds the 8KB size limit"
+			if reviewErr != nil {
+				message = reviewErr.Error()
+			}
+			writeError(w, http.StatusBadRequest, message)
+			return
 		}
 		slog.Warn("update issue failed", append(logger.RequestAttrs(r), "error", err, "issue_id", id, "workspace_id", workspaceID)...)
 		writeError(w, http.StatusInternalServerError, "failed to update issue")
@@ -4493,6 +4519,10 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 	var req BatchUpdateIssuesRequest
 	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.Updates.ReviewMetadata) > 0 {
+		writeError(w, http.StatusBadRequest, "review_metadata requires a single-issue PUT with expected_revision")
 		return
 	}
 

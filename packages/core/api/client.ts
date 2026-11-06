@@ -1544,10 +1544,12 @@ export class ApiClient {
   }
 
   async updateIssue(id: string, data: UpdateIssueRequest): Promise<Issue> {
-    return this.fetch(`/api/issues/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
+    const raw = await this.fetch<unknown>(`/api/issues/${id}`, {
+      method: "PUT", body: JSON.stringify(data),
     });
+    const issue = parseWithFallback<Issue | null>(raw, IssueSchema, null, { endpoint: "PUT /api/issues/:id" });
+    if (!issue) throw new Error("PUT /api/issues/:id returned a malformed issue");
+    return issue;
   }
 
   async moveIssue(id: string, data: MoveIssueRequest): Promise<Issue> {
