@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Issue, UpdateIssueRequest } from "../types";
+import type { CommentTriggerPreview, Issue, UpdateIssueRequest } from "../types";
 import { issueKeys } from "./queries";
 import { onIssueUpdated } from "./ws-updaters";
 
@@ -15,16 +15,35 @@ export function useReviewUpdate(wsId: string) {
 
 // Top-level member comments hand work to the assignee. Explicit syntax can
 // suppress that fallback, so verify the preview and name that target if needed.
+export class ReviewFeedbackDeliveryError extends Error {
+  constructor(public readonly isNote: boolean) {
+    super("Review feedback does not reach the assignee");
+    this.name = "ReviewFeedbackDeliveryError";
+  }
+}
+
 export async function sendReviewFeedback(issue: Issue, content: string) {
   let outgoing = content.trim();
   if (issue.assignee_id && (issue.assignee_type === "agent" || issue.assignee_type === "squad")) {
     const preview = await api.previewCommentTriggers(issue.id, outgoing);
-    const reachesAssignee = issue.assignee_type === "agent"
-      ? preview.agents.some((a) => a.id === issue.assignee_id)
-      : preview.agents.some((a) => a.source === "issue_assignee");
-    if (!reachesAssignee) {
+    const reachesAssignee = (result: CommentTriggerPreview) => issue.assignee_type === "agent"
+      ? result.agents.some((a) => a.id === issue.assignee_id)
+      : result.agents.some((a) => a.source === "issue_assignee");
+    if (!reachesAssignee(preview)) {
       outgoing += `\n\n[@${issue.assignee_type}](mention://${issue.assignee_type}/${issue.assignee_id})`;
-      await api.previewCommentTriggers(issue.id, outgoing);
+      const finalPreview = await api.previewCommentTriggers(issue.id, outgoing);
+      let delivered = reachesAssignee(finalPreview);
+      if (!delivered && issue.assignee_type === "squad" && finalPreview.agents.some((a) => a.source === "mention_squad_leader")) {
+        // The preview lists executable agents, not squad IDs. Resolve only the
+        // assigned squad, and reject a blocked mention even if another squad
+        // happens to share its leader.
+        const blocked = finalPreview.blocked?.some((target) => target.target_type === "squad" && target.target_id === issue.assignee_id);
+        if (!blocked) {
+          const squad = await api.getSquad(issue.assignee_id);
+          delivered = finalPreview.agents.some((a) => a.source === "mention_squad_leader" && a.id === squad.leader_id);
+        }
+      }
+      if (!delivered) throw new ReviewFeedbackDeliveryError(/^\/note(?:\s|$)/i.test(content.trim()));
     }
   }
   return api.createComment(issue.id, outgoing);

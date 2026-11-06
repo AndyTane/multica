@@ -1426,6 +1426,9 @@
     "just_now": "不到 1 分钟",
     "recipient": "意见将交回 {{name}}",
     "unassigned": "当前没有交付负责人",
-    "preview_failed": "无法确认接收人，请重试"
+    "preview_failed": "无法确认接收人，请重试",
+    "feedback_label": "打回意见",
+    "note_not_delivered": "以 /note 开头的意见只做记录，不会交给 {{name}}",
+    "not_delivered": "这条意见到不了 {{name}}，打回没有完成"
   }
 }

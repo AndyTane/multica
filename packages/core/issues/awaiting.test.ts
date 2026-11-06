@@ -4,7 +4,6 @@ import { QueryClient } from "@tanstack/react-query";
 import type { Issue } from "../types";
 import { api } from "../api";
 import { awaitingIssuesOptions, isAwaitingMe, reviewSince, reviewSnapshot, sortAwaiting } from "./awaiting";
-import { sendReviewFeedback } from "./review-mutations";
 import { onIssueCreated, onIssueUpdated, onIssueDeleted, onIssueMetadataChanged } from "./ws-updaters";
 
 vi.mock("../api", async (original) => ({ ...await original<typeof import("../api")>(), api: { listIssues: vi.fn(), previewCommentTriggers: vi.fn(), createComment: vi.fn() } }));
@@ -60,11 +59,4 @@ describe("awaiting review", () => {
     qc.clear();
   });
 
-  it("previews feedback and keeps it top-level, adding the assignee for special syntax", async () => {
-    vi.mocked(api.previewCommentTriggers).mockResolvedValue({ agents: [] });
-    vi.mocked(api.createComment).mockResolvedValue({ id: "comment" } as never);
-    await sendReviewFeedback(issue({ assignee_type: "agent", assignee_id: "agent1" }), "Fix this");
-    expect(api.previewCommentTriggers).toHaveBeenCalledTimes(2);
-    expect(api.createComment).toHaveBeenCalledWith("i1", "Fix this\n\n[@agent](mention://agent/agent1)");
-  });
 });

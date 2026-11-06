@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ApiError } from "@multica/core/api";
 import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
-import { awaitingIssuesOptions, reviewSince, reviewSnapshot, sendReviewFeedback, useReviewUpdate } from "@multica/core/issues";
+import { awaitingIssuesOptions, ReviewFeedbackDeliveryError, reviewSince, reviewSnapshot, sendReviewFeedback, useReviewUpdate } from "@multica/core/issues";
 import { useActorName } from "@multica/core/workspace/hooks";
 import type { Issue } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
@@ -84,7 +84,9 @@ export function AwaitingRow({ issue }: { issue: Issue }) {
       await update.mutateAsync({ id: issue.id, status: "in_progress", expected_revision: feedback.revision });
       setOpen(false);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
+      if (err instanceof ReviewFeedbackDeliveryError) {
+        setError(t(($) => err.isNote ? $.awaiting.note_not_delivered : $.awaiting.not_delivered, { name: owner ?? "" }));
+      } else if (err instanceof ApiError && err.status === 409) {
         setConflict(true); setError(t(($) => $.awaiting.conflict));
         toast.error(t(($) => $.awaiting.changed));
       } else setError(t(($) => feedback ? $.awaiting.partial : $.awaiting.failed));
@@ -94,10 +96,10 @@ export function AwaitingRow({ issue }: { issue: Issue }) {
   return <li className="flex items-center gap-4 border-b border-border/60 py-5" {...{ [PEEK_TARGET_ATTR]: issue.id }}>
     <button type="button" className="min-w-0 flex-1 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => peek?.open(issue.id)}>
       <p className={cn("line-clamp-2 text-body font-medium leading-relaxed", !action && "text-muted-foreground")}>{action || t(($) => $.awaiting.missing_action)}</p>
-      <span className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
+      <span className="mt-2 flex min-w-0 items-center gap-x-2 text-caption text-muted-foreground">
         <span className="shrink-0">{issue.identifier}</span><span aria-hidden>·</span>
-        <span className="max-w-[260px] truncate">{issue.title}</span>
-        {owner && <><span aria-hidden>·</span><span className="inline-flex max-w-36 items-center gap-1.5 truncate"><ActorAvatar actorType={issue.assignee_type!} actorId={issue.assignee_id!} size="sm" profileLink={false} /><span className="truncate">{owner}</span></span></>}
+        <span className="min-w-0 truncate">{issue.title}</span>
+        {owner && <><span aria-hidden>·</span><span className="inline-flex max-w-36 shrink-0 items-center gap-1.5 truncate"><ActorAvatar actorType={issue.assignee_type!} actorId={issue.assignee_id!} size="sm" profileLink={false} /><span className="truncate">{owner}</span></span></>}
         <span aria-hidden>·</span><ReviewWait issue={issue} />
       </span>
     </button>
@@ -105,10 +107,7 @@ export function AwaitingRow({ issue }: { issue: Issue }) {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger render={<Button variant="ghost" size="sm" disabled={busy} />}>{t(($) => $.awaiting.reject)}</PopoverTrigger>
         <PopoverContent align="end" className="w-80 space-y-3">
-          <label className="block space-y-2 text-caption font-medium">
-            <span>{t(($) => $.awaiting.reject)}</span>
-            <Textarea placeholder={t(($) => $.awaiting.reason)} value={reason} onChange={(e) => setReason(e.target.value)} disabled={!!sent || sending} required className="min-h-24" />
-          </label>
+          <Textarea aria-label={t(($) => $.awaiting.feedback_label)} placeholder={t(($) => $.awaiting.reason)} value={reason} onChange={(e) => setReason(e.target.value)} disabled={!!sent || sending} required className="min-h-24" />
           <p className="text-caption text-muted-foreground">{owner ? t(($) => $.awaiting.recipient, { name: owner }) : t(($) => $.awaiting.unassigned)}</p>
           {error && <p role="alert" className="text-caption text-destructive">{error}</p>}
           <div className="flex justify-end"><Button size="sm" disabled={!reason.trim() || busy || conflict} aria-busy={busy} onClick={() => void reject()}>{busy && <Loader2 className="size-3.5 animate-spin" />}{sent ? t(($) => $.awaiting.retry_status) : t(($) => $.awaiting.reject)}</Button></div>

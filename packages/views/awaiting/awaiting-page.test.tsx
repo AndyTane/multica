@@ -66,8 +66,32 @@ describe("review actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry status update" }));
     await waitFor(() => expect(api.updateIssue).toHaveBeenCalledTimes(2));
     expect(api.createComment).toHaveBeenCalledTimes(1);
+    expect(api.previewCommentTriggers).toHaveBeenCalledTimes(1);
     expect(api.createComment).toHaveBeenCalledWith("i1", "Fix the build");
     expect(api.updateIssue).toHaveBeenLastCalledWith("i1", { status: "in_progress", expected_revision: 8 });
+  });
+
+  it.each([
+    ["/note Needs work", "Feedback starting with /note is only recorded and will not reach Deliverer"],
+    ["Needs work", "This feedback cannot reach Deliverer. Send back was not completed."],
+  ])("keeps undeliverable feedback editable and prevents a status write: %s", async (content, message) => {
+    vi.mocked(api.previewCommentTriggers).mockResolvedValue({ agents: [] });
+    show(); fireEvent.click(screen.getByRole("button", { name: "Send back" }));
+    const textbox = await screen.findByRole("textbox", { name: "Send-back feedback" });
+    fireEvent.change(textbox, { target: { value: content } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(textbox).toHaveValue(content);
+    expect(textbox).toBeEnabled();
+    expect(api.createComment).not.toHaveBeenCalled();
+    expect(api.updateIssue).not.toHaveBeenCalled();
+    fireEvent.change(textbox, { target: { value: "Fixed feedback" } });
+    vi.mocked(api.previewCommentTriggers).mockResolvedValue({ agents: [{ id: "agent1", name: "Deliverer", source: "issue_assignee", reason: "" }] });
+    vi.mocked(api.createComment).mockResolvedValue({ id: "c1", issue_revision: 8 } as never);
+    vi.mocked(api.updateIssue).mockResolvedValue({ ...issue, status: "in_progress" });
+    fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+    await waitFor(() => expect(api.updateIssue).toHaveBeenCalledTimes(1));
+    expect(api.createComment).toHaveBeenCalledExactlyOnceWith("i1", "Fixed feedback");
   });
 
   it("keeps feedback on comment failure and prevents retry over a concurrent status change", async () => {
