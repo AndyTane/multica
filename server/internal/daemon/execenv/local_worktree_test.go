@@ -59,7 +59,7 @@ func buildTestRepoTemplate() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for name, content := range map[string]string{"tracked.txt": "original\n", "keep.txt": "keep\n"} {
+	for name, content := range map[string]string{"tracked.txt": "original\n", "keep.txt": "keep\n", ".gitattributes": "* -text\n"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
 			return dir, err
 		}
