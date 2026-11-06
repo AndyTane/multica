@@ -122,8 +122,8 @@ func TestOpenCodeACPWindowsReal(t *testing.T) {
 		cancel  bool
 		shell   int64
 	}{
-		{"silent_180_seconds", 180, false, 300},
-		{"cancel_process_tree", 180, true, 300},
+		{"silent_420_seconds", 420, false, 600},
+		{"cancel_process_tree", 420, true, 600},
 		{"ACP_shell_default_4_seconds", 12, false, 4},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -164,32 +164,32 @@ else:
 				w.WriteHeader(http.StatusOK)
 			}))
 			defer sink.Close()
-			d := &Daemon{client: NewClient(sink.URL), logger: logger, cfg: Config{AgentIdleWatchdog: time.Minute, OpenCodeIdleWatchdog: time.Minute, AgentToolWatchdog: 2 * time.Hour}}
+			d := &Daemon{client: NewClient(sink.URL), logger: logger, cfg: Config{AgentIdleWatchdog: 3 * time.Minute, OpenCodeIdleWatchdog: 3 * time.Minute, AgentToolWatchdog: 2 * time.Hour}}
 			backend, err := agent.New("opencode", agent.Config{ExecutablePath: bin, CLIVersion: "1.18.3", BuiltinRuntime: true, Logger: logger, Env: map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "true"}})
 			if err != nil {
 				t.Fatal(err)
 			}
 			observed := &acpSmokeBackend{Backend: backend, ended: make(chan struct{})}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 18*time.Minute)
 			defer cancel()
-			prompt := "This is an authorized, isolated Windows process lifecycle test. Execute exactly one bash tool command: C:/Python314/python.exe ./silent.py . Do not inspect or change any other files, do not delegate, do not repeat the command, do not use background execution. Set the bash tool timeout to 240000 milliseconds. Wait for its result, then reply with a short completion summary."
+			prompt := "This is an authorized, isolated Windows process lifecycle test. Execute exactly one bash tool command `C:/Python314/python.exe ./silent.py` with no extra arguments. Do not inspect or change any other files, do not delegate, do not repeat the command, do not use background execution. Set the bash tool timeout to 600000 milliseconds. Wait for its result, then reply with a short completion summary."
 			if tc.shell == 4 {
-				prompt = "This is an authorized isolated timeout test. Execute exactly one bash tool command: C:/Python314/python.exe ./silent.py . IMPORTANT: omit the timeout argument completely so the configured runtime default is used. Do not repeat, background, inspect or change files, or delegate. After the tool returns, reply with a short summary."
+				prompt = "This is an authorized isolated timeout test. Execute exactly one bash tool command `C:/Python314/python.exe ./silent.py` with no extra arguments. IMPORTANT: omit the timeout argument completely so the configured runtime default is used. Do not repeat, background, inspect or change files, or delegate. After the tool returns, reply with a short summary."
 			}
-			policy := &agent.ExecutionTimeouts{IdleSeconds: 60, ToolIdleSeconds: 7200, OpenCodeIdleSeconds: 60, OpenCodeShellSeconds: &tc.shell}
+			policy := &agent.ExecutionTimeouts{IdleSeconds: 180, ToolIdleSeconds: 7200, OpenCodeIdleSeconds: 180, OpenCodeShellSeconds: &tc.shell}
 			type runResult struct {
 				result agent.Result
 				err    error
 			}
 			done := make(chan runResult, 1)
 			go func() {
-				r, _, e := d.executeAndDrain(ctx, observed, prompt, agent.ExecOptions{Cwd: cwd, Model: model, Timeout: 4 * time.Minute, IdleWatchdogTimeout: time.Minute, ExecutionTimeouts: policy, OpenCodeShellTimeout: time.Duration(tc.shell) * time.Second}, logger, "r2-real-isolated", "", new(atomic.Int32))
+				r, _, e := d.executeAndDrain(ctx, observed, prompt, agent.ExecOptions{Cwd: cwd, Model: model, Timeout: 17 * time.Minute, IdleWatchdogTimeout: 3 * time.Minute, ExecutionTimeouts: policy, OpenCodeShellTimeout: time.Duration(tc.shell) * time.Second}, logger, "r2-real-isolated", "", new(atomic.Int32))
 				done <- runResult{r, e}
 			}()
 			var tree []acpSmokeProcess
 			owned := map[uint32]acpSmokeProcess{}
 			var started map[string]any
-			deadline := time.NewTimer(70 * time.Second)
+			deadline := time.NewTimer(6 * time.Minute)
 			defer deadline.Stop()
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
@@ -246,7 +246,7 @@ else:
 			mu.Lock()
 			captured := append([]TaskMessageData(nil), messages...)
 			mu.Unlock()
-			proof := map[string]any{"version": "1.18.3", "model": model, "started": started, "processes_during": tree, "processes_remaining": remaining, "result": result.result, "messages": captured}
+			proof := map[string]any{"version": "1.18.3", "model": model, "started": started, "processes_during": tree, "processes_remaining": remaining, "result": result.result, "messages": captured, "command_start_window_seconds": 360, "idle_watchdog_seconds": 180, "tool_watchdog_seconds": 7200}
 			data, _ := json.MarshalIndent(proof, "", "  ")
 			if err := os.WriteFile(filepath.Join(out, tc.name+".json"), data, 0600); err != nil {
 				t.Fatal(err)
@@ -293,7 +293,7 @@ else:
 					t.Fatal("no bash tool_result")
 				}
 				elapsed := finish.CreatedAt.Sub(use.CreatedAt)
-				t.Logf("actual tool duration=%s, idle watchdog=1m, tool watchdog=2h", elapsed)
+				t.Logf("actual tool duration=%s, idle watchdog=3m, tool watchdog=2h", elapsed)
 				if tc.shell == 4 {
 					if _, ok := use.Input["timeout"]; ok {
 						t.Error("model supplied an explicit timeout")
@@ -304,8 +304,8 @@ else:
 					if _, err := os.Stat(filepath.Join(cwd, "finished.txt")); err == nil {
 						t.Error("12s command finished despite 4s default")
 					}
-				} else if elapsed < 175*time.Second {
-					t.Errorf("silent command did not run for 3m: %s", elapsed)
+				} else if elapsed < 415*time.Second {
+					t.Errorf("silent command did not run for 7m: %s", elapsed)
 				} else if _, err := os.Stat(filepath.Join(cwd, "finished.txt")); err != nil || !strings.Contains(finish.Output, "R2_COMMAND_COMPLETED") {
 					t.Error("silent command did not finish normally")
 				}
