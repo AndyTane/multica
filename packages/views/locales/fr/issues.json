@@ -1492,14 +1492,32 @@
     "act_default": "Terminé : {{action}}",
     "not_delivered": "Ce contenu ne peut pas atteindre {{name}}. Rien n'a été envoyé.",
     "note_not_delivered": "Un contenu commençant par /note est seulement enregistré et n'atteindra pas {{name}}",
-    "unmarked": "{{count}} autres attendent, mais personne n'est désigné"
+    "unmarked": "{{count}} autres attendent, mais personne n'est désigné",
+    "problem": {
+      "no_dispatcher": "Personne ne peut traiter cette fiche : la personne qui l'a assignée a quitté l'espace de travail.",
+      "dispatcher_inactive": "La personne qui a assigné cette fiche n'est plus dans l'espace de travail.",
+      "receiver_inactive": "La personne chargée de la relecture a quitté l'espace de travail.",
+      "invalid_review_mark": "La marque de relecture de cette fiche est incomplète : elle ne peut pas être confiée à quelqu'un.",
+      "unknown": "Cette fiche ne peut pas être confiée à quelqu'un. Demandez à un administrateur de l'espace de travail de la vérifier."
+    }
   },
   "parent_sync": {
     "sync_to_owner": "Synchroniser avec le responsable du ticket parent · {{name}}",
     "sync_to_owner_unnamed": "Synchroniser avec le responsable du ticket parent",
     "sync_to_recipient": "Synchroniser avec {{name}}",
     "delivery_failed": "Commentaire publié, mais non transmis au responsable du ticket parent",
-    "delivery_failed_reason": "Commentaire publié, mais non transmis au responsable du ticket parent : {{reason}}"
+    "delivery_failed_reason": "Commentaire publié, mais non transmis au responsable du ticket parent : {{reason}}",
+    "reason": {
+      "duplicate_pending_task": "Le responsable de la fiche parente a déjà une exécution en attente pour cette fiche : cette copie n'a pas été mise en attente.",
+      "attribution_blocked": "L'exécution en attente du responsable de la fiche parente appartient à quelqu'un d'autre : cette copie n'y a pas été ajoutée.",
+      "internal_error": "Une erreur est survenue en mettant cette copie en attente pour le responsable.",
+      "enqueue_failed": "L'exécution du responsable n'a pas pu être mise en attente.",
+      "inbox_failed": "La notification n'a pas pu être déposée dans la boîte de réception.",
+      "issue_has_no_parent": "Cette fiche n'a pas de fiche parente pour la synchronisation.",
+      "parent_issue_missing": "La fiche parente n'existe plus.",
+      "no_fallback_recipient": "Personne ne peut recevoir cette copie : la fiche parente n'a ni responsable ni administrateur de secours.",
+      "unknown": "Cette copie n'a pas pu être remise au responsable de la fiche parente."
+    }
   },
   "review_badge_r4": {
     "reply_you": "En attente de votre réponse",
@@ -1511,6 +1529,14 @@
     "create_child": "Créer ma propre sous-tâche pour la lui confier",
     "transfer_anyway": "Transférer quand même",
     "cancel": "Annuler",
-    "not_allowed": "Vous ne pouvez pas transférer cette tâche à {{name}}."
+    "not_allowed": "Vous ne pouvez pas transférer cette tâche à {{name}}.",
+    "reason": {
+      "actor_cannot_assign": "Vous n'avez pas le droit de confier cette fiche à cette cible.",
+      "dispatcher_cannot_invoke": "La personne qui a assigné cette fiche ne pourra pas la relancer pour les suites automatiques.",
+      "dispatcher_inactive": "La personne qui a assigné cette fiche a quitté l'espace de travail : les suites automatiques ne pourront pas la relancer.",
+      "unknown": "Les suites automatiques de cette tâche risquent d'échouer."
+    },
+    "dispatcher_unknown": "La personne qui a assigné cette tâche",
+    "not_allowed_reason": "Vous ne pouvez pas transférer cette tâche à {{name}}. {{reason}}"
   }
 }

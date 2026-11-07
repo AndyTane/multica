@@ -1,9 +1,10 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@multica/ui/lib/utils";
 import { Dialog, DialogContent } from "@multica/ui/components/ui/dialog";
+import type { IssueAssigneeType } from "@multica/core/types";
 import {
   useCreateModeStore,
   type CreateMode,
@@ -11,8 +12,45 @@ import {
 import { AgentCreatePanel } from "./quick-create-issue";
 import { ManualCreatePanel, manualDialogContentClass } from "./create-issue";
 import { sourceContextPreviewOptions } from "@multica/core/issues/queries";
-import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
+import {
+  useIssueDraftStore,
+  type IssueCreateManual,
+} from "@multica/core/issues/stores/draft-store";
 import { useWorkspaceId } from "@multica/core/hooks";
+
+/**
+ * Text a caller wants the manual form to start with, carried on the modal
+ * store as "prefill" (CLAWSTA-151 B13 one-click child issue). It is only the
+ * card's own text and the chosen owner: review marks, the dispatcher and
+ * attachments never travel with it.
+ */
+export interface CreateIssuePrefill {
+  title?: string;
+  description?: string;
+  assigneeType?: IssueAssigneeType;
+  assigneeId?: string;
+}
+
+const ASSIGNEE_TYPES: readonly IssueAssigneeType[] = ["member", "agent", "squad"];
+
+function readPrefill(
+  data?: Record<string, unknown> | null,
+): CreateIssuePrefill | null {
+  const raw = data?.prefill;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const source = raw as Record<string, unknown>;
+  const prefill: CreateIssuePrefill = {};
+  if (typeof source.title === "string") prefill.title = source.title;
+  if (typeof source.description === "string") prefill.description = source.description;
+  if (
+    typeof source.assigneeType === "string" &&
+    ASSIGNEE_TYPES.includes(source.assigneeType as IssueAssigneeType)
+  ) {
+    prefill.assigneeType = source.assigneeType as IssueAssigneeType;
+  }
+  if (typeof source.assigneeId === "string") prefill.assigneeId = source.assigneeId;
+  return prefill;
+}
 
 /**
  * Shell that owns the single `<Dialog>` AND `<DialogContent>` for the
@@ -46,6 +84,7 @@ export function CreateIssueDialog({
   const anchorCommentId = typeof data?.anchor_comment_id === "string"
     ? data.anchor_comment_id
     : null;
+  const prefill = useMemo(() => readPrefill(data), [data]);
   if (anchorCommentId) {
     return (
       <SourceContextCreateIssueDialog
@@ -56,7 +95,47 @@ export function CreateIssueDialog({
       />
     );
   }
+  if (prefill) {
+    return <PrefillCreateIssueDialog onClose={onClose} data={data} prefill={prefill} />;
+  }
   return <CreateIssueDialogBody onClose={onClose} initialMode={initialMode} data={data} />;
+}
+
+/**
+ * A caller-provided prefill runs in its own isolated draft, exactly like the
+ * source-context create: the user's real create draft is saved, the manual form
+ * starts on the prefill, and closing restores the draft untouched. The form is
+ * forced to manual mode because the prefill is text for the manual editor — an
+ * isolated draft otherwise starts on the agent form.
+ */
+function PrefillCreateIssueDialog({
+  onClose,
+  data,
+  prefill,
+}: {
+  onClose: () => void;
+  data?: Record<string, unknown> | null;
+  prefill: CreateIssuePrefill;
+}) {
+  const [draftReady, setDraftReady] = useState(false);
+
+  useLayoutEffect(() => {
+    const store = useIssueDraftStore.getState();
+    store.beginIsolatedDraft();
+    store.setActiveMode("manual");
+    const manual: Partial<IssueCreateManual> = {};
+    if (prefill.title !== undefined) manual.title = prefill.title;
+    if (prefill.description !== undefined) manual.description = prefill.description;
+    if (prefill.assigneeType !== undefined) manual.assigneeType = prefill.assigneeType;
+    if (prefill.assigneeId !== undefined) manual.assigneeId = prefill.assigneeId;
+    store.setManual(manual);
+    setDraftReady(true);
+    return () => useIssueDraftStore.getState().endIsolatedDraft();
+  }, [prefill]);
+
+  if (!draftReady) return null;
+
+  return <CreateIssueDialogBody onClose={onClose} initialMode="manual" data={data} />;
 }
 
 function SourceContextCreateIssueDialog({

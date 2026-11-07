@@ -40,6 +40,7 @@ import {
   mentionLabelsByTarget,
 } from "@multica/core/issues/comment-trigger-outcomes";
 import { parentSyncDeliveryWarning } from "@multica/core/issues/parent-sync";
+import { parentSyncReasonMessageKey } from "@multica/core/issues/server-codes";
 import { useWSEvent, useWSReconnect } from "@multica/core/realtime";
 import { removeCommentSubtree } from "@multica/core/issues/comment-deletion";
 import { toast } from "sonner";
@@ -360,7 +361,11 @@ export function useIssueTimeline(issueId: string, userId?: string) {
       if (!warning) return;
       toast.warning(
         warning.reason
-          ? t(($) => $.parent_sync.delivery_failed_reason, { reason: warning.reason })
+          ? t(($) => $.parent_sync.delivery_failed_reason, {
+              reason: t(
+                ($) => $.parent_sync.reason[parentSyncReasonMessageKey(warning.reason)],
+              ),
+            })
           : t(($) => $.parent_sync.delivery_failed),
       );
     },

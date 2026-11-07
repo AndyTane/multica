@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
 import { api } from "@multica/core/api";
 import { isAgentRuntimeBound } from "@multica/core/agents";
-import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
+import { assignPreviewReasonMessageKey } from "@multica/core/issues/server-codes";
 import { useModalStore } from "@multica/core/modals";
 import { canAssignAgentToIssue } from "@multica/core/permissions";
 import { useActorName } from "@multica/core/workspace/hooks";
@@ -60,6 +60,8 @@ interface PendingAssignment {
   assigneeId: string;
   /** Member who dispatched the card; empty only if the server contradicts B13. */
   dispatcherUserId: string;
+  /** Stable code from the assign-preview preflight (B13); localized by the dialog. */
+  reason?: string;
 }
 
 interface AssigneePickerProps {
@@ -211,7 +213,14 @@ function AssigneePickerImpl({
         return;
       }
       if (!preview.actor_can_assign) {
-        toast.error(t(($) => $.assign_preview.not_allowed, { name: getActorName(type, id) }));
+        toast.error(
+          t(($) => $.assign_preview.not_allowed_reason, {
+            name: getActorName(type, id),
+            reason: t(
+              ($) => $.assign_preview.reason[assignPreviewReasonMessageKey(preview.reason)],
+            ),
+          }),
+        );
         return;
       }
       if (preview.dispatcher_can_invoke === false) {
@@ -220,6 +229,7 @@ function AssigneePickerImpl({
           assigneeType: type,
           assigneeId: id,
           dispatcherUserId: preview.dispatcher_user_id ?? "",
+          reason: preview.reason ?? undefined,
         });
         return;
       }
@@ -234,17 +244,22 @@ function AssigneePickerImpl({
   // One-click recovery (B13): create a sub-issue of the SAME card, owned by the
   // chosen agent/squad, with the current text pre-filled. The original card's
   // assignee stays untouched, and the new card's dispatcher is this member.
+  //
+  // The text travels as a prefill, NOT through the shared draft: the dialog runs
+  // this create in an isolated draft, so a draft the user is already writing
+  // survives, an agent-mode draft never swallows the prefill, and review marks,
+  // the dispatcher and attachments are never copied onto the new card.
   const createChildForPending = (assignment: PendingAssignment) => {
     if (!issue) return;
-    useIssueDraftStore.getState().setManual({
-      title: issue.title,
-      description: issue.description ?? "",
-      assigneeType: assignment.assigneeType,
-      assigneeId: assignment.assigneeId,
-    });
     useModalStore.getState().open("create-issue", {
       parent_issue_id: issue.id,
       parent_issue_identifier: issue.identifier,
+      prefill: {
+        title: issue.title,
+        description: issue.description ?? "",
+        assigneeType: assignment.assigneeType,
+        assigneeId: assignment.assigneeId,
+      },
     });
     setPending(null);
   };
@@ -397,6 +412,7 @@ function AssigneePickerImpl({
               : ""
           }
           targetName={getActorName(pending.assigneeType, pending.assigneeId)}
+          reason={pending.reason}
           onCancel={() => setPending(null)}
           onTransferAnyway={() => {
             applyAssignment(pending.assigneeType, pending.assigneeId);
@@ -419,12 +435,15 @@ function AssigneePickerImpl({
 function AssignmentPreviewDialog({
   dispatcherName,
   targetName,
+  reason,
   onCancel,
   onTransferAnyway,
   onCreateChild,
 }: {
   dispatcherName: string;
   targetName: string;
+  /** Stable preflight code (B13); the dialog localizes it and never prints it. */
+  reason?: string;
   onCancel: () => void;
   onTransferAnyway: () => void;
   onCreateChild: () => void;
@@ -440,10 +459,15 @@ function AssignmentPreviewDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {t(($) => $.assign_preview.title, { dispatcher: dispatcherName, name: targetName })}
+            {t(($) => $.assign_preview.title, {
+              dispatcher: dispatcherName || t(($) => $.assign_preview.dispatcher_unknown),
+              name: targetName,
+            })}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {t(($) => $.assign_preview.description)}
+            {reason
+              ? t(($) => $.assign_preview.reason[assignPreviewReasonMessageKey(reason)])
+              : t(($) => $.assign_preview.description)}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -10,6 +10,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import {
   awaitingIssuesOptions,
   awaitingKind,
+  awaitingProblemMessageKey,
   awaitingUnmarkedOptions,
   groupAwaiting,
   ReviewFeedbackDeliveryError,
@@ -161,7 +162,7 @@ export function AwaitingRow({ issue }: { issue: Issue }) {
         {owner && <><span aria-hidden>·</span><span className="inline-flex max-w-36 shrink-0 items-center gap-1.5 truncate"><ActorAvatar actorType={issue.assignee_type!} actorId={issue.assignee_id!} size="sm" profileLink={false} /><span className="truncate">{owner}</span></span></>}
         <span aria-hidden>·</span><ReviewWait issue={issue} />
       </span>
-      {problem && <p className="mt-1 text-caption text-destructive">{problem}</p>}
+      {problem && <p className="mt-1 text-caption text-destructive">{t(($) => $.awaiting_r4.problem[awaitingProblemMessageKey(problem)])}</p>}
     </button>
     <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
       {kind === "approve" && <><ReturnControl issue={issue} kind="reject" owner={owner} /><Button variant="outline" size="sm" disabled={busy} aria-busy={busy} onClick={() => void approve()}><Check className="size-3.5" />{t(($) => $.awaiting.approve)}</Button></>}

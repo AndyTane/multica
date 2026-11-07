@@ -4,6 +4,7 @@ import { useId } from "react";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { cn } from "@multica/ui/lib/utils";
 import type { ParentSyncToggleKind } from "@multica/core/issues/parent-sync";
+import { parentSyncReasonMessageKey } from "@multica/core/issues/server-codes";
 import { useT } from "../../i18n";
 
 export interface ParentSyncToggleProps {
@@ -61,7 +62,9 @@ function ParentSyncToggle({
         )}
       >
         {label}
-        {unavailable && reason && <span> · {reason}</span>}
+        {unavailable && reason && (
+          <span> · {t(($) => $.parent_sync.reason[parentSyncReasonMessageKey(reason)])}</span>
+        )}
       </label>
     </div>
   );

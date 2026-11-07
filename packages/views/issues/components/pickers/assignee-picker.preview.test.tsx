@@ -110,7 +110,7 @@ describe("AssigneePicker assignment preflight", () => {
       actor_can_assign: false,
       dispatcher_user_id: "user-2",
       dispatcher_can_invoke: true,
-      reason: "not_assignable",
+      reason: "actor_cannot_assign",
     });
     renderPicker(onUpdate);
 
@@ -122,7 +122,11 @@ describe("AssigneePicker assignment preflight", () => {
     }));
     expect(onUpdate).not.toHaveBeenCalled();
     expect(screen.queryByText("Transfer anyway")).toBeNull();
-    expect(toastErrorMock).toHaveBeenCalledWith("You can't transfer this task to Ops Bot.");
+    // The stable code is explained in words; it is never printed.
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      "You can't transfer this task to Ops Bot. You don't have permission to hand this card to it.",
+    );
+    expect(String(toastErrorMock.mock.calls[0]?.[0])).not.toContain("actor_cannot_assign");
   });
 
   it("warns and offers the three actions when the dispatcher cannot wake the candidate", async () => {
@@ -132,13 +136,18 @@ describe("AssigneePicker assignment preflight", () => {
       actor_can_assign: true,
       dispatcher_user_id: "user-2",
       dispatcher_can_invoke: false,
+      reason: "dispatcher_cannot_invoke",
     });
     renderPicker(onUpdate);
 
     await pickAgent(user);
 
     expect(await screen.findByText("Boss can't wake Ops Bot")).toBeTruthy();
-    expect(screen.getByText("Later automatic follow-ups on this task will fail.")).toBeTruthy();
+    // The dialog says WHY in words instead of showing dispatcher_cannot_invoke.
+    expect(
+      screen.getByText("The person who assigned this card can't wake it for later follow-ups."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/dispatcher_cannot_invoke/)).toBeNull();
     expect(screen.getByRole("button", { name: "Create my own sub-issue for it" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Transfer anyway" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
@@ -186,14 +195,52 @@ describe("AssigneePicker assignment preflight", () => {
     expect(useModalStore.getState().data).toEqual({
       parent_issue_id: "issue-1",
       parent_issue_identifier: "CLAW-1",
+      prefill: {
+        title: "Fix the build",
+        description: "The build fails on Windows.",
+        assigneeType: "agent",
+        assigneeId: "agent-1",
+      },
     });
-    expect(useIssueDraftStore.getState().draft.manual).toMatchObject({
-      title: "Fix the build",
-      description: "The build fails on Windows.",
-      assigneeType: "agent",
-      assigneeId: "agent-1",
-    });
+    // The prefill travels on the modal payload, not the shared draft: the dialog
+    // runs it in an isolated draft, so a draft the user is writing survives.
+    expect(useIssueDraftStore.getState().draft.manual.title).toBe("");
+    expect(useIssueDraftStore.getState().draft.manual.description).toBe("");
+    expect(useIssueDraftStore.getState().draft.manual.assigneeType).toBeUndefined();
+    // Nothing beyond the card's own text and the chosen owner is copied: no
+    // review marks, no dispatcher, no attachments.
+    const prefill = (useModalStore.getState().data as { prefill: Record<string, unknown> }).prefill;
+    expect(Object.keys(prefill).sort()).toEqual([
+      "assigneeId",
+      "assigneeType",
+      "description",
+      "title",
+    ]);
     expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it("explains a departed dispatcher in words instead of the code", async () => {
+    const user = userEvent.setup();
+    const onUpdate = vi.fn();
+    previewMock.mockResolvedValue({
+      actor_can_assign: true,
+      dispatcher_user_id: null,
+      dispatcher_can_invoke: false,
+      reason: "dispatcher_inactive",
+    });
+    renderPicker(onUpdate);
+
+    await pickAgent(user);
+
+    expect(
+      await screen.findByText("The person who assigned this task can't wake Ops Bot"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "The person who assigned this card has left the workspace, so later follow-ups can't reach it.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/dispatcher_inactive/)).toBeNull();
   });
 
   it("does not prompt when there is no dispatcher (null is not a permission failure)", async () => {

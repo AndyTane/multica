@@ -1428,7 +1428,8 @@ describe("sub-issue parent sync toggle", () => {
       parentSync: parentSync({
         mode: "unavailable",
         recipients: [],
-        reason: "the parent issue's owner left the workspace",
+        // The server sends a stable code; the toggle explains it in words.
+        reason: "no_fallback_recipient",
       }),
     });
 
@@ -1436,7 +1437,23 @@ describe("sub-issue parent sync toggle", () => {
     expect(box).toHaveAttribute("aria-disabled", "true");
     expect(box).not.toBeChecked();
     expect(screen.getByText("Sync to parent's owner")).toBeInTheDocument();
-    expect(screen.getByText(/owner left the workspace/)).toBeInTheDocument();
+    expect(screen.getByText(/No one can receive this copy/)).toBeInTheDocument();
+    expect(screen.queryByText(/no_fallback_recipient/)).toBeNull();
+  });
+
+  it("falls back to a generic sentence for a reason it does not know", async () => {
+    renderCommentWithSync({
+      parentSync: parentSync({
+        mode: "unavailable",
+        recipients: [],
+        reason: "sync_backend_melted",
+      }),
+    });
+
+    const box = await screen.findByRole("checkbox");
+    expect(box).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(/This copy could not be delivered to the parent card/)).toBeInTheDocument();
+    expect(screen.queryByText(/sync_backend_melted/)).toBeNull();
   });
 
   it("labels a member parent owner the same way as an agent one", async () => {

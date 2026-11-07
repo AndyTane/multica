@@ -167,14 +167,51 @@ describe("awaiting sections", () => {
   });
 
   it("expands the unmarked footer in place and shows the reason without action buttons", () => {
-    const problem = makeIssue({ id: "p1", identifier: "CLAWSTA-3", status: "blocked", metadata: { review_by: "user" }, awaiting_problem: "The dispatcher left the workspace" });
+    const problem = makeIssue({ id: "p1", identifier: "CLAWSTA-3", status: "blocked", metadata: { review_by: "user" }, awaiting_problem: "dispatcher_inactive" });
     showSections([], [problem]);
     const footer = screen.getByRole("button", { name: "1 more are waiting, but no one is marked" });
     expect(footer).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(footer);
     expect(footer).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("The dispatcher left the workspace")).toBeTruthy();
+    // The server's stable code is localized before it reaches the row.
+    expect(screen.getByText("The person who assigned this card is no longer in the workspace.")).toBeTruthy();
+    expect(screen.queryByText("dispatcher_inactive")).toBeNull();
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("explains each unroutable code in words and never prints the code", () => {
+    const problems = [
+      ["no_dispatcher", "No one can act on this card: the person who assigned it has left the workspace."],
+      ["dispatcher_inactive", "The person who assigned this card is no longer in the workspace."],
+      ["receiver_inactive", "The chosen reviewer is no longer in the workspace."],
+      ["invalid_review_mark", "This card's review note is incomplete, so it cannot be routed."],
+    ] as const;
+    for (const [code, text] of problems) {
+      cleanup();
+      show(makeIssue({
+        id: `p-${code}`,
+        identifier: `CLAWSTA-${code}`,
+        status: "blocked",
+        metadata: { review_by: "user" },
+        awaiting_problem: code,
+      }));
+      expect(screen.getByText(text)).toBeTruthy();
+      expect(screen.queryByText(code)).toBeNull();
+    }
+  });
+
+  it("falls back to the generic sentence for a reason this client does not know", () => {
+    show(makeIssue({
+      id: "p-new",
+      identifier: "CLAWSTA-NEW",
+      status: "blocked",
+      metadata: { review_by: "user" },
+      awaiting_problem: "dispatcher_reassigned",
+    }));
+    expect(
+      screen.getByText("This card cannot be routed to a person. Ask a workspace admin to check it."),
+    ).toBeTruthy();
+    expect(screen.queryByText("dispatcher_reassigned")).toBeNull();
   });
 });
