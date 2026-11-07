@@ -1,9 +1,16 @@
 -- name: ListInboxItems :many
+-- The parent projection (CLAWSTA-151 B14) lets a sub-issue notification render
+-- "属于 CLAWSTA-x · parent title" without a second request per row. LEFT JOIN so
+-- a top-level issue or a deleted/inaccessible parent simply omits the fields.
 SELECT i.*,
        iss.status AS issue_status,
-       iss.priority AS issue_priority
+       iss.priority AS issue_priority,
+       parent.id AS parent_issue_id,
+       parent.number AS parent_issue_number,
+       parent.title AS parent_issue_title
 FROM inbox_item i
 LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue parent ON parent.id = iss.parent_issue_id AND parent.workspace_id = i.workspace_id
 WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3 AND i.archived = false
 ORDER BY i.created_at DESC;
 
@@ -75,11 +82,29 @@ WITH eligible_archived AS MATERIALIZED (
 )
 SELECT i.*,
        iss.status AS issue_status,
-       iss.priority AS issue_priority
+       iss.priority AS issue_priority,
+       parent.id AS parent_issue_id,
+       parent.number AS parent_issue_number,
+       parent.title AS parent_issue_title
 FROM inbox_item i
 JOIN selected_ids selected ON selected.id = i.id
 LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue parent ON parent.id = iss.parent_issue_id AND parent.workspace_id = i.workspace_id
 ORDER BY i.created_at DESC, i.id DESC;
+
+-- name: GetInboxParentIssueRef :one
+-- One-row parent projection for the inbox WS payload (CLAWSTA-151 B14): the
+-- live inbox:new item carries the same "属于 <identifier> · <title>" fields the
+-- list response does, so a cache patch cannot lose the parent line.
+SELECT parent.id AS parent_issue_id,
+       parent.number AS parent_issue_number,
+       parent.title AS parent_issue_title,
+       w.issue_prefix AS workspace_issue_prefix
+FROM inbox_item i
+JOIN issue iss ON iss.id = i.issue_id
+JOIN issue parent ON parent.id = iss.parent_issue_id AND parent.workspace_id = i.workspace_id
+JOIN workspace w ON w.id = i.workspace_id
+WHERE i.id = $1;
 
 -- name: GetInboxItem :one
 SELECT * FROM inbox_item

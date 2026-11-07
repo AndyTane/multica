@@ -377,6 +377,40 @@ func (q *Queries) GetInboxItemInWorkspace(ctx context.Context, arg GetInboxItemI
 	return i, err
 }
 
+const getInboxParentIssueRef = `-- name: GetInboxParentIssueRef :one
+SELECT parent.id AS parent_issue_id,
+       parent.number AS parent_issue_number,
+       parent.title AS parent_issue_title,
+       w.issue_prefix AS workspace_issue_prefix
+FROM inbox_item i
+JOIN issue iss ON iss.id = i.issue_id
+JOIN issue parent ON parent.id = iss.parent_issue_id AND parent.workspace_id = i.workspace_id
+JOIN workspace w ON w.id = i.workspace_id
+WHERE i.id = $1
+`
+
+type GetInboxParentIssueRefRow struct {
+	ParentIssueID        pgtype.UUID `json:"parent_issue_id"`
+	ParentIssueNumber    int32       `json:"parent_issue_number"`
+	ParentIssueTitle     string      `json:"parent_issue_title"`
+	WorkspaceIssuePrefix string      `json:"workspace_issue_prefix"`
+}
+
+// One-row parent projection for the inbox WS payload (CLAWSTA-151 B14): the
+// live inbox:new item carries the same "属于 <identifier> · <title>" fields the
+// list response does, so a cache patch cannot lose the parent line.
+func (q *Queries) GetInboxParentIssueRef(ctx context.Context, id pgtype.UUID) (GetInboxParentIssueRefRow, error) {
+	row := q.db.QueryRow(ctx, getInboxParentIssueRef, id)
+	var i GetInboxParentIssueRefRow
+	err := row.Scan(
+		&i.ParentIssueID,
+		&i.ParentIssueNumber,
+		&i.ParentIssueTitle,
+		&i.WorkspaceIssuePrefix,
+	)
+	return i, err
+}
+
 const listArchivedInboxItems = `-- name: ListArchivedInboxItems :many
 WITH eligible_archived AS MATERIALIZED (
     SELECT i.id,
@@ -424,10 +458,14 @@ WITH eligible_archived AS MATERIALIZED (
 )
 SELECT i.id, i.workspace_id, i.recipient_type, i.recipient_id, i.type, i.severity, i.issue_id, i.title, i.body, i.read, i.archived, i.created_at, i.actor_type, i.actor_id, i.details,
        iss.status AS issue_status,
-       iss.priority AS issue_priority
+       iss.priority AS issue_priority,
+       parent.id AS parent_issue_id,
+       parent.number AS parent_issue_number,
+       parent.title AS parent_issue_title
 FROM inbox_item i
 JOIN selected_ids selected ON selected.id = i.id
 LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue parent ON parent.id = iss.parent_issue_id AND parent.workspace_id = i.workspace_id
 ORDER BY i.created_at DESC, i.id DESC
 `
 
@@ -438,23 +476,26 @@ type ListArchivedInboxItemsParams struct {
 }
 
 type ListArchivedInboxItemsRow struct {
-	ID            pgtype.UUID        `json:"id"`
-	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
-	RecipientType string             `json:"recipient_type"`
-	RecipientID   pgtype.UUID        `json:"recipient_id"`
-	Type          string             `json:"type"`
-	Severity      string             `json:"severity"`
-	IssueID       pgtype.UUID        `json:"issue_id"`
-	Title         string             `json:"title"`
-	Body          pgtype.Text        `json:"body"`
-	Read          bool               `json:"read"`
-	Archived      bool               `json:"archived"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	ActorType     pgtype.Text        `json:"actor_type"`
-	ActorID       pgtype.UUID        `json:"actor_id"`
-	Details       []byte             `json:"details"`
-	IssueStatus   pgtype.Text        `json:"issue_status"`
-	IssuePriority pgtype.Text        `json:"issue_priority"`
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	RecipientType     string             `json:"recipient_type"`
+	RecipientID       pgtype.UUID        `json:"recipient_id"`
+	Type              string             `json:"type"`
+	Severity          string             `json:"severity"`
+	IssueID           pgtype.UUID        `json:"issue_id"`
+	Title             string             `json:"title"`
+	Body              pgtype.Text        `json:"body"`
+	Read              bool               `json:"read"`
+	Archived          bool               `json:"archived"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ActorType         pgtype.Text        `json:"actor_type"`
+	ActorID           pgtype.UUID        `json:"actor_id"`
+	Details           []byte             `json:"details"`
+	IssueStatus       pgtype.Text        `json:"issue_status"`
+	IssuePriority     pgtype.Text        `json:"issue_priority"`
+	ParentIssueID     pgtype.UUID        `json:"parent_issue_id"`
+	ParentIssueNumber pgtype.Int4        `json:"parent_issue_number"`
+	ParentIssueTitle  pgtype.Text        `json:"parent_issue_title"`
 }
 
 // Archived counterpart of ListInboxItems, backing the inbox's "Archived"
@@ -505,6 +546,9 @@ func (q *Queries) ListArchivedInboxItems(ctx context.Context, arg ListArchivedIn
 			&i.Details,
 			&i.IssueStatus,
 			&i.IssuePriority,
+			&i.ParentIssueID,
+			&i.ParentIssueNumber,
+			&i.ParentIssueTitle,
 		); err != nil {
 			return nil, err
 		}
@@ -519,9 +563,13 @@ func (q *Queries) ListArchivedInboxItems(ctx context.Context, arg ListArchivedIn
 const listInboxItems = `-- name: ListInboxItems :many
 SELECT i.id, i.workspace_id, i.recipient_type, i.recipient_id, i.type, i.severity, i.issue_id, i.title, i.body, i.read, i.archived, i.created_at, i.actor_type, i.actor_id, i.details,
        iss.status AS issue_status,
-       iss.priority AS issue_priority
+       iss.priority AS issue_priority,
+       parent.id AS parent_issue_id,
+       parent.number AS parent_issue_number,
+       parent.title AS parent_issue_title
 FROM inbox_item i
 LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue parent ON parent.id = iss.parent_issue_id AND parent.workspace_id = i.workspace_id
 WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3 AND i.archived = false
 ORDER BY i.created_at DESC
 `
@@ -533,25 +581,31 @@ type ListInboxItemsParams struct {
 }
 
 type ListInboxItemsRow struct {
-	ID            pgtype.UUID        `json:"id"`
-	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
-	RecipientType string             `json:"recipient_type"`
-	RecipientID   pgtype.UUID        `json:"recipient_id"`
-	Type          string             `json:"type"`
-	Severity      string             `json:"severity"`
-	IssueID       pgtype.UUID        `json:"issue_id"`
-	Title         string             `json:"title"`
-	Body          pgtype.Text        `json:"body"`
-	Read          bool               `json:"read"`
-	Archived      bool               `json:"archived"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	ActorType     pgtype.Text        `json:"actor_type"`
-	ActorID       pgtype.UUID        `json:"actor_id"`
-	Details       []byte             `json:"details"`
-	IssueStatus   pgtype.Text        `json:"issue_status"`
-	IssuePriority pgtype.Text        `json:"issue_priority"`
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	RecipientType     string             `json:"recipient_type"`
+	RecipientID       pgtype.UUID        `json:"recipient_id"`
+	Type              string             `json:"type"`
+	Severity          string             `json:"severity"`
+	IssueID           pgtype.UUID        `json:"issue_id"`
+	Title             string             `json:"title"`
+	Body              pgtype.Text        `json:"body"`
+	Read              bool               `json:"read"`
+	Archived          bool               `json:"archived"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ActorType         pgtype.Text        `json:"actor_type"`
+	ActorID           pgtype.UUID        `json:"actor_id"`
+	Details           []byte             `json:"details"`
+	IssueStatus       pgtype.Text        `json:"issue_status"`
+	IssuePriority     pgtype.Text        `json:"issue_priority"`
+	ParentIssueID     pgtype.UUID        `json:"parent_issue_id"`
+	ParentIssueNumber pgtype.Int4        `json:"parent_issue_number"`
+	ParentIssueTitle  pgtype.Text        `json:"parent_issue_title"`
 }
 
+// The parent projection (CLAWSTA-151 B14) lets a sub-issue notification render
+// "属于 CLAWSTA-x · parent title" without a second request per row. LEFT JOIN so
+// a top-level issue or a deleted/inaccessible parent simply omits the fields.
 func (q *Queries) ListInboxItems(ctx context.Context, arg ListInboxItemsParams) ([]ListInboxItemsRow, error) {
 	rows, err := q.db.Query(ctx, listInboxItems, arg.WorkspaceID, arg.RecipientType, arg.RecipientID)
 	if err != nil {
@@ -579,6 +633,9 @@ func (q *Queries) ListInboxItems(ctx context.Context, arg ListInboxItemsParams) 
 			&i.Details,
 			&i.IssueStatus,
 			&i.IssuePriority,
+			&i.ParentIssueID,
+			&i.ParentIssueNumber,
+			&i.ParentIssueTitle,
 		); err != nil {
 			return nil, err
 		}

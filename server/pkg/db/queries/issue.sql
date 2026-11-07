@@ -747,6 +747,36 @@ WHERE id = sqlc.arg('id') AND workspace_id = sqlc.arg('workspace_id')
   AND metadata ? sqlc.arg('key')::text
 RETURNING id, workspace_id, metadata, revision;
 
+-- name: SetIssueReviewMetadata :one
+-- Writes the already-validated five-key review snapshot AFTER the status
+-- UPDATE ran the maintain_issue_review trigger (CLAWSTA-151 B8). Doing both in
+-- one UPDATE would let the trigger strip the freshly written keys whenever the
+-- old status was in_review/blocked. bump_revision is 1 only when the status
+-- write itself changed nothing, so the pair still advances the issue revision
+-- exactly once and publishes one post-write snapshot.
+UPDATE issue SET
+    metadata = sqlc.arg('metadata')::jsonb,
+    revision = revision + sqlc.arg('bump_revision')::bigint,
+    last_activity_at = CASE WHEN sqlc.arg('bump_revision')::bigint > 0
+        THEN GREATEST(COALESCE(last_activity_at, updated_at), now())
+        ELSE last_activity_at
+    END,
+    updated_at = CASE WHEN sqlc.arg('bump_revision')::bigint > 0 THEN now() ELSE updated_at END
+WHERE id = sqlc.arg('id') AND workspace_id = sqlc.arg('workspace_id')
+RETURNING *;
+
+-- name: ListIssueDispatchers :many
+-- CLAWSTA-151 B9: batch read of the dispatcher projection for a page of issues
+-- (or one issue). The view carries the single resolution rule, so list rows,
+-- detail, validation, and list filters cannot drift apart.
+SELECT i.id,
+       d.dispatcher_user_id,
+       COALESCE(d.dispatcher_active, FALSE)::boolean AS dispatcher_active
+FROM issue i
+LEFT JOIN issue_dispatcher d ON d.id = i.id
+WHERE i.workspace_id = sqlc.arg('workspace_id')
+  AND i.id = ANY(sqlc.arg('ids')::uuid[]);
+
 -- name: MarkIssueFirstExecuted :one
 -- Flips first_executed_at from NULL to now() atomically. Returns the row if
 -- this was the first time the issue was executed; no rows otherwise. The
