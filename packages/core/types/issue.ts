@@ -248,4 +248,21 @@ export interface Issue {
   last_activity_at?: string | null;
   /** Present only on issue detail responses for issues created from a comment. */
   source_context?: IssueSourceContext;
+  /**
+   * Who dispatched this issue (B9): the member who created it, or the member
+   * whose quick-create request an agent fulfilled. Resolved and read-only on
+   * the server, null for agent-created cards; absent on older backends.
+   */
+  dispatcher_user_id?: string | null;
+  /**
+   * Whether that dispatcher is still a workspace member. Absent on older
+   * backends; false means the card has left every personal waiting list.
+   */
+  dispatcher_active?: boolean;
+  /**
+   * Why the server cannot route this card to a member (B10) — a departed
+   * dispatcher, a departed recipient, a broken quick-create source. Only the
+   * unmarked window carries it; rows show it instead of action buttons.
+   */
+  awaiting_problem?: string;
 }

@@ -1430,5 +1430,19 @@
     "feedback_label": "Send-back feedback",
     "note_not_delivered": "Feedback starting with /note is only recorded and will not reach {{name}}",
     "not_delivered": "This feedback cannot reach {{name}}. Send back was not completed."
+  },
+  "awaiting_r4": {
+    "group_reply": "返信",
+    "group_act": "対応",
+    "group_approve": "承認",
+    "reply": "返信",
+    "reply_label": "返信内容",
+    "reply_placeholder": "1行で回答",
+    "done": "完了",
+    "done_label": "対応内容",
+    "act_default": "完了：{{action}}",
+    "not_delivered": "この内容は {{name}} に届きません。送信されていません。",
+    "note_not_delivered": "/note で始まる内容は記録のみで、{{name}} には届きません",
+    "unmarked": "他に {{count}} 件が待機中ですが、誰を待つか未指定です"
   }
 }

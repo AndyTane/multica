@@ -51,7 +51,8 @@ export type CreateCommentSubIssueRequest =
   | CreateCommentSubIssueAgentRequest;
 
 export interface UpdateIssueRequest {
-  review_metadata?: Partial<Record<"review_by" | "review_action" | "review_user" | "review_agent", string | number | boolean>>;
+  /** The five review keys (B7), replaced as one group with the target status. */
+  review_metadata?: Partial<Record<"review_by" | "review_action" | "review_user" | "review_agent" | "review_kind", string | number | boolean>>;
   /** Legacy aggregate compare-and-swap token. New text editors use field
    * baselines so unrelated issue activity does not reject their edits. */
   expected_revision?: number;
@@ -225,6 +226,15 @@ export interface ListIssuesParams {
   involves_user_id?: string;
   /** JSONB containment filter on `issue.metadata`. AND across keys. */
   metadata?: IssueMetadata;
+  /**
+   * Server-side "waiting on you" window (B10). `mine` returns the cards the
+   * authenticated member must act on; `unmarked` returns the cards they
+   * dispatched that no member can be handed. Never derived client-side from
+   * the whole workspace: the recipient rules live on the server.
+   */
+  awaiting?: "mine" | "unmarked";
+  /** Narrow to the cards one member dispatched (B9/B10). */
+  dispatcher_user_id?: string;
   /** Custom-property filter: definition id → accepted values (option ids or
    *  "true"/"false" for checkbox; a plain string is exact equality, an
    *  operator object narrows it). OR within a definition, AND across. */
