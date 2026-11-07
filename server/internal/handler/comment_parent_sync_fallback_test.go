@@ -34,6 +34,36 @@ func TestParentSyncSquadResolvesLeader(t *testing.T) {
 	}
 }
 
+// TestPreviewSyncLocksWhenRoutingAlreadyReachesSquadLeader covers the locked
+// toggle state (R4.0-6): when the child card's own assignee is the parent
+// squad's leader, the ordinary comment routing already reaches the parent owner,
+// so the empty-composer preview must report already_routed and the client locks
+// the box instead of promising a second delivery.
+func TestPreviewSyncLocksWhenRoutingAlreadyReachesSquadLeader(t *testing.T) {
+	leader := createHandlerTestAgent(t, "Locked sync leader", nil)
+	squad := dbfx.Squad(t, "Locked sync squad", leader)
+	parent := dbfx.Issue(t, "Locked sync parent", testutil.Cols{
+		"assignee_type": "squad", "assignee_id": squad, "status": "in_progress",
+	})
+	child := dbfx.Issue(t, "Locked sync child", testutil.Cols{
+		"parent_issue_id": parent, "assignee_type": "agent", "assignee_id": leader,
+	})
+
+	var preview CommentTriggerPreviewResponse
+	testutil.Call(t, testHandler.PreviewCommentTriggers,
+		withURLParam(newRequest(http.MethodPost, "/api/issues/"+child+"/comments/trigger-preview", map[string]any{
+			"content":              "",
+			"sync_parent_assignee": true,
+		}), "id", child)).
+		Want(200).JSON(&preview)
+	if preview.ParentSync == nil || preview.ParentSync.Mode != parentSyncModeAgent {
+		t.Fatalf("preview parent_sync = %+v", preview.ParentSync)
+	}
+	if !preview.ParentSync.AlreadyRouted {
+		t.Fatal("routing already reaches the parent squad leader; the toggle must lock")
+	}
+}
+
 // newPrivateParentAgent creates a parent-card agent owned by someone else and
 // not invocable by the workspace.
 func newPrivateParentAgent(t *testing.T, name, ownerID string) string {

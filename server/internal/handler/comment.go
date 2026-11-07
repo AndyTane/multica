@@ -1705,8 +1705,18 @@ func (h *Handler) PreviewCommentTriggers(w http.ResponseWriter, r *http.Request)
 		resp := CommentTriggerPreviewResponse{Agents: []CommentTriggerAgentResponse{}}
 		if req.SyncParentAssignee {
 			// The switch is previewed while the composer is still empty; the
-			// parent-sync route does not depend on the text.
-			plan, planErr := h.resolveParentSyncPlan(r.Context(), issue, actorType, actorID, opts.OriginatorUserID, "", nil)
+			// parent-sync route does not depend on the text, but `already_routed`
+			// does. A top-level comment with no mention still reaches the issue's
+			// own assignee through the ordinary fallback, so that agent is part of
+			// the actual routing and the toggle must lock instead of promising a
+			// second delivery (B11: dedupe against the real routes).
+			var routedAgents map[string]struct{}
+			if parentComment == nil {
+				if trigger, ok := h.routeAssigneeFallback(r.Context(), issue, actorType, actorID, opts); ok {
+					routedAgents = map[string]struct{}{uuidToString(trigger.Agent.ID): {}}
+				}
+			}
+			plan, planErr := h.resolveParentSyncPlan(r.Context(), issue, actorType, actorID, opts.OriginatorUserID, "", routedAgents)
 			if planErr != nil {
 				writeError(w, http.StatusInternalServerError, "failed to resolve parent sync")
 				return

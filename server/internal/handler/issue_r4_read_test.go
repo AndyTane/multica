@@ -131,6 +131,13 @@ func TestAwaitingFilters(t *testing.T) {
 		"metadata": `{"review_by":"specialist","review_kind":"approve"}`,
 	})
 	unmarked := dbfx.Issue(t, "Awaiting unmarked", testutil.Cols{"status": "in_review"})
+	// A mark the contract rejects outright: blocked + user with no review_kind.
+	// Its combination check is unknown (not just false), and it must still surface
+	// as the dispatcher's unmarked card with an explanatory reason.
+	invalidMark := dbfx.Issue(t, "Awaiting invalid mark", testutil.Cols{
+		"status": "blocked", "assignee_type": "agent", "assignee_id": advancer,
+		"metadata": `{"review_by":"user"}`,
+	})
 	invalidReceiver := dbfx.Issue(t, "Awaiting invalid receiver", testutil.Cols{
 		"status": "in_review", "assignee_type": "agent", "assignee_id": advancer,
 		"metadata": `{"review_by":"user","review_kind":"approve","review_user":"00000000-0000-0000-0000-000000000002"}`,
@@ -175,6 +182,9 @@ func TestAwaitingFilters(t *testing.T) {
 	if unmarkedIDs[invalidReceiver] != 1 {
 		t.Fatal("awaiting=unmarked missing the invalid-receiver anomaly")
 	}
+	if unmarkedIDs[invalidMark] != 1 {
+		t.Fatal("awaiting=unmarked missing the invalid-mark anomaly")
+	}
 	if unmarkedIDs[leftCard] != 1 {
 		t.Fatal("awaiting=unmarked (owner) missing the departed-dispatcher anomaly")
 	}
@@ -187,6 +197,9 @@ func TestAwaitingFilters(t *testing.T) {
 	}
 	if p := problems[invalidReceiver]; p == nil || *p == "" {
 		t.Fatal("invalid receiver row has no awaiting_problem")
+	}
+	if p := problems[invalidMark]; p == nil || *p != awaitingProblemInvalidMark {
+		t.Fatalf("invalid mark problem = %v, want %s", p, awaitingProblemInvalidMark)
 	}
 	if p := problems[leftCard]; p == nil || *p == "" {
 		t.Fatal("departed dispatcher row has no awaiting_problem")

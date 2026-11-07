@@ -81,7 +81,12 @@ func awaitingMinePredicate(alias, meRef string) string {
 func awaitingUnmarkedPredicate(alias, meRef string) string {
 	dispatcher := issueDispatcherUserExpr(alias)
 	active := issueDispatcherActiveExpr(alias)
-	valid := issueReviewMarkValidExpr(alias)
+	// COALESCE the three-valued combination check: an incomplete mark (e.g.
+	// blocked + review_by=user with no review_kind) makes the CASE yield NULL,
+	// and a bare NOT(NULL) would turn the whole predicate NULL instead of
+	// "undeliverable". Such a card must surface in the dispatcher's unmarked
+	// window with the invalid_review_mark reason the projection reports.
+	valid := fmt.Sprintf("COALESCE((%s), FALSE)", issueReviewMarkValidExpr(alias))
 	receiver := issueReviewReceiverExpr(alias)
 	undeliverable := fmt.Sprintf("NOT (%s) OR (%s) IS NULL OR NOT (%s)", active, receiver, valid)
 	return fmt.Sprintf(`(%[1]s.status IN ('in_review', 'blocked') AND (
