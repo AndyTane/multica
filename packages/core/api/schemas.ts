@@ -1384,6 +1384,15 @@ export const IssueSchema = z.object({
   // Detail-only and potentially large. A malformed additive field must not
   // erase an otherwise usable issue returned by a mixed-version server.
   source_context: IssueSourceContextSchema.optional().catch(undefined),
+  // Read-only R4 projections (B9/B10). Same disproportionate-failure rule as
+  // status_name above: display-only data that an older or mixed-version server
+  // simply omits, so a bad value degrades to "unknown" instead of blanking the
+  // whole list. A missing dispatcher is NOT "anyone may handle it" — the
+  // awaiting helpers treat absent as unknown and keep the card out of every
+  // member's list.
+  dispatcher_user_id: z.string().nullable().optional().catch(undefined),
+  dispatcher_active: z.boolean().optional().catch(undefined),
+  awaiting_problem: z.string().optional().catch(undefined),
 }).loose();
 
 export const ListIssuesResponseSchema = z.object({
