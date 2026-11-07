@@ -46,6 +46,45 @@ v0.2.17 上线后发现：智能体把执行子卡也挂成「等你」，清单
 - 前端：判定与分组的 helper 测试；开关的显示 / 锁定 / 隐藏 / 降级接线测试；亮暗两套真实渲染截图（三组清单、两种弹出层、同步开关两种文字、转派提示、收件箱父卡行）。
 - 测试按 C1 分档。合并、发布另行授权。
 
+## R4 投递（2026-11-07，执行方 DSH）
+
+Tane 指定 R4 全部实现交 DSH。同一个 DSH 会话一次只跑一轮，分两批串行：R4a 后端 → R4b 前端。
+
+- 目录与分支：本 worktree，分支 `agent/CLAWSTA-151-r4`，base `619eef678`。每批在本分支上按文件名提交（禁止 `git add -A` / `git add .` / `git stash` / `git checkout --` / `git reset --hard`），不推送、不开 PR、不改版本号；推送和 PR 由前端负责人复核后做。
+- 不碰：`.multica/`、MULTICA-RUNTIME 管理区块、`deploy/`、发布脚本、任何凭据与 `.env`、正在运行的服务与 DSH 本身。
+- 每批结束回报：base..head、改动文件清单、测试命令与结果（含失败原文）、未完成项。不确定的契约细节按 B 节原文实现并在回报里列出，不自行改契约。
+
+### R4a 后端（B7–B15 全部）
+
+按 B7–B15 实现，B 节是唯一契约，R4.1 只是摘要：
+
+1. B7 五键与目标状态组合校验、单键「最后写 `review_by` 才发布」、撤销快照五键。
+2. B8 新迁移替换 `maintain_issue_review()`（编号接 584 之后的下一个空号，不改 584，down 恢复 584 行为）；带 `review_metadata` 的 PUT 在同一行锁事务内先改状态、再写新五键。
+3. B9 只读 `dispatcher_user_id` / `dispatcher_active`，列表、详情、WS 快照共用一条解析；不改 `attributionForIssueTask`。
+4. B10 `/api/issues` 的 `awaiting=mine|unmarked`、`dispatcher_user_id` 过滤与可选 `awaiting_problem`。
+5. B11 评论创建 / 触发预览的 `sync_parent_assignee`、`parent_sync` 响应与 `comment.parent_sync` 持久化、`/note` 冲突、派发失败返回部分结果。
+6. B12 `multica issue activity <issue-id> no_action --reason`、`POST /api/issues/{id}/evaluated`、`issue_assignee_evaluated` 活动，接入评论防重与 `CompleteTask` 补评论检查。
+7. B13 `POST /api/issues/{id}/assignment-preview`。
+8. B14 收件箱项父卡三字段。
+9. B15 `runtime_config_sections.go`、内置 `multica-platform/references/issues.md`、`reply_instructions.go`。
+10. `packages/core` 的 API 类型与 zod schema 同步加新字段（缺字段时的兼容默认见 B10「不能把缺 dispatcher 当作任意人可处理」）；前端界面不在本批。
+
+验收：R4.3 后端矩阵 + B8/B9/B11/B12 各自列出的专项；按 C1 日常批只跑受影响 Go 包和 `packages/core` 相关测试，加 `pnpm typecheck`、`pnpm lint`。本批完成后由后端架构师按 B 节验收。
+
+### R4b 前端（R4a 提交后再派）
+
+| 编号 | 内容 | 要点 |
+| --- | --- | --- |
+| F1 | 清单页 `packages/views/awaiting/awaiting-page.tsx` | 用 `awaiting=mine` 一次取回，按 回复 → 推进 → 审批 分三组，组标题带数量，空组不显示，组内按 `status_changed_at,id` 升序。审批行沿用通过 / 打回。回复行按钮「回复」、推进行按钮「已完成」：弹出层一句话输入（「已完成」可留空，默认文字为「已完成：{动作句}」）→ 顶层评论 → `in_progress`，复用 R2 打回链路（接收人确认、状态失败只重试状态不重发评论）。底部一行「另有 N 张卡在等人，但没标明等谁」（`awaiting=unmarked` 的 total，0 时不显示），点开就地展开列表；有 `awaiting_problem` 的行显示原因文字，不给审批按钮。 |
+| F2 | 看板 / 列表标签 `review-badge.tsx` | `blocked` 卡同样显示：等我 → 「等你回复」「等你推进」；等别人 → 「等 {名字}」。审批沿用现有文字。 |
+| F3 | 同步开关 `comment-input.tsx`、`reply-input.tsx` | 只在有父卡的子卡上显示；文字由触发预览的 `parent_sync.mode` 决定：agent / member →「同步给主卡负责人 · {名字}」，dispatcher / admin →「同步给 {接收人}」，unavailable → 置灰并显示 `reason`。`already_routed` 时锁定勾选。编辑评论、主卡负责人就是子卡负责人、评论人就是主卡负责人时不显示。`/note` 时禁用并取消勾选。默认不勾，发送成功后复位。创建返回部分失败时提示去向，不重发正文。 |
+| F4 | 活动渲染 `issue-detail.tsx` | `issue_assignee_evaluated` 显示「已阅：无需调整（{原因}）」，不与其他活动合并（同 `squad_leader_evaluated`）。 |
+| F5 | 收件箱 | 有 `parent_issue_identifier` 的行在标题下加一行灰字「属于 {编号} · {父卡标题}」，旧服务端缺字段时不显示。 |
+| F6 | 转派提示 `pickers/assignee-picker.tsx` | 选智能体 / 小组时调 `assignment-preview`。`actor_can_assign=false` 照旧禁止；`dispatcher_can_invoke=false` 时不直接改，弹确认：「{派活人} 无法叫醒 {智能体}，之后的自动接续会失败」，按钮「建一张我的子卡交给它」（打开 `create-issue` 并预填父卡、标题、描述、负责人）、「仍然转派」、「取消」。`null` 不提示。 |
+| F7 | 判定与文案 | `packages/core/issues/awaiting.ts` 的 `isAwaitingMe` 改为 `status ∈ {in_review, blocked}` 并认 `review_kind`；新增字段 zod 兼容默认；en / zh-Hans / ja / ko / fr 五种语言同步。 |
+
+视觉沿用现有设计 token 与组件，不新增颜色和依赖。验收：F1/F7 helper 与分组测试，F3 显示 / 锁定 / 隐藏 / 降级 / `/note` 接线测试，F6 三种预检结果测试；`pnpm typecheck`、`pnpm lint`。真实渲染截图亮暗各一套：三组清单、两种弹出层、未标明展开、同步开关两种文字与锁定态、转派提示、收件箱父卡行、`blocked` 列标签。截图存 `evidence/clawsta-151/r4/`。
+
 ## R1 投递
 
 - 执行：高级开发执行专家；分支 `agent/CLAWSTA-151-awaiting`，base `89cb14411`（main，v0.2.16）。
