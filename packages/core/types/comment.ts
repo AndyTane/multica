@@ -27,9 +27,14 @@ export interface CommentParentSyncRecipient {
   name: string;
 }
 
+/** The delivery modes B11 defines for a synced sub-issue comment. */
+export type CommentParentSyncMode = "agent" | "member" | "dispatcher" | "admin" | "unavailable";
+
 export interface CommentParentSync {
   parent_issue_id: string;
-  mode: "agent" | "member" | "dispatcher" | "admin" | "unavailable";
+  // Open by design: a future server mode must hide the toggle, not break the
+  // comment read. `(string & {})` keeps autocomplete for the known modes.
+  mode: CommentParentSyncMode | (string & {});
   recipients: CommentParentSyncRecipient[];
   already_routed: boolean;
   /** Present on the created/read comment; omitted by the preview. */

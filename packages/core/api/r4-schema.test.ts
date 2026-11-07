@@ -135,7 +135,7 @@ describe("R4 inbox parent projection (B14)", () => {
 
   it("parses an older server's row with no parent fields", () => {
     const [item] = InboxItemListSchema.parse([baseItem]);
-    expect(item.parent_issue_identifier).toBeUndefined();
+    expect(item?.parent_issue_identifier).toBeUndefined();
   });
 
   it("keeps the parent identifier and title", () => {
@@ -147,7 +147,7 @@ describe("R4 inbox parent projection (B14)", () => {
         parent_issue_title: "Parent card",
       },
     ]);
-    expect(item.parent_issue_identifier).toBe("CLAWSTA-151");
-    expect(item.parent_issue_title).toBe("Parent card");
+    expect(item?.parent_issue_identifier).toBe("CLAWSTA-151");
+    expect(item?.parent_issue_title).toBe("Parent card");
   });
 });
