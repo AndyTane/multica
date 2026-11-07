@@ -22,4 +22,5 @@ export {
 export * from "./wakeups";
 
 export * from "./awaiting";
+export * from "./parent-sync";
 export * from "./review-mutations";

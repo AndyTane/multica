@@ -1115,6 +1115,38 @@ export const EMPTY_CREATE_FEEDBACK_RESPONSE: CreateFeedbackResponse = {
   created_at: "",
 };
 
+// A resolved recipient of a parent-sync delivery (CLAWSTA-151 R4, B11). The
+// server reports the readable identity so the composer can name the
+// destination without another lookup; unknown extra fields are ignored.
+const ParentSyncRecipientSchema = z.object({
+  type: z.string().default(""),
+  id: z.string().default(""),
+  name: z.string().default(""),
+  avatar_url: z.string().optional(),
+}).loose();
+
+// Where a `sync_parent_assignee` copy of a sub-issue comment lands. Additive:
+// older servers omit the whole object and the composer hides the toggle
+// instead of guessing a destination. An unknown future `mode` is preserved as
+// a string and treated as "cannot name the destination" by the UI.
+export const ParentSyncSchema = z.object({
+  parent_issue_id: z.string().optional(),
+  mode: z.string().default(""),
+  recipients: z
+    .array(z.unknown())
+    .catch([])
+    .default([])
+    .transform((items) =>
+      items.flatMap((item) => {
+        const parsed = ParentSyncRecipientSchema.safeParse(item);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    ),
+  already_routed: z.boolean().catch(false).default(false),
+  reason: z.string().optional(),
+  delivery_status: z.string().optional(),
+}).loose();
+
 export const CommentSchema = z.object({
   id: z.string(),
   issue_id: z.string(),
@@ -1137,6 +1169,8 @@ export const CommentSchema = z.object({
   // Set only on comments a quick action produced (MUL-5465). Server-only.
   quick_action_id: z.string().nullable().optional(),
   deleted_at: z.string().nullable().optional().catch(undefined),
+  // Sync destination of a sub-issue comment's copy (CLAWSTA-151 R4, B11).
+  parent_sync: ParentSyncSchema.nullable().optional(),
 }).loose();
 
 export const CommentsListSchema = z.array(CommentSchema);
@@ -1195,6 +1229,9 @@ export const CommentTriggerPreviewSchema = z.object({
         return parsed.success ? [parsed.data] : [];
       }),
     ),
+  // Returned when the preview asked for `sync_parent_assignee` (CLAWSTA-151 R4,
+  // B11). Absent on older servers and on top-level comments.
+  parent_sync: ParentSyncSchema.optional(),
 }).loose();
 
 const IssueTriggerPreviewItemSchema = z.object({

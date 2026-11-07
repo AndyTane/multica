@@ -1839,6 +1839,10 @@ export class ApiClient {
     attachmentIds?: string[],
     suppressAgentIds?: string[],
     steerTaskIds?: string[],
+    // CLAWSTA-151 R4 (B11): also hand a sub-issue comment to the parent
+    // issue's owner. Omitted unless requested, so older servers and plain
+    // comments see exactly the old body.
+    syncParentAssignee?: boolean,
   ): Promise<Comment> {
     return this.fetch(`/api/issues/${issueId}/comments`, {
       method: "POST",
@@ -1849,17 +1853,27 @@ export class ApiClient {
         ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
         ...(suppressAgentIds?.length ? { suppress_agent_ids: suppressAgentIds } : {}),
         ...(steerTaskIds?.length ? { steer_task_ids: steerTaskIds } : {}),
+        ...(syncParentAssignee ? { sync_parent_assignee: true } : {}),
       }),
     });
   }
 
-  async previewCommentTriggers(issueId: string, content: string, parentId?: string, editingCommentId?: string): Promise<CommentTriggerPreview> {
+  async previewCommentTriggers(
+    issueId: string,
+    content: string,
+    parentId?: string,
+    editingCommentId?: string,
+    // CLAWSTA-151 R4 (B11): also report where a sync_parent_assignee copy would
+    // land, so the composer can label the toggle before anything is posted.
+    syncParentAssignee?: boolean,
+  ): Promise<CommentTriggerPreview> {
     const raw = await this.fetch<unknown>(`/api/issues/${issueId}/comments/trigger-preview`, {
       method: "POST",
       body: JSON.stringify({
         content,
         ...(parentId ? { parent_id: parentId } : {}),
         ...(editingCommentId ? { editing_comment_id: editingCommentId } : {}),
+        ...(syncParentAssignee ? { sync_parent_assignee: true } : {}),
       }),
     });
     return parseWithFallback(raw, CommentTriggerPreviewSchema, { agents: [] }, {

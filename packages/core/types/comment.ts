@@ -47,6 +47,11 @@ export interface Comment {
   // Per-target result of every explicit @agent / @squad mention in this comment
   // (MUL-4525 §2). Present only on create/edit responses; older servers omit it.
   trigger_outcomes?: CommentTriggerOutcome[];
+  /**
+   * Where a `sync_parent_assignee` copy of this comment landed (CLAWSTA-151 R4,
+   * B11). Present only on a sync-attempted comment; older servers omit it.
+   */
+  parent_sync?: ParentSync | null;
   /** Every running turn this comment steered, one receipt per run. */
   supplements?: CommentSupplementReceipt[];
   /** Mirrors the first receipt; servers that predate `supplements` send only these. */
@@ -104,4 +109,36 @@ export interface CommentTriggerPreview {
   // Explicit @agent / @squad mentions that will NOT trigger if posted as-is
   // (MUL-4525 §2). Additive: older servers omit it.
   blocked?: CommentTriggerOutcome[];
+  // Where a comment posted with `sync_parent_assignee` would land (CLAWSTA-151
+  // R4, B11). Present only when the request asked for the sync; older servers
+  // omit it and the composer hides the toggle.
+  parent_sync?: ParentSync;
+}
+
+// How a sub-issue comment's copy reaches its parent issue's owner (CLAWSTA-151
+// R4, B11). `agent`/`member` = the parent owner itself; `dispatcher`/`admin`
+// = the fallback recipient when the commenter cannot wake the owner;
+// `unavailable` = no reachable recipient, so the toggle is inert.
+export type ParentSyncMode = "agent" | "member" | "dispatcher" | "admin" | "unavailable";
+
+/** A resolved recipient of a parent-sync delivery, as the server reports it. */
+export interface ParentSyncRecipient {
+  type: string;
+  id: string;
+  name: string;
+  avatar_url?: string;
+}
+
+export interface ParentSync {
+  parent_issue_id?: string;
+  // Unknown future modes must not break parsing; consumers fall back to
+  // hiding the toggle rather than guessing a destination.
+  mode: ParentSyncMode | string;
+  recipients: ParentSyncRecipient[];
+  // True when the ordinary comment routing already reaches the parent owner,
+  // so the toggle is locked checked rather than adding a second delivery.
+  already_routed: boolean;
+  reason?: string;
+  // Create responses only: the actual outcome of the sync delivery.
+  delivery_status?: string;
 }
