@@ -77,6 +77,8 @@ import type {
   IssueSubscriber,
   Comment,
   CommentTriggerPreview,
+  AssignmentPreview,
+  AssignmentPreviewRequest,
   IssueTriggerPreview,
   IssueTriggerPreviewParams,
   Reaction,
@@ -287,6 +289,7 @@ import {
   ChildIssueProgressResponseSchema,
   CommentsListSchema,
   CommentTriggerPreviewSchema,
+  AssignmentPreviewSchema,
   IssueTriggerPreviewSchema,
   CloudRuntimeNodeListSchema,
   CloudRuntimeNodeSchema,
@@ -1894,6 +1897,24 @@ export class ApiClient {
     });
     return parseWithFallback(raw, IssueTriggerPreviewSchema, { triggers: [], total_count: 0 }, {
       endpoint: "POST /api/issues/preview-trigger",
+    });
+  }
+
+  /** Read-only preflight for changing an issue's assignee (CLAWSTA-151 B13).
+   *  The picker uses it to explain "this dispatcher can no longer wake that
+   *  agent" BEFORE the write; it never authorizes anything. A malformed or
+   *  older-server response becomes null ("no preview"), which keeps the
+   *  pre-existing transfer path instead of inventing a permission verdict. */
+  async previewIssueAssignment(
+    issueId: string,
+    input: AssignmentPreviewRequest,
+  ): Promise<AssignmentPreview | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/assignment-preview`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<AssignmentPreview | null>(raw, AssignmentPreviewSchema, null, {
+      endpoint: "POST /api/issues/:id/assignment-preview",
     });
   }
 

@@ -1453,5 +1453,17 @@
     "sync_to_recipient": "{{name}} に同期",
     "delivery_failed": "コメントは投稿されましたが、親課題の担当者に届きませんでした",
     "delivery_failed_reason": "コメントは投稿されましたが、親課題の担当者に届きませんでした: {{reason}}"
+  },
+  "review_badge_r4": {
+    "reply_you": "あなたの返信待ち",
+    "act_you": "あなたの対応待ち"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}} は {{name}} を起動できません",
+    "description": "以降の自動継続は失敗します。",
+    "create_child": "自分のサブカードを作成して渡す",
+    "transfer_anyway": "それでも転送",
+    "cancel": "キャンセル",
+    "not_allowed": "このカードを {{name}} に転送できません。"
   }
 }

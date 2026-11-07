@@ -1500,5 +1500,17 @@
     "sync_to_recipient": "Sync to {{name}}",
     "delivery_failed": "Comment posted, but it did not reach the parent issue's owner",
     "delivery_failed_reason": "Comment posted, but it did not reach the parent issue's owner: {{reason}}"
+  },
+  "review_badge_r4": {
+    "reply_you": "Waiting on your reply",
+    "act_you": "Waiting on your action"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}} can't wake {{name}}",
+    "description": "Later automatic follow-ups on this task will fail.",
+    "create_child": "Create my own sub-issue for it",
+    "transfer_anyway": "Transfer anyway",
+    "cancel": "Cancel",
+    "not_allowed": "You can't transfer this task to {{name}}."
   }
 }

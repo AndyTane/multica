@@ -1500,5 +1500,17 @@
     "sync_to_recipient": "Synchroniser avec {{name}}",
     "delivery_failed": "Commentaire publié, mais non transmis au responsable du ticket parent",
     "delivery_failed_reason": "Commentaire publié, mais non transmis au responsable du ticket parent : {{reason}}"
+  },
+  "review_badge_r4": {
+    "reply_you": "En attente de votre réponse",
+    "act_you": "En attente de votre action"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}} ne peut pas réveiller {{name}}",
+    "description": "Les reprises automatiques suivantes échoueront.",
+    "create_child": "Créer ma propre sous-tâche pour la lui confier",
+    "transfer_anyway": "Transférer quand même",
+    "cancel": "Annuler",
+    "not_allowed": "Vous ne pouvez pas transférer cette tâche à {{name}}."
   }
 }

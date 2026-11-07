@@ -116,5 +116,8 @@
     "unarchive_failed": "アーカイブ解除に失敗しました",
     "archived_load_failed": "アーカイブ済み通知を読み込めませんでした",
     "filters_load_failed": "フィルターを読み込めませんでした"
+  },
+  "parent_line": {
+    "text": "{{identifier}} 内 · {{title}}"
   }
 }

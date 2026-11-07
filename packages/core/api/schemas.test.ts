@@ -21,6 +21,7 @@ import {
   AutopilotRunSchema,
   FALLBACK_AUTOPILOT_RUN,
   CommentTriggerPreviewSchema,
+  AssignmentPreviewSchema,
   DashboardAgentRunTimeListSchema,
   DashboardRunTimeDailyListSchema,
   DashboardFailureByAgentListSchema,
@@ -539,6 +540,42 @@ describe("IssueTriggerPreviewSchema", () => {
   it("parseWithFallback returns the fallback for null / non-object bodies", () => {
     expect(parseWithFallback(null, IssueTriggerPreviewSchema, PREVIEW_FALLBACK, PREVIEW_ENDPOINT)).toEqual(PREVIEW_FALLBACK);
     expect(parseWithFallback("oops", IssueTriggerPreviewSchema, PREVIEW_FALLBACK, PREVIEW_ENDPOINT)).toEqual(PREVIEW_FALLBACK);
+  });
+});
+
+// POST /api/issues/:id/assignment-preview (CLAWSTA-151 B13). Advisory
+// preflight: the picker treats a malformed body as "no preview" and keeps
+// the pre-existing transfer path, so the client method parses with a null
+// fallback rather than a fabricated permission verdict.
+describe("AssignmentPreviewSchema", () => {
+  it("parses the three preflight outcomes", () => {
+    const blocked = AssignmentPreviewSchema.parse({
+      actor_can_assign: false,
+      dispatcher_user_id: "u1",
+      dispatcher_can_invoke: true,
+      reason: "not_assignable",
+    });
+    expect(blocked).toMatchObject({ actor_can_assign: false, dispatcher_can_invoke: true });
+    const degraded = AssignmentPreviewSchema.parse({
+      actor_can_assign: true,
+      dispatcher_user_id: "u1",
+      dispatcher_can_invoke: false,
+    });
+    expect(degraded.dispatcher_user_id).toBe("u1");
+    const internal = AssignmentPreviewSchema.parse({
+      actor_can_assign: true,
+      dispatcher_user_id: null,
+      dispatcher_can_invoke: null,
+    });
+    expect(internal.dispatcher_can_invoke).toBeNull();
+  });
+
+  it("returns the null fallback for a malformed or missing actor verdict", () => {
+    const fallback = null;
+    const endpoint = { endpoint: "POST /api/issues/:id/assignment-preview" };
+    expect(parseWithFallback(null, AssignmentPreviewSchema, fallback, endpoint)).toBeNull();
+    expect(parseWithFallback({ dispatcher_user_id: "u1" }, AssignmentPreviewSchema, fallback, endpoint)).toBeNull();
+    expect(parseWithFallback({ actor_can_assign: "yes" }, AssignmentPreviewSchema, fallback, endpoint)).toBeNull();
   });
 });
 
@@ -1550,6 +1587,30 @@ describe("InboxItemListSchema", () => {
     expect(
       parseWithFallback([withoutId], InboxItemListSchema, EMPTY_INBOX_ITEMS, ENDPOINT),
     ).toBe(EMPTY_INBOX_ITEMS);
+  });
+
+  it("keeps the direct-parent projection when a newer server sends it", () => {
+    const parsed = parseWithFallback(
+      [row({
+        parent_issue_id: "parent-1",
+        parent_issue_identifier: "CLAWSTA-143",
+        parent_issue_title: "Run the long build",
+      })],
+      InboxItemListSchema,
+      EMPTY_INBOX_ITEMS,
+      ENDPOINT,
+    );
+    expect(parsed[0]).toMatchObject({
+      parent_issue_id: "parent-1",
+      parent_issue_identifier: "CLAWSTA-143",
+      parent_issue_title: "Run the long build",
+    });
+  });
+
+  it("keeps an older server's row parseable without the parent projection", () => {
+    const parsed = parseWithFallback([row()], InboxItemListSchema, EMPTY_INBOX_ITEMS, ENDPOINT);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.parent_issue_identifier).toBeUndefined();
   });
 
   it("returns the empty fallback when `archived` is wrong-typed", () => {

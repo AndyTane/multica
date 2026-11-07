@@ -1453,5 +1453,17 @@
     "sync_to_recipient": "{{name}}에게 동기화",
     "delivery_failed": "댓글은 게시되었지만 상위 이슈 담당자에게 전달되지 않았습니다",
     "delivery_failed_reason": "댓글은 게시되었지만 상위 이슈 담당자에게 전달되지 않았습니다: {{reason}}"
+  },
+  "review_badge_r4": {
+    "reply_you": "내 답변 대기",
+    "act_you": "내 조치 대기"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}}님이 {{name}}을(를) 깨울 수 없습니다",
+    "description": "이후 자동 이어하기가 실패합니다.",
+    "create_child": "내 하위 카드를 만들어 맡기기",
+    "transfer_anyway": "그래도 전환",
+    "cancel": "취소",
+    "not_allowed": "이 카드를 {{name}}에게 전환할 수 없습니다."
   }
 }

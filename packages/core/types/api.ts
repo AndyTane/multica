@@ -138,6 +138,35 @@ export interface IssueTriggerPreview {
   total_count: number;
 }
 
+/** Inputs to `POST /api/issues/:id/assignment-preview` (CLAWSTA-151 B13): the
+ *  candidate this member is about to choose in the assignee picker. */
+export interface AssignmentPreviewRequest {
+  assignee_type: "agent" | "squad";
+  assignee_id: string;
+}
+
+/**
+ * Read-only preflight for one assignee change (CLAWSTA-151 B13). It answers two
+ * different questions and they are NOT interchangeable:
+ *
+ * - `actor_can_assign`: may the CURRENT caller assign this candidate at all
+ *   (the same rule the picker already applies locally). False means the
+ *   transfer stays forbidden.
+ * - `dispatcher_can_invoke`: can the member who dispatched the issue still
+ *   wake the candidate AFTER this run? False is why the UI warns and offers
+ *   "create my own sub-issue"; null means there is no dispatcher (an internal
+ *   execution card), which is not a permission failure at all.
+ *
+ * A preview never authorizes a write: the real assignee update re-checks the
+ * live permission chain server-side.
+ */
+export interface AssignmentPreview {
+  actor_can_assign: boolean;
+  dispatcher_user_id: string | null;
+  dispatcher_can_invoke: boolean | null;
+  reason?: string | null;
+}
+
 export interface ListIssuesParams {
   limit?: number;
   offset?: number;

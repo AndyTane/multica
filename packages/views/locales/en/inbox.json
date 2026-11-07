@@ -118,5 +118,8 @@
     "unarchive_failed": "Failed to unarchive",
     "archived_load_failed": "Failed to load archived notifications",
     "filters_load_failed": "Could not load filters"
+  },
+  "parent_line": {
+    "text": "In {{identifier}} · {{title}}"
   }
 }
