@@ -337,13 +337,26 @@ func (h *Handler) deliverParentSync(ctx context.Context, issue db.Issue, comment
 			return parentSyncDeliveryQueued, ""
 		}
 		if errors.Is(err, service.ErrDuplicatePendingTask) {
-			// A run for this agent on the child already exists; fold the comment
-			// into it as a planned input when the task can still accept one.
-			registered, registerErr := h.registerPlannedCommentForActiveTask(ctx, issue, plan.targetAgent.ID, comment.ID, h.TaskService.ResolveIssueReviewSHAParam(ctx, issue.ID))
-			if registerErr == nil && registered {
+			// A run for this agent on the child already owns this thread. Fold the
+			// synced comment into it instead of dropping it: a queued sibling is
+			// merged atomically (deferred), a claimed sibling records it as a
+			// planned input (deferred). Only an existing run that can take neither
+			// — or whose merge would degrade its attribution — is reported blocked.
+			mergeTrigger := commentAgentTrigger{Agent: plan.targetAgent, Source: commentTriggerSourceMentionAgent}
+			switch h.mergeCommentIntoPendingTask(ctx, issue, mergeTrigger, comment.ID, h.TaskService.ResolveIssueReviewSHAParam(ctx, issue.ID)) {
+			case commentMergeSucceeded:
 				return parentSyncDeliveryDeferred, ""
+			case commentMergeNoPendingTask:
+				registered, registerErr := h.registerPlannedCommentForActiveTask(ctx, issue, plan.targetAgent.ID, comment.ID, h.TaskService.ResolveIssueReviewSHAParam(ctx, issue.ID))
+				if registerErr == nil && registered {
+					return parentSyncDeliveryDeferred, ""
+				}
+				return parentSyncDeliveryBlocked, "duplicate_pending_task"
+			case commentMergeAttributionBlocked:
+				return parentSyncDeliveryBlocked, "attribution_blocked"
+			default:
+				return parentSyncDeliveryBlocked, "internal_error"
 			}
-			return parentSyncDeliveryBlocked, "duplicate_pending_task"
 		}
 		slog.Warn("parent sync enqueue failed",
 			"issue_id", uuidToString(issue.ID),
