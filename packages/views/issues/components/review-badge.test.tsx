@@ -21,8 +21,13 @@ vi.mock("../../i18n", () => ({
 }));
 afterEach(cleanup);
 
+// A review mark only routes to a member when the card has a resolvable
+// dispatcher (B9/B10): the fixtures below carry the same dispatcher the server
+// would resolve, so "mine" means "the dispatcher B9 hands it to".
+const dispatched = { dispatcher_user_id: "me", dispatcher_active: true };
+
 describe("review badge", () => {
-  const issue = (metadata: Issue["metadata"], status = "in_review") => ({ status, metadata } as Issue);
+  const issue = (metadata: Issue["metadata"], status = "in_review") => ({ status, metadata, ...dispatched } as Issue);
   it("renders the current user's badge and action, while other recipients only get a muted label", () => {
     const card = issue({ review_by: "user", review_action: "Run the build", review_user: "me" });
     const { rerender } = render(<><ReviewBadge issue={card} /><ReviewBadge issue={card} actionOnly /></>);
@@ -31,6 +36,11 @@ describe("review badge", () => {
     rerender(<><ReviewBadge issue={other} /><ReviewBadge issue={other} actionOnly /></>);
     expect(screen.getByText("等 Reviewer")).toBeTruthy(); expect(screen.queryByText("Run the build")).toBeNull();
   });
+  it("treats a legacy user mark without review_user as waiting on its dispatcher", () => {
+    render(<ReviewBadge issue={issue({ review_by: "user", review_action: "Run the build" })} />);
+    expect(screen.getByText("等你")).toBeTruthy();
+  });
+
   it("renders a specialist label and leaves unmarked or non-review cards alone", () => {
     const { rerender, container } = render(<ReviewBadge issue={issue({ review_by: "specialist", review_agent: "agent" })} />);
     expect(screen.getByText("等验收")).toBeTruthy();
@@ -43,7 +53,7 @@ describe("review badge", () => {
 // manual step, and the badge must say WHICH one. The approval wording above
 // stays untouched; blocked uses the new review_badge_r4 copy.
 describe("review badge on blocked cards", () => {
-  const issue = (metadata: Issue["metadata"], status = "blocked") => ({ status, metadata } as Issue);
+  const issue = (metadata: Issue["metadata"], status = "blocked") => ({ status, metadata, ...dispatched } as Issue);
 
   it("waits on my reply when the card is blocked for review_kind=reply", () => {
     const { rerender } = render(<ReviewBadge issue={issue({ review_by: "user", review_kind: "reply", review_user: "me", review_action: "Answer the question" })} />);

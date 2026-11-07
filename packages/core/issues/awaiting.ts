@@ -25,6 +25,14 @@ export const AWAITING_KINDS: readonly AwaitingKind[] = ["reply", "act", "approve
 /** The two statuses that can hold a review mark (B8/B10). */
 const AWAITING_STATUSES = ["in_review", "blocked"] as const;
 
+/**
+ * The review mark lives in issue.metadata, a flat KV map. Read it through an
+ * optional field so a partial snapshot (legacy payload, cached row from an
+ * older backend, or a partial fixture) reads as "no mark" instead of throwing
+ * inside a board row.
+ */
+type ReviewMarkedIssue = Pick<Issue, "status"> & { metadata?: IssueMetadata };
+
 const PAGE_LIMIT = 100;
 
 /**
@@ -36,9 +44,10 @@ const PAGE_LIMIT = 100;
  * kind is NOT guessed into a group (B10) — guessing would hand the dispatcher an
  * approval button that writes the wrong status.
  */
-export function awaitingKind(issue: Pick<Issue, "status" | "metadata">): AwaitingKind | null {
-  if (issue.metadata.review_by !== "user") return null;
-  const kind = issue.metadata.review_kind;
+export function awaitingKind(issue: ReviewMarkedIssue): AwaitingKind | null {
+  const metadata = issue.metadata ?? {};
+  if (metadata.review_by !== "user") return null;
+  const kind = metadata.review_kind;
   if (issue.status === "in_review") return kind === undefined || kind === "approve" ? "approve" : null;
   if (issue.status === "blocked") return kind === "reply" || kind === "act" ? kind : null;
   return null;
@@ -54,13 +63,15 @@ export function awaitingKind(issue: Pick<Issue, "status" | "metadata">): Awaitin
  * window instead.
  */
 export function isAwaitingMe(
-  issue: Pick<Issue, "status" | "metadata" | "dispatcher_user_id" | "dispatcher_active">,
+  issue: ReviewMarkedIssue &
+    Pick<Issue, "dispatcher_user_id" | "dispatcher_active">,
   meUserId: string,
 ): boolean {
   if (!meUserId || !awaitingKind(issue)) return false;
   const dispatcher = typeof issue.dispatcher_user_id === "string" ? issue.dispatcher_user_id : "";
   if (!dispatcher || issue.dispatcher_active === false) return false;
-  const recipient = typeof issue.metadata.review_user === "string" ? issue.metadata.review_user : "";
+  const reviewUser = (issue.metadata ?? {}).review_user;
+  const recipient = typeof reviewUser === "string" ? reviewUser : "";
   return (recipient || dispatcher) === meUserId;
 }
 
@@ -76,7 +87,7 @@ export function isAwaitingUnmarked(issue: Issue, meUserId: string): boolean {
   // owner/admin alone may see, whose dispatcher no longer resolves.
   if (issue.awaiting_problem) return true;
   if (issue.dispatcher_user_id !== meUserId) return false;
-  if (issue.metadata.review_by === "specialist") return false;
+  if ((issue.metadata ?? {}).review_by === "specialist") return false;
   return awaitingKind(issue) === null;
 }
 
