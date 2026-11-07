@@ -3467,6 +3467,19 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		}
 		originType = pgtype.Text{String: *req.OriginType, Valid: true}
 		originID = oid
+		if *req.OriginType == "quick_create" && creatorType == "agent" {
+			// CLAWSTA-151 B9: a quick-create issue must bind its origin to the
+			// task this run is actually executing (X-Task-ID is server-stamped
+			// from the mat_ token). Otherwise the same agent could lend out a
+			// DIFFERENT quick-create task it once ran as the provenance, and the
+			// dispatcher projection would credit the wrong requester.
+			trustedTaskID := r.Header.Get("X-Task-ID")
+			trustedTask, parseErr := util.ParseUUID(trustedTaskID)
+			if parseErr != nil || trustedTask != originID {
+				writeError(w, http.StatusBadRequest, "origin_id must be the current task for a quick-create issue")
+				return
+			}
+		}
 	} else if creatorType == "agent" {
 		// MUL-4305: an agent creating an issue via the ordinary create path
 		// carries no explicit origin, which historically left the new issue
