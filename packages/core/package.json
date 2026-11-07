@@ -46,6 +46,7 @@
     "./issues/comment-deletion": "./issues/comment-deletion.ts",
     "./issues/comment-trigger-outcomes": "./issues/comment-trigger-outcomes.ts",
     "./issues/parent-sync": "./issues/parent-sync.ts",
+    "./issues/server-codes": "./issues/server-codes.ts",
     "./issues/run-steering": "./issues/run-steering.ts",
     "./issues/date": "./issues/date.ts",
     "./issues/ws-updaters": "./issues/ws-updaters.ts",
