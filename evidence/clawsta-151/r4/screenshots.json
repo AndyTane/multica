@@ -55,13 +55,13 @@
     },
     {
       "file": "sync-toggle-locked-dark.png",
-      "bytes": 69408,
-      "sha256": "dcada522091a092419f1d4fa3a17cdbe7657704d9e0213f451c892f0e17c2a86"
+      "bytes": 70403,
+      "sha256": "56a2f9adf351db32541e797ad0f672a3b2371ee11b7c7dd9525588c2a0f69389"
     },
     {
       "file": "sync-toggle-locked-light.png",
-      "bytes": 70929,
-      "sha256": "2e25224db91c1588ebe45a03db40b7af598f3e14fda3f8bc1149505d02c5076b"
+      "bytes": 71950,
+      "sha256": "c01d3155e483f94b5ae2d8d72e3ab8941e53e5b22cc6958215a4bd0f0b35573b"
     },
     {
       "file": "sync-toggle-owner-dark.png",

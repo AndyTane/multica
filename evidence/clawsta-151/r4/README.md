@@ -12,7 +12,7 @@
 | `unmarked-expanded-{light,dark}.png` | 「未标明」就地展开，其中一张带机器码白话原因（`invalid_review_mark` → 「这张卡的审核标记不完整，没法交给人处理。」） |
 | `sync-toggle-owner-{light,dark}.png` | 同步开关文字一：`同步给主卡负责人 · 协调负责人`（主卡负责人可达） |
 | `sync-toggle-recipient-{light,dark}.png` | 同步开关文字二：`同步给 老陈`（评论人叫不醒主卡负责人，改投主卡派活人） |
-| `sync-toggle-locked-{light,dark}.png` | 同步开关锁定态：普通路由已覆盖主卡负责人（小组组长就是子卡负责人），勾选且不可改 |
+| `sync-toggle-locked-{light,dark}.png` | 同步开关锁定态：普通路由已覆盖主卡负责人（小组组长就是子卡负责人），勾选且不可改；勾选框置灰，文字后面写明「本来就会通知到」 |
 | `transfer-prompt-{light,dark}.png` | 转派提示：「老陈 无法叫醒 协调负责人」+ 具体原因白话 + 建子卡/仍然转派/取消 |
 | `inbox-parent-line-{light,dark}.png` | 收件箱子卡通知灰字行「属于 CLAWSTA-320 · 发布检查项」 |
 | `board-blocked-labels-{light,dark}.png` | 看板「已阻塞」列的标签：`等你回复`、`等你推进`、`等 林工`、`等 老陈` |
