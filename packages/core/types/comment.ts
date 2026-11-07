@@ -15,6 +15,28 @@ export interface Reaction {
   comment_revision?: number;
 }
 
+/**
+ * Where a synced sub-issue comment was delivered (CLAWSTA-151 B11). The mode
+ * names the fallback honestly: only `agent` started a run; member / dispatcher
+ * / admin are inbox notifications, and `already_routed` means the normal
+ * routing already reached the same recipient.
+ */
+export interface CommentParentSyncRecipient {
+  type: "agent" | "squad" | "member";
+  id: string;
+  name: string;
+}
+
+export interface CommentParentSync {
+  parent_issue_id: string;
+  mode: "agent" | "member" | "dispatcher" | "admin" | "unavailable";
+  recipients: CommentParentSyncRecipient[];
+  already_routed: boolean;
+  /** Present on the created/read comment; omitted by the preview. */
+  delivery_status?: string;
+  reason?: string;
+}
+
 export interface Comment {
   id: string;
   issue_id: string;
@@ -35,6 +57,12 @@ export interface Comment {
   resolved_by_type: CommentAuthorType | null;
   resolved_by_id: string | null;
   source_task_id?: string | null;
+  /**
+   * Result of the "sync this sub-issue comment to the parent card's assignee"
+   * switch (CLAWSTA-151 B11), server-decided. Absent on ordinary comments and
+   * on older backends.
+   */
+  parent_sync?: CommentParentSync | null;
   // The quick action that produced this comment (MUL-5465). A quick action
   // posts an ORDINARY comment and marks it with this id; the collapsed card
   // keys off the id rather than a dedicated `type`, because `type` is
@@ -104,4 +132,7 @@ export interface CommentTriggerPreview {
   // Explicit @agent / @squad mentions that will NOT trigger if posted as-is
   // (MUL-4525 §2). Additive: older servers omit it.
   blocked?: CommentTriggerOutcome[];
+  // CLAWSTA-151 B11 preview of the "sync to parent assignee" switch. Absent on
+  // a top-level issue, when the caller did not ask, or on an older backend.
+  parent_sync?: CommentParentSync | null;
 }

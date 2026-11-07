@@ -195,6 +195,21 @@ export interface Issue {
   assignee_id: string | null;
   creator_type: IssueAssigneeType;
   creator_id: string;
+  /**
+   * The member who dispatched this issue (CLAWSTA-151 B9): the member who
+   * created it, or — for an agent-created quick-create issue — the task's
+   * human requester. Resolved server-side; never client input. Absent on an
+   * older backend, which must be read as "unknown", not "no dispatcher".
+   */
+  dispatcher_user_id?: string | null;
+  /** Whether `dispatcher_user_id` is still a member. Present only with the id. */
+  dispatcher_active?: boolean;
+  /**
+   * Only on the `awaiting=unmarked` list: why the card cannot be delivered to
+   * a live member (no_dispatcher / dispatcher_inactive / receiver_inactive /
+   * invalid_review_mark). Absent means a plain unmarked card.
+   */
+  awaiting_problem?: string;
   parent_issue_id: string | null;
   /**
    * The original this issue duplicates (MUL-7349): present only while the

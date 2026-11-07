@@ -1115,6 +1115,24 @@ export const EMPTY_CREATE_FEEDBACK_RESPONSE: CreateFeedbackResponse = {
   created_at: "",
 };
 
+const CommentParentSyncRecipientSchema = z.object({
+  type: z.string().default(""),
+  id: z.string(),
+  name: z.string().default(""),
+}).loose();
+
+// Preview / result of "sync this sub-issue comment to the parent card's
+// assignee" (CLAWSTA-151 B11). Additive: older backends never send it, and a
+// malformed object degrades to absent rather than failing the comment read.
+export const CommentParentSyncSchema = z.object({
+  parent_issue_id: z.string().default(""),
+  mode: z.string().default(""),
+  recipients: z.array(CommentParentSyncRecipientSchema).default([]),
+  already_routed: z.boolean().default(false),
+  delivery_status: z.string().optional(),
+  reason: z.string().optional(),
+}).loose();
+
 export const CommentSchema = z.object({
   id: z.string(),
   issue_id: z.string(),
@@ -1136,6 +1154,9 @@ export const CommentSchema = z.object({
   supplement_delivered_at: z.string().optional().catch(undefined),
   // Set only on comments a quick action produced (MUL-5465). Server-only.
   quick_action_id: z.string().nullable().optional(),
+  // CLAWSTA-151 B11: server-decided parent-sync result. Absent for ordinary
+  // comments; a malformed value is dropped rather than failing the comment.
+  parent_sync: CommentParentSyncSchema.optional().catch(undefined),
   deleted_at: z.string().nullable().optional().catch(undefined),
 }).loose();
 
@@ -1195,6 +1216,8 @@ export const CommentTriggerPreviewSchema = z.object({
         return parsed.success ? [parsed.data] : [];
       }),
     ),
+  // CLAWSTA-151 B11 preview of the "sync to parent assignee" switch.
+  parent_sync: CommentParentSyncSchema.optional().catch(undefined),
 }).loose();
 
 const IssueTriggerPreviewItemSchema = z.object({
@@ -1354,6 +1377,12 @@ export const IssueSchema = z.object({
   assignee_id: z.string().nullable(),
   creator_type: z.string(),
   creator_id: z.string(),
+  // CLAWSTA-151 B9/B10 additive read-only fields. Older backends omit them and
+  // a missing dispatcher must stay "unknown" (never "nobody can handle it"), so
+  // both are optional and a malformed value degrades to absent.
+  dispatcher_user_id: z.string().nullable().optional().catch(undefined),
+  dispatcher_active: z.boolean().optional().catch(undefined),
+  awaiting_problem: z.string().optional().catch(undefined),
   parent_issue_id: z.string().nullable(),
   // Additive pointer (MUL-7349); same disproportionate-failure reasoning as
   // status_name above, and older backends do not send it at all.
@@ -2672,6 +2701,11 @@ export const InboxItemListSchema = z.array(
       body: z.string().nullish(),
       issue_status: z.string().nullish(),
       issue_priority: z.string().nullish(),
+      // CLAWSTA-151 B14 sub-issue parent projection; absent on older backends
+      // and for top-level issues, so the row simply renders no parent line.
+      parent_issue_id: z.string().nullish(),
+      parent_issue_identifier: z.string().nullish(),
+      parent_issue_title: z.string().nullish(),
       read: z.boolean(),
       archived: z.boolean(),
       created_at: z.string(),

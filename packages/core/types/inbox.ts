@@ -63,6 +63,14 @@ export interface InboxItem {
    * projection; null also covers notifications without a linked issue.
    */
   issue_priority?: IssuePriority | null;
+  /**
+   * The direct parent card a sub-issue notification belongs to (CLAWSTA-151
+   * B14), resolved server-side from the live relation. Optional because an
+   * older backend omits all three; the client then renders no parent line.
+   */
+  parent_issue_id?: string | null;
+  parent_issue_identifier?: string | null;
+  parent_issue_title?: string | null;
   read: boolean;
   archived: boolean;
   created_at: string;

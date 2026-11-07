@@ -126,6 +126,26 @@ export interface IssueTriggerPreviewParams {
 
 /** One issue that WILL start a run under the prospective write. `agent_id` is
  *  the runnable agent (squad leader for squads). */
+/**
+ * CLAWSTA-151 B11 preview of "sync this sub-issue comment to the parent card's
+ * assignee". Absent when the comment is on a top-level issue or the caller did
+ * not ask for the switch.
+ */
+export interface CommentParentSyncRecipient {
+  type: "agent" | "squad" | "member";
+  id: string;
+  name: string;
+}
+
+export interface CommentParentSyncPreview {
+  parent_issue_id: string;
+  mode: "agent" | "member" | "dispatcher" | "admin" | "unavailable";
+  recipients: CommentParentSyncRecipient[];
+  already_routed: boolean;
+  delivery_status?: string;
+  reason?: string;
+}
+
 export interface IssueTriggerPreviewItem {
   issue_id: string;
   agent_id: string;
@@ -160,6 +180,16 @@ export interface ListIssuesParams {
   priorities?: IssuePriority[];
   assignee_id?: string;
   assignee_ids?: string[];
+  /**
+   * CLAWSTA-151 B10 review queues, resolved server-side before pagination so
+   * the page, its total and the sidebar count agree.
+   * `mine`: the two review statuses whose effective receiver is me.
+   * `unmarked`: my unmarked/undeliverable cards, plus (owner/admin) the
+   * anomaly cases whose dispatcher is gone.
+   */
+  awaiting?: "mine" | "unmarked";
+  /** Filter by the resolved dispatcher (CLAWSTA-151 B9). */
+  dispatcher_user_id?: string;
   /**
    * Narrow to issues assigned to the given actor kinds (member / agent /
    * squad). Same semantics as `ListGroupedIssuesParams.assignee_types` —
