@@ -48,9 +48,9 @@ v0.2.17 上线后发现：智能体把执行子卡也挂成「等你」，清单
 
 ## R4 投递（2026-11-07，执行方 DSH）
 
-Tane 指定 R4 全部实现交 DSH。同一个 DSH 会话一次只跑一轮，分两批串行：R4a 后端 → R4b 前端。
+Tane 指定 R4 全部实现交 Multica 里的 DSH 智能体，按执行子卡投递。分两批串行：R4a 后端 → R4b 前端。
 
-- 目录与分支：本 worktree，分支 `agent/CLAWSTA-151-r4`，base `619eef678`。每批在本分支上按文件名提交（禁止 `git add -A` / `git add .` / `git stash` / `git checkout --` / `git reset --hard`），不推送、不开 PR、不改版本号；推送和 PR 由前端负责人复核后做。
+- 目录与分支：`multica repo checkout https://github.com/AndyTane/UWorkers-nice.git --ref agent/CLAWSTA-151-r4`，在分支 `agent/CLAWSTA-151-r4` 上工作，base 为本节所在提交。每批按文件名提交（禁止 `git add -A` / `git add .` / `git stash` / `git checkout --` / `git reset --hard`），推送到同一分支；不开 PR、不合并、不改版本号，PR 由前端负责人复核后开。
 - 不碰：`.multica/`、MULTICA-RUNTIME 管理区块、`deploy/`、发布脚本、任何凭据与 `.env`、正在运行的服务与 DSH 本身。
 - 每批结束回报：base..head、改动文件清单、测试命令与结果（含失败原文）、未完成项。不确定的契约细节按 B 节原文实现并在回报里列出，不自行改契约。
 
