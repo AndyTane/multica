@@ -63,6 +63,17 @@ export interface InboxItem {
    * projection; null also covers notifications without a linked issue.
    */
   issue_priority?: IssuePriority | null;
+  /**
+   * The issue's direct parent, resolved by the server's inbox projection
+   * (CLAWSTA-151 B14). All three are optional together: an older server omits
+   * them, and a parent that was deleted or is no longer accessible is omitted
+   * rather than implied. The identifier uses the CURRENT workspace prefix, so
+   * read it per response instead of caching it. Only the INBOX row renders the
+   * parent line; nothing else may treat an absent parent as "top-level".
+   */
+  parent_issue_id?: string | null;
+  parent_issue_identifier?: string | null;
+  parent_issue_title?: string | null;
   read: boolean;
   archived: boolean;
   created_at: string;

@@ -1208,6 +1208,18 @@ export const IssueTriggerPreviewSchema = z.object({
   total_count: z.number().default(0),
 }).loose();
 
+// POST /api/issues/:id/assignment-preview (CLAWSTA-151 B13). Advisory
+// preflight, never an authorization token. Required booleans are what the
+// caller branches on; the nullable dispatcher fields are declared nullish and
+// the client method turns a malformed body into "no preview" so an older
+// server cannot block the existing transfer path.
+export const AssignmentPreviewSchema = z.object({
+  actor_can_assign: z.boolean(),
+  dispatcher_user_id: z.string().nullish(),
+  dispatcher_can_invoke: z.boolean().nullish(),
+  reason: z.string().nullish(),
+}).loose();
+
 // Metadata is primitive-only by API/DB contract. Stay lenient on shape:
 // unknown keys land as `unknown` to a caller, but the field itself defaults
 // to {} so consumers never need to nil-guard `issue.metadata`.
@@ -2672,6 +2684,12 @@ export const InboxItemListSchema = z.array(
       body: z.string().nullish(),
       issue_status: z.string().nullish(),
       issue_priority: z.string().nullish(),
+      // Direct parent projection (CLAWSTA-151 B14). Optional together: an
+      // older server omits all three, so the row simply renders no parent
+      // line instead of failing the whole inbox list.
+      parent_issue_id: z.string().nullish(),
+      parent_issue_identifier: z.string().nullish(),
+      parent_issue_title: z.string().nullish(),
       read: z.boolean(),
       archived: z.boolean(),
       created_at: z.string(),
