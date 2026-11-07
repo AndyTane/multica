@@ -1430,5 +1430,17 @@
     "feedback_label": "打回意见",
     "note_not_delivered": "以 /note 开头的意见只做记录，不会交给 {{name}}",
     "not_delivered": "这条意见到不了 {{name}}，打回没有完成"
+  },
+  "review_badge_r4": {
+    "reply_you": "等你回复",
+    "act_you": "等你推进"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}} 无法叫醒 {{name}}",
+    "description": "之后的自动接续会失败。",
+    "create_child": "建一张我的子卡交给它",
+    "transfer_anyway": "仍然转派",
+    "cancel": "取消",
+    "not_allowed": "无法把这张卡转给 {{name}}。"
   }
 }

@@ -1477,5 +1477,17 @@
     "feedback_label": "Send-back feedback",
     "note_not_delivered": "Feedback starting with /note is only recorded and will not reach {{name}}",
     "not_delivered": "This feedback cannot reach {{name}}. Send back was not completed."
+  },
+  "review_badge_r4": {
+    "reply_you": "Waiting on your reply",
+    "act_you": "Waiting on your action"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}} can't wake {{name}}",
+    "description": "Later automatic follow-ups on this task will fail.",
+    "create_child": "Create my own sub-issue for it",
+    "transfer_anyway": "Transfer anyway",
+    "cancel": "Cancel",
+    "not_allowed": "You can't transfer this task to {{name}}."
   }
 }
