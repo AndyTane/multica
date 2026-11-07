@@ -48,7 +48,11 @@ func TestReviewCreationAndStatusEntry(t *testing.T) {
 }
 
 func TestReviewLifecycleAndAtomicUndo(t *testing.T) {
-	id := dbfx.Issue(t, "Review lifecycle", testutil.Cols{"status": "in_progress", "metadata": `{"review_by":"user","review_action":"Check it","review_user":"` + testUserID + `","review_agent":"legacy","other":true,"review_custom":"keep"}`, "created_at": time.Now().Add(-time.Hour)})
+	// R4/B7: publishing a user review requires a valid assignee to advance the
+	// card after the person answers (the local port keeps the review round time
+	// in metadata.review_since instead of the status_changed_at column).
+	advancer := dbfx.Agent(t, "Review lifecycle advancer", "")
+	id := dbfx.Issue(t, "Review lifecycle", testutil.Cols{"status": "in_progress", "assignee_type": "agent", "assignee_id": advancer, "metadata": `{"review_by":"user","review_action":"Check it","review_user":"` + testUserID + `","review_agent":"legacy","other":true,"review_custom":"keep"}`, "created_at": time.Now().Add(-time.Hour)})
 	entered := reviewPut(t, id, map[string]any{"status": "in_review"}, 200)
 	since, ok := entered.Metadata["review_since"].(string)
 	if !ok {
@@ -149,8 +153,26 @@ func TestReviewStatusWriters(t *testing.T) {
 				t.Fatal(err)
 			}
 			meta := parseIssueMetadata(got.Metadata)
-			if len(meta) != 1 || meta["keep"] != true {
-				t.Fatalf("status writer leaked/deleted keys: %s", got.Metadata)
+			// Every review_* key (review_since included) is cleared on the way out;
+			// the two review statuses share the rule, so entering blocked starts a
+			// new round and must stamp a fresh review_since.
+			for _, key := range reviewKeys {
+				if _, ok := meta[key]; ok {
+					t.Fatalf("status writer leaked %s: %s", key, got.Metadata)
+				}
+			}
+			if _, ok := meta["review_other"]; ok {
+				t.Fatalf("status writer kept a stale review_* key: %s", got.Metadata)
+			}
+			if meta["keep"] != true {
+				t.Fatalf("status writer deleted unrelated metadata: %s", got.Metadata)
+			}
+			if status == "blocked" {
+				if _, ok := meta["review_since"]; !ok {
+					t.Fatalf("entering blocked did not stamp review_since: %s", got.Metadata)
+				}
+			} else if _, ok := meta["review_since"]; ok {
+				t.Fatalf("leaving review kept review_since: %s", got.Metadata)
 			}
 		})
 	}
@@ -173,7 +195,8 @@ func TestReviewBatchTransitionClearsKeys(t *testing.T) {
 }
 
 func TestReviewRestorePreservesLargeUnrelatedNumbers(t *testing.T) {
-	id := dbfx.Issue(t, "Exact metadata", testutil.Cols{"status": "done", "metadata": `{"large":9007199254740993}`})
+	advancer := dbfx.Agent(t, "Exact metadata advancer", "")
+	id := dbfx.Issue(t, "Exact metadata", testutil.Cols{"status": "done", "assignee_type": "agent", "assignee_id": advancer, "metadata": `{"large":9007199254740993}`})
 	current, err := testHandler.Queries.GetIssue(context.Background(), parseUUID(id))
 	if err != nil {
 		t.Fatal(err)

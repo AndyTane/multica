@@ -225,6 +225,23 @@ describe("ApiClient schema fallback", () => {
       expect(issue.properties).toEqual({});
     });
 
+    it("keeps the read-only dispatcher and awaiting projections, dropping malformed ones", async () => {
+      const client = new ApiClient("https://api.example.test");
+      stubFetchJson({ ...validIssue, dispatcher_user_id: "user-1", dispatcher_active: true, awaiting_problem: "dispatcher_left" });
+      const issue = await client.getIssue("MUL-1");
+      expect(issue.dispatcher_user_id).toBe("user-1");
+      expect(issue.dispatcher_active).toBe(true);
+      expect(issue.awaiting_problem).toBe("dispatcher_left");
+      // Additive read-only fields: a mixed-version server that sends garbage
+      // must not blank the issue, and absent means "unknown", never "anyone".
+      stubFetchJson({ ...validIssue, dispatcher_user_id: 42, dispatcher_active: "yes", awaiting_problem: { reason: "x" } });
+      const legacy = await client.getIssue("MUL-1");
+      expect(legacy.id).toBe("issue-1");
+      expect(legacy.dispatcher_user_id).toBeUndefined();
+      expect(legacy.dispatcher_active).toBeUndefined();
+      expect(legacy.awaiting_problem).toBeUndefined();
+    });
+
     it("rejects a 200 body that is not a usable issue (no truthy issue with an undefined id)", async () => {
       stubFetchJson({ not: "an issue" });
       const client = new ApiClient("https://api.example.test");

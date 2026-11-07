@@ -16,6 +16,10 @@ import type { AvatarSize } from "@multica/ui/lib/avatar-size";
 import { useT } from "../../i18n";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
+import { isNoteCommentDraft } from "../utils/note-command";
+import { useParentSync } from "../hooks/use-parent-sync";
+import { ParentSyncToggle } from "./parent-sync-toggle";
+import type { ParentSyncOwnership } from "@multica/core/issues/parent-sync";
 import { useRecipientActions } from "../hooks/use-recipient-actions";
 import { SteerAttachmentNotice } from "./steer-attachment-notice";
 import { useStopRunsBeforeSend } from "./use-stop-runs-before-send";
@@ -33,8 +37,9 @@ interface ReplyInputProps {
   avatarType: string;
   avatarId: string;
   /** Resolves true on success, false on failure — the reply box keeps its text
-   *  (locked + spinning) until then, clearing only on success. */
-  onSubmit: (content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[]) => Promise<string | boolean>;
+   *  (locked + spinning) until then, clearing only on success.
+   *  `syncParentAssignee` rides along only when the user left the sync box on. */
+  onSubmit: (content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[], syncParentAssignee?: boolean) => Promise<string | boolean>;
   /** Called after the server accepts the reply and the composer is cleared. */
   onAccepted?: (commentId: string) => void;
   size?: "sm" | "default";
@@ -47,6 +52,9 @@ interface ReplyInputProps {
   /** Whether a running turn takes this reply by default: true for the turn
    *  that belongs to this thread. Other recipients' turns can still be chosen. */
   steerByDefault?: (task: AgentTask) => boolean;
+  /** Sub-issue ownership snapshot that enables the parent-sync toggle
+   *  (CLAWSTA-151 F3). Null/absent on a top-level issue. */
+  parentSyncOwnership?: ParentSyncOwnership | null;
 }
 
 const NEVER_STEER_BY_DEFAULT = () => false;
@@ -68,6 +76,7 @@ function ReplyInput({
   onEditAnnotation,
   targetMissing = false,
   steerByDefault = NEVER_STEER_BY_DEFAULT,
+  parentSyncOwnership = null,
 }: ReplyInputProps) {
   const { t } = useT("issues");
   const { t: tEditor } = useT("editor");
@@ -93,6 +102,14 @@ function ReplyInput({
   const composedContent = useMemo(() => composeAnnotatedReply(content, annotations), [content, annotations]);
   const canSend = !targetMissing && (annotations.length ? hasReplyIntent(content, annotations) : !isEmpty);
   const triggerPreview = useCommentTriggerPreview({ issueId, parentId, content: canSend ? composedContent : "" });
+  // A reply on a sub-issue can also be handed to the parent issue's owner;
+  // off by default, and impossible for a /note.
+  const parentSync = useParentSync({
+    issueId,
+    parentCommentId: parentId,
+    ownership: parentSyncOwnership,
+    note: isNoteCommentDraft(composedContent),
+  });
   // Uploads for this reply session (MUL-5181) — owned by the coordinator. With
   // a draftKey they persist in the draft store so scroll-out/close no longer
   // drops an in-flight upload; without one (no persistence context) they fall
@@ -195,12 +212,15 @@ function ReplyInput({
       const activeIds = pendingAttachments
         .filter((a) => contentReferencesAttachment(content, a))
         .map((a) => a.id);
-      return onSubmit(
+      const submitArgs: [string, string[] | undefined, string[] | undefined, string[] | undefined, boolean?] = [
         content,
         activeIds.length > 0 ? activeIds : undefined,
         suppressAgentIds.length > 0 ? suppressAgentIds : undefined,
         steerTaskIds.length > 0 ? steerTaskIds : undefined,
-      ).then((commentId) => {
+      ];
+      // Keep the original arity when the box is off — see CommentInput.
+      if (parentSync.syncParentAssignee) submitArgs.push(true);
+      return onSubmit(...submitArgs).then((commentId) => {
         acceptedCommentIdRef.current = typeof commentId === "string" ? commentId : null;
         return !!commentId;
       });
@@ -223,6 +243,8 @@ function ReplyInput({
       setContent("");
       setIsEmpty(true);
       resetRecipients();
+      // The sync choice belongs to one reply: the next draft starts off.
+      parentSync.reset();
       editorScrubbedRef.current = true;
       if (acceptedCommentIdRef.current) onAccepted?.(acceptedCommentIdRef.current);
     },
@@ -247,6 +269,17 @@ function ReplyInput({
         )}
       >
         {attachmentsBlockSteer && <SteerAttachmentNotice />}
+        {parentSync.visible && parentSync.kind && <div className="mb-2">
+          <ParentSyncToggle
+            kind={parentSync.kind}
+            name={parentSync.name}
+            reason={parentSync.reason}
+            checked={parentSync.checked}
+            locked={parentSync.locked}
+            disabled={parentSync.disabled}
+            onCheckedChange={parentSync.onCheckedChange}
+          />
+        </div>}
         {draftKey && annotations.length > 0 && <>
           {targetMissing && <p role="alert" className="mb-2 text-caption text-destructive">{t(($) => $.reply.annotations.target_deleted)}</p>}
           <ReplyAnnotations draftKey={draftKey} annotations={annotations}

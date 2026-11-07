@@ -59,6 +59,7 @@ export function IssueActionsDropdown({
           assigneeType={issue.assignee_type}
           assigneeId={issue.assignee_id}
           onUpdate={actions.updateField}
+          issue={issue}
           open={assigneeOpen}
           onOpenChange={setAssigneeOpen}
           triggerRender={

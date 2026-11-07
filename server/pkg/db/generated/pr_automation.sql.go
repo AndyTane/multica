@@ -144,9 +144,11 @@ func (q *Queries) ListIssueLinkedPullRequestStates(ctx context.Context, issueID 
 const moveIssueFromPullRequests = `-- name: MoveIssueFromPullRequests :one
 UPDATE issue AS i SET
     metadata = CASE
-            WHEN i.status IS DISTINCT FROM $3::text AND $3::text = 'in_review'
-                THEN i.metadata || jsonb_build_object('review_since', now())
-            WHEN i.status = 'in_review' AND $3::text <> 'in_review'
+            WHEN i.status IS DISTINCT FROM $3::text AND $3::text IN ('in_review', 'blocked')
+                THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
+                     FROM jsonb_each(i.metadata) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
+                     || jsonb_build_object('review_since', now())
+            WHEN i.status IS DISTINCT FROM $3::text AND i.status IN ('in_review', 'blocked')
                 THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
                      FROM jsonb_each(i.metadata) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
             ELSE i.metadata

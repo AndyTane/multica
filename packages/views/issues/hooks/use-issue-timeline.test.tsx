@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ReactNode } from "react";
 import { renderHook, act } from "@testing-library/react";
+import { toast } from "sonner";
+import { I18nProvider } from "@multica/core/i18n/react";
+import { RESOURCES } from "../../test/i18n";
 
 // Mock @multica/core/issues/mutations to mimic TanStack Query v5's contract:
 // useMutation returns a fresh result wrapper on every render, but the
@@ -105,7 +109,7 @@ vi.mock("@multica/core/realtime", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
 
 import { useIssueTimeline } from "./use-issue-timeline";
@@ -592,5 +596,95 @@ describe("useIssueTimeline", () => {
       });
     });
     expect(cacheUpdates.last).toBeNull();
+  });
+});
+
+// CLAWSTA-151 R4 (B11 / F3): a saved comment whose parent-sync copy did not
+// land must say so and must never resend the body.
+describe("useIssueTimeline — parent sync delivery", () => {
+  beforeEach(() => {
+    vi.mocked(toast.warning).mockClear();
+    stableHandles.createMutateAsync.mockClear();
+  });
+
+  // The delivery warning is user-facing copy, so this hook needs the real
+  // resource bundle instead of a bare i18next instance.
+  function renderTimeline() {
+    function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <I18nProvider locale="en" resources={RESOURCES}>
+          {children}
+        </I18nProvider>
+      );
+    }
+    return renderHook(() => useIssueTimeline("issue-1", "user-1"), { wrapper: Wrapper });
+  }
+
+  async function submit(parentSync: Record<string, unknown> | undefined) {
+    stableHandles.createMutateAsync.mockResolvedValue({
+      id: "comment-1",
+      issue_id: "issue-1",
+      content: "shipped",
+      parent_sync: parentSync,
+    });
+    const { result } = renderTimeline();
+    let returned: string | false = false;
+    await act(async () => {
+      returned = await result.current.submitComment("shipped");
+    });
+    return returned;
+  }
+
+  it("forwards the grid's sync choice to the create mutation", async () => {
+    stableHandles.createMutateAsync.mockResolvedValue({ id: "comment-1" });
+    const { result } = renderTimeline();
+
+    await act(async () => {
+      await result.current.submitComment("shipped", undefined, undefined, undefined, true);
+    });
+
+    expect(stableHandles.createMutateAsync).toHaveBeenCalledWith({
+      content: "shipped",
+      attachmentIds: undefined,
+      suppressAgentIds: undefined,
+      steerTaskIds: undefined,
+      syncParentAssignee: true,
+    });
+  });
+
+  it("warns with the server's reason when the sync copy failed, without reposting", async () => {
+    const returned = await submit({
+      mode: "unavailable",
+      delivery_status: "failed",
+      // B11 sends a stable code here; the UI owns the sentence.
+      reason: "enqueue_failed",
+    });
+
+    // The comment itself is posted: the composer clears, the body is never
+    // sent again, and the user is told where the copy went.
+    expect(returned).toBe("comment-1");
+    expect(stableHandles.createMutateAsync).toHaveBeenCalledTimes(1);
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Comment posted, but it did not reach the parent issue's owner: The owner's run could not be queued.",
+    );
+  });
+
+  it("degrades an unknown reason code to the generic sentence instead of echoing it", async () => {
+    await submit({
+      mode: "unavailable",
+      delivery_status: "failed",
+      reason: "a server sentence this client does not know",
+    });
+
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Comment posted, but it did not reach the parent issue's owner: This copy could not be delivered to the parent card's owner.",
+    );
+  });
+
+  it("stays quiet when the sync copy landed", async () => {
+    const returned = await submit({ mode: "agent", delivery_status: "queued" });
+
+    expect(returned).toBe("comment-1");
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });

@@ -302,7 +302,7 @@ INSERT INTO issue (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
     $16, COALESCE($17::jsonb, '{}'::jsonb), now(), COALESCE($18::uuid, gen_random_uuid()),
-    CASE WHEN $4::text = 'in_review' THEN jsonb_build_object('review_since', now()) ELSE '{}'::jsonb END
+    CASE WHEN $4::text IN ('in_review', 'blocked') THEN jsonb_build_object('review_since', now()) ELSE '{}'::jsonb END
 ) RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, triage_state, duplicate_of_issue_id
 `
 
@@ -393,7 +393,7 @@ INSERT INTO issue (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
     $16, $17, $18, COALESCE($19::jsonb, '{}'::jsonb), now(), COALESCE($20::uuid, gen_random_uuid()),
-    CASE WHEN $4::text = 'in_review' THEN jsonb_build_object('review_since', now()) ELSE '{}'::jsonb END
+    CASE WHEN $4::text IN ('in_review', 'blocked') THEN jsonb_build_object('review_since', now()) ELSE '{}'::jsonb END
 ) RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, triage_state, duplicate_of_issue_id
 `
 
@@ -1223,6 +1223,50 @@ func (q *Queries) ListChildrenByParents(ctx context.Context, arg ListChildrenByP
 			&i.TriageState,
 			&i.DuplicateOfIssueID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIssueDispatchers = `-- name: ListIssueDispatchers :many
+SELECT i.id,
+       d.dispatcher_user_id,
+       COALESCE(d.dispatcher_active, FALSE)::boolean AS dispatcher_active
+FROM issue i
+LEFT JOIN issue_dispatcher d ON d.id = i.id
+WHERE i.workspace_id = $1
+  AND i.id = ANY($2::uuid[])
+`
+
+type ListIssueDispatchersParams struct {
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+	Ids         []pgtype.UUID `json:"ids"`
+}
+
+type ListIssueDispatchersRow struct {
+	ID               pgtype.UUID `json:"id"`
+	DispatcherUserID pgtype.UUID `json:"dispatcher_user_id"`
+	DispatcherActive bool        `json:"dispatcher_active"`
+}
+
+// CLAWSTA-151 B9: batch read of the dispatcher projection for a page of issues
+// (or one issue). The view carries the single resolution rule, so list rows,
+// detail, validation, and list filters cannot drift apart.
+func (q *Queries) ListIssueDispatchers(ctx context.Context, arg ListIssueDispatchersParams) ([]ListIssueDispatchersRow, error) {
+	rows, err := q.db.Query(ctx, listIssueDispatchers, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIssueDispatchersRow{}
+	for rows.Next() {
+		var i ListIssueDispatchersRow
+		if err := rows.Scan(&i.ID, &i.DispatcherUserID, &i.DispatcherActive); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2089,6 +2133,76 @@ func (q *Queries) SetIssueMetadataKey(ctx context.Context, arg SetIssueMetadataK
 	return i, err
 }
 
+const setIssueReviewMetadata = `-- name: SetIssueReviewMetadata :one
+UPDATE issue SET
+    metadata = $1::jsonb,
+    revision = revision + $2::bigint,
+    last_activity_at = CASE WHEN $2::bigint > 0
+        THEN GREATEST(COALESCE(last_activity_at, updated_at), now())
+        ELSE last_activity_at
+    END,
+    updated_at = CASE WHEN $2::bigint > 0 THEN now() ELSE updated_at END
+WHERE id = $3 AND workspace_id = $4
+RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, triage_state, duplicate_of_issue_id
+`
+
+type SetIssueReviewMetadataParams struct {
+	Metadata     []byte      `json:"metadata"`
+	BumpRevision int64       `json:"bump_revision"`
+	ID           pgtype.UUID `json:"id"`
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+}
+
+// Writes the already-validated five-key review snapshot AFTER the status
+// UPDATE (CLAWSTA-151 B8). On this deployment the review_* cleanup and round
+// timer live in the UpdateIssue / UpdateIssueStatus metadata CASE (no 584/585
+// trigger), so this second write preserves review_since while replacing the
+// five published keys. bump_revision is 1 only when the status write itself
+// changed nothing, so the pair still advances the issue revision exactly once
+// and publishes one post-write snapshot.
+func (q *Queries) SetIssueReviewMetadata(ctx context.Context, arg SetIssueReviewMetadataParams) (Issue, error) {
+	row := q.db.QueryRow(ctx, setIssueReviewMetadata,
+		arg.Metadata,
+		arg.BumpRevision,
+		arg.ID,
+		arg.WorkspaceID,
+	)
+	var i Issue
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeType,
+		&i.AssigneeID,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.ParentIssueID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Position,
+		&i.DueDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Number,
+		&i.ProjectID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.StartDate,
+		&i.Metadata,
+		&i.Stage,
+		&i.Properties,
+		&i.Revision,
+		&i.LastActivityAt,
+		&i.TriageState,
+		&i.DuplicateOfIssueID,
+	)
+	return i, err
+}
+
 const updateIssue = `-- name: UpdateIssue :one
 WITH wakeup_source AS MATERIALIZED (SELECT set_config('multica.source_task_id', COALESCE($3::uuid::text, ''), true)), candidate AS MATERIALIZED (
     -- FOR UPDATE, so every next_* value below is computed from the row this
@@ -2101,9 +2215,20 @@ WITH wakeup_source AS MATERIALIZED (SELECT set_config('multica.source_task_id', 
     SELECT
         i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.triage_state, i.duplicate_of_issue_id,
         CASE
-            WHEN i.status IS DISTINCT FROM COALESCE($4::text, i.status) AND COALESCE($4::text, i.status) = 'in_review'
-                THEN COALESCE($5::jsonb, i.metadata) || jsonb_build_object('review_since', now())
-            WHEN i.status = 'in_review' AND COALESCE($4::text, i.status) <> 'in_review'
+            -- CLAWSTA-151 B8 (local port): a card entering EITHER review status
+            -- starts a new round - previous review_* keys never follow it and the
+            -- round timer restarts. This replaces the UWorkers 584/585 trigger,
+            -- which this deployment deliberately does not ship (no down migration
+            -- needed on rollback).
+            WHEN i.status IS DISTINCT FROM COALESCE($4::text, i.status)
+                 AND COALESCE($4::text, i.status) IN ('in_review', 'blocked')
+                THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
+                     FROM jsonb_each(COALESCE($5::jsonb, i.metadata)) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
+                     || jsonb_build_object('review_since', now())
+            -- Leaving either review status clears every review_* key, including
+            -- the entry timestamp, so a reopened card never shows a stale round.
+            WHEN i.status IS DISTINCT FROM COALESCE($4::text, i.status)
+                 AND i.status IN ('in_review', 'blocked')
                 THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
                      FROM jsonb_each(COALESCE($5::jsonb, i.metadata)) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
             ELSE COALESCE($5::jsonb, i.metadata)
@@ -2299,9 +2424,12 @@ const updateIssueStatus = `-- name: UpdateIssueStatus :one
 WITH wakeup_source AS MATERIALIZED (SELECT set_config('multica.source_task_id', COALESCE($4::uuid::text, ''), true))
 UPDATE issue AS i SET
     metadata = CASE
-            WHEN i.status IS DISTINCT FROM $2::text AND $2::text = 'in_review'
-                THEN i.metadata || jsonb_build_object('review_since', now())
-            WHEN i.status = 'in_review' AND $2::text <> 'in_review'
+            -- CLAWSTA-151 B8 (local port): the two review statuses share one rule.
+            WHEN i.status IS DISTINCT FROM $2::text AND $2::text IN ('in_review', 'blocked')
+                THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
+                     FROM jsonb_each(i.metadata) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
+                     || jsonb_build_object('review_since', now())
+            WHEN i.status IS DISTINCT FROM $2::text AND i.status IN ('in_review', 'blocked')
                 THEN COALESCE((SELECT jsonb_object_agg(entry.key, entry.value)
                      FROM jsonb_each(i.metadata) AS entry WHERE left(entry.key, 7) <> 'review_'), '{}'::jsonb)
             ELSE i.metadata

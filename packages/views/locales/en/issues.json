@@ -549,7 +549,9 @@
     "wakeup_checkin_coalesced_one": "{{count}} silent check · latest: {{note}}",
     "wakeup_checkin_coalesced_other": "{{count}} silent checks · latest: {{note}}",
     "wakeup_chip_created_by": "{{name}}'s wakeup",
-    "wakeup_chip_system": "System rule"
+    "wakeup_chip_system": "System rule",
+    "issue_assignee_no_action": "acknowledged: no changes needed",
+    "issue_assignee_no_action_reason": "acknowledged: no changes needed ({{reason}})"
   },
   "comment": {
     "add_reaction": "Add reaction",
@@ -1473,5 +1475,66 @@
     "feedback_label": "Send-back feedback",
     "note_not_delivered": "Feedback starting with /note is only recorded and will not reach {{name}}",
     "not_delivered": "This feedback cannot reach {{name}}. Send back was not completed."
+  },
+  "awaiting_r4": {
+    "group_reply": "Replies",
+    "group_act": "Actions",
+    "group_approve": "Approvals",
+    "reply": "Reply",
+    "reply_label": "Your reply",
+    "reply_placeholder": "Answer in one line",
+    "done": "Done",
+    "done_label": "What you did",
+    "act_default": "Done: {{action}}",
+    "not_delivered": "This cannot reach {{name}}. Nothing was sent.",
+    "note_not_delivered": "Content starting with /note is only recorded and will not reach {{name}}",
+    "unmarked": "{{count}} more are waiting, but no one is marked",
+    "problem": {
+      "no_dispatcher": "No one can act on this card: the person who assigned it has left the workspace.",
+      "dispatcher_inactive": "The person who assigned this card is no longer in the workspace.",
+      "receiver_inactive": "The chosen reviewer is no longer in the workspace.",
+      "invalid_review_mark": "This card's review note is incomplete, so it cannot be routed.",
+      "unknown": "This card cannot be routed to a person. Ask a workspace admin to check it."
+    }
+  },
+  "parent_sync": {
+    "sync_to_owner": "Sync to parent's owner · {{name}}",
+    "sync_to_owner_unnamed": "Sync to parent's owner",
+    "sync_to_recipient": "Sync to {{name}}",
+    "locked_hint": "already notified",
+    "delivery_failed": "Comment posted, but it did not reach the parent issue's owner",
+    "delivery_failed_reason": "Comment posted, but it did not reach the parent issue's owner: {{reason}}",
+    "reason": {
+      "duplicate_pending_task": "The owner already has a queued run for this card, so this copy was not queued again.",
+      "attribution_blocked": "The owner's queued run belongs to someone else, so this copy was not added to it.",
+      "internal_error": "Something went wrong while queueing the copy for the owner.",
+      "enqueue_failed": "The owner's run could not be queued.",
+      "inbox_failed": "The inbox notification could not be delivered.",
+      "issue_has_no_parent": "This card has no parent card to sync to.",
+      "parent_issue_missing": "The parent card no longer exists.",
+      "no_fallback_recipient": "No one can receive this copy: the parent card has no owner and no admin fallback.",
+      "parent_sync_daemon_unsupported": "Agents on this deployment cannot be woken for a synced comment yet. Post a normal comment instead.",
+      "unknown": "This copy could not be delivered to the parent card's owner."
+    }
+  },
+  "review_badge_r4": {
+    "reply_you": "Waiting on your reply",
+    "act_you": "Waiting on your action"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}} can't wake {{name}}",
+    "description": "Later automatic follow-ups on this task will fail.",
+    "create_child": "Create my own sub-issue for it",
+    "transfer_anyway": "Transfer anyway",
+    "cancel": "Cancel",
+    "not_allowed": "You can't transfer this task to {{name}}.",
+    "reason": {
+      "actor_cannot_assign": "You don't have permission to hand this card to it.",
+      "dispatcher_cannot_invoke": "The person who assigned this card can't wake it for later follow-ups.",
+      "dispatcher_inactive": "The person who assigned this card has left the workspace, so later follow-ups can't reach it.",
+      "unknown": "Later automatic follow-ups on this task may fail."
+    },
+    "dispatcher_unknown": "The person who assigned this task",
+    "not_allowed_reason": "You can't transfer this task to {{name}}. {{reason}}"
   }
 }

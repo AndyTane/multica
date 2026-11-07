@@ -60,13 +60,26 @@ type IssueResponse struct {
 	// field at all: with omitempty a built-in fixture hides it from BOTH
 	// renderings, and the drift guard goes green on a payload that has drifted.
 	// (MUL-6749)
-	StatusName    string  `json:"status_name"`
-	Priority      string  `json:"priority"`
-	AssigneeType  *string `json:"assignee_type"`
-	AssigneeID    *string `json:"assignee_id"`
-	CreatorType   string  `json:"creator_type"`
-	CreatorID     string  `json:"creator_id"`
-	ParentIssueID *string `json:"parent_issue_id"`
+	StatusName   string  `json:"status_name"`
+	Priority     string  `json:"priority"`
+	AssigneeType *string `json:"assignee_type"`
+	AssigneeID   *string `json:"assignee_id"`
+	CreatorType  string  `json:"creator_type"`
+	CreatorID    string  `json:"creator_id"`
+	// DispatcherUserID is the member who dispatched this issue (CLAWSTA-151 B9):
+	// the member who created it, or — for an agent-created quick-create issue —
+	// the task's human requester. Resolved from server-side relations only; old
+	// clients ignore it and a response that could not resolve it omits both
+	// dispatcher fields rather than claiming the issue has no dispatcher.
+	DispatcherUserID *string `json:"dispatcher_user_id,omitempty"`
+	// DispatcherActive reports whether DispatcherUserID is still a member of
+	// this workspace. Present exactly when DispatcherUserID is.
+	DispatcherActive *bool `json:"dispatcher_active,omitempty"`
+	// AwaitingProblem names why a card in the awaiting=unmarked list cannot be
+	// delivered to a live member (no_dispatcher / dispatcher_inactive /
+	// receiver_inactive / invalid_review_mark). Only the unmarked list sets it.
+	AwaitingProblem *string `json:"awaiting_problem,omitempty"`
+	ParentIssueID   *string `json:"parent_issue_id"`
 	// DuplicateOf is the original this issue duplicates (MUL-7349), set only
 	// while the mark counts: the issue is cancelled and the original still
 	// exists. newStatusCategoryFiller resolves it from duplicateOfIssueID;
@@ -1256,6 +1269,14 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		resp[i] = sir
 	}
+	searchIssues := make([]IssueResponse, len(resp))
+	for i := range resp {
+		searchIssues[i] = resp[i].IssueResponse
+	}
+	h.fillIssueDispatchers(ctx, wsUUID, searchIssues)
+	for i := range resp {
+		resp[i].IssueResponse = searchIssues[i]
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"issues": resp,
@@ -1281,6 +1302,13 @@ func (h *Handler) QueryIssues(w http.ResponseWriter, r *http.Request) {
 	r.URL.RawQuery = values.Encode()
 	h.ListIssues(w, r)
 }
+
+// reviewSinceSortExpr orders review-status cards by how long they have been
+// waiting. This deployment stores the review round entry time in
+// metadata.review_since instead of the status_changed_at column UWorkers ships
+// (migrations 584/585 are deliberately absent), so the sort expression reads the
+// local key and falls back to updated_at for legacy rows.
+const reviewSinceSortExpr = "COALESCE(CASE WHEN i.metadata->>'review_since' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' THEN (i.metadata->>'review_since')::timestamptz END, i.updated_at)"
 
 func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1361,8 +1389,43 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// CLAWSTA-151 B10: "waiting on me" / "waiting on nobody marked" lists. Both
+	// are server-side filters so pagination and total agree with the sidebar.
+	awaitingFilter, ok := parseAwaitingFilter(r.URL.Query().Get("awaiting"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "awaiting must be mine or unmarked")
+		return
+	}
+	dispatcherFilter, dispatcherFilterValid, ok := parseOptionalUserUUID(r.URL.Query().Get("dispatcher_user_id"), "dispatcher_user_id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "dispatcher_user_id must be a UUID")
+		return
+	}
+	var awaitingUser pgtype.UUID
+	awaitingViewerRole := ""
+	if awaitingFilter != "" {
+		viewerID, ok := parseUUIDOrBadRequest(w, requestUserID(r), "workspace_member")
+		if !ok {
+			return
+		}
+		member, memberErr := h.Queries.GetMemberByUserAndWorkspace(ctx, db.GetMemberByUserAndWorkspaceParams{
+			UserID:      viewerID,
+			WorkspaceID: wsUUID,
+		})
+		if memberErr != nil {
+			writeError(w, http.StatusForbidden, "not a workspace member")
+			return
+		}
+		awaitingUser = viewerID
+		awaitingViewerRole = member.Role
+	}
+
 	// open_only=true returns all non-done/cancelled issues (no limit).
 	if r.URL.Query().Get("open_only") == "true" {
+		if awaitingFilter != "" {
+			writeError(w, http.StatusBadRequest, "awaiting cannot be combined with open_only")
+			return
+		}
 		// Serialize the parsed AND-of-ORs groups into the single jsonb param
 		// the static query unrolls (see properties_filter in ListOpenIssues).
 		var openPropertiesFilter []byte
@@ -1416,6 +1479,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 			resp[i].Labels = &labels
 		}
 
+		h.fillIssueDispatchers(ctx, wsUUID, resp)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"issues": resp,
 			"total":  len(resp),
@@ -1484,12 +1548,21 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	sortIsExpr := false
 	sortIsProperty := false
 	sortByStatus := false
+	sortByReviewSince := false
 	if s := r.URL.Query().Get("sort"); s != "" {
 		switch s {
 		case "position", "title", "created_at", "updated_at", "start_date", "due_date":
 			sortCol = s
 		case "last_activity":
 			sortCol = "last_activity_at"
+		case "status_changed_at":
+			// CLAWSTA-151 B10 port note: this deployment does not ship the
+			// status_changed_at column (no 584/585 migration). The equivalent
+			// "how long has this card been waiting" signal is the local
+			// metadata.review_since, with updated_at as the legacy fallback.
+			sortCol = reviewSinceSortExpr
+			sortIsExpr = true
+			sortByReviewSince = true
 		case "status":
 			sortCol = "status"
 			sortIsExpr = true
@@ -1710,6 +1783,28 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 )`, ref))
 	}
 
+	if dispatcherFilterValid {
+		where = append(where, fmt.Sprintf("%s = %s::uuid", issueDispatcherUserExpr("i"), addArg(dispatcherFilter)))
+	}
+	if awaitingFilter == "mine" {
+		where = append(where, awaitingMinePredicate("i", addArg(awaitingUser)))
+	} else if awaitingFilter == "unmarked" {
+		meRef := addArg(awaitingUser)
+		predicate := awaitingUnmarkedPredicate("i", meRef)
+		if awaitingViewerRole != "owner" && awaitingViewerRole != "admin" {
+			// A plain member only sees their own unmarked cards; the anomaly
+			// (owner/admin) branch above also reaches cards whose dispatcher is gone.
+			predicate = fmt.Sprintf(`(%[1]s.status IN ('in_review', 'blocked')
+        AND (%[2]s) = %[3]s
+        AND (%[1]s.metadata->>'review_by' IS NULL
+             OR (%[1]s.metadata->>'review_by' = 'user'
+                 AND (NOT (%[4]s) OR (%[5]s) IS NULL OR NOT (%[6]s))))`,
+				"i", issueDispatcherUserExpr("i"), meRef, issueDispatcherActiveExpr("i"),
+				issueReviewReceiverExpr("i"), issueReviewMarkValidExpr("i"))
+		}
+		where = append(where, predicate)
+	}
+
 	whereSql := strings.Join(where, " AND ")
 
 	// Build ORDER BY clause.
@@ -1740,6 +1835,8 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	// LIMIT/OFFSET requests, duplicating or dropping rows at page boundaries.
 	if sortCol == "last_activity_at" {
 		orderBy += ", i.id DESC"
+	} else if sortByReviewSince {
+		orderBy += ", i.id ASC"
 	} else {
 		orderBy += ", i.created_at DESC, i.id DESC"
 	}
@@ -1832,6 +1929,25 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 		resp[i].Labels = &labels
 	}
 	h.fillStatusCategories(ctx, wsUUID, resp)
+	h.fillIssueDispatchers(ctx, wsUUID, resp)
+	if awaitingFilter == "unmarked" {
+		issueRows := make([]db.Issue, len(issues))
+		for i, row := range issues {
+			issueRows[i] = db.Issue{
+				ID:          row.ID,
+				WorkspaceID: row.WorkspaceID,
+				Status:      row.Status,
+				Metadata:    row.Metadata,
+			}
+		}
+		problems := h.loadAwaitingProblems(ctx, wsUUID, issueRows)
+		for i := range resp {
+			if problem, exists := problems[resp[i].ID]; exists {
+				code := problem
+				resp[i].AwaitingProblem = &code
+			}
+		}
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"issues": resp,
@@ -2271,6 +2387,11 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
 			sortCol = s
 		case "last_activity":
 			sortCol = "last_activity_at"
+		case "status_changed_at":
+			// Same local port note as ListIssues: review_since stands in for the
+			// status_changed_at column this deployment does not have.
+			sortCol = reviewSinceSortExpr
+			sortIsExpr = true
 		case "status":
 			var err error
 			sortCol, err = h.issueStatusSortExpression(r.Context(), wsUUID, addArg)
@@ -2441,6 +2562,8 @@ ORDER BY
 
 	groups := []IssueAssigneeGroupResponse{}
 	groupIndex := map[string]int{}
+	flat := make([]IssueResponse, 0, len(groupedRows))
+	flatGroup := make([]int, 0, len(groupedRows))
 	for _, row := range groupedRows {
 		groupID := assigneeGroupID(row.AssigneeType, row.AssigneeID)
 		idx, exists := groupIndex[groupID]
@@ -2463,7 +2586,12 @@ ORDER BY
 			labels = []LabelResponse{}
 		}
 		issue.Labels = &labels
-		groups[idx].Issues = append(groups[idx].Issues, issue)
+		flat = append(flat, issue)
+		flatGroup = append(flatGroup, idx)
+	}
+	h.fillIssueDispatchers(ctx, wsUUID, flat)
+	for i := range flat {
+		groups[flatGroup[i]].Issues = append(groups[flatGroup[i]].Issues, flat[i])
 	}
 
 	writeJSON(w, http.StatusOK, GroupedIssuesResponse{Groups: groups})
@@ -2478,6 +2606,7 @@ func (h *Handler) GetIssue(w http.ResponseWriter, r *http.Request) {
 	prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
 	resp := issueToResponse(issue, prefix)
 	h.fillStatusCategory(r.Context(), issue.WorkspaceID, &resp)
+	h.fillOneIssueDispatcher(r.Context(), issue.WorkspaceID, &resp)
 	detailLabels := h.labelsByIssue(r.Context(), issue.WorkspaceID, []pgtype.UUID{issue.ID})[uuidToString(issue.ID)]
 	if detailLabels == nil {
 		detailLabels = []LabelResponse{}
@@ -2553,6 +2682,7 @@ func (h *Handler) ListChildIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		resp[i].Labels = &labels
 	}
+	h.fillIssueDispatchers(r.Context(), issue.WorkspaceID, resp)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"issues": resp,
 	})
@@ -2639,6 +2769,7 @@ func (h *Handler) ListChildrenByParents(w http.ResponseWriter, r *http.Request) 
 		}
 		resp[i].Labels = &labels
 	}
+	h.fillIssueDispatchers(r.Context(), wsUUID, resp)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"issues": resp,
 	})
@@ -3339,6 +3470,19 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		}
 		originType = pgtype.Text{String: *req.OriginType, Valid: true}
 		originID = oid
+		if *req.OriginType == "quick_create" && creatorType == "agent" {
+			// CLAWSTA-151 B9: a quick-create issue must bind its origin to the
+			// task this run is actually executing (X-Task-ID is server-stamped
+			// from the mat_ token). Otherwise the same agent could lend out a
+			// DIFFERENT quick-create task it once ran as the provenance, and the
+			// dispatcher projection would credit the wrong requester.
+			trustedTaskID := r.Header.Get("X-Task-ID")
+			trustedTask, parseErr := util.ParseUUID(trustedTaskID)
+			if parseErr != nil || trustedTask != originID {
+				writeError(w, http.StatusBadRequest, "origin_id must be the current task for a quick-create issue")
+				return
+			}
+		}
 	} else if creatorType == "agent" {
 		// MUL-4305: an agent creating an issue via the ordinary create path
 		// carries no explicit origin, which historically left the new issue
@@ -3446,6 +3590,7 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		dup := *res.DuplicateIssue
 		existing := issueToResponse(dup, h.getIssuePrefix(r.Context(), dup.WorkspaceID))
 		h.fillStatusCategory(r.Context(), dup.WorkspaceID, &existing)
+		h.fillOneIssueDispatcher(r.Context(), dup.WorkspaceID, &existing)
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"code":  "active_duplicate_issue",
 			"error": duplicateIssueMessage(existing),
@@ -3487,6 +3632,7 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	resp := issueToResponse(issue, prefix)
 	fillCreated(&resp)
+	h.fillOneIssueDispatcher(r.Context(), wsUUID, &resp)
 	resp.Attachments = buildAttachmentResponses(res.Attachments)
 	// Echo the authoritative labels attached in the create transaction. Always
 	// non-nil (empty slice when none) so a newer client can tell the backend
@@ -3694,19 +3840,57 @@ func (h *Handler) updateIssueAtomically(ctx context.Context, workspaceID pgtype.
 		}
 	}
 	refreshUntouchedNullableIssueParams(&params, current, rawFields)
+	var reviewEntries map[string]json.RawMessage
+	reviewRequested := false
 	if review, present := rawFields["review_metadata"]; present {
+		reviewRequested = true
+		// The revision is the concurrency precondition for the WHOLE pair: one
+		// status change plus one review snapshot, never two half-applied writes.
 		if !params.ExpectedRevision.Valid || current.Revision != params.ExpectedRevision.Int64 {
 			return db.Issue{}, current, false, pgx.ErrNoRows
 		}
-		params.ReviewMetadata, err = prepareReviewMetadata(ctx, qtx, current, review)
+		if !params.Status.Valid {
+			return db.Issue{}, current, false, &reviewValidationError{"review_metadata requires a target status"}
+		}
+		reviewEntries, err = resolveReviewMetadata(ctx, qtx, current, review, params.Status.String)
 		if err != nil {
 			return db.Issue{}, current, false, err
 		}
+		// B8: write the status first and the new mark second. The trigger clears
+		// the five keys on any transition out of in_review/blocked, so a single
+		// UPDATE carrying both would delete the mark it was meant to publish.
+		params.ReviewMetadata = nil
 	}
 
 	issue, cancelledWakeups, err := updateIssueStoppingWakeups(ctx, qtx, params)
 	if err != nil {
 		return db.Issue{}, current, false, fmt.Errorf("update locked issue: %w", err)
+	}
+
+	if reviewRequested {
+		metadata, mergeErr := mergeReviewMetadata(issue.Metadata, reviewEntries)
+		if mergeErr != nil {
+			return db.Issue{}, current, false, mergeErr
+		}
+		if !jsonMetadataEqual(metadata, issue.Metadata) {
+			// The status write already advanced the revision when it changed
+			// anything; otherwise this metadata write is the change and must
+			// advance it exactly once. Either way the caller sees one revision
+			// bump and one post-write snapshot per request.
+			var bumpRevision int64
+			if issue.Revision == current.Revision {
+				bumpRevision = 1
+			}
+			issue, err = qtx.SetIssueReviewMetadata(ctx, db.SetIssueReviewMetadataParams{
+				ID:           issue.ID,
+				WorkspaceID:  issue.WorkspaceID,
+				Metadata:     metadata,
+				BumpRevision: bumpRevision,
+			})
+			if err != nil {
+				return db.Issue{}, current, false, fmt.Errorf("write review metadata: %w", err)
+			}
+		}
 	}
 
 	attachmentsChanged := false
@@ -3778,8 +3962,11 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, present := rawFields["review_metadata"]; present {
-		if req.Status == nil || *req.Status != "in_review" || req.ExpectedRevision == nil {
-			writeError(w, http.StatusBadRequest, "review_metadata requires status in_review and expected_revision")
+		// CLAWSTA-151 B7: review marks publish on the two statuses that can wait
+		// on a person (approval in in_review, reply/act in blocked), and the
+		// atomic write needs the revision it is replacing.
+		if req.Status == nil || (*req.Status != reviewStatusInReview && *req.Status != reviewStatusBlocked) || req.ExpectedRevision == nil {
+			writeError(w, http.StatusBadRequest, "review_metadata requires status in_review or blocked and expected_revision")
 			return
 		}
 	}
@@ -4032,6 +4219,7 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	slog.Info("issue updated", append(logger.RequestAttrs(r), "issue_id", id, "workspace_id", workspaceID)...)
 
 	h.fillStatusCategory(r.Context(), issue.WorkspaceID, &resp)
+	h.fillOneIssueDispatcher(r.Context(), issue.WorkspaceID, &resp)
 	assigneeChanged := (req.AssigneeType != nil || req.AssigneeID != nil) &&
 		(prevIssue.AssigneeType.String != issue.AssigneeType.String || uuidToString(prevIssue.AssigneeID) != uuidToString(issue.AssigneeID))
 	statusChanged := req.Status != nil && prevIssue.Status != issue.Status
@@ -4477,6 +4665,7 @@ func (h *Handler) publishIssueSnapshots(ctx context.Context, issues []db.Issue, 
 	for _, issue := range issues {
 		response := issueToResponse(issue, h.getIssuePrefix(ctx, issue.WorkspaceID))
 		h.fillStatusCategory(ctx, issue.WorkspaceID, &response)
+		h.fillOneIssueDispatcher(ctx, issue.WorkspaceID, &response)
 		h.publish(protocol.EventIssueUpdated, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"issue": response})
 	}
 }
@@ -4490,6 +4679,7 @@ func (h *Handler) publishClearedDuplicates(ctx context.Context, cleared []cleare
 		prefix := h.getIssuePrefix(ctx, c.Issue.WorkspaceID)
 		response := issueToResponse(c.Issue, prefix)
 		h.fillStatusCategory(ctx, c.Issue.WorkspaceID, &response)
+		h.fillOneIssueDispatcher(ctx, c.Issue.WorkspaceID, &response)
 		h.publish(protocol.EventIssueUpdated, uuidToString(c.Issue.WorkspaceID), actorType, actorID, map[string]any{
 			"issue":                        response,
 			"duplicate_of_issue_id":        liveDuplicateMark(c.Issue.Status, c.Issue.DuplicateOfIssueID),
@@ -4814,6 +5004,7 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		actorType, actorID := h.resolveActor(r, userID, workspaceID)
 
 		fillBatch(&resp)
+		h.fillOneIssueDispatcher(r.Context(), issue.WorkspaceID, &resp)
 		assigneeChanged := (req.Updates.AssigneeType != nil || req.Updates.AssigneeID != nil) &&
 			(prevIssue.AssigneeType.String != issue.AssigneeType.String || uuidToString(prevIssue.AssigneeID) != uuidToString(issue.AssigneeID))
 		statusChanged := req.Updates.Status != nil && prevIssue.Status != issue.Status

@@ -39,6 +39,8 @@ import {
   unhandledCommentTriggerOutcomes,
   mentionLabelsByTarget,
 } from "@multica/core/issues/comment-trigger-outcomes";
+import { parentSyncDeliveryWarning } from "@multica/core/issues/parent-sync";
+import { parentSyncReasonMessageKey } from "@multica/core/issues/server-codes";
 import { useWSEvent, useWSReconnect } from "@multica/core/realtime";
 import { removeCommentSubtree } from "@multica/core/issues/comment-deletion";
 import { toast } from "sonner";
@@ -350,16 +352,43 @@ export function useIssueTimeline(issueId: string, userId?: string) {
     [t],
   );
 
+  // The comment saved, but its copy for the parent issue's owner did not land
+  // (CLAWSTA-151 R4, B11 partial result). Say so and stop: the body is already
+  // posted, so it must never be resent.
+  const warnParentSyncDelivery = useCallback(
+    (parentSync: Comment["parent_sync"]) => {
+      const warning = parentSyncDeliveryWarning(parentSync);
+      if (!warning) return;
+      toast.warning(
+        warning.reason
+          ? t(($) => $.parent_sync.delivery_failed_reason, {
+              reason: t(
+                ($) => $.parent_sync.reason[parentSyncReasonMessageKey(warning.reason)],
+              ),
+            })
+          : t(($) => $.parent_sync.delivery_failed),
+      );
+    },
+    [t],
+  );
+
   // Returns true on success, false on failure. The composer keeps the user's
   // text (editor locked + button spinning) until this settles and clears only
   // on success — so a slow send no longer leaves the box full next to an
   // already-posted comment, and a failed send keeps the draft.
   const submitComment = useCallback(
-    async (content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[]): Promise<string | false> => {
+    async (content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[], syncParentAssignee?: boolean): Promise<string | false> => {
       if (!content.trim() || !userId) return false;
       try {
-        const comment = await createComment({ content, attachmentIds, suppressAgentIds, steerTaskIds });
+        const comment = await createComment({
+          content,
+          attachmentIds,
+          suppressAgentIds,
+          steerTaskIds,
+          syncParentAssignee,
+        });
         warnUnhandledTriggers(comment?.trigger_outcomes, comment?.content);
+        warnParentSyncDelivery(comment?.parent_sync);
         return comment.id;
       } catch (err) {
         toast.error(
@@ -370,11 +399,11 @@ export function useIssueTimeline(issueId: string, userId?: string) {
         return false;
       }
     },
-    [userId, createComment, warnUnhandledTriggers, t],
+    [userId, createComment, warnUnhandledTriggers, warnParentSyncDelivery, t],
   );
 
   const submitReply = useCallback(
-    async (parentId: string, content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[]): Promise<string | false> => {
+    async (parentId: string, content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[], syncParentAssignee?: boolean): Promise<string | false> => {
       if (!content.trim() || !userId) return false;
       try {
         const comment = await createComment({
@@ -384,8 +413,10 @@ export function useIssueTimeline(issueId: string, userId?: string) {
           attachmentIds,
           suppressAgentIds,
           steerTaskIds,
+          syncParentAssignee,
         });
         warnUnhandledTriggers(comment?.trigger_outcomes, comment?.content);
+        warnParentSyncDelivery(comment?.parent_sync);
         return comment.id;
       } catch (err) {
         toast.error(
@@ -396,7 +427,7 @@ export function useIssueTimeline(issueId: string, userId?: string) {
         return false;
       }
     },
-    [userId, createComment, warnUnhandledTriggers, t],
+    [userId, createComment, warnUnhandledTriggers, warnParentSyncDelivery, t],
   );
 
   const editComment = useCallback(

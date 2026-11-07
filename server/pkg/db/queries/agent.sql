@@ -330,9 +330,16 @@ SELECT
     COALESCE(sqlc.narg('is_leader_task')::boolean, FALSE),
     sqlc.narg(handoff_note),
     sqlc.narg(squad_id),
+    -- CLAWSTA-151 B11: a parent-sync run additionally records the direct parent
+    -- card, the sync source comment and the receiving identity, so completion,
+    -- replay and the no_action exit can prove where the obligation came from.
     CASE
+        WHEN COALESCE(sqlc.narg('head_sha')::text, '') <> '' AND sqlc.narg('parent_sync')::jsonb IS NOT NULL
+        THEN jsonb_build_object('head_sha', sqlc.narg('head_sha')::text) || sqlc.narg('parent_sync')::jsonb
         WHEN COALESCE(sqlc.narg('head_sha')::text, '') <> ''
         THEN jsonb_build_object('head_sha', sqlc.narg('head_sha')::text)
+        WHEN sqlc.narg('parent_sync')::jsonb IS NOT NULL
+        THEN sqlc.narg('parent_sync')::jsonb
         ELSE NULL
     END,
     sqlc.narg(originator_user_id),
@@ -733,6 +740,12 @@ SELECT count(*) > 0
 FROM agent_task_queue
 WHERE parent_task_id = $1
   AND status <> 'cancelled';
+
+-- name: LockAgentTask :one
+-- Serializes the "read it, nothing to change" record against comment merging /
+-- steering, so a comment folded in after the record cannot be swallowed by it
+-- (CLAWSTA-151 B12).
+SELECT * FROM agent_task_queue WHERE id = $1 FOR UPDATE;
 
 -- name: GetAgentTaskInWorkspace :one
 -- Loads a task only when its owning agent lives in the given workspace.
@@ -1966,6 +1979,19 @@ WHERE id = (
           COALESCE(sqlc.narg('head_sha')::text, '') = ''
           OR t.context->>'head_sha' = sqlc.narg('head_sha')::text
       )
+      -- CLAWSTA-151 B12: a run that already recorded "read it, nothing to
+      -- change" must not absorb a NEW instruction, or the no_action would
+      -- silently cover comments its model never read. Such a comment instead
+      -- starts a fresh round after this task completes.
+      AND NOT EXISTS (
+          SELECT 1 FROM activity_log noaction
+          WHERE noaction.issue_id = t.issue_id
+            AND noaction.actor_id = t.agent_id
+            AND noaction.actor_type = 'agent'
+            AND noaction.action IN ('squad_leader_evaluated', 'issue_assignee_evaluated')
+            AND noaction.details->>'outcome' = 'no_action'
+            AND noaction.details->>'task_id' = t.id::text
+      )
     ORDER BY t.created_at DESC
     LIMIT 1
 )
@@ -2013,6 +2039,17 @@ WHERE id = (
       AND (
           COALESCE(sqlc.narg('head_sha')::text, '') = ''
           OR t.context->>'head_sha' = sqlc.narg('head_sha')::text
+      )
+      -- CLAWSTA-151 B12: never attach a new instruction to a run that already
+      -- declared it read the previous input and needed no change.
+      AND NOT EXISTS (
+          SELECT 1 FROM activity_log noaction
+          WHERE noaction.issue_id = t.issue_id
+            AND noaction.actor_id = t.agent_id
+            AND noaction.actor_type = 'agent'
+            AND noaction.action IN ('squad_leader_evaluated', 'issue_assignee_evaluated')
+            AND noaction.details->>'outcome' = 'no_action'
+            AND noaction.details->>'task_id' = t.id::text
       )
     ORDER BY t.created_at DESC
     LIMIT 1

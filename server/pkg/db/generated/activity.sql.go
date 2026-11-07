@@ -120,6 +120,42 @@ func (q *Queries) GetActivity(ctx context.Context, id pgtype.UUID) (ActivityLog,
 	return i, err
 }
 
+const getTaskEvaluationActivity = `-- name: GetTaskEvaluationActivity :one
+SELECT id, workspace_id, issue_id, actor_type, actor_id, action, details, created_at FROM activity_log
+WHERE issue_id = $1
+  AND actor_type = 'agent'
+  AND actor_id = $2
+  AND action IN ('squad_leader_evaluated', 'issue_assignee_evaluated')
+  AND details->>'task_id' = $3::text
+ORDER BY created_at ASC
+LIMIT 1
+`
+
+type GetTaskEvaluationActivityParams struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	AgentID pgtype.UUID `json:"agent_id"`
+	TaskID  string      `json:"task_id"`
+}
+
+// The evaluation record for a task, whichever review exit wrote it (squad
+// leader, or the R4 parent-assignee sync). Locking-order note: callers record
+// while holding the task row lock, so this is a plain read.
+func (q *Queries) GetTaskEvaluationActivity(ctx context.Context, arg GetTaskEvaluationActivityParams) (ActivityLog, error) {
+	row := q.db.QueryRow(ctx, getTaskEvaluationActivity, arg.IssueID, arg.AgentID, arg.TaskID)
+	var i ActivityLog
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.IssueID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.Action,
+		&i.Details,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const hasSquadLeaderNoActionEvaluationForTask = `-- name: HasSquadLeaderNoActionEvaluationForTask :one
 SELECT EXISTS (
   SELECT 1
@@ -141,6 +177,34 @@ type HasSquadLeaderNoActionEvaluationForTaskParams struct {
 
 func (q *Queries) HasSquadLeaderNoActionEvaluationForTask(ctx context.Context, arg HasSquadLeaderNoActionEvaluationForTaskParams) (bool, error) {
 	row := q.db.QueryRow(ctx, hasSquadLeaderNoActionEvaluationForTask, arg.IssueID, arg.AgentID, arg.TaskID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasTaskNoActionEvaluation = `-- name: HasTaskNoActionEvaluation :one
+SELECT EXISTS (
+  SELECT 1
+  FROM activity_log
+  WHERE issue_id = $1
+    AND actor_type = 'agent'
+    AND actor_id = $2
+    AND action IN ('squad_leader_evaluated', 'issue_assignee_evaluated')
+    AND details->>'outcome' = 'no_action'
+    AND details->>'task_id' = $3::text
+) AS exists
+`
+
+type HasTaskNoActionEvaluationParams struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	AgentID pgtype.UUID `json:"agent_id"`
+	TaskID  string      `json:"task_id"`
+}
+
+// Suppression lookup shared by the comment endpoint and completion fallback:
+// either review exit that decided "read it, nothing to change".
+func (q *Queries) HasTaskNoActionEvaluation(ctx context.Context, arg HasTaskNoActionEvaluationParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasTaskNoActionEvaluation, arg.IssueID, arg.AgentID, arg.TaskID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

@@ -118,5 +118,8 @@
     "unarchive_failed": "Échec du désarchivage",
     "archived_load_failed": "Échec du chargement des notifications archivées",
     "filters_load_failed": "Impossible de charger les filtres"
+  },
+  "parent_line": {
+    "text": "Dans {{identifier}} · {{title}}"
   }
 }

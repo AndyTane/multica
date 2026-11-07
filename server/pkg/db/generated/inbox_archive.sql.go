@@ -146,9 +146,14 @@ WITH newest AS MATERIALIZED (
     LIMIT $10::int
 )
 SELECT i.id, i.workspace_id, i.recipient_type, i.recipient_id, i.type, i.severity, i.issue_id, i.title, i.body, i.read, i.archived, i.created_at, i.actor_type, i.actor_id, i.details, selected.issue_status, selected.issue_priority,
-       COALESCE(anchor.comment_id, '')::text AS comment_id
+       COALESCE(anchor.comment_id, '')::text AS comment_id,
+       parent.id AS parent_issue_id,
+       parent.number AS parent_issue_number,
+       parent.title AS parent_issue_title
 FROM selected
 JOIN inbox_item i ON i.id = selected.id
+LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue parent ON parent.id = iss.parent_issue_id AND parent.workspace_id = i.workspace_id
 LEFT JOIN LATERAL (
     SELECT a.details->>'comment_id' AS comment_id
     FROM inbox_item a
@@ -175,10 +180,13 @@ type ListArchivedInboxPageParams struct {
 }
 
 type ListArchivedInboxPageRow struct {
-	InboxItem     InboxItem   `json:"inbox_item"`
-	IssueStatus   pgtype.Text `json:"issue_status"`
-	IssuePriority pgtype.Text `json:"issue_priority"`
-	CommentID     string      `json:"comment_id"`
+	InboxItem         InboxItem   `json:"inbox_item"`
+	IssueStatus       pgtype.Text `json:"issue_status"`
+	IssuePriority     pgtype.Text `json:"issue_priority"`
+	CommentID         string      `json:"comment_id"`
+	ParentIssueID     pgtype.UUID `json:"parent_issue_id"`
+	ParentIssueNumber pgtype.Int4 `json:"parent_issue_number"`
+	ParentIssueTitle  pgtype.Text `json:"parent_issue_title"`
 }
 
 // Select narrow group representatives before loading bodies or comment anchors.
@@ -221,6 +229,9 @@ func (q *Queries) ListArchivedInboxPage(ctx context.Context, arg ListArchivedInb
 			&i.IssueStatus,
 			&i.IssuePriority,
 			&i.CommentID,
+			&i.ParentIssueID,
+			&i.ParentIssueNumber,
+			&i.ParentIssueTitle,
 		); err != nil {
 			return nil, err
 		}

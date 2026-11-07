@@ -2896,6 +2896,15 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			resp.TriggerCommentContent = "The newest triggering comment is no longer available. Address every earlier comment included below."
 		}
 
+		// CLAWSTA-151 B11/B15: a parent-sync run carries the parent card in its
+		// task context. Surface it so the daemon can render the "read the parent
+		// first, silence is allowed only for this pure sync" rules and point the
+		// silent exit at the right issue.
+		if parentSync, ok := h.TaskService.ParseParentSyncTaskContext(*task); ok {
+			resp.ParentSyncCardID = parentSync.ParentIssueID
+			resp.ParentSyncCommentID = parentSync.SourceCommentID
+		}
+
 		// Resolve the prior agent session / workdir to resume.
 		if task.RerunOfTaskID.Valid {
 			// Manual retry: resume precisely from the source task the user

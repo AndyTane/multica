@@ -55,6 +55,8 @@ import type {
   IssueSubscriber,
   Comment,
   CommentTriggerPreview,
+  AssignmentPreview,
+  AssignmentPreviewRequest,
   IssueTriggerPreview,
   IssueTriggerPreviewParams,
   Reaction,
@@ -269,6 +271,7 @@ import {
   ChildIssueProgressResponseSchema,
   CommentsListSchema,
   CommentTriggerPreviewSchema,
+  AssignmentPreviewSchema,
   IssueTriggerPreviewSchema,
   CloudRuntimeNodeListSchema,
   CloudRuntimeNodeSchema,
@@ -1088,6 +1091,9 @@ export class ApiClient {
     if (params?.priorities?.length) search.set("priorities", params.priorities.join(","));
     if (params?.assignee_id) search.set("assignee_id", params.assignee_id);
     if (params?.assignee_ids?.length) search.set("assignee_ids", params.assignee_ids.join(","));
+    // CLAWSTA-151 B10 review queues and the dispatcher filter.
+    if (params?.awaiting) search.set("awaiting", params.awaiting);
+    if (params?.dispatcher_user_id) search.set("dispatcher_user_id", params.dispatcher_user_id);
     if (params?.assignee_types?.length) search.set("assignee_types", params.assignee_types.join(","));
     if (params?.creator_id) search.set("creator_id", params.creator_id);
     if (params?.project_id) search.set("project_id", params.project_id);
@@ -1107,6 +1113,8 @@ export class ApiClient {
     // (nothing running), while an absent param means no restriction.
     if (params?.ids) search.set("ids", params.ids.join(","));
     if (params?.involves_user_id) search.set("involves_user_id", params.involves_user_id);
+    if (params?.awaiting) search.set("awaiting", params.awaiting);
+    if (params?.dispatcher_user_id) search.set("dispatcher_user_id", params.dispatcher_user_id);
     if (params?.metadata && Object.keys(params.metadata).length > 0) {
       search.set("metadata", JSON.stringify(params.metadata));
     }
@@ -1646,6 +1654,7 @@ export class ApiClient {
     attachmentIds?: string[],
     suppressAgentIds?: string[],
     steerTaskIds?: string[],
+    syncParentAssignee?: boolean,
   ): Promise<Comment> {
     return this.fetch(`/api/issues/${issueId}/comments`, {
       method: "POST",
@@ -1656,17 +1665,21 @@ export class ApiClient {
         ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
         ...(suppressAgentIds?.length ? { suppress_agent_ids: suppressAgentIds } : {}),
         ...(steerTaskIds?.length ? { steer_task_ids: steerTaskIds } : {}),
+        // CLAWSTA-151 B11: boolean only; the server resolves the target.
+        ...(syncParentAssignee ? { sync_parent_assignee: true } : {}),
       }),
     });
   }
 
-  async previewCommentTriggers(issueId: string, content: string, parentId?: string, editingCommentId?: string): Promise<CommentTriggerPreview> {
+  async previewCommentTriggers(issueId: string, content: string, parentId?: string, editingCommentId?: string, syncParentAssignee?: boolean): Promise<CommentTriggerPreview> {
     const raw = await this.fetch<unknown>(`/api/issues/${issueId}/comments/trigger-preview`, {
       method: "POST",
       body: JSON.stringify({
         content,
         ...(parentId ? { parent_id: parentId } : {}),
         ...(editingCommentId ? { editing_comment_id: editingCommentId } : {}),
+        // CLAWSTA-151 B11 preview of the parent-sync switch.
+        ...(syncParentAssignee ? { sync_parent_assignee: true } : {}),
       }),
     });
     return parseWithFallback(raw, CommentTriggerPreviewSchema, { agents: [] }, {
@@ -1691,6 +1704,24 @@ export class ApiClient {
     });
     return parseWithFallback(raw, IssueTriggerPreviewSchema, { triggers: [], total_count: 0 }, {
       endpoint: "POST /api/issues/preview-trigger",
+    });
+  }
+
+  /** Read-only preflight for changing an issue's assignee (CLAWSTA-151 B13).
+   *  The picker uses it to explain "this dispatcher can no longer wake that
+   *  agent" BEFORE the write; it never authorizes anything. A malformed or
+   *  older-server response becomes null ("no preview"), which keeps the
+   *  pre-existing transfer path instead of inventing a permission verdict. */
+  async previewIssueAssignment(
+    issueId: string,
+    input: AssignmentPreviewRequest,
+  ): Promise<AssignmentPreview | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/assignment-preview`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<AssignmentPreview | null>(raw, AssignmentPreviewSchema, null, {
+      endpoint: "POST /api/issues/:id/assignment-preview",
     });
   }
 

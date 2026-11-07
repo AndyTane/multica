@@ -605,6 +605,7 @@ type Comment struct {
 	RecoverySettledAt  pgtype.Timestamptz `json:"recovery_settled_at"`
 	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
 	SuppressedAgentIds []pgtype.UUID      `json:"suppressed_agent_ids"`
+	ParentSync         []byte             `json:"parent_sync"`
 }
 
 type CommentReaction struct {
@@ -865,6 +866,13 @@ type IssueDependency struct {
 	IssueID          pgtype.UUID `json:"issue_id"`
 	DependsOnIssueID pgtype.UUID `json:"depends_on_issue_id"`
 	Type             string      `json:"type"`
+}
+
+type IssueDispatcher struct {
+	ID               pgtype.UUID `json:"id"`
+	WorkspaceID      pgtype.UUID `json:"workspace_id"`
+	DispatcherUserID pgtype.UUID `json:"dispatcher_user_id"`
+	DispatcherActive pgtype.Bool `json:"dispatcher_active"`
 }
 
 type IssueLabel struct {

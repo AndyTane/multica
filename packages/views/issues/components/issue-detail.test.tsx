@@ -78,6 +78,23 @@ vi.mock("@multica/core/workspace/hooks", () => ({
   }),
 }));
 
+// CLAWSTA-151 F6: the sidebar's assignee picker must hand the issue to the
+// transfer preflight; then the preflight can name who dispatched the card.
+const { wireAgent, assignPreflightMock } = vi.hoisted(() => ({
+  assignPreflightMock: vi.fn(),
+  wireAgent: {
+    id: "agent-wire",
+    name: "Ops Bot",
+    archived_at: null,
+    visibility: "workspace",
+    runtime_id: "runtime-1",
+    runtime_bound: true,
+    owner_id: null,
+    permission_mode: "public_to",
+    invocation_targets: [{ target_type: "workspace", target_id: "ws-1" }],
+  },
+}));
+
 // Mock workspace queries
 vi.mock("@multica/core/workspace/queries", () => ({
   memberListOptions: () => ({
@@ -86,7 +103,7 @@ vi.mock("@multica/core/workspace/queries", () => ({
   }),
   agentListOptions: () => ({
     queryKey: ["workspaces", "ws-1", "agents"],
-    queryFn: () => Promise.resolve([]),
+    queryFn: () => Promise.resolve([wireAgent]),
   }),
   squadListOptions: () => ({
     queryKey: ["workspaces", "ws-1", "squads"],
@@ -338,6 +355,7 @@ const mockApiObj = vi.hoisted(() => ({
   removeCommentReaction: vi.fn(),
   listMembers: vi.fn().mockResolvedValue([{ user_id: "user-1", name: "Test User", email: "test@test.com", role: "admin" }]),
   listAgents: vi.fn().mockResolvedValue([]),
+  previewIssueAssignment: assignPreflightMock,
   getAgent: vi.fn().mockResolvedValue(null),
   listRuntimes: vi.fn().mockResolvedValue([]),
   getProject: vi.fn(),
@@ -1109,6 +1127,32 @@ describe("IssueDetail (shared)", () => {
     // The "+ Add property" affordance is always offered while any
     // optional field is still hidden.
     expect(screen.getByText("Add property")).toBeInTheDocument();
+  });
+
+  it("hands the issue to the sidebar assignee picker so the transfer preflight can check it", async () => {
+    assignPreflightMock.mockResolvedValue({
+      actor_can_assign: true,
+      dispatcher_user_id: "user-1",
+      dispatcher_can_invoke: false,
+      reason: "dispatcher_cannot_invoke",
+    });
+    renderIssueDetail();
+
+    await waitFor(() => {
+      expect(screen.getByText("Properties")).toBeInTheDocument();
+    });
+
+    // The Assignee row's trigger is the only place this row renders an avatar.
+    const row = screen.getByText("Assignee").closest("div")!;
+    fireEvent.click(within(row).getByTestId("actor-avatar"));
+    fireEvent.click(await screen.findByText("Ops Bot"));
+
+    await waitFor(() =>
+      expect(assignPreflightMock).toHaveBeenCalledWith("issue-1", {
+        assignee_type: "agent",
+        assignee_id: "agent-wire",
+      }),
+    );
   });
 
   it("hides every optional property row when none are set", async () => {
@@ -2071,6 +2115,45 @@ describe("IssueDetail (shared)", () => {
     expect(screen.getByText(/set this issue to keep its status when PRs merge/i)).toBeInTheDocument();
   });
 
+  // CLAWSTA-151 F4 / B12: an owner woken by the parent-comment sync can close
+  // the loop silently. Each acknowledgement carries its own reason, so the rows
+  // must render one per line — folding them into a "×N" summary would drop the
+  // audit trail the reason exists for.
+  it("renders issue_assignee_evaluated rows individually with their reason", async () => {
+    mockApiObj.listTimeline.mockResolvedValue([
+      {
+        type: "activity",
+        id: "act-eval-1",
+        actor_type: "agent",
+        actor_id: "agent-1",
+        action: "issue_assignee_evaluated",
+        details: { outcome: "no_action", reason: "nothing to change on the sub-issue" },
+        created_at: "2026-01-18T00:00:00Z",
+      },
+      {
+        type: "activity",
+        id: "act-eval-2",
+        actor_type: "agent",
+        actor_id: "agent-1",
+        action: "issue_assignee_evaluated",
+        details: { outcome: "no_action", reason: "covered by the parent's fix" },
+        created_at: "2026-01-18T00:00:30Z",
+      },
+    ] as unknown as TimelineEntry[]);
+
+    renderIssueDetail();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/acknowledged: no changes needed \(nothing to change on the sub-issue\)/i),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/acknowledged: no changes needed \(covered by the parent's fix\)/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("×2")).not.toBeInTheDocument();
+  });
+
   // MUL-7680: the child-done system rule's comment is the woken agent's
   // instruction; people read one timeline line that can reveal it.
   it("renders activity rows with unknown status values without crashing", async () => {
@@ -2998,6 +3081,43 @@ describe("IssueDetail (shared)", () => {
       // Bare row shows no due date / no progress chip of its own.
       const bareRow = screen.getByText("Ship dashboards").closest("a");
       expect(bareRow?.textContent).not.toContain("/");
+    });
+
+    // CLAWSTA-151 F6: a sub-issue row is a single-card assignee entry point, so
+    // its picker must carry the child card into the transfer preflight.
+    it("preflights an assignee change with the card from a sub-issue row", async () => {
+      mockApiObj.listChildIssues.mockResolvedValue({
+        issues: [
+          subIssue({
+            id: "child-1",
+            number: 11,
+            identifier: "TES-11",
+            title: "Fix login flow",
+            assignee_type: "agent",
+            assignee_id: "agent-1",
+          }),
+        ],
+      });
+      assignPreflightMock.mockResolvedValue({
+        actor_can_assign: true,
+        dispatcher_user_id: "user-1",
+        dispatcher_can_invoke: null,
+      });
+
+      renderIssueDetail();
+
+      await screen.findByText("Fix login flow");
+      const rowLink = screen.getByText("Fix login flow").closest("a")!;
+      const row = rowLink.parentElement!;
+      fireEvent.click(within(row).getByTestId("actor-avatar"));
+      fireEvent.click(await screen.findByText("Ops Bot"));
+
+      await waitFor(() =>
+        expect(assignPreflightMock).toHaveBeenCalledWith("child-1", {
+          assignee_type: "agent",
+          assignee_id: "agent-wire",
+        }),
+      );
     });
 
     it("hides fields the user toggled off in the display preference", async () => {

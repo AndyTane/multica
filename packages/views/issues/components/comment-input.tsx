@@ -14,6 +14,10 @@ import { ReplyAnnotations } from "./reply-annotations";
 import { useT } from "../../i18n";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
+import { isNoteCommentDraft } from "../utils/note-command";
+import { useParentSync } from "../hooks/use-parent-sync";
+import { ParentSyncToggle } from "./parent-sync-toggle";
+import type { ParentSyncOwnership } from "@multica/core/issues/parent-sync";
 import { useRecipientActions } from "../hooks/use-recipient-actions";
 import { SteerAttachmentNotice } from "./steer-attachment-notice";
 import { useStopRunsBeforeSend } from "./use-stop-runs-before-send";
@@ -25,11 +29,15 @@ interface CommentInputProps {
   issueId: string;
   /** Resolves true on success, false on failure. The composer keeps the text
    *  (editor locked + button spinning) until this settles, then clears only on
-   *  success — a failed send must not silently discard the user's draft. */
-  onSubmit: (content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[]) => Promise<string | boolean>;
+   *  success — a failed send must not silently discard the user's draft.
+   *  `syncParentAssignee` rides along only when the user left the sync box on. */
+  onSubmit: (content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[], syncParentAssignee?: boolean) => Promise<string | boolean>;
   /** Called after the server accepts the comment and the composer is cleared. */
   onAccepted?: (commentId: string) => void;
   onEditAnnotation?: (id: string) => boolean;
+  /** Sub-issue ownership snapshot that enables the parent-sync toggle
+   *  (CLAWSTA-151 F3). Null/absent on a top-level issue. */
+  parentSyncOwnership?: ParentSyncOwnership | null;
 }
 
 // A top-level comment belongs to no thread, so it takes a running turn by
@@ -38,7 +46,7 @@ function steerTopLevelByDefault(task: AgentTask): boolean {
   return !task.trigger_comment_id;
 }
 
-function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: CommentInputProps) {
+function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation, parentSyncOwnership = null }: CommentInputProps) {
   const { t } = useT("issues");
   const { t: tEditor } = useT("editor");
   const sendShortcut = useShortcut("send");
@@ -62,6 +70,13 @@ function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: Comme
   const composedContent = useMemo(() => composeAnnotatedReply(content, annotations), [content, annotations]);
   const canSend = annotations.length ? hasReplyIntent(content, annotations) : !isEmpty;
   const triggerPreview = useCommentTriggerPreview({ issueId, content: canSend ? composedContent : "" });
+  // Handing this comment to the parent issue's owner is opt-in, off by default,
+  // and impossible for a /note (which by contract never wakes anyone).
+  const parentSync = useParentSync({
+    issueId,
+    ownership: parentSyncOwnership,
+    note: isNoteCommentDraft(composedContent),
+  });
   // Uploads for this composer session (MUL-5181). Owned by the module-level
   // coordinator and persisted in the draft store, so closing/scrolling the
   // composer away no longer drops an in-flight upload — its result lands in the
@@ -186,12 +201,16 @@ function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: Comme
       const activeIds = pendingAttachments
         .filter((a) => contentReferencesAttachment(content, a))
         .map((a) => a.id);
-      return onSubmit(
+      const submitArgs: [string, string[] | undefined, string[] | undefined, string[] | undefined, boolean?] = [
         content,
         activeIds.length > 0 ? activeIds : undefined,
         suppressAgentIds.length > 0 ? suppressAgentIds : undefined,
         steerTaskIds.length > 0 ? steerTaskIds : undefined,
-      ).then((commentId) => {
+      ];
+      // Omit the extra argument entirely when the box is off, so an ordinary
+      // comment still reaches the submit handler with its original arity.
+      if (parentSync.syncParentAssignee) submitArgs.push(true);
+      return onSubmit(...submitArgs).then((commentId) => {
         acceptedCommentIdRef.current = typeof commentId === "string" ? commentId : null;
         return !!commentId;
       });
@@ -213,6 +232,8 @@ function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: Comme
       setContent("");
       setIsEmpty(true);
       resetRecipients();
+      // The sync choice belongs to one comment: the next draft starts off.
+      parentSync.reset();
       editorScrubbedRef.current = true;
       if (acceptedCommentIdRef.current) onAccepted?.(acceptedCommentIdRef.current);
     },
@@ -229,6 +250,17 @@ function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: Comme
       {annotations.length > 0 && <div className="px-3 pt-2">
         <ReplyAnnotations draftKey={draftKey} annotations={annotations} disabled={submitting}
           onEditAnnotation={onEditAnnotation} />
+      </div>}
+      {parentSync.visible && parentSync.kind && <div className="px-3 pt-2">
+        <ParentSyncToggle
+          kind={parentSync.kind}
+          name={parentSync.name}
+          reason={parentSync.reason}
+          checked={parentSync.checked}
+          locked={parentSync.locked}
+          disabled={parentSync.disabled}
+          onCheckedChange={parentSync.onCheckedChange}
+        />
       </div>}
       {/* Lock the editor while the send is in flight. ContentEditor can't
           toggle Tiptap's `editable` post-mount (see its docstring), so the

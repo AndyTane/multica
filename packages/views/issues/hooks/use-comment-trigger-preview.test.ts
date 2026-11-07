@@ -6,9 +6,9 @@ import { api } from "@multica/core/api";
 import type { CommentTriggerPreviewAgent } from "@multica/core/types";
 import {
   commentTriggerPreviewSignature,
-  isNoteCommentDraft,
   useCommentTriggerPreview,
 } from "./use-comment-trigger-preview";
+import { isNoteCommentDraft } from "../utils/note-command";
 
 vi.mock("@multica/core/api", () => ({
   api: {

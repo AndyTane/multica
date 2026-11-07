@@ -7,8 +7,9 @@ import { issueKeys } from "@multica/core/issues/queries";
 import { parseMentions } from "@multica/core/issues/comment-trigger-outcomes";
 import type { CommentTriggerPreviewAgent, CommentTriggerOutcome } from "@multica/core/types";
 
+import { isNoteCommentDraft } from "../utils/note-command";
+
 const COMMENT_TRIGGER_PREVIEW_DEBOUNCE_MS = 300;
-const NOTE_COMMAND_RE = /^\/note(?:$|\s)/i;
 
 export interface UseCommentTriggerPreviewResult {
   agents: CommentTriggerPreviewAgent[];
@@ -25,10 +26,6 @@ export interface UseCommentTriggerPreviewResult {
    * nothing destructive may act on it.
    */
   isCurrent: boolean;
-}
-
-export function isNoteCommentDraft(content: string): boolean {
-  return NOTE_COMMAND_RE.test(content.replace(/^[ \t\r\n]+/, ""));
 }
 
 export function commentTriggerPreviewSignature(content: string): string {

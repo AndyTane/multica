@@ -2263,12 +2263,18 @@ SELECT
     COALESCE($9::boolean, FALSE),
     $10,
     $11,
+    -- CLAWSTA-151 B11: a parent-sync run additionally records the direct parent
+    -- card, the sync source comment and the receiving identity, so completion,
+    -- replay and the no_action exit can prove where the obligation came from.
     CASE
+        WHEN COALESCE($12::text, '') <> '' AND $13::jsonb IS NOT NULL
+        THEN jsonb_build_object('head_sha', $12::text) || $13::jsonb
         WHEN COALESCE($12::text, '') <> ''
         THEN jsonb_build_object('head_sha', $12::text)
+        WHEN $13::jsonb IS NOT NULL
+        THEN $13::jsonb
         ELSE NULL
     END,
-    $13,
     $14,
     $15,
     $16,
@@ -2278,7 +2284,8 @@ SELECT
     $20,
     $21,
     $22,
-    COALESCE($23::uuid, gen_random_uuid())
+    $23,
+    COALESCE($24::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, comment_thread_id, cancelled_by_type, cancelled_by_id, cancelled_by_name, issue_snapshot
 `
@@ -2296,6 +2303,7 @@ type CreateAgentTaskParams struct {
 	HandoffNote          pgtype.Text   `json:"handoff_note"`
 	SquadID              pgtype.UUID   `json:"squad_id"`
 	HeadSha              pgtype.Text   `json:"head_sha"`
+	ParentSync           []byte        `json:"parent_sync"`
 	OriginatorUserID     pgtype.UUID   `json:"originator_user_id"`
 	AccountableUserID    pgtype.UUID   `json:"accountable_user_id"`
 	RuntimeMcpOverlay    []byte        `json:"runtime_mcp_overlay"`
@@ -2341,6 +2349,7 @@ func (q *Queries) CreateAgentTask(ctx context.Context, arg CreateAgentTaskParams
 		arg.HandoffNote,
 		arg.SquadID,
 		arg.HeadSha,
+		arg.ParentSync,
 		arg.OriginatorUserID,
 		arg.AccountableUserID,
 		arg.RuntimeMcpOverlay,
@@ -5813,7 +5822,7 @@ func (q *Queries) ListChatFinalizeDeferredExpired(ctx context.Context, arg ListC
 }
 
 const listPendingDelegatedFailureRecoveries = `-- name: ListPendingDelegatedFailureRecoveries :many
-SELECT recovery.id, recovery.issue_id, recovery.author_type, recovery.author_id, recovery.content, recovery.type, recovery.created_at, recovery.updated_at, recovery.parent_id, recovery.workspace_id, recovery.resolved_at, recovery.resolved_by_type, recovery.resolved_by_id, recovery.source_task_id, recovery.quick_action_id, recovery.via_plugin_id, recovery.revision, recovery.recovery_settled_at, recovery.deleted_at, recovery.suppressed_agent_ids
+SELECT recovery.id, recovery.issue_id, recovery.author_type, recovery.author_id, recovery.content, recovery.type, recovery.created_at, recovery.updated_at, recovery.parent_id, recovery.workspace_id, recovery.resolved_at, recovery.resolved_by_type, recovery.resolved_by_id, recovery.source_task_id, recovery.quick_action_id, recovery.via_plugin_id, recovery.revision, recovery.recovery_settled_at, recovery.deleted_at, recovery.suppressed_agent_ids, recovery.parent_sync
 FROM comment recovery
 JOIN agent_task_queue failed ON failed.id = recovery.source_task_id
 JOIN agent_task_queue source ON source.id = failed.delegated_from_task_id
@@ -5932,6 +5941,7 @@ func (q *Queries) ListPendingDelegatedFailureRecoveries(ctx context.Context, max
 			&i.RecoverySettledAt,
 			&i.DeletedAt,
 			&i.SuppressedAgentIds,
+			&i.ParentSync,
 		); err != nil {
 			return nil, err
 		}
@@ -6787,6 +6797,80 @@ func (q *Queries) LockAgentForAutopilotAssignment(ctx context.Context, arg LockA
 	return i, err
 }
 
+const lockAgentTask = `-- name: LockAgentTask :one
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, comment_thread_id, cancelled_by_type, cancelled_by_id, cancelled_by_name, issue_snapshot FROM agent_task_queue WHERE id = $1 FOR UPDATE
+`
+
+// Serializes the "read it, nothing to change" record against comment merging /
+// steering, so a comment folded in after the record cannot be swallowed by it
+// (CLAWSTA-151 B12).
+func (q *Queries) LockAgentTask(ctx context.Context, id pgtype.UUID) (AgentTaskQueue, error) {
+	row := q.db.QueryRow(ctx, lockAgentTask, id)
+	var i AgentTaskQueue
+	err := row.Scan(
+		&i.ID,
+		&i.AgentID,
+		&i.IssueID,
+		&i.Status,
+		&i.Priority,
+		&i.DispatchedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.Result,
+		&i.Error,
+		&i.CreatedAt,
+		&i.Context,
+		&i.RuntimeID,
+		&i.SessionID,
+		&i.WorkDir,
+		&i.TriggerCommentID,
+		&i.ChatSessionID,
+		&i.AutopilotRunID,
+		&i.Attempt,
+		&i.MaxAttempts,
+		&i.ParentTaskID,
+		&i.FailureReason,
+		&i.TriggerSummary,
+		&i.ForceFreshSession,
+		&i.IsLeaderTask,
+		&i.WaitReason,
+		&i.InitiatorUserID,
+		&i.HandoffNote,
+		&i.PrepareLeaseExpiresAt,
+		&i.SquadID,
+		&i.RuntimeMcpOverlay,
+		&i.EscalationForTaskID,
+		&i.FireAt,
+		&i.OriginatorUserID,
+		&i.RuntimeConnectedApps,
+		&i.CoalescedCommentIds,
+		&i.DeliveredCommentIds,
+		&i.ChatInputTaskID,
+		&i.ChatFinalizeDeferredAt,
+		&i.OriginatorSource,
+		&i.DelegatedFromTaskID,
+		&i.RetryOfTaskID,
+		&i.RerunOfTaskID,
+		&i.RuleVersionID,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRefID,
+		&i.AccountableUserID,
+		&i.SessionRolloutMissing,
+		&i.RetiredSessionID,
+		&i.QuickActionsDisabled,
+		&i.RegenerateQuickActionsFor,
+		&i.BranchName,
+		&i.DurableWorkDir,
+		&i.ChannelContextRevision,
+		&i.CommentThreadID,
+		&i.CancelledByType,
+		&i.CancelledByID,
+		&i.CancelledByName,
+		&i.IssueSnapshot,
+	)
+	return i, err
+}
+
 const lockAgentTaskStartClaim = `-- name: LockAgentTaskStartClaim :one
 SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, comment_thread_id, cancelled_by_type, cancelled_by_id, cancelled_by_name, issue_snapshot FROM agent_task_queue
 WHERE id = $1 AND runtime_id = $2 AND dispatched_at = $3
@@ -7078,6 +7162,19 @@ WHERE id = (
       AND (
           COALESCE($14::text, '') = ''
           OR t.context->>'head_sha' = $14::text
+      )
+      -- CLAWSTA-151 B12: a run that already recorded "read it, nothing to
+      -- change" must not absorb a NEW instruction, or the no_action would
+      -- silently cover comments its model never read. Such a comment instead
+      -- starts a fresh round after this task completes.
+      AND NOT EXISTS (
+          SELECT 1 FROM activity_log noaction
+          WHERE noaction.issue_id = t.issue_id
+            AND noaction.actor_id = t.agent_id
+            AND noaction.actor_type = 'agent'
+            AND noaction.action IN ('squad_leader_evaluated', 'issue_assignee_evaluated')
+            AND noaction.details->>'outcome' = 'no_action'
+            AND noaction.details->>'task_id' = t.id::text
       )
     ORDER BY t.created_at DESC
     LIMIT 1
@@ -8181,6 +8278,17 @@ WHERE id = (
       AND (
           COALESCE($4::text, '') = ''
           OR t.context->>'head_sha' = $4::text
+      )
+      -- CLAWSTA-151 B12: never attach a new instruction to a run that already
+      -- declared it read the previous input and needed no change.
+      AND NOT EXISTS (
+          SELECT 1 FROM activity_log noaction
+          WHERE noaction.issue_id = t.issue_id
+            AND noaction.actor_id = t.agent_id
+            AND noaction.actor_type = 'agent'
+            AND noaction.action IN ('squad_leader_evaluated', 'issue_assignee_evaluated')
+            AND noaction.details->>'outcome' = 'no_action'
+            AND noaction.details->>'task_id' = t.id::text
       )
     ORDER BY t.created_at DESC
     LIMIT 1

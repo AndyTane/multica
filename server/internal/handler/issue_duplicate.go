@@ -155,6 +155,7 @@ func (h *Handler) ListIssueDuplicates(w http.ResponseWriter, r *http.Request) {
 		case err == nil:
 			resp := issueToResponse(original, prefix)
 			fill(&resp)
+			h.fillOneIssueDispatcher(r.Context(), issue.WorkspaceID, &resp)
 			duplicateOf = &resp
 		case !isNotFound(err):
 			slog.Warn("load duplicate original failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
@@ -178,6 +179,7 @@ func (h *Handler) ListIssueDuplicates(w http.ResponseWriter, r *http.Request) {
 		fill(&resp)
 		duplicates = append(duplicates, resp)
 	}
+	h.fillIssueDispatchers(r.Context(), issue.WorkspaceID, duplicates)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"duplicate_of": duplicateOf,
