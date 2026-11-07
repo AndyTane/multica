@@ -420,7 +420,10 @@ func (h *Handler) createParentSyncInbox(ctx context.Context, issue db.Issue, com
 		Type:          parentSyncInboxType,
 		Severity:      "info",
 		IssueID:       issue.ID,
-		Title:         "Sub-issue comment synced",
+		// The row title is the CHILD card's title (B14), like every other inbox
+		// row: the "sub-issue comment" framing is a UI type label, so the server
+		// must not ship an English sentence the other four locales cannot read.
+		Title:         issue.Title,
 		Body:          util.StrToText(inboxSyncBody(comment.Content)),
 		ActorType:     util.StrToText(comment.AuthorType),
 		ActorID:       comment.AuthorID,

@@ -31,7 +31,11 @@ export type InboxItemType =
   | "autopilot_quota_exceeded"
   // Sub-issues of an issue assigned to the recipient closed (the child_done
   // system rule notifies a member assignee instead of waking an agent).
-  | "children_done";
+  | "children_done"
+  // CLAWSTA-151 B11/B14: a copy of a sub-issue comment delivered to the parent
+  // card's member assignee. The kind is server-only machine data; the five
+  // locales own its sentence, so it must never be printed raw.
+  | "parent_sync_comment";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

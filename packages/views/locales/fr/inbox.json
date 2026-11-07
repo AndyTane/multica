@@ -81,7 +81,9 @@
     "quick_create_unconfirmed": "Création avec un agent non confirmée",
     "autopilot_paused": "Automatisation en pause",
     "children_done": "Sous-tâches terminées",
-    "autopilot_quota_exceeded": "Limite d'exécutions d'automatisation atteinte"
+    "autopilot_quota_exceeded": "Limite d'exécutions d'automatisation atteinte",
+    "parent_sync_comment": "Nouveau commentaire de sous-tâche",
+    "unknown": "Notification"
   },
   "labels": {
     "set_status_to": "Statut défini sur",
@@ -96,7 +98,8 @@
     "created_with_agent": "Créé avec un agent : {{identifier}}",
     "failed_with_detail": "Échec : {{detail}}",
     "autopilot_quota_blocked": "Exécution bloquée car la limite a été atteinte",
-    "children_done_stage": "Sous-tâches de l’étape {{stage}} terminées"
+    "children_done_stage": "Sous-tâches de l’étape {{stage}} terminées",
+    "parent_sync_comment_body": "Nouveau commentaire de sous-tâche : {{body}}"
   },
   "toasts": {
     "source_context_retry_started": "Nouvelle tentative démarrée avec le contexte d'origine",

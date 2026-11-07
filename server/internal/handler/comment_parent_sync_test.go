@@ -123,9 +123,13 @@ func TestCreateCommentSyncToMemberNotifiesInbox(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("sync inbox items = %d, want 1", count)
 	}
+	var title string
 	var details []byte
-	dbfx.QueryRow(t, `SELECT details FROM inbox_item WHERE workspace_id = $1 AND recipient_id = $2 AND type = $3 AND issue_id = $4`,
-		testWorkspaceID, recipient, parentSyncInboxType, child).Scan(&details)
+	dbfx.QueryRow(t, `SELECT title, details FROM inbox_item WHERE workspace_id = $1 AND recipient_id = $2 AND type = $3 AND issue_id = $4`,
+		testWorkspaceID, recipient, parentSyncInboxType, child).Scan(&title, &details)
+	if title != "Parent sync child card" {
+		t.Fatalf("inbox title = %q, want the child issue title", title)
+	}
 	var parsed map[string]any
 	if err := json.Unmarshal(details, &parsed); err != nil {
 		t.Fatal(err)

@@ -81,7 +81,9 @@
     "quick_create_unconfirmed": "Create with agent unconfirmed",
     "autopilot_paused": "Autopilot paused",
     "children_done": "Sub-issues finished",
-    "autopilot_quota_exceeded": "Autopilot run limit reached"
+    "autopilot_quota_exceeded": "Autopilot run limit reached",
+    "parent_sync_comment": "Sub-issue comment",
+    "unknown": "Notification"
   },
   "labels": {
     "set_status_to": "Set status to",
@@ -96,7 +98,8 @@
     "created_with_agent": "Created with agent: {{identifier}}",
     "failed_with_detail": "Failed: {{detail}}",
     "autopilot_quota_blocked": "Run blocked because the limit was reached",
-    "children_done_stage": "Stage {{stage}}'s sub-issues finished"
+    "children_done_stage": "Stage {{stage}}'s sub-issues finished",
+    "parent_sync_comment_body": "Sub-issue comment: {{body}}"
   },
   "toasts": {
     "source_context_retry_started": "Retry started with the original context",
