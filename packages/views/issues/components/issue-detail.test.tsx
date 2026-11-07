@@ -3084,6 +3084,43 @@ describe("IssueDetail (shared)", () => {
       expect(bareRow?.textContent).not.toContain("/");
     });
 
+    // CLAWSTA-151 F6: a sub-issue row is a single-card assignee entry point, so
+    // its picker must carry the child card into the transfer preflight.
+    it("preflights an assignee change with the card from a sub-issue row", async () => {
+      mockApiObj.listChildIssues.mockResolvedValue({
+        issues: [
+          subIssue({
+            id: "child-1",
+            number: 11,
+            identifier: "TES-11",
+            title: "Fix login flow",
+            assignee_type: "agent",
+            assignee_id: "agent-1",
+          }),
+        ],
+      });
+      assignPreflightMock.mockResolvedValue({
+        actor_can_assign: true,
+        dispatcher_user_id: "user-1",
+        dispatcher_can_invoke: null,
+      });
+
+      renderIssueDetail();
+
+      await screen.findByText("Fix login flow");
+      const rowLink = screen.getByText("Fix login flow").closest("a")!;
+      const row = rowLink.parentElement!;
+      fireEvent.click(within(row).getByTestId("actor-avatar"));
+      fireEvent.click(await screen.findByText("Ops Bot"));
+
+      await waitFor(() =>
+        expect(assignPreflightMock).toHaveBeenCalledWith("child-1", {
+          assignee_type: "agent",
+          assignee_id: "agent-wire",
+        }),
+      );
+    });
+
     it("hides fields the user toggled off in the display preference", async () => {
       useSubIssueDisplayStore.setState({
         rowProperties: {

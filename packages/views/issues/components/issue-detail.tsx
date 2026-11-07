@@ -1028,6 +1028,7 @@ function SubIssueRow({
             assigneeType={child.assignee_type}
             assigneeId={child.assignee_id}
             onUpdate={handleUpdate}
+            issue={child}
             align="end"
             trigger={
               child.assignee_type && child.assignee_id ? (

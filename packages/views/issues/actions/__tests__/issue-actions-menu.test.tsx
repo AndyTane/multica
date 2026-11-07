@@ -46,7 +46,7 @@ vi.mock("@multica/core/workspace/queries", () => ({
   }),
   agentListOptions: () => ({
     queryKey: ["workspaces", "ws-1", "agents"],
-    queryFn: () => Promise.resolve([]),
+    queryFn: () => Promise.resolve(agentList.agents),
   }),
   squadListOptions: () => ({
     queryKey: ["workspaces", "ws-1", "squads"],
@@ -116,11 +116,15 @@ vi.mock("sonner", () => ({
   toast: { success: toastSuccessMock, error: vi.fn() },
 }));
 
-const { apiMocks, copyTextMock } = vi.hoisted(() => ({
+const { apiMocks, copyTextMock, agentList } = vi.hoisted(() => ({
   apiMocks: {
     listTasksByIssue: vi.fn(),
+    previewIssueAssignment: vi.fn(),
   },
   copyTextMock: vi.fn(),
+  // The assignee picker reads the workspace agent list; wiring tests put one
+  // candidate here so the real picker row can be exercised.
+  agentList: { agents: [] as Record<string, unknown>[] },
 }));
 
 vi.mock("@multica/core/api", () => ({
@@ -165,6 +169,19 @@ const mockIssue: Issue = {
   updated_at: "2026-01-01T00:00:00Z",
 } as Issue;
 
+// A workspace-public agent the test member may assign (CLAWSTA-151 F6).
+const OPS_AGENT = {
+  id: "agent-1",
+  name: "Ops Bot",
+  archived_at: null,
+  visibility: "workspace",
+  runtime_id: "runtime-1",
+  runtime_bound: true,
+  owner_id: null,
+  permission_mode: "public_to",
+  invocation_targets: [{ target_type: "workspace", target_id: "ws-1" }],
+};
+
 function wrap(ui: React.ReactNode) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -186,6 +203,13 @@ beforeEach(() => {
   toastSuccessMock.mockReset();
   listTasksByIssueMock.mockReset();
   listTasksByIssueMock.mockResolvedValue([]);
+  apiMocks.previewIssueAssignment.mockReset();
+  apiMocks.previewIssueAssignment.mockResolvedValue({
+    actor_can_assign: true,
+    dispatcher_user_id: null,
+    dispatcher_can_invoke: null,
+  });
+  agentList.agents = [];
 });
 
 describe("IssueActionsDropdown", () => {
@@ -356,6 +380,31 @@ describe("IssueActionsDropdown", () => {
       expect(copyTextMock).toHaveBeenCalledWith("/managed/task/worktree");
     });
   });
+
+  // CLAWSTA-151 F6: the row dropdown is one of the single-card assignee
+  // entry points, so it must hand the card to the transfer preflight.
+  it("preflights an assignee change with the card from the dropdown", async () => {
+    agentList.agents = [OPS_AGENT];
+    render(
+      wrap(
+        <IssueActionsDropdown
+          issue={mockIssue}
+          trigger={<button data-testid="trigger">Menu</button>}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByTestId("trigger"));
+    fireEvent.click(await screen.findByText("Assignee"));
+    fireEvent.click(await screen.findByText("Ops Bot"));
+
+    await waitFor(() => {
+      expect(apiMocks.previewIssueAssignment).toHaveBeenCalledWith("issue-1", {
+        assignee_type: "agent",
+        assignee_id: "agent-1",
+      });
+    });
+  });
 });
 
 describe("Open in new tab", () => {
@@ -432,5 +481,31 @@ describe("IssueActionsContextMenu", () => {
     // sub-issue rows all share, so this one assertion covers them together.
     expect(screen.getByText("Open in new tab")).toBeInTheDocument();
     expect(screen.getByText("Delete issue")).toBeInTheDocument();
+  });
+
+  // CLAWSTA-151 F6: the right-click menu is a single-card assignee entry point
+  // as well; without the card the transfer preflight cannot name the dispatcher.
+  it("preflights an assignee change with the card from the right-click menu", async () => {
+    agentList.agents = [OPS_AGENT];
+    render(
+      wrap(
+        <IssueContextMenuProvider>
+          <IssueActionsContextMenu issue={mockIssue}>
+            <div data-testid="row">Row</div>
+          </IssueActionsContextMenu>
+        </IssueContextMenuProvider>,
+      ),
+    );
+
+    fireEvent.contextMenu(screen.getByTestId("row"));
+    fireEvent.click(await screen.findByText("Assignee"));
+    fireEvent.click(await screen.findByText("Ops Bot"));
+
+    await waitFor(() => {
+      expect(apiMocks.previewIssueAssignment).toHaveBeenCalledWith("issue-1", {
+        assignee_type: "agent",
+        assignee_id: "agent-1",
+      });
+    });
   });
 });
