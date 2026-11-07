@@ -127,26 +127,6 @@ export interface IssueTriggerPreviewParams {
 
 /** One issue that WILL start a run under the prospective write. `agent_id` is
  *  the runnable agent (squad leader for squads). */
-/**
- * CLAWSTA-151 B11 preview of "sync this sub-issue comment to the parent card's
- * assignee". Absent when the comment is on a top-level issue or the caller did
- * not ask for the switch.
- */
-export interface CommentParentSyncRecipient {
-  type: "agent" | "squad" | "member";
-  id: string;
-  name: string;
-}
-
-export interface CommentParentSyncPreview {
-  parent_issue_id: string;
-  mode: "agent" | "member" | "dispatcher" | "admin" | "unavailable";
-  recipients: CommentParentSyncRecipient[];
-  already_routed: boolean;
-  delivery_status?: string;
-  reason?: string;
-}
-
 export interface IssueTriggerPreviewItem {
   issue_id: string;
   agent_id: string;

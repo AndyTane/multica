@@ -2072,6 +2072,45 @@ describe("IssueDetail (shared)", () => {
     expect(screen.getByText(/set this issue to keep its status when PRs merge/i)).toBeInTheDocument();
   });
 
+  // CLAWSTA-151 F4 / B12: an owner woken by the parent-comment sync can close
+  // the loop silently. Each acknowledgement carries its own reason, so the rows
+  // must render one per line — folding them into a "×N" summary would drop the
+  // audit trail the reason exists for.
+  it("renders issue_assignee_evaluated rows individually with their reason", async () => {
+    mockApiObj.listTimeline.mockResolvedValue([
+      {
+        type: "activity",
+        id: "act-eval-1",
+        actor_type: "agent",
+        actor_id: "agent-1",
+        action: "issue_assignee_evaluated",
+        details: { outcome: "no_action", reason: "nothing to change on the sub-issue" },
+        created_at: "2026-01-18T00:00:00Z",
+      },
+      {
+        type: "activity",
+        id: "act-eval-2",
+        actor_type: "agent",
+        actor_id: "agent-1",
+        action: "issue_assignee_evaluated",
+        details: { outcome: "no_action", reason: "covered by the parent's fix" },
+        created_at: "2026-01-18T00:00:30Z",
+      },
+    ] as unknown as TimelineEntry[]);
+
+    renderIssueDetail();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/acknowledged: no changes needed \(nothing to change on the sub-issue\)/i),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/acknowledged: no changes needed \(covered by the parent's fix\)/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("×2")).not.toBeInTheDocument();
+  });
+
   // MUL-7680: the child-done system rule's comment is the woken agent's
   // instruction; people read one timeline line that can reveal it.
   it("renders activity rows with unknown status values without crashing", async () => {

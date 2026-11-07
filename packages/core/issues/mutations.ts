@@ -833,6 +833,7 @@ export function useCreateComment(issueId: string) {
       attachmentIds,
       suppressAgentIds,
       steerTaskIds,
+      syncParentAssignee,
     }: {
       content: string;
       type?: string;
@@ -841,7 +842,9 @@ export function useCreateComment(issueId: string) {
       suppressAgentIds?: string[];
       /** Running turns this comment goes into instead of a follow-up run. */
       steerTaskIds?: string[];
-    }) => api.createComment(issueId, content, type, parentId, attachmentIds, suppressAgentIds, steerTaskIds),
+      /** Also hand a sub-issue comment's copy to the parent issue's owner. */
+      syncParentAssignee?: boolean;
+    }) => api.createComment(issueId, content, type, parentId, attachmentIds, suppressAgentIds, steerTaskIds, syncParentAssignee),
     onSuccess: (comment) => {
       if (comment.issue_revision) {
         onIssueAuxiliaryRevision(qc, wsId, issueId, comment.issue_revision);

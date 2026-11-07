@@ -102,6 +102,7 @@ import { issueTasksOptions } from "@multica/core/issues/queries";
 import { SourceContextBadge } from "./source-context-viewer";
 import { RevisionConflictCompare } from "./revision-conflict-compare";
 import { CommentInput } from "./comment-input";
+import type { ParentSyncOwnership } from "@multica/core/issues/parent-sync";
 import { useCommentAnnotations } from "./use-comment-annotations";
 import { CurrentIssueRenderContextProvider } from "../current-issue-render-context";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
@@ -407,6 +408,15 @@ function formatActivity(
       return t(($) => $.activity.task_completed, { count: entry.coalesced_count ?? 1 });
     case "task_failed":
       return t(($) => $.activity.task_failed, { count: entry.coalesced_count ?? 1 });
+    // A sub-issue owner that was woken by the parent-comment sync can close the
+    // loop silently (CLAWSTA-151 R4.1-6 / B12). The reason is audit data, so it
+    // always rides along.
+    case "issue_assignee_evaluated": {
+      const reason = details.reason?.trim();
+      return reason
+        ? t(($) => $.activity.issue_assignee_no_action_reason, { reason })
+        : t(($) => $.activity.issue_assignee_no_action);
+    }
     case "squad_leader_evaluated": {
       const reason = details.reason?.trim();
       switch (details.outcome) {
@@ -1688,12 +1698,14 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     // Coalesce consecutive activities from the same actor + action.
     // - task_completed / task_failed: no time limit (these repeat across runs)
     // - all other actions: within a 2-minute window
-    // - squad_leader_evaluated: never coalesce; outcome/reason are audit data
+    // - squad_leader_evaluated / issue_assignee_evaluated: never coalesce;
+    //   outcome/reason are audit data, one row per quiet acknowledgement
     const COALESCE_MS = 2 * 60 * 1000;
     const NO_TIME_LIMIT_ACTIONS = new Set(["task_completed", "task_failed", "wakeup_checkin"]);
     // Duplicate marks name a different issue on every row.
     const NEVER_COALESCE_ACTIONS = new Set([
       "squad_leader_evaluated",
+      "issue_assignee_evaluated",
       "wakeup_created",
       "wakeup_triggered",
       "wakeup_timed_out",
@@ -2051,6 +2063,23 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     enabled: !!parentIssueId,
     initialData: () => allIssues.find((i) => i.id === parentIssueId),
   });
+  // Ownership snapshot behind the sub-issue comment's "sync to the parent
+  // issue's owner" toggle (CLAWSTA-151 R4.0-6 / F3). Null on a top-level issue
+  // and until the parent loads — the composers then render no toggle.
+  const parentSyncOwnership = useMemo<ParentSyncOwnership | null>(() => {
+    if (!issue?.parent_issue_id || !parentIssue) return null;
+    return {
+      parentAssignee:
+        parentIssue.assignee_type && parentIssue.assignee_id
+          ? { type: parentIssue.assignee_type, id: parentIssue.assignee_id }
+          : null,
+      subIssueAssignee:
+        issue.assignee_type && issue.assignee_id
+          ? { type: issue.assignee_type, id: issue.assignee_id }
+          : null,
+      currentUserId: user?.id ?? null,
+    };
+  }, [issue, parentIssue, user?.id]);
 
   // Project segment in the breadcrumb. The issue's project_id is the source of
   // truth — same URL renders the same breadcrumb regardless of entry path.
@@ -3035,6 +3064,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             expandedResolvedIds: expandedResolved, onResolvedExpandChange: toggleResolvedExpand,
             highlightedCommentId: highlightedId,
             runs: commentRuns.get(reply.id) ?? EMPTY_COMMENT_RUNS, enteringRunIds,
+            parentSyncOwnership,
           } : undefined} />}
       </div>;
     }
@@ -3074,6 +3104,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             expandedResolvedIds={expandedResolved}
             onResolvedExpandChange={toggleResolvedExpand}
             highlightedCommentId={highlightedId}
+            parentSyncOwnership={parentSyncOwnership}
           />
         </div>
       );
@@ -3881,6 +3912,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               onSubmit={submitComment}
               onAccepted={scrollToTimelineBottom}
               onEditAnnotation={(annotationId) => descriptionAnnotations.editAnnotation(annotationId, true)}
+              parentSyncOwnership={parentSyncOwnership}
             />
           </div>
         </div>

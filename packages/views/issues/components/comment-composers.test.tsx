@@ -5,6 +5,7 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { UploadResult } from "@multica/core/hooks/use-file-upload";
 import type { Attachment } from "@multica/core/types";
 import { useCommentComposerStore, useCommentDraftStore } from "@multica/core/issues/stores";
+import type { ParentSyncOwnership } from "@multica/core/issues/parent-sync";
 import { WorkspaceSlugProvider } from "@multica/core/paths";
 import { renderWithI18n } from "../../test/i18n";
 import { CommentInput } from "./comment-input";
@@ -1332,5 +1333,252 @@ describe.each(["reply", "description"])("annotations in %s drafts", (source) => 
     act(() => { useCommentDraftStore.getState().addAnnotation(draftKey, { ...annotation, id: "b", quote: "Another point" }); });
     await act(async () => accept("reply-new"));
     expect(useCommentDraftStore.getState().getAnnotations(draftKey)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLAWSTA-151 F3 — "sync to the parent issue's owner" toggle
+// ---------------------------------------------------------------------------
+
+describe("sub-issue parent sync toggle", () => {
+  function ownership(overrides: Partial<ParentSyncOwnership> = {}): ParentSyncOwnership {
+    return {
+      parentAssignee: { type: "agent", id: "agent-parent" },
+      subIssueAssignee: { type: "agent", id: "agent-child" },
+      currentUserId: "user-1",
+      ...overrides,
+    };
+  }
+
+  function parentSync(overrides: Record<string, unknown> = {}) {
+    return {
+      mode: "agent",
+      recipients: [{ type: "agent", id: "agent-parent", name: "Lambda" }],
+      already_routed: false,
+      ...overrides,
+    };
+  }
+
+  function renderCommentWithSync(
+    options: { ownership?: ParentSyncOwnership; parentSync?: Record<string, unknown> } = {},
+  ) {
+    apiPreviewCommentTriggers.mockResolvedValue({
+      agents: [],
+      parent_sync: options.parentSync ?? parentSync(),
+    });
+    const onSubmit = vi.fn().mockResolvedValue("comment-1");
+    const view = renderWithProviders(
+      <CommentInput
+        issueId="issue-1"
+        onSubmit={onSubmit}
+        parentSyncOwnership={options.ownership ?? ownership()}
+      />,
+    );
+    return { ...view, onSubmit };
+  }
+
+  it("labels the toggle with the parent issue's owner and sends it unchecked by default", async () => {
+    const { container, onSubmit } = renderCommentWithSync();
+
+    const box = await screen.findByRole("checkbox", { name: "Sync to parent's owner · Lambda" });
+    expect(box).not.toBeChecked();
+    // The destination is resolved from an empty-body preview: the label must be
+    // settled before the user types, and must not depend on the draft.
+    expect(apiPreviewCommentTriggers).toHaveBeenCalledWith("issue-1", "", undefined, undefined, true);
+
+    activateComposer("comment-composer-shell");
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "shipped" } });
+    fireEvent.click(getSubmitButton(container));
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith("shipped", undefined, undefined, undefined);
+    });
+  });
+
+  it("sends sync_parent_assignee only after the box is checked", async () => {
+    const { container, onSubmit } = renderCommentWithSync();
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Sync to parent's owner · Lambda" }));
+    expect(screen.getByRole("checkbox")).toBeChecked();
+
+    activateComposer("comment-composer-shell");
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "please also tell the parent" } });
+    fireEvent.click(getSubmitButton(container));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        "please also tell the parent",
+        undefined,
+        undefined,
+        undefined,
+        true,
+      );
+    });
+  });
+
+  it("locks the box on when the ordinary routing already reaches the owner", async () => {
+    renderCommentWithSync({ parentSync: parentSync({ already_routed: true }) });
+
+    const box = await screen.findByRole("checkbox", { name: "Sync to parent's owner · Lambda" });
+    expect(box).toBeChecked();
+    expect(box).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("greys out an unreachable owner and shows the reason", async () => {
+    renderCommentWithSync({
+      parentSync: parentSync({
+        mode: "unavailable",
+        recipients: [],
+        reason: "the parent issue's owner left the workspace",
+      }),
+    });
+
+    const box = await screen.findByRole("checkbox");
+    expect(box).toHaveAttribute("aria-disabled", "true");
+    expect(box).not.toBeChecked();
+    expect(screen.getByText("Sync to parent's owner")).toBeInTheDocument();
+    expect(screen.getByText(/owner left the workspace/)).toBeInTheDocument();
+  });
+
+  it("labels a member parent owner the same way as an agent one", async () => {
+    renderCommentWithSync({
+      ownership: ownership({ parentAssignee: { type: "member", id: "user-2" } }),
+      parentSync: parentSync({
+        mode: "member",
+        recipients: [{ type: "member", id: "user-2", name: "Tane" }],
+      }),
+    });
+
+    expect(
+      await screen.findByRole("checkbox", { name: "Sync to parent's owner · Tane" }),
+    ).toBeInTheDocument();
+  });
+
+  it("labels a fallback dispatcher recipient instead of the owner", async () => {
+    renderCommentWithSync({
+      parentSync: parentSync({
+        mode: "dispatcher",
+        recipients: [{ type: "member", id: "user-2", name: "Tane" }],
+      }),
+    });
+
+    expect(await screen.findByRole("checkbox", { name: "Sync to Tane" })).toBeInTheDocument();
+  });
+
+  it("labels a fallback admin recipient instead of the owner", async () => {
+    renderCommentWithSync({
+      parentSync: parentSync({
+        mode: "admin",
+        recipients: [{ type: "member", id: "user-3", name: "Root" }],
+      }),
+    });
+
+    expect(await screen.findByRole("checkbox", { name: "Sync to Root" })).toBeInTheDocument();
+  });
+
+  it("hides the toggle when the parent owner is the sub-issue owner", async () => {
+    renderCommentWithSync({
+      ownership: ownership({
+        parentAssignee: { type: "agent", id: "agent-same" },
+        subIssueAssignee: { type: "agent", id: "agent-same" },
+      }),
+    });
+
+    await waitFor(() => expect(apiPreviewCommentTriggers).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("hides the toggle when the commenter is the parent's member owner", async () => {
+    renderCommentWithSync({
+      ownership: ownership({
+        parentAssignee: { type: "member", id: "user-1" },
+        currentUserId: "user-1",
+      }),
+      parentSync: parentSync({
+        mode: "member",
+        recipients: [{ type: "member", id: "user-1", name: "Me" }],
+      }),
+    });
+
+    await waitFor(() => expect(apiPreviewCommentTriggers).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("hides the toggle on a top-level issue without asking the server", () => {
+    const onSubmit = vi.fn().mockResolvedValue("comment-1");
+    renderWithProviders(
+      <CommentInput issueId="issue-1" onSubmit={onSubmit} parentSyncOwnership={null} />,
+    );
+
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(apiPreviewCommentTriggers).not.toHaveBeenCalled();
+  });
+
+  it("disables and unchecks the toggle for a /note draft, which wakes nobody", async () => {
+    const { container, onSubmit } = renderCommentWithSync();
+    const box = await screen.findByRole("checkbox", { name: "Sync to parent's owner · Lambda" });
+    fireEvent.click(box);
+    expect(box).toBeChecked();
+
+    activateComposer("comment-composer-shell");
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "/note keep this on the sub-issue only" } });
+
+    await waitFor(() => expect(screen.getByRole("checkbox")).not.toBeChecked());
+    expect(screen.getByRole("checkbox")).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.click(getSubmitButton(container));
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        "/note keep this on the sub-issue only",
+        undefined,
+        undefined,
+        undefined,
+      );
+    });
+  });
+
+  it("resets to unchecked after a successful send", async () => {
+    const { container, onSubmit } = renderCommentWithSync();
+    const box = await screen.findByRole("checkbox", { name: "Sync to parent's owner · Lambda" });
+    fireEvent.click(box);
+
+    activateComposer("comment-composer-shell");
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "first" } });
+    fireEvent.click(getSubmitButton(container));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith("first", undefined, undefined, undefined, true));
+    await waitFor(() => expect(screen.getByRole("checkbox")).not.toBeChecked());
+
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "second" } });
+    fireEvent.click(getSubmitButton(container));
+    await waitFor(() => expect(onSubmit).toHaveBeenLastCalledWith("second", undefined, undefined, undefined));
+  });
+
+  it("feeds the thread's reply box from the replied-to comment's preview", async () => {
+    apiPreviewCommentTriggers.mockResolvedValue({
+      agents: [],
+      parent_sync: parentSync(),
+    });
+    const onSubmit = vi.fn().mockResolvedValue("reply-new");
+    const { container } = renderWithProviders(
+      <ReplyInput
+        issueId="issue-1"
+        parentId="comment-1"
+        avatarType="member"
+        avatarId="user-1"
+        onSubmit={onSubmit}
+        parentSyncOwnership={ownership()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Sync to parent's owner · Lambda" }));
+    expect(apiPreviewCommentTriggers).toHaveBeenCalledWith("issue-1", "", "comment-1", undefined, true);
+
+    activateComposer("reply-composer-shell");
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "thread update" } });
+    fireEvent.click(getSubmitButton(container));
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith("thread update", undefined, undefined, undefined, true);
+    });
   });
 });

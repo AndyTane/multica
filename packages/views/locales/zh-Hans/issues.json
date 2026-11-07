@@ -538,7 +538,9 @@
     "wakeup_checkin": "静默检查：{{note}}",
     "wakeup_checkin_coalesced_other": "静默检查 {{count}} 次 · 最近一次：{{note}}",
     "wakeup_chip_created_by": "{{name}} 创建",
-    "wakeup_chip_system": "系统规则"
+    "wakeup_chip_system": "系统规则",
+    "issue_assignee_no_action": "已阅：无需调整",
+    "issue_assignee_no_action_reason": "已阅：无需调整（{{reason}}）"
   },
   "comment": {
     "expand_body": "展开全文",
@@ -1444,5 +1446,12 @@
     "not_delivered": "这条内容到不了 {{name}}，没有发出去",
     "note_not_delivered": "以 /note 开头的内容只做记录，不会交给 {{name}}",
     "unmarked": "另有 {{count}} 张卡在等人，但没标明等谁"
+  },
+  "parent_sync": {
+    "sync_to_owner": "同步给主卡负责人 · {{name}}",
+    "sync_to_owner_unnamed": "同步给主卡负责人",
+    "sync_to_recipient": "同步给 {{name}}",
+    "delivery_failed": "评论已发送，但没同步到主卡负责人",
+    "delivery_failed_reason": "评论已发送，但没同步到主卡负责人：{{reason}}"
   }
 }

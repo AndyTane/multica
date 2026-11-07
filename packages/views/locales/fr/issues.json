@@ -550,7 +550,9 @@
     "wakeup_checkin_coalesced_one": "{{count}} vérification silencieuse · dernière : {{note}}",
     "wakeup_checkin_coalesced_other": "{{count}} vérifications silencieuses · dernière : {{note}}",
     "wakeup_chip_created_by": "Réveil de {{name}}",
-    "wakeup_chip_system": "Règle système"
+    "wakeup_chip_system": "Règle système",
+    "issue_assignee_no_action": "a pris connaissance : aucune modification nécessaire",
+    "issue_assignee_no_action_reason": "a pris connaissance : aucune modification nécessaire ({{reason}})"
   },
   "comment": {
     "expand_body": "Show full comment",
@@ -1491,5 +1493,12 @@
     "not_delivered": "Ce contenu ne peut pas atteindre {{name}}. Rien n'a été envoyé.",
     "note_not_delivered": "Un contenu commençant par /note est seulement enregistré et n'atteindra pas {{name}}",
     "unmarked": "{{count}} autres attendent, mais personne n'est désigné"
+  },
+  "parent_sync": {
+    "sync_to_owner": "Synchroniser avec le responsable du ticket parent · {{name}}",
+    "sync_to_owner_unnamed": "Synchroniser avec le responsable du ticket parent",
+    "sync_to_recipient": "Synchroniser avec {{name}}",
+    "delivery_failed": "Commentaire publié, mais non transmis au responsable du ticket parent",
+    "delivery_failed_reason": "Commentaire publié, mais non transmis au responsable du ticket parent : {{reason}}"
   }
 }

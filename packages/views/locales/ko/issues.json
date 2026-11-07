@@ -538,7 +538,9 @@
     "wakeup_checkin": "조용한 확인: {{note}}",
     "wakeup_checkin_coalesced_other": "조용한 확인 {{count}}회 · 최근: {{note}}",
     "wakeup_chip_created_by": "{{name}} 생성",
-    "wakeup_chip_system": "시스템 규칙"
+    "wakeup_chip_system": "시스템 규칙",
+    "issue_assignee_no_action": "확인함: 조정이 필요 없습니다",
+    "issue_assignee_no_action_reason": "확인함: 조정이 필요 없습니다({{reason}})"
   },
   "comment": {
     "expand_body": "Show full comment",
@@ -1444,5 +1446,12 @@
     "not_delivered": "이 내용은 {{name}}에게 전달되지 않았습니다.",
     "note_not_delivered": "/note로 시작하는 내용은 기록만 되며 {{name}}에게 전달되지 않습니다",
     "unmarked": "{{count}}개 더 기다리는 중이지만 담당자가 지정되지 않았습니다"
+  },
+  "parent_sync": {
+    "sync_to_owner": "상위 이슈 담당자에게 동기화 · {{name}}",
+    "sync_to_owner_unnamed": "상위 이슈 담당자에게 동기화",
+    "sync_to_recipient": "{{name}}에게 동기화",
+    "delivery_failed": "댓글은 게시되었지만 상위 이슈 담당자에게 전달되지 않았습니다",
+    "delivery_failed_reason": "댓글은 게시되었지만 상위 이슈 담당자에게 전달되지 않았습니다: {{reason}}"
   }
 }

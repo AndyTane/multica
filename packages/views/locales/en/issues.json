@@ -550,7 +550,9 @@
     "wakeup_checkin_coalesced_one": "{{count}} silent check · latest: {{note}}",
     "wakeup_checkin_coalesced_other": "{{count}} silent checks · latest: {{note}}",
     "wakeup_chip_created_by": "{{name}}'s wakeup",
-    "wakeup_chip_system": "System rule"
+    "wakeup_chip_system": "System rule",
+    "issue_assignee_no_action": "acknowledged: no changes needed",
+    "issue_assignee_no_action_reason": "acknowledged: no changes needed ({{reason}})"
   },
   "comment": {
     "expand_body": "Show full comment",
@@ -1491,5 +1493,12 @@
     "not_delivered": "This cannot reach {{name}}. Nothing was sent.",
     "note_not_delivered": "Content starting with /note is only recorded and will not reach {{name}}",
     "unmarked": "{{count}} more are waiting, but no one is marked"
+  },
+  "parent_sync": {
+    "sync_to_owner": "Sync to parent's owner · {{name}}",
+    "sync_to_owner_unnamed": "Sync to parent's owner",
+    "sync_to_recipient": "Sync to {{name}}",
+    "delivery_failed": "Comment posted, but it did not reach the parent issue's owner",
+    "delivery_failed_reason": "Comment posted, but it did not reach the parent issue's owner: {{reason}}"
   }
 }

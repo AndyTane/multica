@@ -538,7 +538,9 @@
     "wakeup_checkin": "サイレントチェック：{{note}}",
     "wakeup_checkin_coalesced_other": "サイレントチェック {{count}} 回 · 最新：{{note}}",
     "wakeup_chip_created_by": "{{name}} が作成",
-    "wakeup_chip_system": "システムルール"
+    "wakeup_chip_system": "システムルール",
+    "issue_assignee_no_action": "確認済み: 調整は不要です",
+    "issue_assignee_no_action_reason": "確認済み: 調整は不要です（{{reason}}）"
   },
   "comment": {
     "expand_body": "Show full comment",
@@ -1444,5 +1446,12 @@
     "not_delivered": "この内容は {{name}} に届きません。送信されていません。",
     "note_not_delivered": "/note で始まる内容は記録のみで、{{name}} には届きません",
     "unmarked": "他に {{count}} 件が待機中ですが、誰を待つか未指定です"
+  },
+  "parent_sync": {
+    "sync_to_owner": "親課題の担当者に同期 · {{name}}",
+    "sync_to_owner_unnamed": "親課題の担当者に同期",
+    "sync_to_recipient": "{{name}} に同期",
+    "delivery_failed": "コメントは投稿されましたが、親課題の担当者に届きませんでした",
+    "delivery_failed_reason": "コメントは投稿されましたが、親課題の担当者に届きませんでした: {{reason}}"
   }
 }
