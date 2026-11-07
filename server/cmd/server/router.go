@@ -2025,6 +2025,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/metadata", h.ListIssueMetadata)
 					r.Put("/metadata/{key}", h.SetIssueMetadataKey)
 					r.Delete("/metadata/{key}", h.DeleteIssueMetadataKey)
+					// Read-only transfer prediction (CLAWSTA-151 B13); the real
+					// assign path re-checks the caller.
+					r.Post("/assignment-preview", h.PreviewIssueAssignment)
+					// "Read it, nothing to change" exit for a synced parent
+					// assignee (CLAWSTA-151 B12).
+					r.Post("/evaluated", h.RecordIssueAssigneeEvaluated)
 					r.Put("/properties/{propertyId}", h.SetIssueProperty)
 					r.Delete("/properties/{propertyId}", h.DeleteIssueProperty)
 					r.Get("/pull-requests", h.ListPullRequestsForIssue)

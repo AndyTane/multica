@@ -145,10 +145,13 @@ func (h *Handler) ListArchivedInboxPage(w http.ResponseWriter, r *http.Request) 
 	if resp.HasMore {
 		rows = rows[:limit]
 	}
+	prefix := h.getIssuePrefix(r.Context(), filters.WorkspaceID)
 	for _, row := range rows {
 		item := inboxToResponse(row.InboxItem)
 		item.Body = inboxListBody(row.InboxItem.Type, row.InboxItem.IssueID, row.InboxItem.Body)
 		item.IssueStatus, item.IssuePriority = textToPtr(row.IssueStatus), textToPtr(row.IssuePriority)
+		item.ParentIssueID, item.ParentIssueIdentifier, item.ParentIssueTitle = inboxParentFields(
+			row.ParentIssueID, row.ParentIssueNumber, row.ParentIssueTitle, prefix)
 		if row.CommentID != "" {
 			var details map[string]json.RawMessage
 			if len(item.Details) == 0 || string(item.Details) == "null" {

@@ -249,7 +249,34 @@ func BuildCommentReplyInstructions(provider, issueID, triggerCommentID string, s
 	if triggerCommentID == "" {
 		return ""
 	}
-	return buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID, squadLeader)
+	return buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID, squadLeader, "")
+}
+
+// BuildCommentReplyInstructionsForParentSync is the single-thread cookbook for
+// a run woken by "sync to the parent card's assignee" (CLAWSTA-151 B11/B15).
+// Only that pure sync may end silently through `multica issue activity … no_action`,
+// so this variant carries its own carve-out; every other rule is unchanged.
+func BuildCommentReplyInstructionsForParentSync(provider, issueID, triggerCommentID string) string {
+	if triggerCommentID == "" {
+		return ""
+	}
+	return buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID, false, "multica issue activity "+issueID+" no_action")
+}
+
+// BuildParentSyncReadInstructions explains the reading duty of a parent-sync
+// run: read the parent card and the person's input before the sub-issue, and do
+// not force a point-by-point reply. The silent exit is spelled out so it can
+// never be confused with closing the parent card.
+func BuildParentSyncReadInstructions(parentCardID string) string {
+	if parentCardID == "" {
+		return ""
+	}
+	return "## Parent card sync\n\n" +
+		"This run was woken because a sub-issue comment was synced to the parent card's assignee. " +
+		"Read the parent card `" + parentCardID + "` and the person's input before acting on the sub-issue; do not force a point-by-point reply when no adjustment is needed. " +
+		"If, and only if, this whole turn was that pure read — no other @mention, reply or execution obligation is attached to it — you may end silently with `multica issue activity <sub-issue-id> no_action --reason \"...\"`, which records the reason on the sub-issue timeline. " +
+		"That record suppresses only this task and this input set: it does not close the parent card, does not cancel wakeups, and is not available once you have posted a comment. " +
+		"Any other outcome replies normally on the sub-issue.\n\n"
 }
 
 // buildCommentReplyInstructionsSlim is the compressed reply-instructions
@@ -265,7 +292,7 @@ func BuildCommentReplyInstructions(provider, issueID, triggerCommentID string, s
 // canonical `## Comment Formatting` section the same brief carries, so
 // repeating it inline at every comment-triggered step 7 would be
 // duplication, not signal.
-func buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID string, squadLeader bool) string {
+func buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID string, squadLeader bool, noActionCommand string) string {
 	// The squad leader's `no_action` exit (recorded via `squad activity`) is
 	// the one path where posting no comment is correct — the imperative must
 	// carry its own carve-out so a later line never contradicts the
@@ -273,6 +300,10 @@ func buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID strin
 	lead := "Post your reply as a comment — always use the trigger comment ID below, "
 	if squadLeader {
 		lead = "Unless your outcome is `no_action`, post your reply as a comment — always use the trigger comment ID below, "
+	} else if noActionCommand != "" {
+		// A parent-sync read may legitimately end silently; the imperative must
+		// carry its own carve-out or a later line restates "post your reply".
+		lead = "Unless this pure parent-sync read needs no change — record that with `" + noActionCommand + " --reason \"...\"` and post no comment — post your reply as a comment; always use the trigger comment ID below, "
 	}
 	// Cleanup is GATED on the post succeeding, never a separate statement.
 	// Agents hand the whole snippet to one shell call, and an unconditional
@@ -358,6 +389,17 @@ type ThreadReplyTarget struct {
 //
 // Returns "" for fewer than two targets; callers keep the single-parent path.
 func BuildMultiThreadCommentReplyInstructions(issueID string, targets []ThreadReplyTarget, squadLeader bool) string {
+	return buildMultiThreadCommentReplyInstructions(issueID, targets, squadLeader, "")
+}
+
+// BuildMultiThreadCommentReplyInstructionsForParentSync is the fan-out variant
+// for a parent-sync run (CLAWSTA-151 B11/B15): the silent exit replaces the
+// per-thread replies for this pure read, everything else is unchanged.
+func BuildMultiThreadCommentReplyInstructionsForParentSync(issueID string, targets []ThreadReplyTarget) string {
+	return buildMultiThreadCommentReplyInstructions(issueID, targets, false, "multica issue activity "+issueID+" no_action")
+}
+
+func buildMultiThreadCommentReplyInstructions(issueID string, targets []ThreadReplyTarget, squadLeader bool, noActionCommand string) string {
 	if issueID == "" || len(targets) < 2 {
 		return ""
 	}
@@ -377,6 +419,8 @@ func BuildMultiThreadCommentReplyInstructions(issueID string, targets []ThreadRe
 	lead := "This run coalesced comments from %d DISTINCT threads. Post ONE reply per thread"
 	if squadLeader {
 		lead = "This run coalesced comments from %d DISTINCT threads. **If your outcome is `no_action`, skip this ENTIRE fan-out block — post no replies at all and exit via `multica squad activity` as your leader rules direct; everything below applies only otherwise.** Otherwise, post ONE reply per thread"
+	} else if noActionCommand != "" {
+		lead = "This run coalesced comments from %d DISTINCT threads. **If this pure parent-sync read needs no change, skip this ENTIRE fan-out block — post no replies at all and record it with `" + noActionCommand + " --reason \"...\"`; everything below applies only otherwise.** Otherwise, post ONE reply per thread"
 	}
 	return fmt.Sprintf(
 		lead+" — %d in total. This OVERRIDES the \"post exactly one comment per run\" rule: for THIS run multiple replies are required and correct. Do NOT merge separate threads into one comment or post twice in the same thread.\n\n"+

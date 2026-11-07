@@ -314,6 +314,52 @@ var issueReorderCmd = &cobra.Command{
 
 // Comment subcommands.
 
+var issueActivityCmd = &cobra.Command{
+	Use:   "activity <issue-id> no_action",
+	Short: "Record a no-action evaluation for a synced sub-issue comment",
+	Long: `Record that this run read a parent card's synced comment and needs no
+change. Only a run started by the "sync to the parent card's assignee" switch
+may call it: the task token proves the provenance, and the server refuses a run
+that also carries ordinary @ / reply obligations or already posted a comment.
+Recording no_action suppresses the automatic completion comment for exactly this
+task and this input; a later comment starts a fresh round.`,
+	Args: exactArgs(2),
+	RunE: runIssueActivity,
+}
+
+func runIssueActivity(cmd *cobra.Command, args []string) error {
+	issueID := args[0]
+	outcome := args[1]
+	if outcome != "no_action" {
+		return fmt.Errorf("unsupported outcome %q; the only supported value is no_action", outcome)
+	}
+	reason, _ := cmd.Flags().GetString("reason")
+	if strings.TrimSpace(reason) == "" {
+		return fmt.Errorf("--reason is required: state why no change is needed")
+	}
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+	issueRef, err := resolveIssueRef(ctx, client, issueID)
+	if err != nil {
+		return fmt.Errorf("resolve issue: %w", err)
+	}
+	body := map[string]any{"outcome": outcome, "reason": reason}
+	var result map[string]any
+	if err := client.PostJSON(ctx, "/api/issues/"+issueRef.ID+"/evaluated", body, &result); err != nil {
+		return fmt.Errorf("record evaluation: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Evaluation recorded: %s (issue %s)\n", outcome, issueRef.Display)
+	output, _ := cmd.Flags().GetString("output")
+	if output == "json" {
+		return cli.PrintJSON(os.Stdout, result)
+	}
+	return nil
+}
+
 var issueCommentCmd = &cobra.Command{
 	Use:   "comment",
 	Short: "Work with issue comments",
@@ -581,6 +627,7 @@ func init() {
 	issueCmd.AddCommand(issueRerunCmd)
 	issueCmd.AddCommand(issueCancelTaskCmd)
 	issueCmd.AddCommand(issueSearchCmd)
+	issueCmd.AddCommand(issueActivityCmd)
 
 	issueCommentCmd.AddCommand(issueCommentListCmd)
 	issueCommentCmd.AddCommand(issueCommentAddCmd)
@@ -708,6 +755,10 @@ func init() {
 	issueRunMessagesCmd.Flags().String("output", "json", "Output format: table or json")
 	issueRunMessagesCmd.Flags().Int("since", 0, "Only return messages after this sequence number")
 	issueRunMessagesCmd.Flags().String("issue", "", "Issue ID/key to scope short run ID prefix resolution")
+
+	// issue activity
+	issueActivityCmd.Flags().String("reason", "", "Why the synced comment needs no change (required, max 120 characters)")
+	issueActivityCmd.Flags().String("output", "json", "Output format: table or json")
 
 	// issue comment add
 	issueCommentAddCmd.Flags().String("content", "", "Comment content (decodes \\n, \\r, \\t, \\\\; pipe via --content-stdin for multi-line bodies or to preserve literal backslashes)")

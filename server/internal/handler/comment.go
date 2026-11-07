@@ -52,9 +52,13 @@ type CommentResponse struct {
 	// raw prompt body. It is NOT settable through this endpoint — there is no
 	// request field for it — which is exactly why the card keys off this id
 	// rather than a `type` value the client controls.
-	QuickActionID *string              `json:"quick_action_id,omitempty"`
-	Reactions     []ReactionResponse   `json:"reactions"`
-	Attachments   []AttachmentResponse `json:"attachments"`
+	QuickActionID *string `json:"quick_action_id,omitempty"`
+	// ParentSync is the server-decided result of "sync this sub-issue comment to
+	// the parent card's assignee" (CLAWSTA-151 B11). Omitted for ordinary
+	// comments; clients never send a target.
+	ParentSync  *CommentParentSyncResponse `json:"parent_sync,omitempty"`
+	Reactions   []ReactionResponse         `json:"reactions"`
+	Attachments []AttachmentResponse       `json:"attachments"`
 	// Orientation stats — populated only on the roots_only path and omitted in
 	// every other mode, so the default response shape stays byte-identical for
 	// existing callers. ReplyCount is the number of descendants in the thread;
@@ -99,6 +103,20 @@ type CommentResponse struct {
 // or the SQUAD id for a squad mention — so the client correlates it back to the
 // mention it rendered without the server echoing a private target's name/owner.
 // reason_code is the stable, enumeration-safe admission reason.
+// commentParentSyncFromStored decodes the persisted parent-sync record; an
+// unreadable value omits the field rather than failing the whole comment read.
+func commentParentSyncFromStored(raw []byte) *CommentParentSyncResponse {
+	if len(raw) == 0 {
+		return nil
+	}
+	var persisted parentSyncPersisted
+	if err := json.Unmarshal(raw, &persisted); err != nil {
+		return nil
+	}
+	response := CommentParentSyncResponse(persisted)
+	return &response
+}
+
 type CommentTriggerOutcome struct {
 	TargetType string             `json:"target_type"` // "agent" | "squad"
 	TargetID   string             `json:"target_id"`
@@ -128,6 +146,7 @@ func commentToResponse(c db.Comment, reactions []ReactionResponse, attachments [
 		ResolvedByType: textToPtr(c.ResolvedByType),
 		ResolvedByID:   uuidToPtr(c.ResolvedByID),
 		SourceTaskID:   uuidToPtr(c.SourceTaskID),
+		ParentSync:     commentParentSyncFromStored(c.ParentSync),
 		DeletedAt:      timestampToPtr(c.DeletedAt),
 		QuickActionID:  uuidToPtr(c.QuickActionID),
 		Reactions:      reactions,
@@ -1498,6 +1517,10 @@ type CreateCommentRequest struct {
 	ParentID         *string  `json:"parent_id"`
 	AttachmentIDs    []string `json:"attachment_ids"`
 	SuppressAgentIDs []string `json:"suppress_agent_ids"`
+	// SyncParentAssignee asks the server to also hand this comment to the
+	// DIRECT parent issue's assignee (CLAWSTA-151 B11). A boolean only: the
+	// target, mode and fallback are decided server-side.
+	SyncParentAssignee bool `json:"sync_parent_assignee"`
 	// SteerTaskIDs are the running turns the author chose to add this comment
 	// to, instead of starting a follow-up run for their agents. A turn that
 	// has ended, or cannot take additional input, is never swapped for another
@@ -1509,6 +1532,9 @@ type CommentTriggerPreviewRequest struct {
 	Content          string  `json:"content"`
 	ParentID         *string `json:"parent_id"`
 	EditingCommentID *string `json:"editing_comment_id"`
+	// SyncParentAssignee previews the "sync to the parent card's assignee"
+	// switch (CLAWSTA-151 B11). It is a prediction, not an authorization.
+	SyncParentAssignee bool `json:"sync_parent_assignee"`
 }
 
 type CommentTriggerPreviewResponse struct {
@@ -1518,6 +1544,10 @@ type CommentTriggerPreviewResponse struct {
 	// it. It lets the composer warn before sending instead of the user only
 	// discovering the silent no-op afterwards.
 	Blocked []CommentTriggerOutcome `json:"blocked,omitempty"`
+	// ParentSync is present only for a sub-issue comment that asked to sync to
+	// its parent card's assignee. mode decides the switch copy; already_routed
+	// locks it checked when normal routing already reaches that assignee.
+	ParentSync *CommentParentSyncResponse `json:"parent_sync,omitempty"`
 }
 
 type CommentTriggerAgentResponse struct {
@@ -1665,16 +1695,29 @@ func (h *Handler) PreviewCommentTriggers(w http.ResponseWriter, r *http.Request)
 	// mention://agent/<uuid>) reads as inert in preview but enqueues the agent on
 	// submit — a preview/side-effect divergence (GH #5388 review).
 	content := sanitizeNullBytes(req.Content)
-	if content == "" {
-		writeJSON(w, http.StatusOK, CommentTriggerPreviewResponse{Agents: []CommentTriggerAgentResponse{}})
-		return
-	}
 
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
 	opts.OriginatorUserID = h.invokeOriginatorFromRequest(r, actorType, actorID)
 	if actorType == "agent" {
 		opts.AuthoringTaskID = h.commentSourceTaskID(r)
 	}
+	if content == "" {
+		resp := CommentTriggerPreviewResponse{Agents: []CommentTriggerAgentResponse{}}
+		if req.SyncParentAssignee {
+			// The switch is previewed while the composer is still empty; the
+			// parent-sync route does not depend on the text.
+			plan, planErr := h.resolveParentSyncPlan(r.Context(), issue, actorType, actorID, opts.OriginatorUserID, "", nil)
+			if planErr != nil {
+				writeError(w, http.StatusInternalServerError, "failed to resolve parent sync")
+				return
+			}
+			parentSync := plan.response
+			resp.ParentSync = &parentSync
+		}
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
 	triggers, targets := h.computeCommentAgentTriggers(r.Context(), issue, content, parentComment, actorType, actorID, opts)
 	resp := CommentTriggerPreviewResponse{
 		Agents:  make([]CommentTriggerAgentResponse, 0, len(triggers)),
@@ -1682,6 +1725,19 @@ func (h *Handler) PreviewCommentTriggers(w http.ResponseWriter, r *http.Request)
 	}
 	for _, trigger := range triggers {
 		resp.Agents = append(resp.Agents, h.commentAgentTriggerToResponse(trigger))
+	}
+	if req.SyncParentAssignee {
+		routedAgents := make(map[string]struct{}, len(triggers))
+		for _, trigger := range triggers {
+			routedAgents[uuidToString(trigger.Agent.ID)] = struct{}{}
+		}
+		plan, planErr := h.resolveParentSyncPlan(r.Context(), issue, actorType, actorID, opts.OriginatorUserID, content, routedAgents)
+		if planErr != nil {
+			writeError(w, http.StatusInternalServerError, "failed to resolve parent sync")
+			return
+		}
+		parentSync := plan.response
+		resp.ParentSync = &parentSync
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -1862,7 +1918,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 				}
-				noAction, checkErr := service.HasSquadLeaderNoActionEvaluationForTask(r.Context(), h.Queries, task)
+				noAction, checkErr := service.HasNoActionEvaluationForTask(r.Context(), h.Queries, task)
 				if checkErr != nil {
 					slog.Warn("checking squad leader no_action evaluation failed", append(logger.RequestAttrs(r),
 						"error", checkErr,
@@ -1870,7 +1926,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 						"issue_id", issueID,
 					)...)
 				} else if noAction {
-					writeError(w, http.StatusConflict, "squad leader recorded no_action; comments are not allowed for this task")
+					writeError(w, http.StatusConflict, "this task recorded no_action; comments are not allowed for it")
 					return
 				}
 			}
@@ -1898,6 +1954,56 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// CLAWSTA-151 B11: "sync to the parent card's assignee". Resolve the route
+	// BEFORE the comment exists so an undeliverable sync fails the request
+	// without saving a half-configured comment, and so the comment row carries
+	// the server-decided parent_sync record.
+	originatorUserID := h.invokeOriginatorFromRequest(r, authorType, authorID)
+	var parentSync *parentSyncPlan
+	var parentSyncRecord []byte
+	if req.SyncParentAssignee {
+		if isNoteComment(req.Content) {
+			writeError(w, http.StatusBadRequest, "a /note comment cannot sync to the parent card; cancel the sync to post a note")
+			return
+		}
+		normalTriggers, _ := h.computeCommentAgentTriggers(r.Context(), issue, req.Content, parentComment, authorType, authorID, commentTriggerComputeOptions{
+			AuthoringTaskID:  sourceTaskID,
+			OriginatorUserID: originatorUserID,
+		})
+		routedAgents := make(map[string]struct{}, len(normalTriggers))
+		for _, trigger := range normalTriggers {
+			routedAgents[uuidToString(trigger.Agent.ID)] = struct{}{}
+		}
+		plan, planErr := h.resolveParentSyncPlan(r.Context(), issue, authorType, authorID, originatorUserID, req.Content, routedAgents)
+		if planErr != nil {
+			slog.Warn("create comment: resolve parent sync failed", append(logger.RequestAttrs(r), "error", planErr, "issue_id", issueID)...)
+			writeError(w, http.StatusInternalServerError, "failed to resolve parent sync")
+			return
+		}
+		if plan.response.Mode == parentSyncModeUnavailable {
+			writeError(w, http.StatusBadRequest, "cannot sync this comment to the parent card ("+plan.response.Reason+"); cancel the sync and post it as a normal comment")
+			return
+		}
+		// A sync target the author also suppressed would be reported as notified
+		// while never being delivered; make the conflict explicit (B11).
+		if plan.response.Mode == parentSyncModeAgent {
+			targetID := uuidToString(plan.targetAgent.ID)
+			for _, suppressed := range suppressAgentIDs {
+				if uuidToString(suppressed) == targetID {
+					writeError(w, http.StatusBadRequest, "the parent card's assignee is also in suppress_agent_ids; remove the suppression or cancel the sync")
+					return
+				}
+			}
+		}
+		parentSync = &plan
+		encoded, marshalErr := json.Marshal(plan.persisted("pending"))
+		if marshalErr != nil {
+			writeError(w, http.StatusInternalServerError, "failed to resolve parent sync")
+			return
+		}
+		parentSyncRecord = encoded
+	}
+
 	createParams := db.CreateCommentParams{
 		ID:           dbid.NewV7(),
 		IssueID:      issue.ID,
@@ -1908,6 +2014,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		Type:         req.Type,
 		ParentID:     parentID,
 		SourceTaskID: sourceTaskID,
+		ParentSync:   parentSyncRecord,
 		// The author's "don't start" choices outlive this call: completion
 		// replay skips the agents it names.
 		SuppressedAgentIds: suppressAgentIDs,
@@ -1997,13 +2104,27 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	// must keep the resolved root in sync.
 	h.TaskService.AutoUnresolveThreadOnReply(r.Context(), rootComment, uuidToString(issue.WorkspaceID), authorType, authorID, h.wakeupSourceTaskID(r))
 
-	originatorUserID := h.invokeOriginatorFromRequest(r, authorType, authorID)
 	// The comment is already saved; a blocked mention must not fail the whole
 	// request. Surface the per-target outcomes so the client can show partial
 	// success instead of a silent no-op (MUL-4525 §2).
 	resp.TriggerOutcomes = h.triggerTasksForComment(r.Context(), issue, comment, parentComment, authorType, authorID, originatorUserID, suppressAgentIDs, steerTaskIDs)
 	if len(steerTaskIDs) > 0 {
 		applyCommentSupplements(&resp, h.listCommentSupplements(r.Context(), issue.WorkspaceID, []pgtype.UUID{comment.ID})[uuidToString(comment.ID)])
+	}
+
+	// The additive parent-sync delivery runs after the normal routes are fully
+	// resolved, so it can dedupe against them and so a failure here can only
+	// downgrade the sync — never the comment or its normal triggers.
+	if parentSync != nil {
+		deliveryStatus, deliveryReason := h.deliverParentSync(r.Context(), issue, comment, *parentSync)
+		if persisted, persistErr := h.persistParentSync(r.Context(), issue.WorkspaceID, comment.ID, *parentSync, deliveryStatus, deliveryReason); persistErr != nil {
+			slog.Warn("persist parent sync failed", append(logger.RequestAttrs(r),
+				"issue_id", issueID, "comment_id", uuidToString(comment.ID), "error", persistErr)...)
+			downgraded := parentSync.responseWith(deliveryStatus)
+			resp.ParentSync = &downgraded
+		} else {
+			resp.ParentSync = persisted
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, resp)
@@ -3427,9 +3548,17 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		AttachmentIDs    *[]string `json:"attachment_ids"`
 		SuppressAgentIDs []string  `json:"suppress_agent_ids"`
 		ExpectedRevision *int64    `json:"expected_revision,omitempty"`
+		// An edit never replays the parent-sync delivery (CLAWSTA-151 B11): the
+		// comment was already handed to the parent's assignee, and re-syncing the
+		// edited text would double-notify. Callers must post a new comment.
+		SyncParentAssignee *bool `json:"sync_parent_assignee,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.SyncParentAssignee != nil && *req.SyncParentAssignee {
+		writeError(w, http.StatusBadRequest, "sync_parent_assignee cannot be applied to an edited comment; post a new comment instead")
 		return
 	}
 	// See CreateComment: strip NUL / invalid-UTF-8 bytes PostgreSQL's TEXT column

@@ -525,6 +525,14 @@ SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 			DirectChildCount: row.childCount,
 		}
 	}
+	rowIssues := make([]IssueResponse, len(responseRows))
+	for index := range responseRows {
+		rowIssues[index] = responseRows[index].Issue
+	}
+	baseHandler.fillIssueDispatchers(r.Context(), compiled.workspaceID, rowIssues)
+	for index := range responseRows {
+		responseRows[index].Issue = rowIssues[index]
+	}
 
 	response := issueTableRowsResponse{
 		QueryFingerprint: compiled.fingerprint,

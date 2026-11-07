@@ -730,6 +730,7 @@ func (h *Handler) createManualCommentSubIssue(w http.ResponseWriter, r *http.Req
 		ActorID: util.UUIDToString(userID),
 		BroadcastPayload: func(issue db.Issue, _ []db.Attachment, labels []db.IssueLabel) map[string]any {
 			response := issueToResponse(issue, prefix)
+			h.fillOneIssueDispatcher(r.Context(), issue.WorkspaceID, &response)
 			labelResponses := labelsToResponse(labels)
 			response.Labels = &labelResponses
 			return map[string]any{"issue": response}
@@ -740,6 +741,7 @@ func (h *Handler) createManualCommentSubIssue(w http.ResponseWriter, r *http.Req
 	}
 	response := issueToResponse(result.Issue, prefix)
 	h.fillStatusCategory(r.Context(), workspaceID, &response)
+	h.fillOneIssueDispatcher(r.Context(), workspaceID, &response)
 	labelResponses := labelsToResponse(result.Labels)
 	response.Labels = &labelResponses
 	slog.Info("sub-issue created from captured comment", append(sourceContextAuditAttrs(r, capture.ID, capture.Snapshot.SourceIssue.ID, capture.Snapshot.AnchorCommentID, userID, "manual", limits, "success"), "target_issue_id", uuidToString(result.Issue.ID))...)

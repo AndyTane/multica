@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -31,6 +32,22 @@ type InboxItemResponse struct {
 	ActorType     *string         `json:"actor_type"`
 	ActorID       *string         `json:"actor_id"`
 	Details       json.RawMessage `json:"details"`
+	// ParentIssue* name the card a sub-issue notification belongs to
+	// (CLAWSTA-151 B14). Omitted for a top-level issue, a deleted/inaccessible
+	// parent, or a server that predates this field; the client then renders no
+	// parent line.
+	ParentIssueID         *string `json:"parent_issue_id,omitempty"`
+	ParentIssueIdentifier *string `json:"parent_issue_identifier,omitempty"`
+	ParentIssueTitle      *string `json:"parent_issue_title,omitempty"`
+}
+
+// inboxParentFields renders the optional parent projection of an inbox row.
+func inboxParentFields(id pgtype.UUID, number pgtype.Int4, title pgtype.Text, prefix string) (*string, *string, *string) {
+	if !id.Valid || !number.Valid {
+		return nil, nil, nil
+	}
+	identifier := service.IssueIdentifier(prefix, number.Int32)
+	return uuidToPtr(id), &identifier, textToPtr(title)
 }
 
 func inboxToResponse(i db.InboxItem) InboxItemResponse {
@@ -109,7 +126,8 @@ func inboxListBody(notifType string, issueID pgtype.UUID, body pgtype.Text) *str
 // inboxRowToResponse maps a LIST row — the main inbox and, through
 // archivedInboxRowToResponse, the archived view. Single-item responses go
 // through inboxToResponse and keep the full body.
-func inboxRowToResponse(r db.ListInboxItemsRow) InboxItemResponse {
+func inboxRowToResponse(r db.ListInboxItemsRow, prefix string) InboxItemResponse {
+	parentID, parentIdentifier, parentTitle := inboxParentFields(r.ParentIssueID, r.ParentIssueNumber, r.ParentIssueTitle, prefix)
 	return InboxItemResponse{
 		ID:            uuidToString(r.ID),
 		WorkspaceID:   uuidToString(r.WorkspaceID),
@@ -128,6 +146,10 @@ func inboxRowToResponse(r db.ListInboxItemsRow) InboxItemResponse {
 		ActorType:     textToPtr(r.ActorType),
 		ActorID:       uuidToPtr(r.ActorID),
 		Details:       json.RawMessage(r.Details),
+
+		ParentIssueID:         parentID,
+		ParentIssueIdentifier: parentIdentifier,
+		ParentIssueTitle:      parentTitle,
 	}
 }
 
@@ -135,8 +157,8 @@ func inboxRowToResponse(r db.ListInboxItemsRow) InboxItemResponse {
 // queries select `inbox_item.*` plus the joined issue projections), so the archived
 // row converts to the active one and reuses its mapper. If either query's
 // column list drifts, this conversion stops compiling — which is the point.
-func archivedInboxRowToResponse(r db.ListArchivedInboxItemsRow) InboxItemResponse {
-	return inboxRowToResponse(db.ListInboxItemsRow(r))
+func archivedInboxRowToResponse(r db.ListArchivedInboxItemsRow, prefix string) InboxItemResponse {
+	return inboxRowToResponse(db.ListInboxItemsRow(r), prefix)
 }
 
 func (h *Handler) enrichInboxResponse(ctx context.Context, resp InboxItemResponse, issueID pgtype.UUID) InboxItemResponse {
@@ -149,6 +171,20 @@ func (h *Handler) enrichInboxResponse(ctx context.Context, resp InboxItemRespons
 		resp.IssueStatus = &s
 		p := issue.Priority
 		resp.IssuePriority = &p
+		// CLAWSTA-151 B14: the single-item endpoint carries the same parent
+		// projection as the list, resolved from the live relation so a renamed
+		// parent shows its current title.
+		if issue.ParentIssueID.Valid {
+			parent, parentErr := h.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{
+				ID:          issue.ParentIssueID,
+				WorkspaceID: issue.WorkspaceID,
+			})
+			if parentErr == nil {
+				prefix := h.getIssuePrefix(ctx, issue.WorkspaceID)
+				resp.ParentIssueID, resp.ParentIssueIdentifier, resp.ParentIssueTitle = inboxParentFields(
+					parent.ID, pgtype.Int4{Int32: parent.Number, Valid: true}, pgtype.Text{String: parent.Title, Valid: true}, prefix)
+			}
+		}
 	}
 	return resp
 }
@@ -174,9 +210,10 @@ func (h *Handler) ListInbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	prefix := h.getIssuePrefix(r.Context(), wsUUID)
 	resp := make([]InboxItemResponse, len(items))
 	for i, item := range items {
-		resp[i] = inboxRowToResponse(item)
+		resp[i] = inboxRowToResponse(item, prefix)
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -212,9 +249,10 @@ func (h *Handler) ListArchivedInbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	prefix := h.getIssuePrefix(r.Context(), wsUUID)
 	resp := make([]InboxItemResponse, len(items))
 	for i, item := range items {
-		resp[i] = archivedInboxRowToResponse(item)
+		resp[i] = archivedInboxRowToResponse(item, prefix)
 	}
 
 	writeJSON(w, http.StatusOK, resp)

@@ -530,8 +530,17 @@ func buildCommentPrompt(task Task, provider string) string {
 	// merged comment (MUL-4348). Same-thread follow-ups collapse to a single
 	// group upstream, so they keep the ordinary single-parent path below and can
 	// never be split into duplicate replies.
+	if taskIsParentSync(task) {
+		b.WriteString(execenv.BuildParentSyncReadInstructions(task.ParentSyncCardID))
+	}
 	if targets := commentReplyThreads(task); len(targets) >= 2 {
-		b.WriteString(execenv.BuildMultiThreadCommentReplyInstructions(task.IssueID, targets, taskIsSquadLeader(task)))
+		if taskIsParentSync(task) {
+			b.WriteString(execenv.BuildMultiThreadCommentReplyInstructionsForParentSync(task.IssueID, targets))
+		} else {
+			b.WriteString(execenv.BuildMultiThreadCommentReplyInstructions(task.IssueID, targets, taskIsSquadLeader(task)))
+		}
+	} else if taskIsParentSync(task) {
+		b.WriteString(execenv.BuildCommentReplyInstructionsForParentSync(provider, task.IssueID, task.TriggerCommentID))
 	} else {
 		b.WriteString(execenv.BuildCommentReplyInstructions(provider, task.IssueID, task.TriggerCommentID, taskIsSquadLeader(task)))
 	}
@@ -838,6 +847,14 @@ const squadBriefingMarker = "## Squad Operating Protocol"
 // and the legacy text inference — exactly today's behavior against both
 // groups — is the only correct read. Drop this branch once a minimum server
 // version is enforced (MUL-5811).
+// taskIsParentSync reports whether this run was woken by "sync this sub-issue
+// comment to the parent card's assignee" (CLAWSTA-151 B11/B15). Such a run is
+// bound to the child issue but reads the parent card, and only for this pure
+// sync may it use the silent exit.
+func taskIsParentSync(task Task) bool {
+	return task.ParentSyncCardID != ""
+}
+
 func taskIsSquadLeader(task Task) bool {
 	if !task.LeaderRoleResolved {
 		return task.Agent != nil && strings.Contains(task.Agent.Instructions, squadBriefingMarker)

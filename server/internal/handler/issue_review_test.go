@@ -26,7 +26,10 @@ func reviewPut(t *testing.T, id string, body any, status int) IssueResponse {
 }
 
 func TestReviewLifecycleAndAtomicUndo(t *testing.T) {
-	id := dbfx.Issue(t, "Review lifecycle", testutil.Cols{"status": "in_review", "metadata": `{"review_by":"user","review_action":"Check it","review_user":"` + testUserID + `","review_agent":"legacy","other":true,"review_custom":"keep"}`, "created_at": time.Now().Add(-time.Hour)})
+	// R4/B7: publishing a user review requires a valid assignee to advance the
+	// card after the person answers.
+	advancer := dbfx.Agent(t, "Review lifecycle advancer", "")
+	id := dbfx.Issue(t, "Review lifecycle", testutil.Cols{"status": "in_review", "assignee_type": "agent", "assignee_id": advancer, "metadata": `{"review_by":"user","review_action":"Check it","review_user":"` + testUserID + `","review_agent":"legacy","other":true,"review_custom":"keep"}`, "created_at": time.Now().Add(-time.Hour)})
 	current, err := testHandler.Queries.GetIssue(context.Background(), parseUUID(id))
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +153,8 @@ func TestReviewBatchTransitionClearsKeys(t *testing.T) {
 }
 
 func TestReviewRestorePreservesLargeUnrelatedNumbers(t *testing.T) {
-	id := dbfx.Issue(t, "Exact metadata", testutil.Cols{"status": "done", "metadata": `{"large":9007199254740993}`})
+	advancer := dbfx.Agent(t, "Exact metadata advancer", "")
+	id := dbfx.Issue(t, "Exact metadata", testutil.Cols{"status": "done", "assignee_type": "agent", "assignee_id": advancer, "metadata": `{"large":9007199254740993}`})
 	current, err := testHandler.Queries.GetIssue(context.Background(), parseUUID(id))
 	if err != nil {
 		t.Fatal(err)

@@ -9,6 +9,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/handler"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -468,7 +469,7 @@ func notifyIssueSubscribers(
 		}
 
 		notified[subID] = true
-		resp := inboxItemToResponse(item)
+		resp := inboxItemToResponse(ctx, queries, item)
 		resp["issue_status"] = issueStatus
 		bus.Publish(events.Event{
 			Type:        protocol.EventInboxNew,
@@ -533,7 +534,7 @@ func notifyDirect(
 		return
 	}
 
-	resp := inboxItemToResponse(item)
+	resp := inboxItemToResponse(ctx, queries, item)
 	resp["issue_status"] = issueStatus
 	bus.Publish(events.Event{
 		Type:        protocol.EventInboxNew,
@@ -648,7 +649,7 @@ func notifyMentionedMembers(
 			slog.Error("mention inbox creation failed", "mentioned_id", id, "error", err)
 			continue
 		}
-		resp := inboxItemToResponse(item)
+		resp := inboxItemToResponse(context.Background(), queries, item)
 		resp["issue_status"] = issueStatus
 		bus.Publish(events.Event{
 			Type:        protocol.EventInboxNew,
@@ -1072,8 +1073,14 @@ func registerNotificationListeners(bus *events.Bus, queries *db.Queries) {
 
 // inboxItemToResponse converts a db.InboxItem into a map suitable for
 // JSON-serializable event payloads (mirrors handler.inboxToResponse fields).
-func inboxItemToResponse(item db.InboxItem) map[string]any {
-	return map[string]any{
+//
+// CLAWSTA-151 B14: the payload also carries the parent projection when the
+// notification belongs to a sub-issue, so a client patching its inbox cache
+// from inbox:new does not lose the "属于 <identifier> · <title>" line the list
+// response provides. A failed lookup omits the fields instead of inventing a
+// parent.
+func inboxItemToResponse(ctx context.Context, queries *db.Queries, item db.InboxItem) map[string]any {
+	resp := map[string]any{
 		"id":             util.UUIDToString(item.ID),
 		"workspace_id":   util.UUIDToString(item.WorkspaceID),
 		"recipient_type": item.RecipientType,
@@ -1090,4 +1097,14 @@ func inboxItemToResponse(item db.InboxItem) map[string]any {
 		"actor_id":       util.UUIDToPtr(item.ActorID),
 		"details":        json.RawMessage(item.Details),
 	}
+	if item.IssueID.Valid {
+		parent, err := queries.GetInboxParentIssueRef(ctx, item.IssueID)
+		if err == nil && parent.ParentIssueID.Valid {
+			resp["parent_issue_id"] = util.UUIDToPtr(parent.ParentIssueID)
+			resp["parent_issue_identifier"] = service.IssueIdentifier(parent.WorkspaceIssuePrefix, parent.ParentIssueNumber)
+			parentTitle := parent.ParentIssueTitle
+			resp["parent_issue_title"] = &parentTitle
+		}
+	}
+	return resp
 }

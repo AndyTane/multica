@@ -293,6 +293,7 @@ func (h *Handler) maybeAutoCompleteIssue(ctx context.Context, workspaceID, issue
 	prefix := h.getIssuePrefix(ctx, issue.WorkspaceID)
 	resp := issueToResponse(updated, prefix)
 	h.fillStatusCategory(ctx, updated.WorkspaceID, &resp)
+	h.fillOneIssueDispatcher(ctx, updated.WorkspaceID, &resp)
 	h.publish(protocol.EventIssueUpdated, uuidToString(workspaceID), "system", "", map[string]any{
 		"issue":          resp,
 		"status_changed": true,

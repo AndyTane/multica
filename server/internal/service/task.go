@@ -1431,6 +1431,13 @@ func (s *TaskService) enqueueMentionTask(ctx context.Context, issue db.Issue, ag
 }
 
 func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, origin RunOrigin) (db.AgentTaskQueue, error) {
+	return s.enqueueMentionTaskWithCommentPlanAndContext(ctx, issue, agentID, triggerCommentID, coalescedCommentIDs, isLeader, squadID, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID, origin, nil)
+}
+
+// enqueueMentionTaskWithCommentPlanAndContext is the parent-sync aware variant
+// (CLAWSTA-151 B11): contextJSON is merged into the task's context column so the
+// run, its replay and the no_action exit can prove the sync obligation.
+func (s *TaskService) enqueueMentionTaskWithCommentPlanAndContext(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, origin RunOrigin, contextJSON []byte) (db.AgentTaskQueue, error) {
 	if err := guardIssueNotInTriage(ctx, s.Queries, issue.ID, origin); err != nil {
 		return db.AgentTaskQueue{}, err
 	}
@@ -1486,6 +1493,9 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 		DelegatedFromTaskID:  attrDelegatedFrom,
 		TriggerEvidenceKind:  attrEvidenceKind,
 		TriggerEvidenceRefID: attrEvidenceRef,
+		// CLAWSTA-151 B11: a parent-sync run records the direct parent card, the
+		// sync source comment and the receiving identity alongside head_sha.
+		ParentSync: contextJSON,
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -1551,6 +1561,57 @@ type QuickCreateContext struct {
 
 // QuickCreateContextType marks a task as a quick-create job.
 const QuickCreateContextType = "quick_create"
+
+// ParentSyncTaskContext is stored under the "parent_sync" key of a task's
+// context JSONB for a run created by "sync this sub-issue comment to the parent
+// card's assignee" (CLAWSTA-151 B11). It binds the run to the CHILD issue (the
+// atomic card) while recording the direct parent, the source comment and the
+// receiving identity, so completion, replay and the no_action exit can prove
+// the obligation came from this sync rather than inventing one.
+type ParentSyncTaskContext struct {
+	ParentIssueID   string `json:"parent_issue_id"`
+	SourceCommentID string `json:"source_comment_id"`
+	Mode            string `json:"mode"`
+	ReceiverType    string `json:"receiver_type"`
+	ReceiverID      string `json:"receiver_id"`
+}
+
+// parentSyncContextJSON wraps the payload in the task context envelope.
+func parentSyncContextJSON(sync ParentSyncTaskContext) []byte {
+	if sync.ParentIssueID == "" || sync.SourceCommentID == "" {
+		return nil
+	}
+	encoded, err := json.Marshal(map[string]any{"parent_sync": sync})
+	if err != nil {
+		return nil
+	}
+	return encoded
+}
+
+// ParseParentSyncTaskContext returns the parent-sync obligation recorded on a
+// task, or ok=false when the task is an ordinary run.
+func (s *TaskService) ParseParentSyncTaskContext(task db.AgentTaskQueue) (ParentSyncTaskContext, bool) {
+	if len(task.Context) == 0 {
+		return ParentSyncTaskContext{}, false
+	}
+	var envelope struct {
+		ParentSync *ParentSyncTaskContext `json:"parent_sync"`
+	}
+	if err := json.Unmarshal(task.Context, &envelope); err != nil || envelope.ParentSync == nil {
+		return ParentSyncTaskContext{}, false
+	}
+	if envelope.ParentSync.ParentIssueID == "" || envelope.ParentSync.SourceCommentID == "" {
+		return ParentSyncTaskContext{}, false
+	}
+	return *envelope.ParentSync, true
+}
+
+// EnqueueTaskForParentSync creates the run that lets the parent card's assignee
+// read the synced comment. The task stays bound to the child issue (the atomic
+// card) and carries the parent provenance in its context (CLAWSTA-151 B11).
+func (s *TaskService) EnqueueTaskForParentSync(ctx context.Context, issue db.Issue, agentID pgtype.UUID, isLeader bool, squadID pgtype.UUID, triggerCommentID pgtype.UUID, sync ParentSyncTaskContext) (db.AgentTaskQueue, error) {
+	return s.enqueueMentionTaskWithCommentPlanAndContext(ctx, issue, agentID, triggerCommentID, nil, isLeader, squadID, false, "", pgtype.UUID{}, pgtype.UUID{}, OriginNamed, parentSyncContextJSON(sync))
+}
 
 // EnqueueQuickCreateTask creates a queued task that has no issue / chat /
 // autopilot link — the user's natural-language prompt is stored in the
@@ -4529,9 +4590,9 @@ func (s *TaskService) CompleteTaskWithTransition(ctx context.Context, taskID pgt
 	// for assignment-triggered tasks it is NULL and the fallback is top-level.
 	// Chat tasks have no IssueID and are handled separately below.
 	if task.IssueID.Valid {
-		suppressNoActionComment, err := HasSquadLeaderNoActionEvaluationForTask(ctx, s.Queries, task)
+		suppressNoActionComment, err := HasNoActionEvaluationForTask(ctx, s.Queries, task)
 		if err != nil {
-			slog.Warn("checking squad leader no_action evaluation failed",
+			slog.Warn("checking no_action evaluation failed",
 				"task_id", util.UUIDToString(task.ID),
 				"issue_id", util.UUIDToString(task.IssueID),
 				"agent_id", util.UUIDToString(task.AgentID),
@@ -7649,6 +7710,9 @@ func builtInStatusCategory(status string) string {
 type IssueMapQuerier interface {
 	issuestatus.Querier
 	GetIssueRefInWorkspace(ctx context.Context, arg db.GetIssueRefInWorkspaceParams) (db.GetIssueRefInWorkspaceRow, error)
+	// CLAWSTA-151 B9: a background issue:updated snapshot must carry the same
+	// read-only dispatcher fields as the HTTP rendering.
+	ListIssueDispatchers(ctx context.Context, arg db.ListIssueDispatchersParams) ([]db.ListIssueDispatchersRow, error)
 }
 
 // IssueToMapResolved is IssueToMap with an AUTHORITATIVE status_category and
@@ -7670,6 +7734,18 @@ func IssueToMapResolved(ctx context.Context, q IssueMapQuerier, issue db.Issue, 
 	m["status_name"] = name
 	if ref := resolveDuplicateOf(ctx, q, issue, issuePrefix); ref != nil {
 		m["duplicate_of"] = ref
+	}
+	// CLAWSTA-151 B9. A failed resolution omits both fields rather than
+	// publishing a false "no dispatcher"; the HTTP rendering behaves the same.
+	if rows, err := q.ListIssueDispatchers(ctx, db.ListIssueDispatchersParams{
+		WorkspaceID: issue.WorkspaceID,
+		Ids:         []pgtype.UUID{issue.ID},
+	}); err != nil {
+		slog.Warn("resolve issue dispatcher for snapshot failed",
+			"issue_id", util.UUIDToString(issue.ID), "error", err)
+	} else if len(rows) == 1 && rows[0].DispatcherUserID.Valid {
+		m["dispatcher_user_id"] = util.UUIDToPtr(rows[0].DispatcherUserID)
+		m["dispatcher_active"] = rows[0].DispatcherActive
 	}
 	return m
 }

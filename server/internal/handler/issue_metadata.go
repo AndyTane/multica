@@ -153,6 +153,25 @@ func (h *Handler) ListIssueMetadata(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"metadata": parseIssueMetadata(issue.Metadata)})
 }
 
+// issueMetadataMutation is the post-write snapshot the metadata endpoints echo
+// and broadcast. A single-key write and a review-mark publish (which writes all
+// five reserved keys at once) both reduce to this shape.
+type issueMetadataMutation struct {
+	Metadata []byte
+	Revision int64
+}
+
+func writeIssueMetadataMutation(w http.ResponseWriter, h *Handler, r *http.Request, userID, workspaceID string, mutation issueMetadataMutation) {
+	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+	metadata := parseIssueMetadata(mutation.Metadata)
+	h.publish(protocol.EventIssueMetadataChanged, workspaceID, actorType, actorID, map[string]any{
+		"issue_id":       chi.URLParam(r, "id"),
+		"metadata":       metadata,
+		"issue_revision": mutation.Revision,
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"metadata": metadata, "issue_revision": mutation.Revision})
+}
+
 func (h *Handler) SetIssueMetadataKey(w http.ResponseWriter, r *http.Request) {
 	r = h.withWakeupActor(r)
 	issueID := chi.URLParam(r, "id")
@@ -186,31 +205,56 @@ func (h *Handler) SetIssueMetadataKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStarted := time.Now()
-	updated, err := wakeupWrite(h, r, func(q *db.Queries) (db.SetIssueMetadataKeyRow, error) {
+	updated, err := wakeupWrite(h, r, func(q *db.Queries) (issueMetadataMutation, error) {
 		current, lockErr := q.LockIssueForDescriptionUpdate(r.Context(), db.LockIssueForDescriptionUpdateParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID})
 		if lockErr != nil {
-			return db.SetIssueMetadataKeyRow{}, lockErr
+			return issueMetadataMutation{}, lockErr
 		}
 		existing := parseIssueMetadata(current.Metadata)
 		if _, present := existing[key]; !present && len(existing) >= maxIssueMetadataKeys {
-			return db.SetIssueMetadataKeyRow{}, &reviewValidationError{"metadata cannot exceed 50 keys"}
+			return issueMetadataMutation{}, &reviewValidationError{"metadata cannot exceed 50 keys"}
 		}
+		value := req.Value
 		if isReviewKey(key) {
-			if current.Status != "in_review" {
-				return db.SetIssueMetadataKeyRow{}, errReviewClosed
+			if !isReviewStatus(current.Status) {
+				return issueMetadataMutation{}, errReviewClosed
 			}
-			normalized, validateErr := validateReviewValue(r.Context(), q, current.WorkspaceID, key, req.Value)
+			normalized, validateErr := validateReviewValue(r.Context(), q, current.WorkspaceID, key, value)
 			if validateErr != nil {
-				return db.SetIssueMetadataKeyRow{}, validateErr
+				return issueMetadataMutation{}, validateErr
 			}
-			req.Value = normalized
+			value = normalized
+			entries, publish, resolveErr := resolveReviewSingleKey(r.Context(), q, current, key, normalized)
+			if resolveErr != nil {
+				return issueMetadataMutation{}, resolveErr
+			}
+			if publish {
+				// Publishing review_by writes the whole validated five-key object:
+				// it may fill review_kind/review_user the single-key request did not
+				// carry, so this cannot be another single-key UPDATE.
+				metadata, mergeErr := mergeReviewMetadata(current.Metadata, entries)
+				if mergeErr != nil {
+					return issueMetadataMutation{}, mergeErr
+				}
+				published, setErr := q.SetIssueReviewMetadata(r.Context(), db.SetIssueReviewMetadataParams{
+					ID:           current.ID,
+					WorkspaceID:  current.WorkspaceID,
+					Metadata:     metadata,
+					BumpRevision: 1,
+				})
+				if setErr != nil {
+					return issueMetadataMutation{}, setErr
+				}
+				return issueMetadataMutation{Metadata: published.Metadata, Revision: published.Revision}, nil
+			}
 		}
-		return q.SetIssueMetadataKey(r.Context(), db.SetIssueMetadataKeyParams{
+		row, setErr := q.SetIssueMetadataKey(r.Context(), db.SetIssueMetadataKeyParams{
 			ID:          issue.ID,
 			WorkspaceID: issue.WorkspaceID,
 			Key:         key,
-			Value:       []byte(req.Value),
+			Value:       []byte(value),
 		})
+		return issueMetadataMutation{Metadata: row.Metadata, Revision: row.Revision}, setErr
 	})
 	queryDuration := time.Since(queryStarted)
 	if errors.Is(err, errReviewClosed) {
@@ -258,16 +302,7 @@ func (h *Handler) SetIssueMetadataKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.recordIssueMetadataMutation(r, "set", "changed", issueID, key, queryDuration)
-
-	workspaceID := uuidToString(updated.WorkspaceID)
-	actorType, actorID := h.resolveActor(r, userID, workspaceID)
-	metadata := parseIssueMetadata(updated.Metadata)
-	h.publish(protocol.EventIssueMetadataChanged, workspaceID, actorType, actorID, map[string]any{
-		"issue_id":       uuidToString(updated.ID),
-		"metadata":       metadata,
-		"issue_revision": updated.Revision,
-	})
-	writeJSON(w, http.StatusOK, map[string]any{"metadata": metadata, "issue_revision": updated.Revision})
+	writeIssueMetadataMutation(w, h, r, userID, uuidToString(issue.WorkspaceID), updated)
 }
 
 func (h *Handler) DeleteIssueMetadataKey(w http.ResponseWriter, r *http.Request) {
@@ -289,14 +324,46 @@ func (h *Handler) DeleteIssueMetadataKey(w http.ResponseWriter, r *http.Request)
 	}
 
 	queryStarted := time.Now()
-	updated, err := wakeupWrite(h, r, func(q *db.Queries) (db.DeleteIssueMetadataKeyRow, error) {
-		return q.DeleteIssueMetadataKey(r.Context(), db.DeleteIssueMetadataKeyParams{
+	updated, err := wakeupWrite(h, r, func(q *db.Queries) (issueMetadataMutation, error) {
+		if isReviewKey(key) {
+			current, lockErr := q.LockIssueForDescriptionUpdate(r.Context(), db.LockIssueForDescriptionUpdateParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID})
+			if lockErr != nil {
+				return issueMetadataMutation{}, lockErr
+			}
+			entries, publish, resolveErr := resolveReviewSingleKey(r.Context(), q, current, key, nil)
+			if resolveErr != nil {
+				return issueMetadataMutation{}, resolveErr
+			}
+			if publish {
+				metadata, mergeErr := mergeReviewMetadata(current.Metadata, entries)
+				if mergeErr != nil {
+					return issueMetadataMutation{}, mergeErr
+				}
+				written, setErr := q.SetIssueReviewMetadata(r.Context(), db.SetIssueReviewMetadataParams{
+					ID:           current.ID,
+					WorkspaceID:  current.WorkspaceID,
+					Metadata:     metadata,
+					BumpRevision: 1,
+				})
+				if setErr != nil {
+					return issueMetadataMutation{}, setErr
+				}
+				return issueMetadataMutation{Metadata: written.Metadata, Revision: written.Revision}, nil
+			}
+		}
+		row, delErr := q.DeleteIssueMetadataKey(r.Context(), db.DeleteIssueMetadataKeyParams{
 			ID:          issue.ID,
 			WorkspaceID: issue.WorkspaceID,
 			Key:         key,
 		})
+		return issueMetadataMutation{Metadata: row.Metadata, Revision: row.Revision}, delErr
 	})
 	queryDuration := time.Since(queryStarted)
+	var reviewErr *reviewValidationError
+	if errors.As(err, &reviewErr) {
+		writeError(w, http.StatusBadRequest, reviewErr.Error())
+		return
+	}
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			fallbackStarted := time.Now()
@@ -329,14 +396,5 @@ func (h *Handler) DeleteIssueMetadataKey(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	h.recordIssueMetadataMutation(r, "delete", "changed", issueID, key, queryDuration)
-
-	workspaceID := uuidToString(updated.WorkspaceID)
-	actorType, actorID := h.resolveActor(r, userID, workspaceID)
-	metadata := parseIssueMetadata(updated.Metadata)
-	h.publish(protocol.EventIssueMetadataChanged, workspaceID, actorType, actorID, map[string]any{
-		"issue_id":       uuidToString(updated.ID),
-		"metadata":       metadata,
-		"issue_revision": updated.Revision,
-	})
-	writeJSON(w, http.StatusOK, map[string]any{"metadata": metadata, "issue_revision": updated.Revision})
+	writeIssueMetadataMutation(w, h, r, userID, uuidToString(issue.WorkspaceID), updated)
 }
