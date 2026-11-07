@@ -298,12 +298,11 @@ function Get-BackendEnvironment {
 
 function Get-FrontendEnvironment {
     param($Config)
-    $environment = @{ NODE_ENV = 'production'; HOSTNAME = '127.0.0.1'; PORT = [string]$Config.WebPort; REMOTE_API_URL = ('http://127.0.0.1:' + $Config.ApiPort); NEXT_TELEMETRY_DISABLED = '1' }
+    $environment = @{ NODE_ENV = 'production'; HOSTNAME = '127.0.0.1'; PORT = [string]$Config.WebPort; REMOTE_API_URL = ('http://127.0.0.1:' + $Config.ApiPort); NEXT_PUBLIC_WS_URL = ''; NEXT_TELEMETRY_DISABLED = '1' }
     foreach ($property in $Config.FrontendEnvironment.PSObject.Properties) {
         if ($property.Name -notin @('HOSTNAME', 'PORT', 'REMOTE_API_URL', 'NODE_ENV')) { $environment[$property.Name] = [string]$property.Value }
     }
     $environment.NEXT_TELEMETRY_DISABLED = '1'
-    if (-not $environment.NEXT_PUBLIC_WS_URL) { $environment.NEXT_PUBLIC_WS_URL = 'ws://localhost:' + $Config.ApiPort + '/ws' }
     return $environment
 }
 

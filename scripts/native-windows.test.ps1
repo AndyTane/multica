@@ -36,7 +36,11 @@ try {
     Assert-NativeTest (-not $backendEnv.POSTHOG_API_KEY -and -not $backendEnv.POSTHOG_HOST) 'Native startup must not expose an analytics project to clients.'
     $frontendEnv = Get-FrontendEnvironment $config
     Assert-NativeTest ($frontendEnv.REMOTE_API_URL -eq 'http://127.0.0.1:18080') 'Frontend API proxy must target the native backend.'
-    Assert-NativeTest ($frontendEnv.NEXT_PUBLIC_WS_URL -eq 'ws://localhost:18080/ws') 'Browser realtime must target the native API rather than a different running deployment.'
+    Assert-NativeTest ($frontendEnv.NEXT_PUBLIC_WS_URL -eq '') 'Browser realtime must derive its protocol and host from the page for LAN and HTTPS access.'
+    $config.FrontendEnvironment.NEXT_PUBLIC_WS_URL = 'wss://example.invalid/ws'
+    $explicitFrontendEnv = Get-FrontendEnvironment $config
+    Assert-NativeTest ($explicitFrontendEnv.NEXT_PUBLIC_WS_URL -eq 'wss://example.invalid/ws') 'An explicitly configured WebSocket endpoint must be preserved.'
+    $config.FrontendEnvironment.NEXT_PUBLIC_WS_URL = ''
     Assert-NativeTest ($frontendEnv.NEXT_TELEMETRY_DISABLED -eq '1') 'Imported frontend settings must not re-enable Next.js telemetry.'
 
     $savedEnv = [Environment]::GetEnvironmentVariable('MULTICA_NATIVE_TEST_MARKER', 'Process')

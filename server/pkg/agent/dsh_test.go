@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
 
 func TestParseDshModelID(t *testing.T) {
@@ -124,6 +126,26 @@ printf '%s\n' '{"v":1,"type":"result","request_id":"task-cancel","status":"cance
 	result := <-session.Result
 	if result.Status != "cancelled" || result.SessionID != "session-cancel" {
 		t.Fatalf("bad cancellation result: %#v", result)
+	}
+}
+
+func TestDshProviderFailureReachesTaskResult(t *testing.T) {
+	const wire = `{"v":1,"type":"result","request_id":"quota-task","status":"failed","session_id":"multica-web-test","output":"","error":{"code":"dsh_turn_ended","message":"QUOTA (HTTP 402): Insufficient Balance (request_id: test-request)"}}`
+	var frame dshFrame
+	if err := json.Unmarshal([]byte(wire), &frame); err != nil {
+		t.Fatal(err)
+	}
+	state := dshRunState{usage: make(map[string]TokenUsage)}
+	handleDshFrame(frame, "quota-task", make(chan Message, 1), &state)
+	if state.result == nil || state.result.Status != "failed" || state.result.SessionID != "multica-web-test" {
+		t.Fatalf("bad provider failure result: %#v", state.result)
+	}
+	const want = "dsh_turn_ended: QUOTA (HTTP 402): Insufficient Balance (request_id: test-request)"
+	if state.result.Error != want {
+		t.Fatalf("provider error = %q, want %q", state.result.Error, want)
+	}
+	if reason := taskfailure.Classify(state.result.Error); reason != taskfailure.ReasonAgentProviderQuotaLimit {
+		t.Fatalf("provider failure reason = %q, want quota limit", reason)
 	}
 }
 

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -834,6 +835,16 @@ func shellArgsFromEnv(name string) ([]string, error) {
 // recurse forever if the daemon records or launches the wrapper.
 func resolveAgentExecutablePath(cmd string) (string, error) {
 	resolved, err := exec.LookPath(cmd)
+	// Native Claude upgrades can remove the npm shim and add ~/.local/bin to
+	// the user's PATH after this daemon started. Resolve that installer-owned
+	// entry directly without changing PATH or redirecting explicit overrides.
+	if errors.Is(err, exec.ErrNotFound) && runtime.GOOS == "windows" && cmd == "claude" {
+		if home, homeErr := os.UserHomeDir(); homeErr == nil {
+			if native, nativeErr := exec.LookPath(filepath.Join(home, ".local", "bin", "claude.exe")); nativeErr == nil {
+				return discoveredExecutablePath(native), nil
+			}
+		}
+	}
 	if err != nil {
 		return "", err
 	}
