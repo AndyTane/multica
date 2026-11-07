@@ -1430,5 +1430,19 @@
     "feedback_label": "打回意见",
     "note_not_delivered": "以 /note 开头的意见只做记录，不会交给 {{name}}",
     "not_delivered": "这条意见到不了 {{name}}，打回没有完成"
+  },
+  "awaiting_r4": {
+    "group_reply": "回复",
+    "group_act": "推进",
+    "group_approve": "审批",
+    "reply": "回复",
+    "reply_label": "回复内容",
+    "reply_placeholder": "一句话回答",
+    "done": "已完成",
+    "done_label": "完成说明",
+    "act_default": "已完成：{{action}}",
+    "not_delivered": "这条内容到不了 {{name}}，没有发出去",
+    "note_not_delivered": "以 /note 开头的内容只做记录，不会交给 {{name}}",
+    "unmarked": "另有 {{count}} 张卡在等人，但没标明等谁"
   }
 }

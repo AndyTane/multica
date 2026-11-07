@@ -1477,5 +1477,19 @@
     "feedback_label": "Send-back feedback",
     "note_not_delivered": "Feedback starting with /note is only recorded and will not reach {{name}}",
     "not_delivered": "This feedback cannot reach {{name}}. Send back was not completed."
+  },
+  "awaiting_r4": {
+    "group_reply": "Réponses",
+    "group_act": "Actions",
+    "group_approve": "Approbations",
+    "reply": "Répondre",
+    "reply_label": "Votre réponse",
+    "reply_placeholder": "Réponse en une ligne",
+    "done": "Terminé",
+    "done_label": "Ce que vous avez fait",
+    "act_default": "Terminé : {{action}}",
+    "not_delivered": "Ce contenu ne peut pas atteindre {{name}}. Rien n'a été envoyé.",
+    "note_not_delivered": "Un contenu commençant par /note est seulement enregistré et n'atteindra pas {{name}}",
+    "unmarked": "{{count}} autres attendent, mais personne n'est désigné"
   }
 }

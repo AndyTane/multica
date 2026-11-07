@@ -1430,5 +1430,19 @@
     "feedback_label": "Send-back feedback",
     "note_not_delivered": "Feedback starting with /note is only recorded and will not reach {{name}}",
     "not_delivered": "This feedback cannot reach {{name}}. Send back was not completed."
+  },
+  "awaiting_r4": {
+    "group_reply": "답장",
+    "group_act": "처리",
+    "group_approve": "승인",
+    "reply": "답장",
+    "reply_label": "답장 내용",
+    "reply_placeholder": "한 줄로 답변",
+    "done": "완료",
+    "done_label": "처리 내용",
+    "act_default": "완료: {{action}}",
+    "not_delivered": "이 내용은 {{name}}에게 전달되지 않았습니다.",
+    "note_not_delivered": "/note로 시작하는 내용은 기록만 되며 {{name}}에게 전달되지 않습니다",
+    "unmarked": "{{count}}개 더 기다리는 중이지만 담당자가 지정되지 않았습니다"
   }
 }
