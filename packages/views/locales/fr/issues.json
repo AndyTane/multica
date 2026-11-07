@@ -1505,6 +1505,7 @@
     "sync_to_owner": "Synchroniser avec le responsable du ticket parent · {{name}}",
     "sync_to_owner_unnamed": "Synchroniser avec le responsable du ticket parent",
     "sync_to_recipient": "Synchroniser avec {{name}}",
+    "locked_hint": "déjà notifié",
     "delivery_failed": "Commentaire publié, mais non transmis au responsable du ticket parent",
     "delivery_failed_reason": "Commentaire publié, mais non transmis au responsable du ticket parent : {{reason}}",
     "reason": {

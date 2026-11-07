@@ -47,12 +47,15 @@ function ParentSyncToggle({
 
   return (
     <div className="flex min-w-0 items-start gap-2">
+      {/* Base UI marks a disabled checkbox with `data-disabled` instead of the
+          native attribute, so the shared primitive's `disabled:opacity-50` never
+          applies. Fade it here, where the locked/unavailable reading is decided. */}
       <Checkbox
         id={fieldId}
         checked={checked}
         disabled={disabled || locked}
         onCheckedChange={(next) => onCheckedChange(next === true)}
-        className="mt-0.5"
+        className="mt-0.5 data-disabled:opacity-50"
       />
       <label
         htmlFor={fieldId}
@@ -62,8 +65,9 @@ function ParentSyncToggle({
         )}
       >
         {label}
+        {locked && <> · {t(($) => $.parent_sync.locked_hint)}</>}
         {unavailable && reason && (
-          <span> · {t(($) => $.parent_sync.reason[parentSyncReasonMessageKey(reason)])}</span>
+          <> · {t(($) => $.parent_sync.reason[parentSyncReasonMessageKey(reason)])}</>
         )}
       </label>
     </div>

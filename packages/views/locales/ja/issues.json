@@ -1458,6 +1458,7 @@
     "sync_to_owner": "親課題の担当者に同期 · {{name}}",
     "sync_to_owner_unnamed": "親課題の担当者に同期",
     "sync_to_recipient": "{{name}} に同期",
+    "locked_hint": "もともと通知されます",
     "delivery_failed": "コメントは投稿されましたが、親課題の担当者に届きませんでした",
     "delivery_failed_reason": "コメントは投稿されましたが、親課題の担当者に届きませんでした: {{reason}}",
     "reason": {

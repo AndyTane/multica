@@ -1458,6 +1458,7 @@
     "sync_to_owner": "同步给主卡负责人 · {{name}}",
     "sync_to_owner_unnamed": "同步给主卡负责人",
     "sync_to_recipient": "同步给 {{name}}",
+    "locked_hint": "本来就会通知到",
     "delivery_failed": "评论已发送，但没同步到主卡负责人",
     "delivery_failed_reason": "评论已发送，但没同步到主卡负责人：{{reason}}",
     "reason": {

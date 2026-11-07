@@ -1458,6 +1458,7 @@
     "sync_to_owner": "상위 이슈 담당자에게 동기화 · {{name}}",
     "sync_to_owner_unnamed": "상위 이슈 담당자에게 동기화",
     "sync_to_recipient": "{{name}}에게 동기화",
+    "locked_hint": "이미 알림이 갑니다",
     "delivery_failed": "댓글은 게시되었지만 상위 이슈 담당자에게 전달되지 않았습니다",
     "delivery_failed_reason": "댓글은 게시되었지만 상위 이슈 담당자에게 전달되지 않았습니다: {{reason}}",
     "reason": {

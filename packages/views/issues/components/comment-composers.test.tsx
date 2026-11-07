@@ -1418,9 +1418,14 @@ describe("sub-issue parent sync toggle", () => {
   it("locks the box on when the ordinary routing already reaches the owner", async () => {
     renderCommentWithSync({ parentSync: parentSync({ already_routed: true }) });
 
-    const box = await screen.findByRole("checkbox", { name: "Sync to parent's owner · Lambda" });
+    // Locked reads differently from a plain checked box: the label says the
+    // ordinary routing already reaches the owner, and the box is disabled.
+    const box = await screen.findByRole("checkbox", {
+      name: "Sync to parent's owner · Lambda · already notified",
+    });
     expect(box).toBeChecked();
     expect(box).toHaveAttribute("aria-disabled", "true");
+    expect(box).toHaveAttribute("data-disabled");
   });
 
   it("greys out an unreachable owner and shows the reason", async () => {
@@ -1436,7 +1441,7 @@ describe("sub-issue parent sync toggle", () => {
     const box = await screen.findByRole("checkbox");
     expect(box).toHaveAttribute("aria-disabled", "true");
     expect(box).not.toBeChecked();
-    expect(screen.getByText("Sync to parent's owner")).toBeInTheDocument();
+    expect(screen.getByText(/Sync to parent's owner/)).toBeInTheDocument();
     expect(screen.getByText(/No one can receive this copy/)).toBeInTheDocument();
     expect(screen.queryByText(/no_fallback_recipient/)).toBeNull();
   });
