@@ -48,7 +48,19 @@ v0.2.17 上线后发现：智能体把执行子卡也挂成「等你」，清单
 
 ## R4 投递（2026-11-07，执行方 DSH）
 
-Tane 指定 R4 全部实现交 Multica 里的 DSH 智能体，按执行子卡投递。分两批串行：R4a 后端 → R4b 前端。
+Tane 指定 R4 全部实现交 Multica 里的 DSH 智能体，按执行子卡投递。为了加快进度，按文件归属拆成几张并行卡，都从 `f33efb574` 起步，各走各的分支；全部通过后由集成卡统一合并：
+
+| 卡 | 内容 | 分支 |
+| --- | --- | --- |
+| CLAWSTA-155 R4a | 后端 B7–B15 | `agent/CLAWSTA-151-r4` |
+| CLAWSTA-156 R4b-1 | F1 + F7 | `agent/CLAWSTA-151-r4b1` |
+| CLAWSTA-157 R4b-2 | F3 + F4 | `agent/CLAWSTA-151-r4b2` |
+| CLAWSTA-158 R4b-3 | F2 + F5 + F6 | `agent/CLAWSTA-151-r4b3` |
+| CLAWSTA-159 R4b-4 | 把三条前端分支合进 `agent/CLAWSTA-151-r4`，补齐跨卡接线，跑测试，出真实截图 | `agent/CLAWSTA-151-r4` |
+
+前四张卡同时进行，每张卡只改自己负责的文件。各卡验收时发现的跨卡问题不退回子卡，统一记在 159 的描述里，集成时一起修。
+
+所有卡都由前端负责人验收，只审不跑：核对回报的测试是否覆盖要求，再抽查关键代码。
 
 - 目录与分支：`multica repo checkout https://github.com/AndyTane/UWorkers-nice.git --ref agent/CLAWSTA-151-r4`，在分支 `agent/CLAWSTA-151-r4` 上工作，base 为本节所在提交。每批按文件名提交（禁止 `git add -A` / `git add .` / `git stash` / `git checkout --` / `git reset --hard`），推送到同一分支；不开 PR、不合并、不改版本号，PR 由前端负责人复核后开。
 - 不碰：`.multica/`、MULTICA-RUNTIME 管理区块、`deploy/`、发布脚本、任何凭据与 `.env`、正在运行的服务与 DSH 本身。
@@ -69,9 +81,9 @@ Tane 指定 R4 全部实现交 Multica 里的 DSH 智能体，按执行子卡投
 9. B15 `runtime_config_sections.go`、内置 `multica-platform/references/issues.md`、`reply_instructions.go`。
 10. `packages/core` 的 API 类型与 zod schema 同步加新字段（缺字段时的兼容默认见 B10「不能把缺 dispatcher 当作任意人可处理」）；前端界面不在本批。
 
-验收：R4.3 后端矩阵 + B8/B9/B11/B12 各自列出的专项；按 C1 日常批只跑受影响 Go 包和 `packages/core` 相关测试，加 `pnpm typecheck`、`pnpm lint`。本批完成后由后端架构师按 B 节验收。
+验收：R4.3 后端矩阵 + B8/B9/B11/B12 各自列出的专项；按 C1 日常批只跑受影响 Go 包和 `packages/core` 相关测试，加 `pnpm typecheck`、`pnpm lint`。本批完成后由前端负责人按 B 节验收。
 
-### R4b 前端（R4a 提交后再派）
+### R4b 前端（与 R4a 并行，分卡见上表）
 
 | 编号 | 内容 | 要点 |
 | --- | --- | --- |
