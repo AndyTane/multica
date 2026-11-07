@@ -42,6 +42,7 @@ import { SteerBadge, SteerReceipts } from "./steer-receipts";
 import type { AgentTask, TimelineEntry, Attachment } from "@multica/core/types";
 import { contentReferencesAttachment } from "@multica/core/types";
 import { isDeletedComment } from "@multica/core/issues/comment-deletion";
+import type { ParentSyncOwnership } from "@multica/core/issues/parent-sync";
 import { commentSupplementReceipts, isSupplementInFlight } from "@multica/core/issues/run-steering";
 import { useConfigStore } from "@multica/core/config";
 import {
@@ -132,7 +133,7 @@ interface CommentCardProps {
    * `CommentRow` has to rerun the rule per row.
    */
   canModerate?: boolean;
-  onReply: (parentId: string, content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[]) => Promise<string | boolean>;
+  onReply: (parentId: string, content: string, attachmentIds?: string[], suppressAgentIds?: string[], steerTaskIds?: string[], syncParentAssignee?: boolean) => Promise<string | boolean>;
   onReplyAccepted?: (commentId: string) => void;
   onEdit: (commentId: string, content: string, attachmentIds: string[], suppressAgentIds?: string[], contentBase?: string) => Promise<void>;
   onDelete: (commentId: string) => void;
@@ -159,6 +160,9 @@ interface CommentCardProps {
   onResolvedExpandChange?: (rootId: string, expand: boolean) => void;
   /** ID of the comment to highlight (flash animation). */
   highlightedCommentId?: string | null;
+  /** Sub-issue ownership snapshot that enables the parent-sync toggle on this
+   *  thread's reply box (CLAWSTA-151 F3). Null/absent on a top-level issue. */
+  parentSyncOwnership?: ParentSyncOwnership | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1052,6 +1056,7 @@ function CommentCardImpl({
   expandedResolvedIds,
   onResolvedExpandChange,
   highlightedCommentId,
+  parentSyncOwnership = null,
 }: CommentCardProps) {
   const { t } = useT("issues");
   const locale = useLocale();
@@ -1544,8 +1549,14 @@ function CommentCardImpl({
                   draftKey={`reply:${issueId}:${entry.id}`}
                   onEditAnnotation={(id) => annotation.editAnnotation(id, true)}
                   steerByDefault={steerThreadRunByDefault}
-                  onSubmit={(content, attachmentIds, suppressAgentIds, steerTaskIds) => replyTargetMissing ? Promise.resolve(false) : onReply(replyTargetId, content, attachmentIds, suppressAgentIds, steerTaskIds)}
+                  onSubmit={(content, attachmentIds, suppressAgentIds, steerTaskIds, syncParentAssignee) => replyTargetMissing
+                    ? Promise.resolve(false)
+                    // Keep the original arity when the sync box is off.
+                    : syncParentAssignee
+                      ? onReply(replyTargetId, content, attachmentIds, suppressAgentIds, steerTaskIds, true)
+                      : onReply(replyTargetId, content, attachmentIds, suppressAgentIds, steerTaskIds)}
                   onAccepted={onReplyAccepted}
+                  parentSyncOwnership={parentSyncOwnership}
                 />
               </div>
             </>

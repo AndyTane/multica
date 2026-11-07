@@ -507,6 +507,8 @@
     "squad_leader_action_reason": "已评估并采取了操作：{{reason}}",
     "squad_leader_no_action": "已评估：无需操作",
     "squad_leader_no_action_reason": "已评估：无需操作（{{reason}}）",
+    "issue_assignee_no_action": "已阅：无需调整",
+    "issue_assignee_no_action_reason": "已阅：无需调整（{{reason}}）",
     "squad_leader_failed": "评估失败",
     "squad_leader_failed_reason": "评估失败：{{reason}}",
     "coalesced_badge": "×{{count}}",
@@ -1430,5 +1432,12 @@
     "feedback_label": "打回意见",
     "note_not_delivered": "以 /note 开头的意见只做记录，不会交给 {{name}}",
     "not_delivered": "这条意见到不了 {{name}}，打回没有完成"
+  },
+  "parent_sync": {
+    "sync_to_owner": "同步给主卡负责人 · {{name}}",
+    "sync_to_owner_unnamed": "同步给主卡负责人",
+    "sync_to_recipient": "同步给 {{name}}",
+    "delivery_failed": "评论已发送，但没同步到主卡负责人",
+    "delivery_failed_reason": "评论已发送，但没同步到主卡负责人：{{reason}}"
   }
 }

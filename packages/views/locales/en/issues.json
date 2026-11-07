@@ -514,6 +514,8 @@
     "squad_leader_action_reason": "evaluated and took action: {{reason}}",
     "squad_leader_no_action": "evaluated: no action needed",
     "squad_leader_no_action_reason": "evaluated: no action needed ({{reason}})",
+    "issue_assignee_no_action": "acknowledged: no changes needed",
+    "issue_assignee_no_action_reason": "acknowledged: no changes needed ({{reason}})",
     "squad_leader_failed": "evaluation failed",
     "squad_leader_failed_reason": "evaluation failed: {{reason}}",
     "coalesced_badge": "×{{count}}",
@@ -1477,5 +1479,12 @@
     "feedback_label": "Send-back feedback",
     "note_not_delivered": "Feedback starting with /note is only recorded and will not reach {{name}}",
     "not_delivered": "This feedback cannot reach {{name}}. Send back was not completed."
+  },
+  "parent_sync": {
+    "sync_to_owner": "Sync to parent's owner · {{name}}",
+    "sync_to_owner_unnamed": "Sync to parent's owner",
+    "sync_to_recipient": "Sync to {{name}}",
+    "delivery_failed": "Comment posted, but it did not reach the parent issue's owner",
+    "delivery_failed_reason": "Comment posted, but it did not reach the parent issue's owner: {{reason}}"
   }
 }
