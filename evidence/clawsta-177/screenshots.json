@@ -1,0 +1,32 @@
+{
+  "issue": "CLAWSTA-177",
+  "repository": "AndyTane/multica",
+  "base": "587ef1580273baa20e70ebd4f1498ba9b0a7b38c",
+  "browser": "Microsoft Edge 154 (Playwright chromium channel msedge)",
+  "screenshots": [
+    {
+      "file": "feedback-popover-dark.png",
+      "width": 1280,
+      "height": 900,
+      "sha256": "0cae2d94041cc6b338eccce18885b84a19afb8a655db92be15d7ca99bc118941"
+    },
+    {
+      "file": "feedback-popover-light.png",
+      "width": 1280,
+      "height": 900,
+      "sha256": "51a09ea1a4d8f46e07d1d5b95b01a5ad4f7ba4f1ef961739ca78be38740be437"
+    },
+    {
+      "file": "footer-dark.png",
+      "width": 1280,
+      "height": 900,
+      "sha256": "8b5698e44a970c36c6952be1c2c64b3c5795337917c61495e83ad1aad653b850"
+    },
+    {
+      "file": "footer-light.png",
+      "width": 1280,
+      "height": 900,
+      "sha256": "5fe5460be88895f54ec962e50445fc3efbb09a0e3352fa7da0afa2dd22915bd5"
+    }
+  ]
+}

@@ -61,8 +61,8 @@ test("restored Multica review cards: list, themes, board, feedback and atomic un
         await page.setViewportSize({width:1024,height:900});
         await page.screenshot({path:join(output,`awaiting-1024-${theme}.png`),animations:"disabled"});
         await page.setViewportSize({width:1280,height:900});
-        await list.getByRole("button",{name:"打回",exact:true}).first().click();
-        await page.getByRole("textbox",{name:"打回意见"}).fill("编译结束后补一张产物截图。");
+        await list.getByRole("button",{name:"审批意见",exact:true}).first().click();
+        await page.getByRole("textbox",{name:"审批意见"}).fill("编译结束后补一张产物截图。");
         await page.screenshot({path:join(output,`send-back-${theme}.png`),animations:"disabled"});
         await page.keyboard.press("Escape");
         const approvedNumber=expectedOrder[0].number;
@@ -94,9 +94,9 @@ test("restored Multica review cards: list, themes, board, feedback and atomic un
       const list=page.getByRole("list",{name:"等我处理"});
       await expect(list.getByRole("listitem")).toHaveCount(2);
       const row=list.getByRole("listitem").filter({hasText:"CLAWSTA-149"});
-      await row.getByRole("button",{name:"打回",exact:true}).click();
-      await page.getByRole("textbox",{name:"打回意见"}).fill("隔离验收：请补充汇报中的实际升级结果。");
-      await page.getByRole("button",{name:"打回",exact:true}).last().click();
+      await row.getByRole("button",{name:"审批意见",exact:true}).click();
+      await page.getByRole("textbox",{name:"审批意见"}).fill("隔离验收：请补充汇报中的实际升级结果。");
+      await page.getByRole("button",{name:"发送",exact:true}).last().click();
       await expect(list.getByRole("listitem")).toHaveCount(1);
       const sent=(await db.query("SELECT status,revision,metadata FROM issue WHERE id=$1",[ids.get(149)])).rows[0];
       expect(sent.status).toBe("in_progress");

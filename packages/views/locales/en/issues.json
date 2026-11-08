@@ -1450,12 +1450,13 @@
     "empty": "Nothing waiting on you",
     "missing_action": "The deliverer did not say what to do",
     "approve": "Approve",
-    "reject": "Send back",
+    "reject": "Feedback",
+    "send": "Send",
     "undo": "Undo",
     "approved": "Approved {{identifier}}",
     "changed": "This task has changed",
     "failed": "Something went wrong. Try again.",
-    "reason": "What needs changing?",
+    "reason": "Changes to make, or anything to pass along",
     "partial": "Feedback sent, status not updated",
     "retry_status": "Retry status update",
     "conflict": "This task has changed. Open it to continue.",
@@ -1472,9 +1473,9 @@
     "recipient": "Feedback goes back to {{name}}",
     "unassigned": "No deliverer assigned",
     "preview_failed": "Could not confirm the recipient. Try again.",
-    "feedback_label": "Send-back feedback",
+    "feedback_label": "Feedback",
     "note_not_delivered": "Feedback starting with /note is only recorded and will not reach {{name}}",
-    "not_delivered": "This feedback cannot reach {{name}}. Send back was not completed."
+    "not_delivered": "This feedback did not reach {{name}}. The status has not changed."
   },
   "awaiting_r4": {
     "group_reply": "Replies",

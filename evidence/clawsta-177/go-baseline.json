@@ -1,0 +1,25 @@
+{
+  "base": "587ef1580273baa20e70ebd4f1498ba9b0a7b38c",
+  "platform": "windows/amd64",
+  "goVersion": "go1.26.9",
+  "changedTests": "go test ./internal/daemon/execenv -run ^TestInjectRuntimeConfig -count=1 (PASS)",
+  "packageRun": "go test ./internal/daemon/execenv -count=1 -timeout 3m",
+  "baselineComparison": "go test -overlay <original-runtime-file-overlay> ./internal/daemon/execenv -run <same-failed-test-names> -count=1 -timeout 2m",
+  "sameFailingTestsOnBoth": [
+    "TestOpenclawActiveConfigPathFallbackFreshInstallUsesCanonicalPath",
+    "TestOpenclawActiveConfigPathFallbackSources",
+    "TestOpenclawDiscoveryCacheConcurrentPreparations",
+    "TestOpenclawDiscoveryCacheHitProducesSameWrapper",
+    "TestPrepareCodexHomeFailsClosedWhenSandboxWriteFails",
+    "TestPrepareLocalWorktreeContinuesAfterUserCommitsConflictingDraft",
+    "TestPrepareLocalWorktreeDoesNotReplayCleanHEADAdvance",
+    "TestPrepareLocalWorktreeExcludesHEADAdvanceWithExistingUserEdits",
+    "TestPrepareLocalWorktreeHandsCurrentEditsToAgentAfterHEADNormalizationConflict",
+    "TestPrepareLocalWorktreeNormalizesConflictPathsLiterally",
+    "TestPrepareLocalWorktreeNormalizesEditsAcrossChangesInTheSameFile",
+    "TestPrepareLocalWorktreePreservesOtherDraftsWhenNormalizationConflicts",
+    "TestPrepareOpenclawConfigExpandsTilde",
+    "TestReuseRestoresCodexHome"
+  ],
+  "panicOnBoth": "TestPrepareOpenclawConfigExpandsTilde: interface conversion: interface {} is nil, not []interface {}"
+}

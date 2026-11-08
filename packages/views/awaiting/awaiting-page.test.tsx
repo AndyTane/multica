@@ -31,7 +31,7 @@ function showSections(mine: Issue[], unmarked: Issue[]) {
   render(<QueryClientProvider client={qc}><AwaitingSections mine={mine} unmarked={unmarked} /></QueryClientProvider>);
 }
 
-beforeEach(() => { vi.clearAllMocks(); vi.mocked(api.previewCommentTriggers).mockResolvedValue({ agents: [{ id: "agent1", name: "Deliverer", source: "issue_assignee", reason: "" }] }); });
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(api.previewCommentTriggers).mockResolvedValue({ agents: [{ id: "agent1", name: "Deliverer", source: "issue_assignee", reason: "" }] }); });
 afterEach(cleanup);
 
 describe("review actions", () => {
@@ -43,6 +43,9 @@ describe("review actions", () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
     expect(api.updateIssue).toHaveBeenNthCalledWith(1, "i1", { status: "done", expected_revision: 7 });
     expect(peekOpen).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(api.createComment).not.toHaveBeenCalled();
+    expect(api.previewCommentTriggers).not.toHaveBeenCalled();
     const options = toastSuccess.mock.calls[0]![1];
     expect(options.duration).toBe(5000);
     await act(() => options.action.onClick());
@@ -66,10 +69,12 @@ describe("review actions", () => {
   it("sends one top-level comment and retries only the failed status write", async () => {
     vi.mocked(api.createComment).mockResolvedValue({ id: "c1", issue_revision: 8 } as never);
     vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ ...issue, status: "in_progress", revision: 9 });
-    show(); fireEvent.click(screen.getByRole("button", { name: "Send back" }));
-    const textbox = await screen.findByRole("textbox");
+    show(); fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    const textbox = await screen.findByRole("textbox", { name: "Feedback" });
+    expect(textbox).toHaveAttribute("placeholder", en.awaiting.reason);
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     fireEvent.change(textbox, { target: { value: "Fix the build" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByText("Feedback sent, status not updated");
     fireEvent.click(screen.getByRole("button", { name: "Retry status update" }));
     await waitFor(() => expect(api.updateIssue).toHaveBeenCalledTimes(2));
@@ -81,13 +86,13 @@ describe("review actions", () => {
 
   it.each([
     ["/note Needs work", "Feedback starting with /note is only recorded and will not reach Deliverer"],
-    ["Needs work", "This feedback cannot reach Deliverer. Send back was not completed."],
+    ["Needs work", "This feedback did not reach Deliverer. The status has not changed."],
   ])("keeps undeliverable feedback editable and prevents a status write: %s", async (content, message) => {
     vi.mocked(api.previewCommentTriggers).mockResolvedValue({ agents: [] });
-    show(); fireEvent.click(screen.getByRole("button", { name: "Send back" }));
-    const textbox = await screen.findByRole("textbox", { name: "Send-back feedback" });
+    show(); fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    const textbox = await screen.findByRole("textbox", { name: "Feedback" });
     fireEvent.change(textbox, { target: { value: content } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
     expect(textbox).toHaveValue(content);
     expect(textbox).toBeEnabled();
@@ -97,22 +102,22 @@ describe("review actions", () => {
     vi.mocked(api.previewCommentTriggers).mockResolvedValue({ agents: [{ id: "agent1", name: "Deliverer", source: "issue_assignee", reason: "" }] });
     vi.mocked(api.createComment).mockResolvedValue({ id: "c1", issue_revision: 8 } as never);
     vi.mocked(api.updateIssue).mockResolvedValue({ ...issue, status: "in_progress" });
-    fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(api.updateIssue).toHaveBeenCalledTimes(1));
     expect(api.createComment).toHaveBeenCalledExactlyOnceWith("i1", "Fixed feedback");
   });
 
   it("keeps feedback on comment failure and prevents retry over a concurrent status change", async () => {
     vi.mocked(api.createComment).mockRejectedValueOnce(new Error("offline"));
-    show(); fireEvent.click(screen.getByRole("button", { name: "Send back" }));
+    show(); fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
     const textbox = await screen.findByRole("textbox");
     fireEvent.change(textbox, { target: { value: "Needs work" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByRole("alert");
     expect((textbox as HTMLTextAreaElement).value).toBe("Needs work"); expect(api.updateIssue).not.toHaveBeenCalled();
     vi.mocked(api.createComment).mockResolvedValueOnce({ id: "c1", issue_revision: 8 } as never);
     vi.mocked(api.updateIssue).mockRejectedValueOnce(new ApiError("Conflict", 409, "Conflict"));
-    fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await screen.findByText("This task has changed. Open it to continue.");
     expect(toastError).toHaveBeenLastCalledWith("This task has changed");
     expect((screen.getByRole("button", { name: "Retry status update" }) as HTMLButtonElement).disabled).toBe(true);
@@ -153,6 +158,19 @@ describe("blocked kinds", () => {
 });
 
 describe("awaiting sections", () => {
+  it("removes the last row border in each group and keeps the footer separator", () => {
+    const reply = makeIssue({ id: "r1", status: "blocked", metadata: { review_by: "user", review_kind: "reply" } });
+    const approve = makeIssue({ id: "a1" });
+    const second = makeIssue({ id: "a2" });
+    const unmarked = makeIssue({ id: "u1", status: "blocked", metadata: {} });
+    showSections([reply, approve, second], [unmarked]);
+    for (const list of screen.getAllByRole("list")) {
+      expect(list.lastElementChild).toHaveClass("last:border-b-0");
+    }
+    expect(screen.getAllByRole("listitem").at(-2)).toHaveClass("border-b");
+    expect(screen.getByRole("button", { name: "1 more are waiting, but no one is marked" }).closest("section")).toHaveClass("border-t");
+  });
+
   it("prints one heading per non-empty group with its count and leaves the footer out at zero", () => {
     const approve = makeIssue({ id: "a1", identifier: "CLAWSTA-1", metadata: { review_by: "user", review_action: "Approve the build", review_user: "me", review_since: "2026-10-01T00:00:00Z" } });
     const reply = makeIssue({ id: "r1", identifier: "CLAWSTA-2", status: "blocked", metadata: { review_by: "user", review_kind: "reply", review_action: "Which branch?", review_user: "me", review_since: "2026-10-02T00:00:00Z" } });
