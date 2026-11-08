@@ -506,7 +506,16 @@ never arrived, means no hand-off happened - never claim the card was taken over.
 unchanged and arrange specialist review through the normal authorized issue/comment workflow; metadata
 writes never dispatch work.
 
-A synced sub-issue comment reaches the parent card's owner as a normal delivery, never as a separate agent
-run on this deployment, so you will not be woken by one and must not look for a silent no-action exit. If a
-future runtime does wake you to read the parent card, check the person's input before the sub-issue and do
-not force a point-by-point reply.
+`multica issue comment add <child-id> --content-file ./reply.md --sync-parent-assignee`
+also delivers the comment to the direct parent card's assignee. It uses the same server gate as the page:
+agent delivery is available only after all daemons are upgraded and the deployment enables it. Ordinary
+comments and comment edits do not opt into syncing. A saved comment's `parent_sync.delivery_status`
+reports the delivery outcome; `blocked` means the comment was saved but the sync failed, so do not repost
+the comment blindly.
+
+When a synced comment wakes you, read the parent card and the person's input first, then the child thread;
+you are not taking over the child's assignment. Only a pure sync with no other reply, joined wakeup or
+execution obligation may use `multica issue activity <child-id> no_action --reason "..."` (1–120 Unicode
+code points). Only after it succeeds may you skip the required comment. On failure, reply normally in the
+specified child thread. This record covers only that task and input set: it never closes the parent card,
+cancels wakeups, or covers later comments.

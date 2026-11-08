@@ -313,6 +313,56 @@ var issueReorderCmd = &cobra.Command{
 
 // Comment subcommands.
 
+var issueActivityCmd = &cobra.Command{
+	Use:   "activity <issue-id> no_action",
+	Short: "Record a no-action evaluation for a synced sub-issue comment",
+	Long: `Record that this run read a parent card's synced comment and needs no
+change. Only a run started by the "sync to the parent card's assignee" switch
+may call it: the task token proves the provenance, and the server refuses a run
+that also carries ordinary @ / reply obligations or already posted a comment.
+Recording no_action suppresses the automatic completion comment for exactly this
+task and this input; a later comment starts a fresh round.`,
+	Args: exactArgs(2),
+	RunE: runIssueActivity,
+}
+
+func runIssueActivity(cmd *cobra.Command, args []string) error {
+	issueID := args[0]
+	outcome := args[1]
+	if outcome != "no_action" {
+		return fmt.Errorf("unsupported outcome %q; the only supported value is no_action", outcome)
+	}
+	reason, _ := cmd.Flags().GetString("reason")
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return fmt.Errorf("--reason is required: state why no change is needed")
+	}
+	if utf8.RuneCountInString(reason) > 120 {
+		return fmt.Errorf("--reason must contain at most 120 Unicode code points")
+	}
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+	issueRef, err := resolveIssueRef(ctx, client, issueID)
+	if err != nil {
+		return fmt.Errorf("resolve issue: %w", err)
+	}
+	body := map[string]any{"outcome": outcome, "reason": reason}
+	var result map[string]any
+	if err := client.PostJSON(ctx, "/api/issues/"+issueRef.ID+"/evaluated", body, &result); err != nil {
+		return fmt.Errorf("record evaluation: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Evaluation recorded: %s (issue %s)\n", outcome, issueRef.Display)
+	output, _ := cmd.Flags().GetString("output")
+	if output == "json" {
+		return cli.PrintJSON(os.Stdout, result)
+	}
+	return nil
+}
+
 var issueCommentCmd = &cobra.Command{
 	Use:   "comment",
 	Short: "Work with issue comments",
@@ -507,7 +557,7 @@ var validIssueFields = []string{
 	"status", "status_category", "status_name", "priority", "assignee_type",
 	"assignee_id", "creator_type", "creator_id", "parent_issue_id",
 	"duplicate_of", "project_id", "position", "stage", "start_date", "due_date", "created_at",
-	"updated_at", "revision", "last_activity_at", "metadata", "properties",
+	"updated_at", "status_changed_at", "revision", "last_activity_at", "metadata", "properties",
 	"labels",
 }
 
@@ -580,6 +630,7 @@ func init() {
 	issueCmd.AddCommand(issueRerunCmd)
 	issueCmd.AddCommand(issueCancelTaskCmd)
 	issueCmd.AddCommand(issueSearchCmd)
+	issueCmd.AddCommand(issueActivityCmd)
 
 	issueCommentCmd.AddCommand(issueCommentListCmd)
 	issueCommentCmd.AddCommand(issueCommentAddCmd)
@@ -708,12 +759,17 @@ func init() {
 	issueRunMessagesCmd.Flags().Int("since", 0, "Only return messages after this sequence number")
 	issueRunMessagesCmd.Flags().String("issue", "", "Issue ID/key to scope short run ID prefix resolution")
 
+	// issue activity
+	issueActivityCmd.Flags().String("reason", "", "Why the synced comment needs no change (required, max 120 characters)")
+	issueActivityCmd.Flags().String("output", "json", "Output format: table or json")
+
 	// issue comment add
 	issueCommentAddCmd.Flags().String("content", "", "Comment content (decodes \\n, \\r, \\t, \\\\; pipe via --content-stdin for multi-line bodies or to preserve literal backslashes)")
 	issueCommentAddCmd.Flags().Bool("content-stdin", false, "Read comment content from stdin (preserves multi-line content verbatim)")
 	issueCommentAddCmd.Flags().String("content-file", "", "Read comment content from a UTF-8 file (preserves multi-line content verbatim; use this on Windows when stdin piping mangles non-ASCII bytes). The path must be inside the current working directory unless --allow-external-file is set.")
 	issueCommentAddCmd.Flags().Bool("allow-external-file", false, "Allow --content-file / --attachment to read a path outside the current working directory. Off by default so a stale file from another run/environment can't be picked up (MUL-4252).")
 	issueCommentAddCmd.Flags().String("parent", "", "Parent comment ID to reply under. A comment-triggered agent run must reply under its trigger comment; omitting --parent to post a top-level comment is rejected")
+	issueCommentAddCmd.Flags().Bool("sync-parent-assignee", false, "Also sync this comment to the direct parent card's assignee")
 	issueCommentAddCmd.Flags().StringSlice("attachment", nil, "File path(s) to attach (can be specified multiple times). Non-image files, HTML included, show as file cards that open in the viewer; to render a chart inside the comment, put a ```html or ```mermaid block in the content instead")
 	issueCommentAddCmd.Flags().String("output", "json", "Output format: table or json")
 
@@ -2560,6 +2616,9 @@ func runIssueCommentAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	body := map[string]any{"content": content}
+	if syncParent, _ := cmd.Flags().GetBool("sync-parent-assignee"); syncParent {
+		body["sync_parent_assignee"] = true
+	}
 	if parentID, _ := cmd.Flags().GetString("parent"); parentID != "" {
 		body["parent_id"] = parentID
 	}
