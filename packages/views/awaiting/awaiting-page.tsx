@@ -47,7 +47,7 @@ function ReviewWait({ issue }: { issue: Issue }) {
 }
 
 /**
- * The three ways a card hands work back: send a rejection, answer a question
+ * The three ways a card hands work back: send review feedback, answer a question
  * (reply), or confirm an off-system action (act). All three follow the R2
  * send-back chain: one top-level member comment carries the words to the
  * deliverer, then the card returns to in_progress.
@@ -117,7 +117,7 @@ function ReturnControl({ issue, kind, owner }: { issue: Issue; kind: ReturnKind;
       <Textarea aria-label={label} placeholder={placeholder} value={text} onChange={(e) => setText(e.target.value)} disabled={!!sent || sending} required={!optional} className="min-h-24" />
       <p className="text-caption text-muted-foreground">{owner ? t(($) => $.awaiting.recipient, { name: owner }) : t(($) => $.awaiting.unassigned)}</p>
       {error && <p role="alert" className="text-caption text-destructive">{error}</p>}
-      <div className="flex justify-end"><Button size="sm" disabled={(!optional && !text.trim()) || busy || conflict} aria-busy={busy} onClick={() => void send()}>{busy && <Loader2 className="size-3.5 animate-spin" />}{sent ? t(($) => $.awaiting.retry_status) : trigger}</Button></div>
+      <div className="flex justify-end"><Button size="sm" disabled={(!optional && !text.trim()) || busy || conflict} aria-busy={busy} onClick={() => void send()}>{busy && <Loader2 className="size-3.5 animate-spin" />}{sent ? t(($) => $.awaiting.retry_status) : kind === "reject" ? t(($) => $.awaiting.send) : trigger}</Button></div>
     </PopoverContent>
   </Popover>;
 }
@@ -153,7 +153,7 @@ export function AwaitingRow({ issue }: { issue: Issue }) {
     } catch (err) { toast.error(err instanceof ApiError && err.status === 409 ? t(($) => $.awaiting.changed) : t(($) => $.awaiting.failed)); }
   }
 
-  return <li className="flex items-center gap-4 border-b border-border/60 py-5" {...{ [PEEK_TARGET_ATTR]: issue.id }}>
+  return <li className="flex items-center gap-4 border-b border-border/60 py-5 last:border-b-0" {...{ [PEEK_TARGET_ATTR]: issue.id }}>
     <button type="button" className="min-w-0 flex-1 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => peek?.open(issue.id)}>
       <p className={cn("line-clamp-2 text-body font-medium leading-relaxed", !action && "text-muted-foreground")}>{action || t(($) => $.awaiting.missing_action)}</p>
       <span className="mt-2 flex min-w-0 items-center gap-x-2 text-caption text-muted-foreground">
