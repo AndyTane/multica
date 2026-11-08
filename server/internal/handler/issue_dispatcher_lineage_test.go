@@ -232,15 +232,22 @@ func TestDispatcherCreateAndAtomicReview(t *testing.T) {
 			t.Fatal("card missing from dispatcher filter")
 		}
 	}
-	for _, departed := range []bool{false, true} {
+	for _, source := range []string{"unattributed", "automation", "departed"} {
+		departed := source == "departed"
 		cols := testutil.Cols{"status": "in_progress", "assignee_type": "agent", "assignee_id": advancer, "creator_type": "agent", "creator_id": agent, "metadata": `{"keep":true}`}
 		want := "no trusted member source"
+		if source == "automation" {
+			automation := dispatcherTask(t, agent, testutil.Cols{"originator_source": "trigger_owner"})
+			delegated := dispatcherTask(t, agent, testutil.Cols{"originator_source": "delegation", "delegated_from_task_id": automation})
+			cols["origin_type"] = "agent_create"
+			cols["origin_id"] = delegated
+		}
 		if departed {
 			left := dbfx.User(t, "Departed reviewer", "dispatcher-departed-review@example.test")
 			cols["parent_issue_id"] = dbfx.Issue(t, "Departed parent", testutil.Cols{"creator_id": left})
 			want = "dispatcher has left the workspace"
 		}
-		id, before := reviewFixture(t, fmt.Sprint("Rejected ", departed), cols)
+		id, before := reviewFixture(t, fmt.Sprint("Rejected ", source), cols)
 		rec := testutil.Call(t, testHandler.SubmitIssueReview, withURLParam(newRequest(http.MethodPost, "/api/issues/"+id+"/review", map[string]any{
 			"status": "in_review", "expected_revision": before.Revision,
 			"review_metadata": map[string]any{"review_by": "user", "review_user": testUserID, "review_action": "Check"},
