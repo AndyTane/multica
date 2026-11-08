@@ -79,7 +79,9 @@
     "quick_create_unconfirmed": "에이전트 생성 결과 미확인",
     "autopilot_paused": "자동화 일시 중지됨",
     "children_done": "하위 태스크가 모두 끝났습니다",
-    "autopilot_quota_exceeded": "자동화 실행 한도 도달"
+    "autopilot_quota_exceeded": "자동화 실행 한도 도달",
+    "parent_sync_comment": "하위 태스크 새 댓글",
+    "unknown": "알림"
   },
   "labels": {
     "set_status_to": "상태 변경:",
@@ -94,7 +96,8 @@
     "created_with_agent": "에이전트가 생성: {{identifier}}",
     "failed_with_detail": "실패: {{detail}}",
     "autopilot_quota_blocked": "한도에 도달하여 실행이 차단됨",
-    "children_done_stage": "{{stage}}단계 하위 태스크가 모두 끝났습니다"
+    "children_done_stage": "{{stage}}단계 하위 태스크가 모두 끝났습니다",
+    "parent_sync_comment_body": "하위 태스크 새 댓글: {{body}}"
   },
   "toasts": {
     "source_context_retry_started": "원본 컨텍스트로 재시도를 시작했습니다",
@@ -116,5 +119,8 @@
     "unarchive_failed": "보관 해제에 실패했습니다",
     "archived_load_failed": "보관된 알림을 불러오지 못했습니다",
     "filters_load_failed": "필터를 불러올 수 없습니다"
+  },
+  "parent_line": {
+    "text": "{{identifier}} 소속 · {{title}}"
   }
 }

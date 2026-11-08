@@ -31,7 +31,11 @@ export type InboxItemType =
   | "autopilot_quota_exceeded"
   // Sub-issues of an issue assigned to the recipient closed (the child_done
   // system rule notifies a member assignee instead of waking an agent).
-  | "children_done";
+  | "children_done"
+  // CLAWSTA-151 B11/B14: a copy of a sub-issue comment delivered to the parent
+  // card's member assignee. The kind is server-only machine data; the five
+  // locales own its sentence, so it must never be printed raw.
+  | "parent_sync_comment";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary
@@ -63,6 +67,14 @@ export interface InboxItem {
    * projection; null also covers notifications without a linked issue.
    */
   issue_priority?: IssuePriority | null;
+  /**
+   * The direct parent card a sub-issue notification belongs to (CLAWSTA-151
+   * B14), resolved server-side from the live relation. Optional because an
+   * older backend omits all three; the client then renders no parent line.
+   */
+  parent_issue_id?: string | null;
+  parent_issue_identifier?: string | null;
+  parent_issue_title?: string | null;
   read: boolean;
   archived: boolean;
   created_at: string;

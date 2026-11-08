@@ -1,5 +1,7 @@
 "use client";
 
+import { ReviewBadge } from "./review-badge";
+
 import { memo, type Ref } from "react";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
@@ -131,7 +133,8 @@ function ListRowContent({
           <IssueAgentActivityIndicator issueId={issue.id} />
 
           <span className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span className="truncate">{issue.title}</span>
+            <ReviewBadge issue={issue} />
+            <span className="min-w-0"><span className="block truncate">{issue.title}</span><ReviewBadge issue={issue} actionOnly /></span>
             {/* Keep custom names visible when this row appears outside a status section. */}
             <CustomStatusChip status={issue.status} className="shrink-0" />
             <IssueDuplicateOfMarker issue={issue} insideLink />

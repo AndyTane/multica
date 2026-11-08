@@ -209,6 +209,11 @@ func TestStatusRuleIsFactJudgmentAtBothMoments(t *testing.T) {
 		"whoever the assignee is",
 		// Delivery lands in in_review and the ceiling keeps `done` human.
 		"`done` stays human",
+		"multica issue review <id> --by user --kind approve --action",
+		"--kind reply",
+		"--kind act",
+		"--by specialist --kind approve --action",
+		"execution card without trusted member lineage",
 		// Assigned deliverables must not be misread as status-neutral
 		// research: stage barriers and parent notifications key off the
 		// delivery write.

@@ -85,7 +85,9 @@ describe("SteerReceipts", () => {
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Send as a new run" }));
     await waitFor(() => expect(api.createComment).toHaveBeenCalledWith(
-      "issue", "Only fix web.", undefined, "thread", undefined, undefined, undefined,
+      // Trailing flag: whether this resend also syncs to the parent issue's
+      // owner (CLAWSTA-151 B11); a thread resend does not.
+      "issue", "Only fix web.", undefined, "thread", undefined, undefined, undefined, undefined,
     ));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Send as a new run" })).not.toBeInTheDocument());
   });

@@ -150,6 +150,28 @@ vi.mock("@multica/core/paths", async () => {
   };
 });
 
+// CLAWSTA-151 F6: the row's assignee cell must hand the card to the picker so
+// the transfer preflight can check who dispatched it.
+const { assignPreflightMock, WIRE_AGENT } = vi.hoisted(() => ({
+  assignPreflightMock: vi.fn(),
+  WIRE_AGENT: {
+    id: "agent-wire",
+    name: "Ops Bot",
+    archived_at: null,
+    visibility: "workspace",
+    runtime_id: "runtime-1",
+    runtime_bound: true,
+    owner_id: null,
+    permission_mode: "public_to",
+    invocation_targets: [{ target_type: "workspace", target_id: "ws-1" }],
+  },
+}));
+
+vi.mock("@multica/core/permissions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/permissions")>()),
+  canAssignAgentToIssue: () => ({ allowed: true, message: "" }),
+}));
+
 class ObserverStub {
   observe() {}
   unobserve() {}
@@ -277,9 +299,48 @@ describe("TableView cell editors under data refresh", () => {
     useModalStore.getState().close();
   });
 
+  it("preflights an inline assignee change with the row's card", async () => {
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
+    const issue = {
+      ...makeIssue("a", "Alpha task", "todo"),
+      assignee_type: "member" as const,
+      assignee_id: "user-9",
+    };
+    serverIssues = [issue];
+    apiStub.listAgents = async () => [WIRE_AGENT];
+    assignPreflightMock.mockResolvedValue({
+      actor_can_assign: true,
+      dispatcher_user_id: "user-1",
+      dispatcher_can_invoke: false,
+      reason: "dispatcher_cannot_invoke",
+    });
+
+    renderWithI18n(
+      <QueryClientProvider client={queryClient}>
+        <Harness
+          childProgressMap={new Map<string, ChildProgress>()}
+          surfaceKey={`test-assignee-wire-${Math.floor(Math.random() * 1e9)}`}
+        />
+      </QueryClientProvider>,
+    );
+
+    const row = (await screen.findByText("MUL-a")).closest("tr")!;
+    await user.click(within(row).getByRole("button", { name: /Someone/ }));
+    await user.click(await screen.findByText("Ops Bot"));
+
+    await waitFor(() =>
+      expect(assignPreflightMock).toHaveBeenCalledWith("a", {
+        assignee_type: "agent",
+        assignee_id: "agent-wire",
+      }),
+    );
+  });
+
   let queryClient: QueryClient;
+  let apiStub: Record<string, unknown>;
 
   beforeEach(() => {
+    assignPreflightMock.mockReset();
     useIssueOpeningStore.setState({ openMode: "page" });
     navigationMocks.push.mockReset();
     navigationMocks.openInNewTab.mockReset();
@@ -293,13 +354,14 @@ describe("TableView cell editors under data refresh", () => {
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
-    setApiInstance({
+    apiStub = {
       listProperties: async () => ({ properties: [] }),
       listMembers: async () => [],
       listAgents: async () => [],
       listSquads: async () => [],
       getAssigneeFrequency: async () => [],
       listIssueStatuses: async () => ({ statuses: [] }),
+      previewIssueAssignment: assignPreflightMock,
       listIssueTableRows: async () => ({
         query_fingerprint: "test",
         group_key: null,
@@ -312,7 +374,8 @@ describe("TableView cell editors under data refresh", () => {
         branch_total: serverIssues.length,
         next_cursor: null,
       }),
-    } as unknown as ApiClient);
+    };
+    setApiInstance(apiStub as unknown as ApiClient);
   });
 
   afterEach(() => {

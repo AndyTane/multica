@@ -537,7 +537,9 @@
     "wakeup_checkin": "静默检查：{{note}}",
     "wakeup_checkin_coalesced_other": "静默检查 {{count}} 次 · 最近一次：{{note}}",
     "wakeup_chip_created_by": "{{name}} 创建",
-    "wakeup_chip_system": "系统规则"
+    "wakeup_chip_system": "系统规则",
+    "issue_assignee_no_action": "已阅：无需调整",
+    "issue_assignee_no_action_reason": "已阅：无需调整（{{reason}}）"
   },
   "comment": {
     "add_reaction": "添加表情回应",
@@ -1395,5 +1397,97 @@
     "overview_close": "关闭",
     "overview_empty": "没有这类产物。",
     "group_comment_by": "{{name}} 的评论"
+  },
+  "awaiting": {
+    "title": "等我处理",
+    "empty": "没有等你处理的事",
+    "missing_action": "交付方没写要你做什么",
+    "approve": "通过",
+    "reject": "打回",
+    "undo": "撤销",
+    "approved": "已通过 {{identifier}}",
+    "changed": "任务已有变化",
+    "failed": "操作失败，请重试",
+    "reason": "说一下哪里要改",
+    "partial": "意见已发送，状态未更新",
+    "retry_status": "重试状态更新",
+    "conflict": "任务已有变化，请重新打开任务处理",
+    "retry": "重试",
+    "you": "等你",
+    "other": "等 {{name}}",
+    "specialist": "等验收",
+    "specialist_hint": "等 {{name}} 验收",
+    "wait": "已等 {{time}}",
+    "minutes": "{{count}} 分钟",
+    "hours": "{{count}} 小时",
+    "days": "{{count}} 天",
+    "just_now": "不到 1 分钟",
+    "recipient": "意见将交回 {{name}}",
+    "unassigned": "当前没有交付负责人",
+    "preview_failed": "无法确认接收人，请重试",
+    "feedback_label": "打回意见",
+    "note_not_delivered": "以 /note 开头的意见只做记录，不会交给 {{name}}",
+    "not_delivered": "这条意见到不了 {{name}}，打回没有完成"
+  },
+  "awaiting_r4": {
+    "group_reply": "回复",
+    "group_act": "推进",
+    "group_approve": "审批",
+    "reply": "回复",
+    "reply_label": "回复内容",
+    "reply_placeholder": "一句话回答",
+    "done": "已完成",
+    "done_label": "完成说明",
+    "act_default": "已完成：{{action}}",
+    "not_delivered": "这条内容到不了 {{name}}，没有发出去",
+    "note_not_delivered": "以 /note 开头的内容只做记录，不会交给 {{name}}",
+    "unmarked": "另有 {{count}} 张卡在等人，但没标明等谁",
+    "problem": {
+      "no_dispatcher": "这张卡没人能接手：派活的人已经离开工作区。",
+      "dispatcher_inactive": "派这张卡的人已经不在工作区。",
+      "receiver_inactive": "指定的处理人已经离开工作区。",
+      "invalid_review_mark": "这张卡的审核标记不完整，没法交给人处理。",
+      "unknown": "这张卡没法交给人处理，请让工作区管理员检查。"
+    }
+  },
+  "parent_sync": {
+    "sync_to_owner": "同步给主卡负责人 · {{name}}",
+    "sync_to_owner_unnamed": "同步给主卡负责人",
+    "sync_to_recipient": "同步给 {{name}}",
+    "locked_hint": "本来就会通知到",
+    "delivery_failed": "评论已发送，但没同步到主卡负责人",
+    "delivery_failed_reason": "评论已发送，但没同步到主卡负责人：{{reason}}",
+    "reason": {
+      "duplicate_pending_task": "主卡负责人已经有一个排队中的任务，这条评论没有再单独排队。",
+      "attribution_blocked": "主卡负责人正在跑的排队任务属于别人，这条评论没有并进去。",
+      "internal_error": "把这条评论排给主卡负责人时出错。",
+      "enqueue_failed": "没能给主卡负责人排上任务。",
+      "inbox_failed": "没能送到主卡负责人的收件箱。",
+      "issue_has_no_parent": "这张卡没有主卡，没法同步。",
+      "parent_issue_missing": "主卡已经不存在了。",
+      "no_fallback_recipient": "没人能收到这条同步：主卡没有负责人，也没有管理员兜底。",
+      "parent_sync_daemon_unsupported": "本机运行时还不支持被同步叫醒，直接发普通评论即可。",
+      "unknown": "这条同步没能送到主卡负责人。"
+    }
+  },
+  "review_badge_r4": {
+    "reply_you": "等你回复",
+    "act_you": "等你推进"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}} 无法叫醒 {{name}}",
+    "description": "之后的自动接续会失败。",
+    "create_child": "建一张我的子卡交给它",
+    "transfer_anyway": "仍然转派",
+    "cancel": "取消",
+    "not_allowed": "无法把这张卡转给 {{name}}。",
+    "reason": {
+      "actor_cannot_assign": "你无权把这张卡交给它。",
+      "dispatcher_cannot_invoke": "派这张卡的人之后叫不醒它。",
+      "dispatcher_inactive": "派这张卡的人已经离开工作区，之后接续叫不醒它。",
+      "unknown": "之后这张卡的自动接续可能失败。"
+    },
+    "dispatcher_unknown": "派这张卡的人",
+    "not_allowed_reason": "你不能把这张卡转给 {{name}}。{{reason}}"
   }
 }

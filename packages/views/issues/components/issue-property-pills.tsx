@@ -52,6 +52,7 @@ export function IssuePropertyPills({
         assigneeType={issue.assignee_type}
         assigneeId={issue.assignee_id}
         onUpdate={onUpdate}
+        issue={issue}
         triggerRender={<PillButton />}
         align="start"
       />

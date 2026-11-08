@@ -79,7 +79,9 @@
     "quick_create_unconfirmed": "エージェントでの作成結果は未確認",
     "autopilot_paused": "自動化を一時停止しました",
     "children_done": "サブタスクがすべて終わりました",
-    "autopilot_quota_exceeded": "自動化の実行上限に達しました"
+    "autopilot_quota_exceeded": "自動化の実行上限に達しました",
+    "parent_sync_comment": "サブタスクの新しいコメント",
+    "unknown": "通知"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",
@@ -94,7 +96,8 @@
     "created_with_agent": "エージェントで作成: {{identifier}}",
     "failed_with_detail": "失敗: {{detail}}",
     "autopilot_quota_blocked": "上限に達したため実行をブロックしました",
-    "children_done_stage": "ステージ {{stage}} のサブタスクがすべて終わりました"
+    "children_done_stage": "ステージ {{stage}} のサブタスクがすべて終わりました",
+    "parent_sync_comment_body": "サブタスクの新しいコメント：{{body}}"
   },
   "toasts": {
     "source_context_retry_started": "元のコンテキストで再試行を開始しました",
@@ -116,5 +119,8 @@
     "unarchive_failed": "アーカイブ解除に失敗しました",
     "archived_load_failed": "アーカイブ済み通知を読み込めませんでした",
     "filters_load_failed": "フィルターを読み込めませんでした"
+  },
+  "parent_line": {
+    "text": "{{identifier}} 内 · {{title}}"
   }
 }

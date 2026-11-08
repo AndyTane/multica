@@ -1,6 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Issue, IssueAssigneeType } from "@multica/core/types";
+import { setApiInstance } from "@multica/core/api";
+import type { ApiClient } from "@multica/core/api/client";
 import { AppLink, NavigationProvider, type NavigationAdapter } from "../../navigation";
 import {
   IssueSurfaceActionsProvider,
@@ -8,9 +10,37 @@ import {
 } from "../surface/actions-context";
 import { BoardCardContent } from "./board-card";
 
+// CLAWSTA-151 F6: the card's assignee picker needs the card itself to run the
+// assignment preflight; without it the picker falls back to a plain transfer.
+const { preflightMock, WIRE_AGENT } = vi.hoisted(() => ({
+  preflightMock: vi.fn(),
+  WIRE_AGENT: {
+    id: "agent-wire",
+    name: "Ops Bot",
+    archived_at: null,
+    visibility: "workspace",
+    runtime_id: "runtime-1",
+    runtime_bound: true,
+    owner_id: null,
+    permission_mode: "public_to",
+    invocation_targets: [{ target_type: "workspace", target_id: "ws-1" }],
+  },
+}));
+
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useQuery: () => ({ data: [] }),
+  useQuery: (options?: { queryKey?: readonly unknown[] }) => {
+    const key = options?.queryKey ?? [];
+    if (key[0] === "workspaces" && key[2] === "agents") {
+      return { data: [WIRE_AGENT] };
+    }
+    return { data: [] };
+  },
+}));
+
+vi.mock("@multica/core/permissions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/permissions")>()),
+  canAssignAgentToIssue: () => ({ allowed: true, message: "" }),
 }));
 
 vi.mock("@multica/core/hooks", () => ({
@@ -143,6 +173,34 @@ function makeIssue(assigneeType: IssueAssigneeType): Issue {
 }
 
 describe("BoardCardContent assignee picker", () => {
+  beforeEach(() => {
+    preflightMock.mockReset();
+    setApiInstance({ previewIssueAssignment: preflightMock } as unknown as ApiClient);
+  });
+
+  it("hands the card to the picker so the transfer preflight can check it", async () => {
+    const issue = makeIssue("member");
+    const { container } = render(
+      <NavigationProvider value={navigation}>
+        <IssueSurfaceActionsProvider actions={actions}>
+          <AppLink href={`/acme/issues/${issue.id}`}>
+            <BoardCardContent issue={issue} editable />
+          </AppLink>
+        </IssueSurfaceActionsProvider>
+      </NavigationProvider>,
+    );
+
+    fireEvent.click(container.querySelector('[data-slot="avatar"]')!);
+    fireEvent.click(await screen.findByText("Ops Bot"));
+
+    await waitFor(() =>
+      expect(preflightMock).toHaveBeenCalledWith(issue.id, {
+        assignee_type: "agent",
+        assignee_id: "agent-wire",
+      }),
+    );
+  });
+
   it.each<IssueAssigneeType>(["member", "agent", "squad"])(
     "opens the picker from an avatar-only %s assignee without navigating the card",
     (assigneeType) => {

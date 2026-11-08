@@ -483,3 +483,39 @@ without a person in between, and with `rate` when it has already started 12 runs
 in the past hour. A paused rule stays off until someone turns it back on. Still
 avoid mutually triggering continuous comment subscriptions; when waiting for a
 person's reply, filter that member explicitly.
+
+## Submitting review
+
+Review marks publish on exactly two statuses. `in_review` waits for a decision; `blocked` waits for the person to reply (`review_kind=reply`) or act outside the system (`review_kind=act`). A specialist mark exists only in `in_review`. Keep the action sentence concrete and within 120 Unicode code points; shorten deliberately instead of dropping a real acceptance condition.
+
+Who dispatched a card is resolved by the server. Member-created cards use their creator. Agent-created cards inherit their parent's resolved dispatcher in the same workspace; without an inherited source, a verified quick-create requester or an `agent_create` run rooted in a direct member action can supply it. Delegation must preserve that member through verified task links. A server-recorded issue wakeup can resume its source run only when the chain still reaches a direct member action with the same member; scheduled automation and agent/rule owners alone do not prove a member asked. A departed dispatcher keeps their historical ID and cannot receive a user review. Only cards without trusted member lineage use ordinary delivery status and state in the comment whose decision is missing. Do not invent or overwrite provenance to publish a mark. Publishing `review_by=user` requires a valid assignee to advance the card after the answer (that member may not be the person being asked). The server fills `review_user` from the dispatcher when omitted; never guess or hard-code a person.
+
+Use one command: `multica issue review <id> --by user --kind approve --action "What the user should do"`. Approval sets `in_review`; `--kind reply` (answer) or `--kind act` (offline work) sets `blocked`. For professional acceptance use `--by specialist --kind approve --action "What to verify"`, optionally `--agent <specialist UUID>`. `--user <member UUID>` overrides the default dispatcher only when the intended receiver is known. The command reads the current revision and submits status and the complete mark in one transaction. Invalid input, unsupported servers and revision conflicts return an error, with no fallback to separate metadata writes; read the issue before retrying. The page's atomic issue PUT with `review_metadata` remains available for its five-second undo.
+
+Review metadata is stored in the issue's metadata map. The current review round entry time is
+`metadata.review_since` (RFC3339): entering `in_review` or `blocked` stamps it, ordinary edits do not
+reset it, and leaving either status clears every `review_*` key atomically with the status update, so
+re-entering either status needs a new publish. Cards without `review_since` fall back to
+`updated_at` for ordering. Older cards without review metadata remain usable.
+
+When a plain comment replies, the woken owner decides whether the answer is sufficient and moves the card
+back to `in_progress`; that status change clears all five review keys. A `/note` comment, or a comment that
+never arrived, means no hand-off happened - never claim the card was taken over.
+
+`review_agent` names the specialist accepting the work, not the delivering assignee. Keep the assignee
+unchanged and arrange specialist review through the normal authorized issue/comment workflow; metadata
+writes never dispatch work.
+
+`multica issue comment add <child-id> --content-file ./reply.md --sync-parent-assignee`
+also delivers the comment to the direct parent card's assignee. It uses the same server gate as the page:
+agent delivery is available only after all daemons are upgraded and the deployment enables it. Ordinary
+comments and comment edits do not opt into syncing. A saved comment's `parent_sync.delivery_status`
+reports the delivery outcome; `blocked` means the comment was saved but the sync failed, so do not repost
+the comment blindly.
+
+When a synced comment wakes you, read the parent card and the person's input first, then the child thread;
+you are not taking over the child's assignment. Only a pure sync with no other reply, joined wakeup or
+execution obligation may use `multica issue activity <child-id> no_action --reason "..."` (1–120 Unicode
+code points). Only after it succeeds may you skip the required comment. On failure, reply normally in the
+specified child thread. This record covers only that task and input set: it never closes the parent card,
+cancels wakeups, or covers later comments.

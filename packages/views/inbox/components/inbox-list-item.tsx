@@ -187,6 +187,17 @@ export function InboxListItem({
             )}
           </div>
         </div>
+        {item.parent_issue_identifier && (
+          // CLAWSTA-151 B14: a sub-issue's notification says which card it
+          // belongs to. The older-server case omits the whole parent
+          // projection, so the row keeps its current two-line layout.
+          <p className="mt-0.5 min-w-0 truncate text-caption text-muted-foreground">
+            {t(($) => $.parent_line.text, {
+              identifier: item.parent_issue_identifier,
+              title: item.parent_issue_title ?? "",
+            })}
+          </p>
+        )}
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className={`min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-caption ${showUnread ? "text-muted-foreground" : "text-muted-foreground"}`}>
             <InboxDetailLabel item={item} />

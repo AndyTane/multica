@@ -907,6 +907,9 @@ func TestPreviewCommentTriggers_AllPlusExplicitSquadMentionStillTriggers(t *test
 	if preview.Agents[0].Source != string(commentTriggerSourceMentionSquadLeader) {
 		t.Fatalf("preview source = %q, want %q", preview.Agents[0].Source, commentTriggerSourceMentionSquadLeader)
 	}
+	if preview.Agents[0].SquadID == nil || *preview.Agents[0].SquadID != squadID {
+		t.Fatalf("preview must identify the mentioned squad, got %+v", preview.Agents[0])
+	}
 
 	postCommentForTriggerPreviewTest(t, issueID, map[string]any{"content": content})
 	if got := countQueuedCommentTriggerTasks(t, issueID, leaderID); got != 1 {
@@ -1154,5 +1157,18 @@ func TestPreviewCommentTriggers_MentionedSquadLeaderAndSuppress(t *testing.T) {
 	})
 	if got := countQueuedCommentTriggerTasks(t, issueID, leaderID); got != 0 {
 		t.Fatalf("suppressed mentioned squad leader queued tasks = %d, want 0", got)
+	}
+}
+
+func TestPreviewCommentTriggers_SharedLeaderKeepsRoutingSquad(t *testing.T) {
+	leaderID := createHandlerTestAgent(t, "Shared Review Leader", nil)
+	otherSquad := createCommentTriggerPreviewSquad(t, "Other Review Squad", leaderID)
+	ownerSquad := createCommentTriggerPreviewSquad(t, "Owner Review Squad", leaderID)
+	issueID := createCommentTriggerPreviewIssue(t, "review feedback squad provenance", "squad", ownerSquad)
+	content := fmt.Sprintf("[@Other](mention://squad/%s)\n\n[@Owner](mention://squad/%s)", otherSquad, ownerSquad)
+	preview := previewCommentTriggersForTest(t, issueID, map[string]any{"content": content})
+	requirePreviewAgents(t, preview, leaderID)
+	if preview.Agents[0].SquadID == nil || *preview.Agents[0].SquadID != otherSquad {
+		t.Fatalf("preview must identify the actual deduplicated route, got %+v", preview.Agents[0])
 	}
 }

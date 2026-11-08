@@ -537,7 +537,9 @@
     "wakeup_checkin": "サイレントチェック：{{note}}",
     "wakeup_checkin_coalesced_other": "サイレントチェック {{count}} 回 · 最新：{{note}}",
     "wakeup_chip_created_by": "{{name}} が作成",
-    "wakeup_chip_system": "システムルール"
+    "wakeup_chip_system": "システムルール",
+    "issue_assignee_no_action": "確認済み: 調整は不要です",
+    "issue_assignee_no_action_reason": "確認済み: 調整は不要です（{{reason}}）"
   },
   "comment": {
     "add_reaction": "リアクションを追加",
@@ -1395,5 +1397,97 @@
     "overview_close": "閉じる",
     "overview_empty": "この種類の成果物はありません。",
     "group_comment_by": "{{name}} のコメント"
+  },
+  "awaiting": {
+    "title": "Waiting on you",
+    "empty": "Nothing waiting on you",
+    "missing_action": "The deliverer did not say what to do",
+    "approve": "Approve",
+    "reject": "Send back",
+    "undo": "Undo",
+    "approved": "Approved {{identifier}}",
+    "changed": "This task has changed",
+    "failed": "Something went wrong. Try again.",
+    "reason": "What needs changing?",
+    "partial": "Feedback sent, status not updated",
+    "retry_status": "Retry status update",
+    "conflict": "This task has changed. Open it to continue.",
+    "retry": "Retry",
+    "you": "Waiting on you",
+    "other": "Waiting on {{name}}",
+    "specialist": "Awaiting review",
+    "specialist_hint": "Awaiting {{name}}’s review",
+    "wait": "Waiting {{time}}",
+    "minutes": "{{count}} min",
+    "hours": "{{count}} hr",
+    "days": "{{count}} days",
+    "just_now": "less than a minute",
+    "recipient": "Feedback goes back to {{name}}",
+    "unassigned": "No deliverer assigned",
+    "preview_failed": "Could not confirm the recipient. Try again.",
+    "feedback_label": "Send-back feedback",
+    "note_not_delivered": "Feedback starting with /note is only recorded and will not reach {{name}}",
+    "not_delivered": "This feedback cannot reach {{name}}. Send back was not completed."
+  },
+  "awaiting_r4": {
+    "group_reply": "返信",
+    "group_act": "対応",
+    "group_approve": "承認",
+    "reply": "返信",
+    "reply_label": "返信内容",
+    "reply_placeholder": "1行で回答",
+    "done": "完了",
+    "done_label": "対応内容",
+    "act_default": "完了：{{action}}",
+    "not_delivered": "この内容は {{name}} に届きません。送信されていません。",
+    "note_not_delivered": "/note で始まる内容は記録のみで、{{name}} には届きません",
+    "unmarked": "他に {{count}} 件が待機中ですが、誰を待つか未指定です",
+    "problem": {
+      "no_dispatcher": "このカードを担当できる人がいません：割り当てた人がワークスペースを離れました。",
+      "dispatcher_inactive": "このカードを割り当てた人はもうワークスペースにいません。",
+      "receiver_inactive": "指定されたレビュー担当者はワークスペースを離れました。",
+      "invalid_review_mark": "このカードのレビュー情報が不完全なため、人に渡せません。",
+      "unknown": "このカードは人に渡せません。ワークスペースの管理者に確認してください。"
+    }
+  },
+  "parent_sync": {
+    "sync_to_owner": "親課題の担当者に同期 · {{name}}",
+    "sync_to_owner_unnamed": "親課題の担当者に同期",
+    "sync_to_recipient": "{{name}} に同期",
+    "locked_hint": "もともと通知されます",
+    "delivery_failed": "コメントは投稿されましたが、親課題の担当者に届きませんでした",
+    "delivery_failed_reason": "コメントは投稿されましたが、親課題の担当者に届きませんでした: {{reason}}",
+    "reason": {
+      "duplicate_pending_task": "親カードの担当者にはこのカードの実行がすでに待機中のため、このコピーは別に並べていません。",
+      "attribution_blocked": "親カードの担当者の待機中実行は別の人のものなので、このコピーは追加していません。",
+      "internal_error": "このコピーを担当者の実行に並べる際にエラーが発生しました。",
+      "enqueue_failed": "担当者の実行を並べられませんでした。",
+      "inbox_failed": "受信箱に届けられませんでした。",
+      "issue_has_no_parent": "このカードには同期先の親カードがありません。",
+      "parent_issue_missing": "親カードはすでに存在しません。",
+      "no_fallback_recipient": "このコピーを受け取れる人がいません：親カードに担当者も管理者の控えもいません。",
+      "parent_sync_daemon_unsupported": "この環境のエージェントはまだ同期通知で起動できません。通常のコメントを投稿してください。",
+      "unknown": "このコピーを親カードの担当者に届けられませんでした。"
+    }
+  },
+  "review_badge_r4": {
+    "reply_you": "あなたの返信待ち",
+    "act_you": "あなたの対応待ち"
+  },
+  "assign_preview": {
+    "title": "{{dispatcher}} は {{name}} を起動できません",
+    "description": "以降の自動継続は失敗します。",
+    "create_child": "自分のサブカードを作成して渡す",
+    "transfer_anyway": "それでも転送",
+    "cancel": "キャンセル",
+    "not_allowed": "このカードを {{name}} に転送できません。",
+    "reason": {
+      "actor_cannot_assign": "このカードを渡す権限がありません。",
+      "dispatcher_cannot_invoke": "このカードを割り当てた人は、今後の自動続行で起こせません。",
+      "dispatcher_inactive": "このカードを割り当てた人はワークスペースを離れたため、今後の続行で起こせません。",
+      "unknown": "このタスクの今後の自動続行が失敗する可能性があります。"
+    },
+    "dispatcher_unknown": "このカードを割り当てた人",
+    "not_allowed_reason": "このカードを {{name}} に転送できません。{{reason}}"
   }
 }

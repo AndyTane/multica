@@ -552,6 +552,12 @@ func buildCommentPrompt(task Task, provider string) string {
 	// session is warm enough to skip the issue read while treating it as cold
 	// for comments. On anything but a real resume with a server-computed
 	// comparison this renders the unconditional read, byte for byte.
+	if taskIsParentSync(task) {
+		b.WriteString(execenv.BuildParentSyncReadInstructions(task.ParentSyncCardID))
+		if task.WakeupJoined != "" || task.HandoffNote != "" {
+			b.WriteString("This run also carries a wakeup or handoff obligation: no_action is unavailable; handle that obligation and reply normally.\n\n")
+		}
+	}
 	resumed := task.PriorSessionID != "" && !task.PriorSessionResumeUnavailable
 	b.WriteString(execenv.BuildIssueStateHint(
 		task.IssueID, task.IssueStatus, task.IssueAssigneeType, task.IssueAssigneeID,
@@ -615,7 +621,13 @@ func buildCommentPrompt(task Task, provider string) string {
 	// group upstream, so they keep the ordinary single-parent path below and can
 	// never be split into duplicate replies.
 	if targets := commentReplyThreads(task); len(targets) >= 2 {
-		b.WriteString(execenv.BuildMultiThreadCommentReplyInstructions(task.IssueID, targets, taskIsSquadLeader(task)))
+		if taskIsParentSync(task) && task.WakeupJoined == "" && task.HandoffNote == "" {
+			b.WriteString(execenv.BuildMultiThreadCommentReplyInstructionsForParentSync(task.IssueID, targets))
+		} else {
+			b.WriteString(execenv.BuildMultiThreadCommentReplyInstructions(task.IssueID, targets, taskIsSquadLeader(task)))
+		}
+	} else if taskIsParentSync(task) && task.WakeupJoined == "" && task.HandoffNote == "" {
+		b.WriteString(execenv.BuildCommentReplyInstructionsForParentSync(provider, task.IssueID, task.TriggerCommentID))
 	} else {
 		b.WriteString(execenv.BuildCommentReplyInstructions(provider, task.IssueID, task.TriggerCommentID, taskIsSquadLeader(task)))
 	}
@@ -896,6 +908,12 @@ func buildAutopilotPrompt(task Task) string {
 // server appends to Instructions. It is ONLY a legacy role signal — see
 // taskIsSquadLeader — never a role signal against a current server.
 const squadBriefingMarker = "## Squad Operating Protocol"
+
+// taskIsParentSync identifies a sync source, not proof that the entire turn is
+// pure sync. The server must accept the evaluation before silence is allowed.
+func taskIsParentSync(task Task) bool {
+	return task.ParentSyncCardID != ""
+}
 
 // taskIsSquadLeader reports whether THIS TASK runs the agent as a squad
 // leader. Leadership is a PER-TASK role — the same agent can be leader one

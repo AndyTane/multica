@@ -42,9 +42,14 @@ WITH newest AS MATERIALIZED (
     LIMIT sqlc.arg(page_limit)::int
 )
 SELECT sqlc.embed(i), selected.issue_status, selected.issue_priority,
-       COALESCE(anchor.comment_id, '')::text AS comment_id
+       COALESCE(anchor.comment_id, '')::text AS comment_id,
+       parent.id AS parent_issue_id,
+       parent.number AS parent_issue_number,
+       parent.title AS parent_issue_title
 FROM selected
 JOIN inbox_item i ON i.id = selected.id
+LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue parent ON parent.id = iss.parent_issue_id AND parent.workspace_id = i.workspace_id
 LEFT JOIN LATERAL (
     SELECT a.details->>'comment_id' AS comment_id
     FROM inbox_item a

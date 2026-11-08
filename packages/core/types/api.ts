@@ -51,6 +51,8 @@ export type CreateCommentSubIssueRequest =
   | CreateCommentSubIssueAgentRequest;
 
 export interface UpdateIssueRequest {
+  /** The five review keys (B7), replaced as one group with the target status. */
+  review_metadata?: Partial<Record<"review_by" | "review_action" | "review_user" | "review_agent" | "review_kind", string | number | boolean>>;
   /** Legacy aggregate compare-and-swap token. New text editors use field
    * baselines so unrelated issue activity does not reject their edits. */
   expected_revision?: number;
@@ -136,6 +138,35 @@ export interface IssueTriggerPreview {
   total_count: number;
 }
 
+/** Inputs to `POST /api/issues/:id/assignment-preview` (CLAWSTA-151 B13): the
+ *  candidate this member is about to choose in the assignee picker. */
+export interface AssignmentPreviewRequest {
+  assignee_type: "agent" | "squad";
+  assignee_id: string;
+}
+
+/**
+ * Read-only preflight for one assignee change (CLAWSTA-151 B13). It answers two
+ * different questions and they are NOT interchangeable:
+ *
+ * - `actor_can_assign`: may the CURRENT caller assign this candidate at all
+ *   (the same rule the picker already applies locally). False means the
+ *   transfer stays forbidden.
+ * - `dispatcher_can_invoke`: can the member who dispatched the issue still
+ *   wake the candidate AFTER this run? False is why the UI warns and offers
+ *   "create my own sub-issue"; null means there is no dispatcher (an internal
+ *   execution card), which is not a permission failure at all.
+ *
+ * A preview never authorizes a write: the real assignee update re-checks the
+ * live permission chain server-side.
+ */
+export interface AssignmentPreview {
+  actor_can_assign: boolean;
+  dispatcher_user_id: string | null;
+  dispatcher_can_invoke: boolean | null;
+  reason?: string | null;
+}
+
 export interface ListIssuesParams {
   limit?: number;
   offset?: number;
@@ -159,6 +190,16 @@ export interface ListIssuesParams {
   priorities?: IssuePriority[];
   assignee_id?: string;
   assignee_ids?: string[];
+  /**
+   * CLAWSTA-151 B10 review queues, resolved server-side before pagination so
+   * the page, its total and the sidebar count agree.
+   * `mine`: the two review statuses whose effective receiver is me.
+   * `unmarked`: my unmarked/undeliverable cards, plus (owner/admin) the
+   * anomaly cases whose dispatcher is gone.
+   */
+  awaiting?: "mine" | "unmarked";
+  /** Filter by the resolved dispatcher (CLAWSTA-151 B9). */
+  dispatcher_user_id?: string;
   /**
    * Narrow to issues assigned to the given actor kinds (member / agent /
    * squad). Same semantics as `ListGroupedIssuesParams.assignee_types` —

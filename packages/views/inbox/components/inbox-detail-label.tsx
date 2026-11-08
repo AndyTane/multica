@@ -38,6 +38,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     autopilot_paused: t(($) => $.types.autopilot_paused),
     autopilot_quota_exceeded: t(($) => $.types.autopilot_quota_exceeded),
     children_done: t(($) => $.types.children_done),
+    parent_sync_comment: t(($) => $.types.parent_sync_comment),
   };
 }
 
@@ -143,7 +144,18 @@ export function InboxDetailLabel({ item }: { item: InboxItem }) {
       if (stage) return <span>{t(($) => $.labels.children_done_stage, { stage })}</span>;
       return <span>{typeLabels[item.type]}</span>;
     }
-    default:
-      return <span>{typeLabels[item.type] ?? item.type}</span>;
+    case "parent_sync_comment": {
+      // The server stamps the child card's title on the row title; the copy line
+      // names the kind and, when the comment had words, quotes them.
+      if (item.body) return <span>{t(($) => $.labels.parent_sync_comment_body, { body: item.body })}</span>;
+      return <span>{typeLabels[item.type]}</span>;
+    }
+    default: {
+      // A newer server may send a kind this client does not know. Fall back to
+      // the generic sentence; printing the machine code leaks an identifier the
+      // reader cannot act on (CLAWSTA-151 review blocker on B14).
+      const labels = typeLabels as Record<string, string | undefined>;
+      return <span>{labels[item.type] ?? t(($) => $.types.unknown)}</span>;
+    }
   }
 }

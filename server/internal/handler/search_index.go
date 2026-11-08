@@ -576,11 +576,16 @@ func (h *Handler) searchIndexIssues(ctx context.Context, wsUUID pgtype.UUID, iss
 		originals = appendDuplicateOriginal(originals, is.Status, is.DuplicateOfIssueID)
 	}
 	fill := h.newStatusCategoryFiller(ctx, wsUUID, originals...)
+	flattened := make([]IssueResponse, 0, len(issues))
 	for _, is := range issues {
 		resp := issueToResponse(is, prefix)
 		fill(&resp)
+		flattened = append(flattened, resp)
+	}
+	h.fillIssueDispatchers(ctx, wsUUID, flattened)
+	for index, is := range issues {
 		out = append(out, SearchIndexIssue{
-			IssueResponse:   resp,
+			IssueResponse:   flattened[index],
 			SearchUpdatedAt: is.UpdatedAt.Time.UTC().Format(time.RFC3339Nano),
 		})
 	}

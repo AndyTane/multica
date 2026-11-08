@@ -1199,6 +1199,7 @@ function IssueTableBodyCell({
             assigneeType={issue.assignee_type}
             assigneeId={issue.assignee_id}
             onUpdate={onUpdate}
+            issue={issue}
             align="start"
             open={editorOpen}
             onOpenChange={setEditorOpen}

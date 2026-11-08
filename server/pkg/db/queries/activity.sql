@@ -44,6 +44,33 @@ SELECT EXISTS (
     AND details->>'task_id' = @task_id::text
 ) AS exists;
 
+-- name: GetTaskEvaluationActivity :one
+-- The evaluation record for a task, whichever review exit wrote it (squad
+-- leader, or the R4 parent-assignee sync). Locking-order note: callers record
+-- while holding the task row lock, so this is a plain read.
+SELECT * FROM activity_log
+WHERE issue_id = sqlc.arg(issue_id)
+  AND actor_type = 'agent'
+  AND actor_id = sqlc.arg(agent_id)
+  AND action IN ('squad_leader_evaluated', 'issue_assignee_evaluated')
+  AND details->>'task_id' = sqlc.arg(task_id)::text
+ORDER BY created_at ASC
+LIMIT 1;
+
+-- name: HasTaskNoActionEvaluation :one
+-- Suppression lookup shared by the comment endpoint and completion fallback:
+-- either review exit that decided "read it, nothing to change".
+SELECT EXISTS (
+  SELECT 1
+  FROM activity_log
+  WHERE issue_id = sqlc.arg(issue_id)
+    AND actor_type = 'agent'
+    AND actor_id = sqlc.arg(agent_id)
+    AND action IN ('squad_leader_evaluated', 'issue_assignee_evaluated')
+    AND details->>'outcome' = 'no_action'
+    AND details->>'task_id' = sqlc.arg(task_id)::text
+) AS exists;
+
 -- name: CountAssigneeChangesByActor :many
 -- Count how many times a user assigned each target via assignee_changed activities.
 SELECT

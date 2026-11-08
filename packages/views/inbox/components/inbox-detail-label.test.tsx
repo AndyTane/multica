@@ -149,3 +149,35 @@ describe("InboxDetailLabel localized values", () => {
     expect(container.textContent).not.toContain("Aug");
   });
 });
+
+describe("InboxDetailLabel parent-sync inbox rows", () => {
+  it("localizes a synced sub-issue comment with its body", () => {
+    const { container } = render(
+      <InboxDetailLabel
+        item={item({ type: "parent_sync_comment", body: "清单已核对完" })}
+      />,
+    );
+
+    expect(container.textContent).toBe("Sub-issue comment: 清单已核对完");
+  });
+
+  it("falls back to the localized kind name when the copy had no words", () => {
+    const { container } = render(
+      <InboxDetailLabel item={item({ type: "parent_sync_comment", body: null })} />,
+    );
+
+    expect(container.textContent).toBe(en.types.parent_sync_comment);
+    expect(container.textContent).not.toContain("parent_sync_comment");
+  });
+
+  it("never prints the machine code of an unknown kind", () => {
+    const { container } = render(
+      <InboxDetailLabel
+        item={item({ type: "future_notification_kind" as InboxItem["type"] })}
+      />,
+    );
+
+    expect(container.textContent).toBe(en.types.unknown);
+    expect(container.textContent).not.toContain("future_notification_kind");
+  });
+});
