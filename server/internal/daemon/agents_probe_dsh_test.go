@@ -485,3 +485,37 @@ func TestNewRuntimeVerdict_DshProfileCarriesAStructuredCause(t *testing.T) {
 			"the daemon may be the stale side of that protocol skew")
 	}
 }
+
+func TestDshWebBridgeDisabled(t *testing.T) {
+	cases := []struct {
+		name      string
+		envValue  string
+		provider  string
+		path      string
+		wantBlock bool
+	}{
+		{name: "switch off, web bridge", envValue: "", provider: "dsh", path: "C:\\tools\\multica-dsh-web.exe", wantBlock: true},
+		{name: "switch off, official dsh", envValue: "", provider: "dsh", path: "/usr/local/bin/dsh", wantBlock: false},
+		{name: "switch on, web bridge", envValue: "1", provider: "dsh", path: "/opt/multica-dsh-web", wantBlock: false},
+		{name: "value other than 1 is off", envValue: "yes", provider: "dsh", path: "/opt/multica-dsh-web", wantBlock: true},
+		{name: "other provider with a web bridge path", envValue: "", provider: "codex", path: "/opt/multica-dsh-web", wantBlock: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("MULTICA_DSH_WEB_ENABLED", tc.envValue)
+			reason, blocked := dshWebBridgeDisabled(tc.provider, tc.path)
+			if blocked != tc.wantBlock {
+				t.Fatalf("blocked = %v, want %v", blocked, tc.wantBlock)
+			}
+			if tc.wantBlock && !strings.Contains(reason, "MULTICA_DSH_WEB_ENABLED") {
+				t.Fatalf("reason = %q, want it to name the switch", reason)
+			}
+			if !tc.wantBlock && reason != "" {
+				t.Fatalf("reason = %q, want empty", reason)
+			}
+		})
+	}
+	if demotableBuiltinProbeVerdict(builtinProbeWebBridgeDisabled) {
+		t.Fatal("a disabled switch must not demote a registered runtime")
+	}
+}

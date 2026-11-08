@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,7 +25,53 @@ const (
 	DshProtocolVersion = 1
 	dshCancelGrace     = 3 * time.Second
 	dshTerminateGrace  = 2 * time.Second
+	// dshWebEnabledEnv opts this daemon into the Multica DSH web bridge. That
+	// bridge is the only DSH target that understands the two Multica-only
+	// execute fields, so it stays off by default: with it unset the frames are
+	// exactly upstream's, which is what the official DSH runtime bundle (strict
+	// about unknown fields) accepts.
+	dshWebEnabledEnv = "MULTICA_DSH_WEB_ENABLED"
+	// dshWebBridgeCommand is the executable name of the Multica DSH web bridge.
+	dshWebBridgeCommand = "multica-dsh-web"
 )
+
+// DshWebEnabled reports whether the daemon was opted into the Multica DSH web
+// bridge. Unset or any value other than "1" is disabled.
+func DshWebEnabled() bool {
+	return strings.TrimSpace(os.Getenv(dshWebEnabledEnv)) == "1"
+}
+
+// IsDshWebBridge reports whether executablePath names the Multica DSH web
+// bridge (multica-dsh-web, with or without a .exe suffix).
+func IsDshWebBridge(executablePath string) bool {
+	base := strings.TrimSuffix(strings.ToLower(filepath.Base(strings.TrimSpace(executablePath))), ".exe")
+	return base == dshWebBridgeCommand
+}
+
+// dshSendsWebOnlyFields reports whether an execute frame for this target may
+// carry the Multica-only fields (system_prompt, thread_name). Only the web
+// bridge reads them; the official bundle rejects unknown fields, so sending
+// them to it fails the whole turn with INVALID_COMMAND.
+func dshSendsWebOnlyFields(executablePath string) bool {
+	return DshWebEnabled() && IsDshWebBridge(executablePath)
+}
+
+// buildDshExecuteCommand assembles the frame sent to a dsh --profile multica
+// --stdio process. The default shape is upstream's: the Multica-only fields
+// stay empty and are omitted by their json tags. They are populated only for a
+// configured web bridge.
+func buildDshExecuteCommand(requestID, prompt, executablePath string, opts ExecOptions, model *dshModelSelection, mcpServers []dshMCPServer) dshExecuteCommand {
+	command := dshExecuteCommand{
+		Version: DshProtocolVersion, Type: "execute", RequestID: requestID,
+		Cwd: opts.Cwd, Prompt: prompt, ResumeSessionID: opts.ResumeSessionID,
+		Model: model, ReasoningEffort: opts.ThinkingLevel, MCPServers: mcpServers,
+	}
+	if dshSendsWebOnlyFields(executablePath) {
+		command.SystemPrompt = opts.SystemPrompt
+		command.ThreadName = opts.ThreadName
+	}
+	return command
+}
 
 // dshBackend drives the Multica DSH bundle over its versioned JSONL
 // stdio protocol. The adapter is intentionally independent of ACP: DSH owns
@@ -255,11 +303,7 @@ func (b *dshBackend) Execute(ctx context.Context, prompt string, opts ExecOption
 	if requestID == "" {
 		requestID = "multica-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	}
-	command := dshExecuteCommand{
-		Version: DshProtocolVersion, Type: "execute", RequestID: requestID,
-		Cwd: opts.Cwd, Prompt: prompt, SystemPrompt: opts.SystemPrompt, ThreadName: opts.ThreadName, ResumeSessionID: opts.ResumeSessionID,
-		Model: model, ReasoningEffort: opts.ThinkingLevel, MCPServers: mcpServers,
-	}
+	command := buildDshExecuteCommand(requestID, prompt, execPath, opts, model, mcpServers)
 	var writeMu sync.Mutex
 	encoder := json.NewEncoder(stdin)
 	writeFrame := func(value any) error {

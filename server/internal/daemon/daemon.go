@@ -2383,6 +2383,11 @@ const (
 	// live runtime offline over it is a destructive answer to a version
 	// question. It stops a fresh registration and nothing more.
 	builtinProbeIncompatibleProfile
+	// builtinProbeWebBridgeDisabled: the resolved DSH runtime is the Multica web
+	// bridge, and this daemon does not have the switch for it on. Configuration,
+	// not a broken install: nothing is demoted and nothing is installed — the
+	// provider is simply not registered until the operator turns the switch on.
+	builtinProbeWebBridgeDisabled
 )
 
 // demotableBuiltinProbeVerdict reports whether a verdict may take a LIVE
@@ -2453,6 +2458,11 @@ const dshIncompatibleProfileReason = "the Multica runtime profile answers with a
 // looking in the wrong place.
 const dshProbeFailedReason = "the DSH runtime profile probe returned no usable answer"
 
+// dshWebBridgeDisabledReason is the /health reason for the Multica DSH web
+// bridge when the daemon was not opted into it. The desktop client runtime is
+// unaffected and keeps registering normally.
+const dshWebBridgeDisabledReason = "the DSH web bridge runtime is disabled (MULTICA_DSH_WEB_ENABLED is not 1); set it in the daemon launcher to register the multica-dsh-web runtime"
+
 // runtimeVerdict is one provider's confirmed verdict: the human reason that
 // goes to /health and the daemon log, plus — when the cause is one the user has
 // to act on — the structured record the server stores on the runtime row.
@@ -2515,10 +2525,26 @@ func newRuntimeVerdict(verdict builtinProbeVerdict, reason, execPath string, ins
 // installed. See builtinProbeVerdict.
 //
 // The second return value is a short human-readable reason when the verdict is
+// dshWebBridgeDisabled reports whether this runtime was withheld because the
+// Multica DSH web bridge is switched off. The bridge is the only DSH target
+// that understands the Multica-only execute fields, so it stays opt-in through
+// MULTICA_DSH_WEB_ENABLED; with the switch off the official desktop runtime
+// keeps working and the bridge is not registered.
+func dshWebBridgeDisabled(name, executablePath string) (string, bool) {
+	if name != "dsh" || agent.DshWebEnabled() || !agent.IsDshWebBridge(executablePath) {
+		return "", false
+	}
+	return dshWebBridgeDisabledReason, true
+}
+
 // not OK. It is surfaced on /health as skipped_agents so a user can tell "CLI
 // not installed" apart from "CLI installed but dropped at registration", which
 // was previously only visible in the daemon log (MUL-5439).
 func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry AgentEntry) (string, string, builtinProbeVerdict) {
+	if reason, blocked := dshWebBridgeDisabled(name, entry.Path); blocked {
+		d.logger.Info("skip registering runtime: DSH web bridge disabled", "name", name, "path", entry.Path)
+		return "", reason, builtinProbeWebBridgeDisabled
+	}
 	var (
 		lastErr  error
 		attempts int
@@ -8729,7 +8755,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// as always included, and a real kiro-cli 2.13.0 ACP smoke confirms it.
 	// Prepending the full runtime brief into the ACP user prompt duplicates that
 	// context and bloats every turn.
-	if providerNeedsInlineSystemPrompt(provider) || provider == "dsh" && strings.TrimSuffix(strings.ToLower(filepath.Base(entry.Path)), ".exe") == "multica-dsh-web" {
+	if providerNeedsInlineSystemPrompt(provider) || provider == "dsh" && agent.DshWebEnabled() && agent.IsDshWebBridge(entry.Path) {
 		execOpts.SystemPrompt = runtimeBrief
 	}
 
