@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -25,6 +27,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/entitlement"
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/featureflags"
+	"github.com/multica-ai/multica/server/internal/gitca"
 	"github.com/multica-ai/multica/server/internal/handler"
 	"github.com/multica-ai/multica/server/internal/integrations/channel"
 	"github.com/multica-ai/multica/server/internal/integrations/channel/engine"
@@ -445,6 +448,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMMaxRetries:            opts.LLMMaxRetries,
 		LLMDisableThinking:       opts.LLMDisableThinking,
 		ServerVersion:            normalizeServerVersion(version),
+		GitExtraCACerts:          gitca.Load(slog.Default()),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
 	invitationRateLimits := handler.DefaultInvitationRateLimits()
@@ -694,6 +698,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// is bridge code — it will simply find no rows to update
 				// on a fresh deployment and exit. MUL-2671.
 				go lark.BackfillBotUnionIDs(context.Background(), cs, larkClient, installSvc, slog.Default())
+				go lark.BackfillLegacyInboundReceipts(context.Background(), cs, slog.Default())
 
 				// Upgrade repair for deployments that ran the whole
 				// integration against Lark international via the deployment-
@@ -1450,6 +1455,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 	// WebSocket
 	mc := &membershipChecker{queries: queries}
+	hub.SetMembershipChecker(mc)
 	pr := &patResolver{queries: queries, cache: patCache}
 	slugResolver := realtime.SlugResolver(func(ctx context.Context, slug string) (string, error) {
 		ws, err := queries.GetWorkspaceBySlug(ctx, slug)
@@ -1664,7 +1670,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		// server/internal/handler/onboarding_shim.go.
 		r.Post("/api/me/onboarding/runtime-bootstrap", h.BootstrapOnboardingRuntime)
 		r.Post("/api/me/onboarding/no-runtime-bootstrap", h.BootstrapOnboardingNoRuntime)
-		r.Post("/api/cli-token", h.IssueCliToken)
+		// Credential minting is human-only (MUL-8154): an agent task token
+		// (mat_) or cloud-node PAT (mcn_) authenticates as its owner, so
+		// without this guard a prompt-injected agent could trade its scoped,
+		// short-lived credential for a 30-day session JWT.
+		r.With(handler.RequireHumanActor).Post("/api/cli-token", h.IssueCliToken)
 		// Sliding session renewal for clients that hold the session as a
 		// string (Desktop, mobile). Browsers get theirs re-issued inline by
 		// middleware.Auth and never call this (MUL-7436).
@@ -1915,7 +1925,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Post("/api/invitations/{id}/decline", h.DeclineInvitation)
 		r.Post("/api/share-links/join", h.JoinByShareLink)
 
+		// PAT management is human-only (MUL-8154): a machine credential must
+		// not mint a non-expiring PAT, enumerate the owner's PATs, or revoke
+		// them. /current/renew already accepts only mul_ PATs, which are human
+		// credentials, so the group-wide guard does not change its behavior.
 		r.Route("/api/tokens", func(r chi.Router) {
+			r.Use(handler.RequireHumanActor)
 			r.Get("/", h.ListPersonalAccessTokens)
 			r.Post("/", h.CreatePersonalAccessToken)
 			r.Post("/current/renew", h.RenewCurrentPersonalAccessToken)
@@ -2022,6 +2037,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", h.GetIssue)
 					r.Put("/", h.UpdateIssue)
+					r.Post("/review", h.SubmitIssueReview)
 					r.Post("/move", h.MoveIssue)
 					r.Delete("/", h.DeleteIssue)
 					r.Post("/comments/trigger-preview", h.PreviewCommentTriggers)
@@ -2539,6 +2555,7 @@ func buildLarkConnector(installSvc *lark.InstallationService, apiClient lark.API
 		FrameDecoder:        decoder,
 		Enricher:            enricher,
 		CredentialsProvider: credsProvider,
+		InboundVerifier:     installSvc,
 		Logger:              slog.Default(),
 	})
 	if err != nil {
@@ -2553,12 +2570,49 @@ type membershipChecker struct {
 	queries *db.Queries
 }
 
-func (mc *membershipChecker) IsMember(ctx context.Context, userID, workspaceID string) bool {
+func (mc *membershipChecker) IsMember(ctx context.Context, userID, workspaceID string) (bool, error) {
 	_, err := mc.queries.GetMemberByUserAndWorkspace(ctx, db.GetMemberByUserAndWorkspaceParams{
 		UserID:      parseUUID(userID),
 		WorkspaceID: parseUUID(workspaceID),
 	})
-	return err == nil
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (mc *membershipChecker) Members(ctx context.Context, identities []realtime.MembershipIdentity) (map[realtime.MembershipIdentity]bool, error) {
+	params := db.GetRealtimeMembershipsParams{}
+	for _, identity := range identities {
+		userID, err := util.ParseUUID(identity.UserID)
+		if err != nil {
+			return nil, err
+		}
+		workspaceID, err := util.ParseUUID(identity.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		params.UserIds = append(params.UserIds, userID)
+		params.WorkspaceIds = append(params.WorkspaceIds, workspaceID)
+	}
+	rows, err := mc.queries.GetRealtimeMemberships(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	type pair struct{ workspaceID, userID pgtype.UUID }
+	current := make(map[pair]bool, len(rows))
+	for _, row := range rows {
+		current[pair{row.WorkspaceID, row.UserID}] = true
+	}
+	// Return the exact request keys, including valid UUID spellings that are
+	// different from the database's canonical lowercase rendering.
+	members := make(map[realtime.MembershipIdentity]bool, len(rows))
+	for i, identity := range identities {
+		if current[pair{params.WorkspaceIds[i], params.UserIds[i]}] {
+			members[identity] = true
+		}
+	}
+	return members, nil
 }
 
 // patResolver implements realtime.PATResolver using database queries.

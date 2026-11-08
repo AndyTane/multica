@@ -3544,17 +3544,19 @@ func (s *TaskService) FinalizeDeferredCancelledChat(ctx context.Context, taskID 
 }
 
 func (s *TaskService) broadcastChatCancelFinalized(ctx context.Context, task db.AgentTaskQueue, payload protocol.ChatCancelFinalizedPayload) {
-	workspaceID := s.ResolveTaskWorkspaceID(ctx, task)
+	scope := s.ResolveTaskScope(ctx, task)
+	workspaceID := scope.WorkspaceID
 	if workspaceID == "" {
 		return
 	}
 	s.Bus.Publish(events.Event{
-		Type:          protocol.EventChatCancelFinalized,
-		WorkspaceID:   workspaceID,
-		ActorType:     "system",
-		ActorID:       "",
-		ChatSessionID: util.UUIDToString(task.ChatSessionID),
-		Payload:       payload,
+		Type:               protocol.EventChatCancelFinalized,
+		WorkspaceID:        workspaceID,
+		ActorType:          "system",
+		ActorID:            "",
+		ChatSessionID:      util.UUIDToString(task.ChatSessionID),
+		ChatSessionOwnerID: scope.ChatSessionOwnerID,
+		Payload:            payload,
 	})
 }
 
@@ -3598,8 +3600,9 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 		// A daemon may still hold a stale candidate after the agent is rebound.
 		// Reject it before doing capacity work. ClaimAgentTask repeats the fence
 		// before its state transition; the claim handler then rechecks the freshly
-		// loaded Agent before returning any payload. Runtime mutation teardown is
-		// responsible for serializing and settling the remaining queued rows.
+		// loaded Agent before returning any payload. Runtime mutation paths settle
+		// the remaining queued rows: teardown and revocation cancel them, and
+		// UpdateAgent re-stamps them to the new runtime.
 		if runtimeID.Valid && agent.RuntimeID != runtimeID {
 			outcome = "runtime_mismatch"
 			return nil
@@ -3899,7 +3902,16 @@ func (s *TaskService) FinalizeTaskClaim(
 			if err := qtx.DeleteExpiredDaemonTokens(ctx); err != nil {
 				return fmt.Errorf("delete expired daemon tokens: %w", err)
 			}
-			if _, err := qtx.CreateDaemonToken(ctx, daemonTokens[0]); err != nil {
+			// Bind the credential to the same owner the task token was just
+			// minted for (the locked runtime owner, set by authorize), so it
+			// can never reach a runtime another member later registers under
+			// this daemon_id (MUL-8154).
+			daemonToken := daemonTokens[0]
+			daemonToken.OwnerID = token.UserID
+			if !daemonToken.OwnerID.Valid {
+				return fmt.Errorf("create remote MCP daemon token: runtime owner required")
+			}
+			if _, err := qtx.CreateDaemonToken(ctx, daemonToken); err != nil {
 				return fmt.Errorf("create remote MCP daemon token: %w", err)
 			}
 		}
@@ -4610,11 +4622,10 @@ func (s *TaskService) CompleteTaskWithTransition(ctx context.Context, taskID pgt
 			var payload protocol.TaskCompletedPayload
 			if err := json.Unmarshal(result, &payload); err == nil {
 				if payload.Output != "" {
-					// Match the CLI's --content / --description behavior: agents that
-					// emit literal `\n` 4-char sequences (Python/JSON-style) get them
-					// decoded into real newlines before the comment hits the DB. See
-					// util.UnescapeBackslashEscapes for the exact contract.
-					body := util.UnescapeBackslashEscapes(payload.Output)
+					// An agent that emitted its whole answer as one escaped blob gets
+					// its literal `\n` decoded; formatted output is stored verbatim.
+					// See util.DecodeEscapedAgentOutput for the exact contract.
+					body := util.DecodeEscapedAgentOutput(payload.Output)
 					if task.TriggerCommentID.Valid && isTrivialDoneOutput(body) {
 						slog.Warn("suppressing trivial comment-trigger fallback output",
 							"task_id", util.UUIDToString(task.ID),
@@ -4706,9 +4717,9 @@ func (s *TaskService) writeChatCompletionOutcome(ctx context.Context, qtx *db.Qu
 	// valid JSON; an empty Output is the only case this branch cares about.
 	var payload protocol.TaskCompletedPayload
 	_ = json.Unmarshal(result, &payload)
-	// Same unescape as the issue-comment path: literal `\n` from agent stdout
-	// becomes a real newline so the chat panel renders paragraph breaks.
-	body := util.UnescapeBackslashEscapes(payload.Output)
+	// Same decoding as the issue-comment path: an escaped blob gets its
+	// paragraph breaks back, while LaTeX and paths in formatted replies survive.
+	body := util.DecodeEscapedAgentOutput(payload.Output)
 	// Strip any in-band quick-actions footer from EVERY chat completion — the
 	// reserved syntax must never reach a stored transcript. This includes the
 	// agent-initiated intro turn (chat_input_task_id NULL), which previously
@@ -5388,7 +5399,7 @@ func resumeUnsafeFailureReason(reason string) bool {
 	// codex_resume_oversized is the strongest member of this set: a codex
 	// rollout only ever grows, so a thread whose resume response already
 	// overflowed the reader will overflow on every future attempt too.
-	case "iteration_limit", "agent_fallback_message", "api_invalid_request", "codex_semantic_inactivity", "agent_error.context_overflow", "codex_resume_oversized":
+	case "iteration_limit", "agent_fallback_message", "api_invalid_request", "codex_semantic_inactivity", "agent_error.context_overflow", "codex_resume_oversized", "opencode_clock_skew":
 		return true
 	default:
 		return false
@@ -6091,9 +6102,9 @@ func (s *TaskService) terminateTasksInTx(ctx context.Context, fail func(*db.Quer
 // task and isn't being retried) resetting the issue back to todo so the
 // daemon can pick it up again.
 //
-// All callers that surface a task as failed — sweepers, FailTask,
-// recover-orphans — funnel through here so the same UI-consistency
-// guarantees apply on every code path.
+// The bulk failure paths — sweepers and recover-orphans — funnel through
+// here so the same UI-consistency guarantees apply on each of them.
+// FailTaskWithTransition runs its own failure side effects.
 func (s *TaskService) HandleFailedTasks(ctx context.Context, tasks []db.AgentTaskQueue) int {
 	if len(tasks) == 0 {
 		return 0
@@ -6122,6 +6133,11 @@ func (s *TaskService) HandleFailedTasks(ctx context.Context, tasks []db.AgentTas
 					"delegated_from_task_id", util.UUIDToString(t.DelegatedFromTaskID),
 					"error", err,
 				)
+			}
+			// Same terminal-failure comment FailTaskWithTransition posts, so
+			// swept tasks are not silent on their issue.
+			if t.IssueID.Valid && t.Error.String != "" {
+				s.createAgentComment(ctx, t.IssueID, t.AgentID, redact.Text(t.Error.String), "system", t.TriggerCommentID, t.ID)
 			}
 		}
 
@@ -7238,6 +7254,12 @@ func (s *TaskService) NotifyTaskFinished(task db.AgentTaskQueue) {
 	s.notifyRuntimeMayHaveWork(task.RuntimeID, "")
 }
 
+// NotifyRuntimeMayHaveWork wakes a runtime's daemon after queued work was
+// moved onto it outside an enqueue, such as an agent runtime switch.
+func (s *TaskService) NotifyRuntimeMayHaveWork(runtimeID pgtype.UUID) {
+	s.notifyRuntimeMayHaveWork(runtimeID, "")
+}
+
 // notifyTasksFinished is the batch form used by bulk terminal transitions.
 // Coalesce by runtime so cancelling many tasks on one machine produces one
 // cache bump and one websocket hint rather than a burst of identical work.
@@ -7423,6 +7445,28 @@ func (s *TaskService) ResolveTaskWorkspaceID(ctx context.Context, task db.AgentT
 // keeps a task carrying several links working during a partial outage while
 // still refusing to call an unknown state "not found".
 func (s *TaskService) ResolveTaskWorkspaceIDChecked(ctx context.Context, task db.AgentTaskQueue) (string, error) {
+	scope, err := s.ResolveTaskScopeChecked(ctx, task)
+	return scope.WorkspaceID, err
+}
+
+// TaskScope is where a task's realtime events belong.
+type TaskScope struct {
+	WorkspaceID string
+	// ChatSessionOwnerID is the chat session creator when the workspace was
+	// resolved through the task's chat session, and "" otherwise.
+	ChatSessionOwnerID string
+}
+
+// ResolveTaskScope is ResolveTaskWorkspaceID plus the chat session owner, read
+// from the same chat_session row so chat broadcasts cost no extra query.
+func (s *TaskService) ResolveTaskScope(ctx context.Context, task db.AgentTaskQueue) TaskScope {
+	scope, _ := s.ResolveTaskScopeChecked(ctx, task)
+	return scope
+}
+
+// ResolveTaskScopeChecked is ResolveTaskWorkspaceIDChecked plus the chat
+// session owner, with the same failure semantics.
+func (s *TaskService) ResolveTaskScopeChecked(ctx context.Context, task db.AgentTaskQueue) (TaskScope, error) {
 	// isNotFound is the "genuinely absent" signal; every other error means the
 	// lookup itself did not complete. pgx.ErrNoRows is the only error the
 	// queries below use to say "this row does not exist".
@@ -7436,14 +7480,17 @@ func (s *TaskService) ResolveTaskWorkspaceIDChecked(ctx context.Context, task db
 	if task.IssueID.Valid {
 		issue, err := s.Queries.GetIssue(ctx, task.IssueID)
 		if err == nil {
-			return util.UUIDToString(issue.WorkspaceID), nil
+			return TaskScope{WorkspaceID: util.UUIDToString(issue.WorkspaceID)}, nil
 		}
 		note(err)
 	}
 	if task.ChatSessionID.Valid {
 		cs, err := s.Queries.GetChatSession(ctx, task.ChatSessionID)
 		if err == nil {
-			return util.UUIDToString(cs.WorkspaceID), nil
+			return TaskScope{
+				WorkspaceID:        util.UUIDToString(cs.WorkspaceID),
+				ChatSessionOwnerID: util.UUIDToString(cs.CreatorID),
+			}, nil
 		}
 		note(err)
 	}
@@ -7452,7 +7499,7 @@ func (s *TaskService) ResolveTaskWorkspaceIDChecked(ctx context.Context, task db
 		if err == nil {
 			ap, apErr := s.Queries.GetAutopilot(ctx, run.AutopilotID)
 			if apErr == nil {
-				return util.UUIDToString(ap.WorkspaceID), nil
+				return TaskScope{WorkspaceID: util.UUIDToString(ap.WorkspaceID)}, nil
 			}
 			note(apErr)
 		}
@@ -7464,16 +7511,17 @@ func (s *TaskService) ResolveTaskWorkspaceIDChecked(ctx context.Context, task db
 	// for the daemon) and silently dropped task:dispatch / task:completed
 	// broadcasts, which is why quick-create tasks appeared stuck queued.
 	if qc, ok := s.parseQuickCreateContext(task); ok {
-		return qc.WorkspaceID, nil
+		return TaskScope{WorkspaceID: qc.WorkspaceID}, nil
 	}
 	if lookupErr != nil {
-		return "", fmt.Errorf("resolve task workspace: %w", lookupErr)
+		return TaskScope{}, fmt.Errorf("resolve task workspace: %w", lookupErr)
 	}
-	return "", nil
+	return TaskScope{}, nil
 }
 
 func (s *TaskService) broadcastChatDone(ctx context.Context, task db.AgentTaskQueue, msg *db.ChatMessage, quickActionsPending bool) {
-	workspaceID := s.ResolveTaskWorkspaceID(ctx, task)
+	scope := s.ResolveTaskScope(ctx, task)
+	workspaceID := scope.WorkspaceID
 	if workspaceID == "" {
 		return
 	}
@@ -7497,12 +7545,13 @@ func (s *TaskService) broadcastChatDone(ctx context.Context, task db.AgentTaskQu
 		}
 	}
 	s.Bus.Publish(events.Event{
-		Type:          protocol.EventChatDone,
-		WorkspaceID:   workspaceID,
-		ActorType:     "system",
-		ActorID:       "",
-		ChatSessionID: util.UUIDToString(task.ChatSessionID),
-		Payload:       payload,
+		Type:               protocol.EventChatDone,
+		WorkspaceID:        workspaceID,
+		ActorType:          "system",
+		ActorID:            "",
+		ChatSessionID:      util.UUIDToString(task.ChatSessionID),
+		ChatSessionOwnerID: scope.ChatSessionOwnerID,
+		Payload:            payload,
 	})
 }
 
@@ -7895,9 +7944,9 @@ func quickCreateFailureDetail(result []byte) string {
 	if err := json.Unmarshal(result, &payload); err != nil {
 		return ""
 	}
-	// Same unescape as the comment-fallback path: literal `\n` sequences from
-	// agent stdout become real newlines before the reason reaches the user.
-	body := strings.TrimSpace(util.UnescapeBackslashEscapes(payload.Output))
+	// Same decoding as the comment-fallback path: an escaped blob's literal
+	// `\n` sequences become real newlines before the reason reaches the user.
+	body := strings.TrimSpace(util.DecodeEscapedAgentOutput(payload.Output))
 	if body == "" {
 		return ""
 	}

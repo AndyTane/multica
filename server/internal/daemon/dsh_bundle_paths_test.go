@@ -236,6 +236,7 @@ func TestDshPluginPathDirs_FindsBothLayouts(t *testing.T) {
 
 	t.Run("generational", func(t *testing.T) {
 		home := t.TempDir()
+		t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
 		appData := dshDesktopAppDataDir(runtime.GOOS, os.Getenv, home)
 		if appData == "" {
 			t.Skip("no app-data location on this platform")
@@ -252,6 +253,7 @@ func TestDshPluginPathDirs_FindsBothLayouts(t *testing.T) {
 
 	t.Run("flat", func(t *testing.T) {
 		home := t.TempDir()
+		t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
 		appData := dshDesktopAppDataDir(runtime.GOOS, os.Getenv, home)
 		if appData == "" {
 			t.Skip("no app-data location on this platform")

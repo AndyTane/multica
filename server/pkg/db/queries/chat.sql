@@ -19,6 +19,12 @@ WHERE id = $1;
 SELECT * FROM chat_session
 WHERE id = $1 AND workspace_id = $2;
 
+-- name: ListChatSessionCreators :many
+-- Owners of a page of chat tasks, so task lists can hide the content of chat
+-- tasks the viewer did not start.
+SELECT id, creator_id FROM chat_session
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetPublicChatSessionInWorkspace :one
 -- A channel command is a durable control-plane record, not a public chat turn.
 -- Channel-created sessions therefore become public only after they contain a
@@ -1278,7 +1284,7 @@ WHERE session_id NOT IN (SELECT session_id FROM retired_sessions)
     status IN ('completed', 'cancelled')
     OR (
       status = 'failed'
-      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized')
+      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized', 'opencode_clock_skew')
       AND NOT (COALESCE(error, '') ILIKE '%400%' AND COALESCE(error, '') ILIKE '%invalid_request_error%')
       -- Mirrors the GetLastTaskSession auth-resolution guard: a provider that
       -- cannot resolve its auth method fails deterministically on resume, and

@@ -22,7 +22,11 @@ const (
 // ClientIdentity captures the already-authenticated daemon connection scope.
 type ClientIdentity struct {
 	DaemonID string
-	UserID   string
+	// DaemonTokenOwnerID is the runtime owner that token is bound to (empty
+	// for user credentials), replayed into every RPC
+	// so the per-runtime owner binding holds over WS as well (MUL-8154).
+	DaemonTokenOwnerID string
+	UserID             string
 	// WorkspaceID is the legacy single-workspace scope used by older callers
 	// and daemon-token auth. New code should populate WorkspaceIDs from the
 	// runtime rows authorized for this connection.
@@ -1036,6 +1040,9 @@ func (c *client) handleRPCFrame(raw json.RawMessage) {
 			hctx, cancel = context.WithTimeout(c.ctx, time.Duration(req.TimeoutMs)*time.Millisecond)
 			defer cancel()
 		}
+		completion := &rpcCompletion{}
+		hctx = context.WithValue(hctx, rpcCompletionKey{}, completion)
+		defer completion.run()
 		status, body, err := handler(hctx, c.identity, req.Method, req.Body)
 		if err != nil {
 			if status < 400 {

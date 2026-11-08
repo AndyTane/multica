@@ -64,6 +64,7 @@ func (h *Handler) rpcClaimTasks(ctx context.Context, identity daemonws.ClientIde
 	// workspaces).
 	if identity.DaemonID != "" {
 		reqCtx = middleware.WithDaemonContext(reqCtx, identity.PrimaryWorkspaceID(), identity.DaemonID)
+		reqCtx = middleware.WithDaemonTokenOwnerID(reqCtx, identity.DaemonTokenOwnerID)
 	}
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, "/api/daemon/tasks/claim", bytes.NewReader(body))
 	if err != nil {

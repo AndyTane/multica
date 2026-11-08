@@ -379,6 +379,8 @@ import {
   RedeemWecomBindingTokenResponseSchema,
   EMPTY_WECOM_INSTALLATION,
   EMPTY_LIST_WECOM_INSTALLATIONS_RESPONSE,
+  ListLarkInstallationsResponseSchema,
+  EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE,
   EMPTY_REDEEM_WECOM_BINDING_TOKEN_RESPONSE,
   TelegramInstallationSchema,
   ListTelegramInstallationsResponseSchema,
@@ -716,10 +718,16 @@ function subscriberTarget(
  * explicitly, or a concurrent writer of that singleton silently redirects the
  * write to the wrong workspace.
  */
+type WorkspaceScope = string | { workspaceId: string };
+
 function workspaceHeader(
-  slug?: string,
+  scope?: WorkspaceScope,
 ): Record<string, string> | undefined {
-  return slug ? { "X-Workspace-Slug": slug } : undefined;
+  if (typeof scope === "object") {
+    // The server resolves slugs first, so suppress the ambient route slug.
+    return { "X-Workspace-Slug": "", "X-Workspace-ID": scope.workspaceId };
+  }
+  return scope ? { "X-Workspace-Slug": scope } : undefined;
 }
 
 function dingTalkGroupSearch(params: ListDingTalkGroupsParams): string {
@@ -3683,11 +3691,11 @@ export class ApiClient {
   // Chat Sessions
   async listChatSessions(
     params?: { status?: string },
-    workspaceSlug?: string,
+    workspace?: WorkspaceScope,
   ): Promise<ChatSession[]> {
     const query = params?.status ? `?status=${params.status}` : "";
     const raw: unknown = await this.fetch(`/api/chat/sessions${query}`, {
-      headers: workspaceHeader(workspaceSlug),
+      headers: workspaceHeader(workspace),
     });
     return parseWithFallback(raw, ChatSessionListSchema, EMPTY_CHAT_SESSION_LIST, {
       endpoint: "GET /api/chat/sessions",
@@ -3765,8 +3773,8 @@ export class ApiClient {
   }
 
   // Quick-agent bar: per-user pinned agents.
-  async listChatPinnedAgents(): Promise<ChatPinnedAgent[]> {
-    return this.fetch("/api/chat/pinned-agents");
+  async listChatPinnedAgents(workspace?: WorkspaceScope): Promise<ChatPinnedAgent[]> {
+    return this.fetch("/api/chat/pinned-agents", { headers: workspaceHeader(workspace) });
   }
 
   async pinChatAgent(agentId: string): Promise<ChatPinnedAgent> {
@@ -3928,12 +3936,12 @@ export class ApiClient {
     });
   }
 
-  async listPendingChatTasks(): Promise<PendingChatTasksResponse> {
-    return this.fetch(`/api/chat/pending-tasks`);
+  async listPendingChatTasks(workspace?: WorkspaceScope): Promise<PendingChatTasksResponse> {
+    return this.fetch(`/api/chat/pending-tasks`, { headers: workspaceHeader(workspace) });
   }
 
-  async hasAnyPendingChatTasks(): Promise<HasPendingChatTasksResponse> {
-    return this.fetch(`/api/chat/pending-tasks/has-any`);
+  async hasAnyPendingChatTasks(workspace?: WorkspaceScope): Promise<HasPendingChatTasksResponse> {
+    return this.fetch(`/api/chat/pending-tasks/has-any`, { headers: workspaceHeader(workspace) });
   }
 
   async markChatSessionRead(sessionId: string): Promise<void> {
@@ -4926,7 +4934,13 @@ export class ApiClient {
 
   // Lark integration
   async listLarkInstallations(workspaceId: string): Promise<ListLarkInstallationsResponse> {
-    return this.fetch(`/api/workspaces/${workspaceId}/lark/installations`);
+    const endpoint = `/api/workspaces/${workspaceId}/lark/installations`;
+    return parseWithFallback(
+      await this.fetch(endpoint),
+      ListLarkInstallationsResponseSchema,
+      EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE,
+      { endpoint },
+    );
   }
 
   async beginLarkInstall(

@@ -4337,24 +4337,42 @@ func (q *Queries) GetAgentTaskInWorkspace(ctx context.Context, arg GetAgentTaskI
 }
 
 const getAgentTaskStatus = `-- name: GetAgentTaskStatus :one
-SELECT atq.status, a.workspace_id
+SELECT atq.status, a.workspace_id, atq.runtime_id,
+       rt.workspace_id AS runtime_workspace_id,
+       rt.daemon_id AS runtime_daemon_id,
+       rt.owner_id AS runtime_owner_id
 FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
+LEFT JOIN agent_runtime rt ON rt.id = atq.runtime_id
 WHERE atq.id = $1
 `
 
 type GetAgentTaskStatusRow struct {
-	Status      string      `json:"status"`
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Status             string      `json:"status"`
+	WorkspaceID        pgtype.UUID `json:"workspace_id"`
+	RuntimeID          pgtype.UUID `json:"runtime_id"`
+	RuntimeWorkspaceID pgtype.UUID `json:"runtime_workspace_id"`
+	RuntimeDaemonID    pgtype.Text `json:"runtime_daemon_id"`
+	RuntimeOwnerID     pgtype.UUID `json:"runtime_owner_id"`
 }
 
 // Hot-path status polling needs only the task status and the owning agent's
 // workspace for authorization. Keep this independent of optional source links
 // (issue, chat session, autopilot run) so it needs no source-entity lookup.
+// The bound runtime's workspace / daemon / owner ride along (LEFT JOIN: a
+// terminal task outlives a deleted runtime) so the daemon route can enforce
+// runtime ownership without a second round trip (MUL-8154).
 func (q *Queries) GetAgentTaskStatus(ctx context.Context, id pgtype.UUID) (GetAgentTaskStatusRow, error) {
 	row := q.db.QueryRow(ctx, getAgentTaskStatus, id)
 	var i GetAgentTaskStatusRow
-	err := row.Scan(&i.Status, &i.WorkspaceID)
+	err := row.Scan(
+		&i.Status,
+		&i.WorkspaceID,
+		&i.RuntimeID,
+		&i.RuntimeWorkspaceID,
+		&i.RuntimeDaemonID,
+		&i.RuntimeOwnerID,
+	)
 	return i, err
 }
 
@@ -4404,7 +4422,7 @@ WHERE session_id NOT IN (SELECT session_id FROM retired_sessions)
     status IN ('completed', 'cancelled')
     OR (
       status = 'failed'
-      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized')
+      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized', 'opencode_clock_skew')
       AND NOT (COALESCE(error, '') ILIKE '%400%' AND COALESCE(error, '') ILIKE '%invalid_request_error%')
       AND NOT (COALESCE(error, '') ILIKE '%image dimensions exceed max allowed size%' AND COALESCE(error, '') ILIKE '%image.source.base64.data%')
       -- A provider credential-resolution failure ("Could not resolve
@@ -7763,6 +7781,54 @@ func (q *Queries) PromoteDueDeferredTasksForRuntimes(ctx context.Context, arg Pr
 		return nil, err
 	}
 	return items, nil
+}
+
+const reassignPendingAgentTasksToRuntime = `-- name: ReassignPendingAgentTasksToRuntime :one
+WITH fence AS MATERIALIZED (
+    SELECT CASE WHEN EXISTS (
+        SELECT 1 FROM agent AS owner WHERE owner.id = $1 AND owner.workspace_id = $2
+    ) THEN lock_task_owner_rows($1, NULL, $3)
+      ELSE false END AS ok
+),
+reassigned AS (
+    UPDATE agent_task_queue
+    SET runtime_id = $3
+    WHERE agent_id = $1
+      AND status IN ('queued', 'deferred')
+      AND runtime_id IS DISTINCT FROM $3
+      AND (SELECT ok FROM fence)
+    RETURNING id
+)
+SELECT
+    (SELECT ok FROM fence) AS fence_ok,
+    (SELECT count(*) FROM reassigned) AS reassigned_tasks
+`
+
+type ReassignPendingAgentTasksToRuntimeParams struct {
+	AgentID      pgtype.UUID `json:"agent_id"`
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+	NewRuntimeID pgtype.UUID `json:"new_runtime_id"`
+}
+
+type ReassignPendingAgentTasksToRuntimeRow struct {
+	FenceOk         bool  `json:"fence_ok"`
+	ReassignedTasks int64 `json:"reassigned_tasks"`
+}
+
+// Moves an agent's not-yet-dispatched tasks to the runtime it was just rebound
+// to. Claims fence on agent.runtime_id = task.runtime_id (MUL-6697), so a
+// queued or deferred row left on the old runtime is claimable by neither
+// daemon. Deferred rows move too: promotion is per runtime and would otherwise
+// strand them later. Dispatched, running and waiting rows are already held by
+// the old runtime's daemon and stay. Callers hold the agent row FOR UPDATE.
+//
+// Same fence-verdict shape as ReassignTasksToRuntime: FenceOk = false must
+// abort the rebind rather than commit a binding with stranded rows.
+func (q *Queries) ReassignPendingAgentTasksToRuntime(ctx context.Context, arg ReassignPendingAgentTasksToRuntimeParams) (ReassignPendingAgentTasksToRuntimeRow, error) {
+	row := q.db.QueryRow(ctx, reassignPendingAgentTasksToRuntime, arg.AgentID, arg.WorkspaceID, arg.NewRuntimeID)
+	var i ReassignPendingAgentTasksToRuntimeRow
+	err := row.Scan(&i.FenceOk, &i.ReassignedTasks)
+	return i, err
 }
 
 const rebindAgentBuilderRuntime = `-- name: RebindAgentBuilderRuntime :one

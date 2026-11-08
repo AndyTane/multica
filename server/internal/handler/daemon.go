@@ -23,6 +23,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/daemonws"
+	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/logger"
@@ -84,7 +85,68 @@ func (h *Handler) requireDaemonWorkspaceAccess(w http.ResponseWriter, r *http.Re
 	return ok
 }
 
-// requireDaemonRuntimeAccess looks up a runtime and verifies the caller owns its workspace.
+// daemonRuntimeBindingAllowed is the runtime-level half of daemon
+// authorization (MUL-8154). Workspace access alone is not enough: every
+// member of a workspace can reach /api/daemon/* with their own PAT/JWT, and
+// without this check could claim another member's tasks (receiving the
+// agent's custom_env, MCP config and a task token minted for the runtime
+// owner) or write results into them.
+//
+//   - Daemon token (mdt_): the token is bound to one daemon, so the runtime
+//     must carry that exact, non-empty daemon_id. A runtime with no daemon_id
+//     is never reachable through a daemon token — those tokens are also minted
+//     per task for Remote MCP, so "same workspace" is far too wide. A daemon_id
+//     can be re-registered by another member once its runtimes are deleted,
+//     so the token must also be bound to the runtime's current owner.
+//   - User credential (PAT / JWT / mcn_): the caller must be the runtime's
+//     owner. A NULL owner fails closed.
+//
+// Callers must have already passed requireDaemonWorkspaceAccess (or its
+// non-writing sibling) — this does not re-check membership or workspace.
+func daemonRuntimeBindingAllowed(r *http.Request, daemonID pgtype.Text, ownerID pgtype.UUID) bool {
+	ctx := r.Context()
+	if middleware.DaemonWorkspaceIDFromContext(ctx) != "" {
+		tokenDaemonID := middleware.DaemonIDFromContext(ctx)
+		if tokenDaemonID == "" || !daemonID.Valid ||
+			strings.TrimSpace(daemonID.String) == "" || daemonID.String != tokenDaemonID {
+			return false
+		}
+		tokenOwnerID := middleware.DaemonTokenOwnerIDFromContext(ctx)
+		return tokenOwnerID != "" && ownerID.Valid && uuidToString(ownerID) == tokenOwnerID
+	}
+	userID := requestUserID(r)
+	return userID != "" && ownerID.Valid && uuidToString(ownerID) == userID
+}
+
+// isQoderManagedDaemonID reports the reserved daemon_id namespace of the
+// server-run Qoder bridge.
+func isQoderManagedDaemonID(daemonID string) bool {
+	return strings.HasPrefix(daemonID, "qoder-managed-")
+}
+
+// requireDaemonRuntimeAuthorized combines workspace access with the runtime
+// binding check and writes the error itself. A binding refusal is reported
+// as 404 so a non-owner cannot probe for other members' runtime ids.
+func (h *Handler) requireDaemonRuntimeAuthorized(w http.ResponseWriter, r *http.Request, workspaceID string, daemonID pgtype.Text, ownerID pgtype.UUID, notFoundMsg string) bool {
+	if !h.requireDaemonWorkspaceAccess(w, r, workspaceID) {
+		return false
+	}
+	if !daemonRuntimeBindingAllowed(r, daemonID, ownerID) {
+		writeError(w, http.StatusNotFound, notFoundMsg)
+		return false
+	}
+	return true
+}
+
+// verifyDaemonRuntimeAuthorized is the non-writing sibling used by batch
+// loops that skip unauthorized runtimes instead of failing the request.
+func (h *Handler) verifyDaemonRuntimeAuthorized(r *http.Request, rt db.AgentRuntime) bool {
+	return h.verifyDaemonWorkspaceAccess(r, uuidToString(rt.WorkspaceID)) &&
+		daemonRuntimeBindingAllowed(r, rt.DaemonID, rt.OwnerID)
+}
+
+// requireDaemonRuntimeAccess looks up a runtime and verifies the caller may
+// act as its daemon: workspace access plus daemonRuntimeBindingAllowed.
 //
 // Only pgx.ErrNoRows is treated as a real "runtime gone" 404 — the daemon uses
 // that response to drop the stale runtime from its in-memory map and re-register,
@@ -105,13 +167,14 @@ func (h *Handler) requireDaemonRuntimeAccess(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusInternalServerError, "failed to load runtime")
 		return db.AgentRuntime{}, false
 	}
-	if !h.requireDaemonWorkspaceAccess(w, r, uuidToString(rt.WorkspaceID)) {
+	if !h.requireDaemonRuntimeAuthorized(w, r, uuidToString(rt.WorkspaceID), rt.DaemonID, rt.OwnerID, "runtime not found") {
 		return db.AgentRuntime{}, false
 	}
 	return rt, true
 }
 
-// requireDaemonTaskAccess looks up a task and verifies the caller owns its workspace.
+// requireDaemonTaskAccess looks up a task and verifies the caller may act as
+// the daemon of the runtime the task is bound to.
 func (h *Handler) requireDaemonTaskAccess(w http.ResponseWriter, r *http.Request, taskID string) (db.AgentTaskQueue, bool) {
 	task, _, ok := h.requireDaemonTaskAccessWithWorkspace(w, r, taskID)
 	return task, ok
@@ -124,10 +187,25 @@ func (h *Handler) requireDaemonTaskAccess(w http.ResponseWriter, r *http.Request
 // ResolveTaskWorkspaceID lookup. The two helpers share their entire
 // implementation; the simpler one is preserved for ergonomic call sites
 // that genuinely don't need workspace_id.
+//
+// Authorization is runtime-level (MUL-8154): the task must be bound to a
+// runtime in the task's own workspace, and the caller must pass
+// daemonRuntimeBindingAllowed for that runtime. A task with no runtime
+// (runtime deleted; the task was unbound and kept as history) has no
+// provable executor, so it is reported as not found — these routes write
+// results, messages and credentials, and "any workspace member" must not be
+// a fallback for them.
 func (h *Handler) requireDaemonTaskAccessWithWorkspace(w http.ResponseWriter, r *http.Request, taskID string) (db.AgentTaskQueue, string, bool) {
+	task, scope, ok := h.requireDaemonTaskAccessWithScope(w, r, taskID)
+	return task, scope.WorkspaceID, ok
+}
+
+// requireDaemonTaskAccessWithScope is requireDaemonTaskAccessWithWorkspace
+// plus the chat session owner, resolved from the same lookup.
+func (h *Handler) requireDaemonTaskAccessWithScope(w http.ResponseWriter, r *http.Request, taskID string) (db.AgentTaskQueue, service.TaskScope, bool) {
 	taskUUID, ok := parseUUIDOrBadRequest(w, taskID, "task_id")
 	if !ok {
-		return db.AgentTaskQueue{}, "", false
+		return db.AgentTaskQueue{}, service.TaskScope{}, false
 	}
 	task, err := h.Queries.GetAgentTask(r.Context(), taskUUID)
 	if err != nil {
@@ -136,11 +214,11 @@ func (h *Handler) requireDaemonTaskAccessWithWorkspace(w http.ResponseWriter, r 
 		// error must not be reported as a deletion.
 		if isNotFound(err) {
 			writeError(w, http.StatusNotFound, "task not found")
-			return db.AgentTaskQueue{}, "", false
+			return db.AgentTaskQueue{}, service.TaskScope{}, false
 		}
 		slog.Warn("get agent task failed", "task_id", taskID, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to load task")
-		return db.AgentTaskQueue{}, "", false
+		return db.AgentTaskQueue{}, service.TaskScope{}, false
 	}
 
 	// Same rule as the GetAgentTask branch above, one link further out: the
@@ -149,21 +227,40 @@ func (h *Handler) requireDaemonTaskAccessWithWorkspace(w http.ResponseWriter, r 
 	// issue / chat session / autopilot leaves us unable to tell whether the
 	// task is reachable, and "I don't know" must not be reported as "deleted"
 	// (MUL-7259 / GH #8272 — the branch #2127 hardened above, missed here).
-	wsID, err := h.TaskService.ResolveTaskWorkspaceIDChecked(r.Context(), task)
+	scope, err := h.TaskService.ResolveTaskScopeChecked(r.Context(), task)
 	if err != nil {
 		slog.Warn("resolve task workspace failed", "task_id", taskID, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to load task")
-		return db.AgentTaskQueue{}, "", false
+		return db.AgentTaskQueue{}, service.TaskScope{}, false
 	}
+	wsID := scope.WorkspaceID
 	if wsID == "" {
 		writeError(w, http.StatusNotFound, "task not found")
-		return db.AgentTaskQueue{}, "", false
+		return db.AgentTaskQueue{}, service.TaskScope{}, false
 	}
 
 	if !h.requireDaemonWorkspaceAccess(w, r, wsID) {
-		return db.AgentTaskQueue{}, "", false
+		return db.AgentTaskQueue{}, service.TaskScope{}, false
 	}
-	return task, wsID, true
+	if !task.RuntimeID.Valid {
+		writeError(w, http.StatusNotFound, "task not found")
+		return db.AgentTaskQueue{}, service.TaskScope{}, false
+	}
+	rt, err := h.getAgentRuntime(r.Context(), obsmetrics.RuntimeLookupSourceDaemonAPI, task.RuntimeID)
+	if err != nil {
+		if isNotFound(err) {
+			writeError(w, http.StatusNotFound, "task not found")
+			return db.AgentTaskQueue{}, service.TaskScope{}, false
+		}
+		slog.Warn("get task runtime failed", "task_id", taskID, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to load task")
+		return db.AgentTaskQueue{}, service.TaskScope{}, false
+	}
+	if uuidToString(rt.WorkspaceID) != wsID || !daemonRuntimeBindingAllowed(r, rt.DaemonID, rt.OwnerID) {
+		writeError(w, http.StatusNotFound, "task not found")
+		return db.AgentTaskQueue{}, service.TaskScope{}, false
+	}
+	return task, scope, true
 }
 
 // verifyDaemonWorkspaceAccess checks workspace access without writing an HTTP error.
@@ -173,7 +270,10 @@ func (h *Handler) verifyDaemonWorkspaceAccess(r *http.Request, workspaceID strin
 		return false
 	}
 	if daemonWsID := middleware.DaemonWorkspaceIDFromContext(r.Context()); daemonWsID != "" {
-		return daemonWsID == workspaceID
+		if daemonWsID != workspaceID {
+			return false
+		}
+		return true
 	}
 	userID := requestUserID(r)
 	if userID == "" {
@@ -229,6 +329,9 @@ type daemonWorkspaceReposResponse struct {
 	Repos        []RepoData      `json:"repos"`
 	ReposVersion string          `json:"repos_version"`
 	Settings     json.RawMessage `json:"settings,omitempty"`
+	// CACerts carries the backend's extra CA certificates (PEM) for the
+	// daemon's git. Older daemons ignore it.
+	CACerts string `json:"ca_certs,omitempty"`
 }
 
 func normalizeWorkspaceRepos(repos []RepoData) []RepoData {
@@ -277,12 +380,13 @@ func parseWorkspaceRepos(raw []byte) []RepoData {
 	return normalizeWorkspaceRepos(repos)
 }
 
-func workspaceReposResponse(workspaceID string, raw []byte, settingsRaw []byte) daemonWorkspaceReposResponse {
+func workspaceReposResponse(workspaceID string, raw []byte, settingsRaw []byte, caCerts []byte) daemonWorkspaceReposResponse {
 	repos := parseWorkspaceRepos(raw)
 	resp := daemonWorkspaceReposResponse{
 		WorkspaceID:  workspaceID,
 		Repos:        repos,
 		ReposVersion: workspaceReposVersion(repos),
+		CACerts:      string(caCerts),
 	}
 	if len(settingsRaw) > 0 {
 		resp.Settings = json.RawMessage(settingsRaw)
@@ -308,11 +412,11 @@ func normalizeProvider(s string) string {
 // existing rows keep whatever they already have. A lookup/update error is
 // non-fatal — registration must still succeed — so the input row is returned
 // unchanged on any failure.
-func (h *Handler) inheritMachineCustomName(ctx context.Context, rt db.AgentRuntime, inserted bool) db.AgentRuntime {
+func (h *Handler) inheritMachineCustomName(ctx context.Context, q *db.Queries, rt db.AgentRuntime, inserted bool) db.AgentRuntime {
 	if !inserted || rt.CustomName.Valid || !rt.DaemonID.Valid {
 		return rt
 	}
-	names, err := h.Queries.ListDaemonCustomNames(ctx, db.ListDaemonCustomNamesParams{
+	names, err := q.ListDaemonCustomNames(ctx, db.ListDaemonCustomNamesParams{
 		WorkspaceID: rt.WorkspaceID,
 		DaemonID:    rt.DaemonID,
 		ExcludeID:   rt.ID,
@@ -324,7 +428,7 @@ func (h *Handler) inheritMachineCustomName(ctx context.Context, rt db.AgentRunti
 	if !ok {
 		return rt
 	}
-	updated, err := h.Queries.UpdateAgentRuntimeCustomName(ctx, db.UpdateAgentRuntimeCustomNameParams{
+	updated, err := q.UpdateAgentRuntimeCustomName(ctx, db.UpdateAgentRuntimeCustomNameParams{
 		CustomName: pgtype.Text{String: shared, Valid: true},
 		ID:         rt.ID,
 	})
@@ -341,22 +445,19 @@ var errRuntimeProfileDisabled = errors.New("runtime profile is disabled")
 // commits; DeleteRuntimeProfile takes a conflicting UPDATE lock before it
 // enumerates runtime rows. This closes the stale-read window where deletion
 // could miss an instance inserted by a concurrently registering daemon.
+//
+// It runs on the caller's registration transaction (MUL-8154), so the profile
+// lock is held until the whole registration commits.
 func (h *Handler) upsertRuntimeWithProfile(
 	ctx context.Context,
+	qtx *db.Queries,
 	workspaceID, profileID pgtype.UUID,
 	build func(db.RuntimeProfile) db.UpsertAgentRuntimeWithProfileParams,
 ) (db.UpsertAgentRuntimeWithProfileRow, db.RuntimeProfile, error) {
 	var row db.UpsertAgentRuntimeWithProfileRow
 	var profile db.RuntimeProfile
 
-	tx, err := h.TxStarter.Begin(ctx)
-	if err != nil {
-		return row, profile, fmt.Errorf("begin profile runtime registration: %w", err)
-	}
-	defer tx.Rollback(ctx)
-	qtx := h.Queries.WithTx(tx)
-
-	profile, err = qtx.LockRuntimeProfileForRegistration(ctx, db.LockRuntimeProfileForRegistrationParams{
+	profile, err := qtx.LockRuntimeProfileForRegistration(ctx, db.LockRuntimeProfileForRegistrationParams{
 		ID:          profileID,
 		WorkspaceID: workspaceID,
 	})
@@ -369,10 +470,14 @@ func (h *Handler) upsertRuntimeWithProfile(
 
 	row, err = qtx.UpsertAgentRuntimeWithProfile(ctx, build(profile))
 	if err != nil {
+		// The profile lookup above already turned "unknown profile" into
+		// ErrNoRows; here ErrNoRows can only mean the ownership fence
+		// refused the conflict update, which must not be reported as an
+		// unknown profile.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return row, profile, errRuntimeOwnedByAnotherUser
+		}
 		return row, profile, fmt.Errorf("upsert profile runtime: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return row, profile, fmt.Errorf("commit profile runtime registration: %w", err)
 	}
 	return row, profile, nil
 }
@@ -404,6 +509,33 @@ func sharedDaemonCustomName(names []pgtype.Text) (string, bool) {
 	return first, true
 }
 
+// beginDaemonRegistration opens the transaction a registration's ownership
+// pre-check and every runtime write run in, after taking a transaction-scoped
+// advisory lock on (workspace_id, daemon_id). Registrations of the same daemon
+// therefore run one at a time and each pre-check sees what the previous one
+// committed (MUL-8154 review). Everything under the lock runs on this one
+// connection, so a queue of waiting registrations cannot starve the holder of
+// pool connections.
+func (h *Handler) beginDaemonRegistration(ctx context.Context, workspaceID, daemonID string) (pgx.Tx, error) {
+	tx, err := h.TxStarter.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin registration: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 8154))`, workspaceID+"/"+daemonID); err != nil {
+		_ = tx.Rollback(context.Background())
+		return nil, fmt.Errorf("acquire registration lock: %w", err)
+	}
+	return tx, nil
+}
+
+// errRuntimeOwnedByAnotherUser reports that a user-credential registration
+// hit a runtime row (same workspace + daemon_id) that the caller does not own.
+// MUL-8154: re-registering a row used to rewrite owner_id to the caller, so
+// any member could take over another member's runtime.
+var errRuntimeOwnedByAnotherUser = errors.New("runtime is registered to another user")
+
+const runtimeOwnedByAnotherUserMessage = "this daemon's runtimes are registered to another user; remove them from the workspace or sign the daemon in as their owner"
+
 func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 	var req DaemonRegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -432,30 +564,99 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.WorkspaceID = uuidToString(wsUUID)
+	if id := middleware.DaemonIDFromContext(r.Context()); id != "" && id != req.DaemonID {
+		writeError(w, http.StatusForbidden, "daemon identity mismatch")
+		return
+	}
+	if isQoderManagedDaemonID(req.DaemonID) {
+		writeError(w, http.StatusForbidden, "reserved daemon_id")
+		return
+	}
 
 	// Verify workspace access and resolve owner.
-	// Daemon tokens (mdt_) prove workspace access directly; OwnerID will be zero
-	// (the SQL COALESCE preserves any existing owner on upsert).
-	// PAT/JWT tokens require a membership check and set OwnerID from the member.
-	var ownerID pgtype.UUID
+	//   - User credential (PAT/JWT): membership check; the member is the owner.
+	//   - Daemon token: the owner the token is bound to (MUL-8154).
+	//     The same pre-check and SQL fence apply, so a token issued for one
+	//     owner cannot rewrite a runtime another member re-registered under
+	//     this daemon_id. Unbound tokens (pre-588) are refused.
+	// mergeOwnerID is set only for user credentials: daemon tokens never
+	// trigger legacy merges.
+	var ownerID, mergeOwnerID pgtype.UUID
 	if daemonWsID := middleware.DaemonWorkspaceIDFromContext(r.Context()); daemonWsID != "" {
 		if daemonWsID != req.WorkspaceID {
 			writeError(w, http.StatusNotFound, "workspace not found")
 			return
 		}
-		// ownerID stays zero — COALESCE keeps the existing owner on upsert.
+		tokenOwner := middleware.DaemonTokenOwnerIDFromContext(r.Context())
+		if tokenOwner == "" {
+			writeError(w, http.StatusForbidden, "daemon credential is not bound to a runtime owner")
+			return
+		}
+		ownerUUID, err := util.ParseUUID(tokenOwner)
+		if err != nil {
+			writeError(w, http.StatusForbidden, "daemon credential is not bound to a runtime owner")
+			return
+		}
+		ownerID = ownerUUID
 	} else {
 		member, ok := h.requireWorkspaceMember(w, r, req.WorkspaceID, "workspace not found")
 		if !ok {
 			return
 		}
 		ownerID = member.UserID
+		mergeOwnerID = member.UserID
+
 	}
 
 	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
+	}
+
+	// One transaction for the ownership pre-check and every runtime write,
+	// serialized per (workspace, daemon_id) for both auth paths (MUL-8154
+	// review). The pre-check and the per-provider / per-profile upserts hit
+	// different conflict keys, so without this two members registering
+	// different providers of the same daemon could both read "no rows" and
+	// both insert — one daemon, two owners, and a daemon token minted for
+	// either runtime would then reach the other's. A failure anywhere rolls
+	// the whole registration back. Legacy merges, analytics and the
+	// register event run only after commit.
+	tx, err := h.beginDaemonRegistration(r.Context(), req.WorkspaceID, req.DaemonID)
+	if err != nil {
+		slog.Warn("register: begin registration failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusServiceUnavailable, "failed to register runtime")
+		return
+	}
+	defer tx.Rollback(context.Background())
+	qtx := h.Queries.WithTx(tx)
+	var afterCommit []func()
+
+	if ownerID.Valid {
+		// Ownership pre-check: every row this daemon_id already holds in
+		// the workspace must belong to the caller — including ownerless
+		// rows, which ordinary registration must not silently claim. The
+		// upserts keep the same fence in SQL (required_owner_id) as
+		// defense in depth.
+		existing, err := qtx.ListRuntimeOwnersByDaemon(r.Context(), db.ListRuntimeOwnersByDaemonParams{
+			WorkspaceID: wsUUID,
+			DaemonID:    strToText(req.DaemonID),
+		})
+		if err != nil {
+			slog.Warn("register: runtime owner pre-check failed", append(logger.RequestAttrs(r), "error", err)...)
+			writeError(w, http.StatusInternalServerError, "failed to register runtime")
+			return
+		}
+		for _, row := range existing {
+			if !row.OwnerID.Valid || row.OwnerID != ownerID {
+				slog.Warn("register: refused runtime owned by another user",
+					"workspace_id", req.WorkspaceID, "daemon_id", req.DaemonID,
+					"runtime_id", uuidToString(row.ID))
+				writeError(w, http.StatusForbidden, runtimeOwnedByAnotherUserMessage)
+				return
+			}
+		}
 	}
 
 	resp := make([]AgentRuntimeResponse, 0, len(req.Runtimes))
@@ -507,6 +708,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 			// the provider used for task routing cannot drift from the profile.
 			prow, profile, err := h.upsertRuntimeWithProfile(
 				r.Context(),
+				qtx,
 				wsUUID,
 				profileUUID,
 				func(profile db.RuntimeProfile) db.UpsertAgentRuntimeWithProfileParams {
@@ -521,9 +723,16 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 						Metadata:    metadata,
 						OwnerID:     ownerID,
 						ProfileID:   profileUUID,
+						// Ownership fence: zero (no fence) on the daemon-token
+						// path, the caller on the user-credential path.
+						RequiredOwnerID: ownerID,
 					}
 				},
 			)
+			if errors.Is(err, errRuntimeOwnedByAnotherUser) {
+				writeError(w, http.StatusForbidden, runtimeOwnedByAnotherUserMessage)
+				return
+			}
 			if errors.Is(err, pgx.ErrNoRows) {
 				writeError(w, http.StatusBadRequest, "unknown runtime profile: "+runtime.ProfileID)
 				return
@@ -568,7 +777,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 				ProfileID:      prow.ProfileID,
 			}
 		} else {
-			row, err := h.Queries.UpsertAgentRuntime(r.Context(), db.UpsertAgentRuntimeParams{
+			row, err := qtx.UpsertAgentRuntime(r.Context(), db.UpsertAgentRuntimeParams{
 				WorkspaceID: wsUUID,
 				DaemonID:    strToText(req.DaemonID),
 				Name:        name,
@@ -578,7 +787,14 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 				DeviceInfo:  deviceInfo,
 				Metadata:    metadata,
 				OwnerID:     ownerID,
+				// See the profile branch: the SQL fence that backs the
+				// pre-check against a concurrent registration.
+				RequiredOwnerID: ownerID,
 			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeError(w, http.StatusForbidden, runtimeOwnedByAnotherUserMessage)
+				return
+			}
 			if err != nil {
 				obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeFailed(
 					uuidToString(ownerID),
@@ -618,30 +834,33 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		// A brand-new runtime on an already-named machine inherits the machine's
 		// shared custom name so the machine title stays stable as providers come
 		// and go (MUL-4217). Shared with the failed-profile path below.
-		registered = h.inheritMachineCustomName(r.Context(), registered, inserted)
+		registered = h.inheritMachineCustomName(r.Context(), qtx, registered, inserted)
 
 		// Inserted is false for normal daemon reconnects/upserts, so
 		// runtime_ready is a first-ready-per-runtime-row signal.
 		if inserted {
-			obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeRegistered(
-				uuidToString(ownerID),
-				req.WorkspaceID,
-				uuidToString(registered.ID),
-				req.DaemonID,
-				provider,
-				runtime.Version,
-				req.CLIVersion,
-			))
-			if registered.Status == "online" {
-				obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeReady(
+			registered, provider, runtime := registered, provider, runtime
+			afterCommit = append(afterCommit, func() {
+				obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeRegistered(
 					uuidToString(ownerID),
 					req.WorkspaceID,
 					uuidToString(registered.ID),
 					req.DaemonID,
 					provider,
-					0,
+					runtime.Version,
+					req.CLIVersion,
 				))
-			}
+				if registered.Status == "online" {
+					obsmetrics.RecordEvent(h.Analytics, h.Metrics, analytics.RuntimeReady(
+						uuidToString(ownerID),
+						req.WorkspaceID,
+						uuidToString(registered.ID),
+						req.DaemonID,
+						provider,
+						0,
+					))
+				}
+			})
 		}
 
 		// Seamless migration from the previous hostname-derived identity. The
@@ -655,8 +874,13 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		// ancestor to merge, and mergeLegacyRuntimes scopes by provider alone
 		// (no profile_id), which could otherwise fold a built-in row into a
 		// custom one of the same provider.
+		// Merges lock both runtime rows in their own transaction, so they
+		// must run after this registration commits the new row.
 		if !isCustom {
-			h.mergeLegacyRuntimes(r, registered, provider, req.LegacyDaemonIDs)
+			registered, provider := registered, provider
+			afterCommit = append(afterCommit, func() {
+				h.mergeLegacyRuntimes(r, registered, provider, req.LegacyDaemonIDs, mergeOwnerID)
+			})
 		}
 
 		resp = append(resp, runtimeToResponse(registered))
@@ -675,8 +899,18 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 			reason = "custom runtime command could not be resolved"
 		}
 		commandName := strings.TrimSpace(failed.CommandName)
+		// Best effort, as before: a savepoint keeps one failed record from
+		// aborting the registration transaction.
+		sp, err := tx.Begin(r.Context())
+		if err != nil {
+			slog.Warn("failed to record runtime profile registration failure",
+				"workspace_id", req.WorkspaceID, "daemon_id", req.DaemonID,
+				"profile_id", profileID, "error", err)
+			continue
+		}
 		prow, _, err := h.upsertRuntimeWithProfile(
 			r.Context(),
+			h.Queries.WithTx(sp),
 			wsUUID,
 			profileUUID,
 			func(profile db.RuntimeProfile) db.UpsertAgentRuntimeWithProfileParams {
@@ -704,20 +938,28 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 					"command_name":                       resolvedCommandName,
 				})
 				return db.UpsertAgentRuntimeWithProfileParams{
-					WorkspaceID: wsUUID,
-					DaemonID:    strToText(req.DaemonID),
-					Name:        name,
-					RuntimeMode: "local",
-					Provider:    agent.ProfileRuntimeType(profile.RuntimeType, profile.ProtocolFamily),
-					Status:      "offline",
-					DeviceInfo:  strings.TrimSpace(req.DeviceName),
-					Metadata:    metadata,
-					OwnerID:     ownerID,
-					ProfileID:   profileUUID,
+					WorkspaceID:     wsUUID,
+					DaemonID:        strToText(req.DaemonID),
+					Name:            name,
+					RuntimeMode:     "local",
+					Provider:        agent.ProfileRuntimeType(profile.RuntimeType, profile.ProtocolFamily),
+					Status:          "offline",
+					DeviceInfo:      strings.TrimSpace(req.DeviceName),
+					Metadata:        metadata,
+					OwnerID:         ownerID,
+					ProfileID:       profileUUID,
+					RequiredOwnerID: ownerID,
 				}
 			},
 		)
 		if err != nil {
+			_ = sp.Rollback(r.Context())
+			slog.Warn("failed to record runtime profile registration failure",
+				"workspace_id", req.WorkspaceID, "daemon_id", req.DaemonID,
+				"profile_id", profileID, "error", err)
+			continue
+		}
+		if err := sp.Commit(r.Context()); err != nil {
 			slog.Warn("failed to record runtime profile registration failure",
 				"workspace_id", req.WorkspaceID, "daemon_id", req.DaemonID,
 				"profile_id", profileID, "error", err)
@@ -725,12 +967,21 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		}
 		// Keep the failed-profile row consistent with the machine's name so it
 		// doesn't drag the machine title back to the hostname (MUL-4217).
-		h.inheritMachineCustomName(r.Context(), db.AgentRuntime{
+		h.inheritMachineCustomName(r.Context(), qtx, db.AgentRuntime{
 			ID:          prow.ID,
 			WorkspaceID: prow.WorkspaceID,
 			DaemonID:    prow.DaemonID,
 			CustomName:  prow.CustomName,
 		}, prow.Inserted)
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		slog.Warn("register: commit failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "failed to register runtime")
+		return
+	}
+	for _, fn := range afterCommit {
+		fn()
 	}
 
 	slog.Info("daemon registered", "workspace_id", req.WorkspaceID, "daemon_id", req.DaemonID, "runtimes_count", len(resp))
@@ -739,14 +990,18 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		"runtimes": resp,
 	})
 
-	repoResp := workspaceReposResponse(req.WorkspaceID, ws.Repos, ws.Settings)
+	repoResp := workspaceReposResponse(req.WorkspaceID, ws.Repos, ws.Settings, h.cfg.GitExtraCACerts)
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"runtimes":      resp,
 		"repos":         repoResp.Repos,
 		"repos_version": repoResp.ReposVersion,
 		"settings":      repoResp.Settings,
-	})
+	}
+	if repoResp.CACerts != "" {
+		body["ca_certs"] = repoResp.CACerts
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 // mergeLegacyRuntimes folds every runtime row keyed on a prior hostname-derived
@@ -763,7 +1018,23 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 // precisely when case-duplicate rows exist — which is the bug we're fixing.
 // We also dedupe across legacy ids so overlapping candidates (e.g. `foo` and
 // `foo.local` both resolving to the same stored row) don't double-process.
-func (h *Handler) mergeLegacyRuntimes(r *http.Request, registered db.AgentRuntime, provider string, legacyIDs []string) {
+//
+// Authorization (MUL-8154): legacy_daemon_ids are client-supplied, so they are
+// a lookup hint, never proof of ownership. callerOwnerID is the user the
+// registration was authenticated as; the merge only proceeds when it is set
+// and owns both rows (re-verified on the locked rows inside the merge
+// transaction). A daemon-token registration passes a zero callerOwnerID and so
+// never merges: its token proves only its own daemon_id, and legacy rows
+// predate daemon tokens anyway.
+func (h *Handler) mergeLegacyRuntimes(r *http.Request, registered db.AgentRuntime, provider string, legacyIDs []string, callerOwnerID pgtype.UUID) {
+	if len(legacyIDs) == 0 {
+		return
+	}
+	if !callerOwnerID.Valid {
+		slog.Warn("legacy runtime merge skipped: registration has no user identity",
+			"new_runtime_id", uuidToString(registered.ID))
+		return
+	}
 	newID := uuidToString(registered.ID)
 	merged := make(map[string]struct{})
 
@@ -792,7 +1063,7 @@ func (h *Handler) mergeLegacyRuntimes(r *http.Request, registered db.AgentRuntim
 			}
 			merged[oldID] = struct{}{}
 
-			if err := h.mergeLegacyRuntime(r.Context(), registered.ID, old.ID, legacyID, provider); err != nil {
+			if err := h.mergeLegacyRuntime(r.Context(), registered.ID, old.ID, legacyID, provider, callerOwnerID); err != nil {
 				slog.Warn("legacy runtime merge failed",
 					"legacy_daemon_id", legacyID, "old_runtime_id", oldID, "new_runtime_id", newID, "error", err)
 			}
@@ -806,6 +1077,11 @@ func (h *Handler) mergeLegacyRuntimes(r *http.Request, registered db.AgentRuntim
 // registration re-runs it, and by then either the workspace is gone entirely or
 // the teardown rolled back.
 var errRuntimeMergeFenced = errors.New("runtime merge refused by the task-write fence")
+
+// errRuntimeMergeUnauthorized reports that the locked rows failed the
+// ownership check: different workspaces, or either side not owned by the
+// registering user. Nothing is moved or deleted.
+var errRuntimeMergeUnauthorized = errors.New("runtime merge refused: caller does not own both runtimes")
 
 // mergeLegacyRuntime folds one legacy runtime row into the freshly registered one,
 // as a single transaction.
@@ -835,7 +1111,7 @@ var errRuntimeMergeFenced = errors.New("runtime merge refused by the task-write 
 // Holding the fence lock from the first statement to COMMIT closes both: the
 // teardown cannot start deleting the target until this merge finishes, and any
 // failure rolls the whole merge back to its starting state.
-func (h *Handler) mergeLegacyRuntime(ctx context.Context, newRuntimeID, oldRuntimeID pgtype.UUID, legacyID, provider string) error {
+func (h *Handler) mergeLegacyRuntime(ctx context.Context, newRuntimeID, oldRuntimeID pgtype.UUID, legacyID, provider string, callerOwnerID pgtype.UUID) error {
 	tx, err := h.TxStarter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin merge tx: %w", err)
@@ -861,6 +1137,16 @@ func (h *Handler) mergeLegacyRuntime(ctx context.Context, newRuntimeID, oldRunti
 		// One of them went away while we were queueing for the lock; the fence
 		// inside the reassignment would refuse anyway.
 		return errRuntimeMergeFenced
+	}
+	// Ownership, checked on the rows we now hold FOR UPDATE so a concurrent
+	// owner change cannot slip in between check and move (MUL-8154).
+	if !callerOwnerID.Valid || len(locked) != 2 || locked[0].WorkspaceID != locked[1].WorkspaceID {
+		return errRuntimeMergeUnauthorized
+	}
+	for _, row := range locked {
+		if !row.OwnerID.Valid || row.OwnerID != callerOwnerID {
+			return errRuntimeMergeUnauthorized
+		}
 	}
 
 	reassignment, err := qtx.ReassignTasksToRuntime(ctx, db.ReassignTasksToRuntimeParams{
@@ -923,7 +1209,7 @@ func (h *Handler) GetDaemonWorkspaceRepos(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusOK, workspaceReposResponse(workspaceID, ws.Repos, ws.Settings))
+	writeJSON(w, http.StatusOK, workspaceReposResponse(workspaceID, ws.Repos, ws.Settings, h.cfg.GitExtraCACerts))
 }
 
 // setRuntimeOffline flips a runtime offline, recording the daemon's reason when
@@ -994,8 +1280,8 @@ func (h *Handler) DaemonDeregister(w http.ResponseWriter, r *http.Request) {
 		}
 
 		wsID := uuidToString(rt.WorkspaceID)
-		if !h.verifyDaemonWorkspaceAccess(r, wsID) {
-			slog.Warn("deregister: workspace mismatch", "runtime_id", rid)
+		if !h.verifyDaemonRuntimeAuthorized(r, rt) {
+			slog.Warn("deregister: runtime not authorized for caller", "runtime_id", rid)
 			continue
 		}
 
@@ -1152,7 +1438,7 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wsCheckStart := time.Now()
-	wsOK := h.requireDaemonWorkspaceAccess(w, r, uuidToString(rt.WorkspaceID))
+	wsOK := h.requireDaemonRuntimeAuthorized(w, r, uuidToString(rt.WorkspaceID), rt.DaemonID, rt.OwnerID, "runtime not found")
 	workspaceCheckMs = time.Since(wsCheckStart).Milliseconds()
 	if !wsOK {
 		outcome = "workspace_denied"
@@ -1710,6 +1996,10 @@ const claimBatchMaxTasksCap = 32
 // it self-heals via the heartbeat path).
 func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	buildDeadline, responseDeadline := batchClaimDeadlines(r.Context(), start)
+	buildCtx, cancelBuild := context.WithDeadline(r.Context(), buildDeadline)
+	defer cancelBuild()
+	r = r.WithContext(buildCtx)
 	var req struct {
 		DaemonID   string   `json:"daemon_id"`
 		RuntimeIDs []string `json:"runtime_ids"`
@@ -1810,7 +2100,11 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
-		if !h.verifyDaemonWorkspaceAccess(r, uuidToString(rt.WorkspaceID)) {
+		// Workspace access plus runtime ownership / daemon binding
+		// (MUL-8154). For user credentials the body daemon_id is
+		// caller-chosen, so the daemon_id check below is not an
+		// authorization boundary on its own.
+		if !h.verifyDaemonRuntimeAuthorized(r, rt) {
 			continue
 		}
 		// Group-ownership check (mirrors the WS path, daemon_ws.go): a runtime
@@ -1837,6 +2131,9 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]AgentTaskResponse, 0, len(claimed))
 	for i := range claimed {
+		if r.Context().Err() != nil {
+			break
+		}
 		task := claimed[i]
 		rt, ok := runtimeByID[uuidToString(task.RuntimeID)]
 		if !ok {
@@ -1858,8 +2155,7 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 		if failure != nil {
 			// Builder rejected this task (workspace isolation / chat-input);
 			// it has already settled the task where the failure requires it.
-			// Skip it — non-settling failures leave the task dispatched for
-			// the reclaim path.
+			// Undelivered claims are recovered below with a separate budget.
 			continue
 		}
 		if !rt.OwnerID.Valid {
@@ -1875,20 +2171,12 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 		if terr != nil {
 			slog.Error("batch claim: generate task token failed; requeueing claim",
 				"task_id", uuidToString(task.ID), "error", terr)
-			if _, rerr := h.TaskService.RequeueTaskAfterClaimFailure(r.Context(), task); rerr != nil {
-				slog.Error("batch claim: requeue after token-gen failure failed",
-					"task_id", uuidToString(task.ID), "error", rerr)
-			}
 			continue
 		}
 		remoteMCPToken, daemonTokens, derr := remoteMCPDaemonTokenForClaim(resp, rt)
 		if derr != nil {
 			slog.Error("batch claim: generate Remote MCP daemon token failed; requeueing claim",
 				"task_id", uuidToString(task.ID), "error", derr)
-			if _, rerr := h.TaskService.RequeueTaskAfterClaimFailure(r.Context(), task); rerr != nil {
-				slog.Error("batch claim: requeue after Remote MCP token failure failed",
-					"task_id", uuidToString(task.ID), "error", rerr)
-			}
 			continue
 		}
 		// Route through the SAME finalization as the per-runtime endpoint so the
@@ -1911,10 +2199,6 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 		if ferr != nil {
 			slog.Error("batch claim: finalize task claim failed; requeueing claim",
 				"task_id", uuidToString(task.ID), "error", ferr)
-			if _, rerr := h.TaskService.RequeueTaskAfterClaimFailure(r.Context(), task); rerr != nil {
-				slog.Error("batch claim: requeue after finalize failure failed",
-					"task_id", uuidToString(task.ID), "error", rerr)
-			}
 			continue
 		}
 		if deliveryFailure != nil {
@@ -1942,8 +2226,9 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 	// poll; a task that crossed fire_at during this request yields a bounded
 	// follow-up hint and is promoted on the next claim. If the lookup fails,
 	// omit the support bit so the daemon conservatively retains its ordinary
-	// PollInterval.
-	if len(out) < maxTasks && requestHasClientCapability(r, protocol.DaemonCapabilityClaimPollHintsV1) {
+	// PollInterval. Omitted claims also retain that short poll in case recovery
+	// failed or the task_available wakeup raced with this response.
+	if len(out) == len(claimed) && len(out) < maxTasks && requestHasClientCapability(r, protocol.DaemonCapabilityClaimPollHintsV1) {
 		nextDeferred, nextErr := h.Queries.NextDeferredTaskFireAtForRuntimes(r.Context(), db.NextDeferredTaskFireAtForRuntimesParams{
 			RuntimeIds:       authorized,
 			RuntimeStaleSecs: service.RuntimeClaimFreshnessSeconds,
@@ -1958,7 +2243,81 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if len(out) != len(claimed) {
+		// HTTP/1.1 cannot process another request until this handler returns.
+		// Keep the next claim off this connection while recovery is running.
+		w.Header().Set("Connection", "close")
+	}
 	writeMeasuredJSON(w, http.StatusOK, response)
+	if len(out) != len(claimed) {
+		// Deliver successful payloads before batch recovery side effects. Cache
+		// invalidation, event listeners and cross-node wakeups can use their own
+		// timeouts, so the recovery context alone cannot bound the response wait.
+		// HTTP already advertises Content-Length; flushing sends the whole body.
+		// WS keeps cleanup in the existing RPC worker after queuing its response.
+		cleanup := func() {
+			h.requeueUndeliveredBatchClaims(r.Context(), claimed, out, responseDeadline)
+		}
+		if !daemonws.AfterRPCResponse(r.Context(), cleanup) {
+			_ = http.NewResponseController(w).Flush()
+			cleanup()
+		}
+	}
+}
+
+const (
+	batchClaimRecoveryTimeout = time.Second
+	batchClaimResponseMargin  = 250 * time.Millisecond
+)
+
+// Reserve recovery and response time INSIDE the installed HTTP client's budget.
+// The WS response grace is for transport, not additional database work. Shorter
+// caller deadlines get proportionally smaller reserves; longer ones cannot
+// extend the HTTP-compatible batch budget.
+func batchClaimDeadlines(ctx context.Context, start time.Time) (build, response time.Time) {
+	deadline := start.Add(protocol.DaemonBatchClaimRequestTimeout)
+	if caller, ok := ctx.Deadline(); ok && caller.Before(deadline) {
+		deadline = caller
+	}
+	budget := max(deadline.Sub(start), 0)
+	response = deadline.Add(-min(batchClaimResponseMargin, budget/10))
+	build = response.Add(-min(batchClaimRecoveryTimeout, budget/4))
+	return build, response
+}
+
+// Share one deadline for recovery DB work across the batch. Post-commit cache,
+// event and wakeup side effects may outlive it, so callers deliver the response
+// first while retaining cleanup in the current HTTP/RPC request worker.
+func (h *Handler) requeueUndeliveredBatchClaims(ctx context.Context, claimed []db.AgentTaskQueue, delivered []AgentTaskResponse, responseDeadline time.Time) {
+	if len(claimed) == len(delivered) {
+		return
+	}
+	deliveredIDs := make(map[string]bool, len(delivered))
+	for _, task := range delivered {
+		deliveredIDs[task.ID] = true
+	}
+	deadline := time.Now().Add(batchClaimRecoveryTimeout)
+	if responseDeadline.Before(deadline) {
+		deadline = responseDeadline
+	}
+	ctx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
+	defer cancel()
+	for _, task := range claimed {
+		if deliveredIDs[uuidToString(task.ID)] {
+			continue
+		}
+		if ctx.Err() != nil {
+			slog.Warn("batch claim: recovery budget exhausted; stale reclaim will recover remaining claims", "error", ctx.Err())
+			break
+		}
+		// The existing CAS matches runtime + dispatched_at and requires an
+		// unstarted dispatched row. Settled, already requeued, started, and
+		// newer claims must remain untouched (ErrNoRows).
+		if _, err := h.TaskService.RequeueTaskAfterClaimFailure(ctx, task); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			slog.Error("batch claim: undelivered claim recovery failed; stale reclaim will recover it",
+				"task_id", uuidToString(task.ID), "error", err)
+		}
+	}
 }
 
 func claimPollHintDelay(now, fireAt time.Time) time.Duration {
@@ -2120,9 +2479,9 @@ type claimBuildFailure struct {
 // The two failures settle differently:
 //
 //   - The read FAILED (transient: DB blip, timeout, reset). Preserve the
-//     just-dispatched task so the stale-dispatched reclaim redelivers it,
-//     exactly as the chat-input load does (MUL-4351). This is the reachable
-//     case and the one worth fixing.
+//     just-dispatched task for redelivery. The batch endpoint requeues
+//     omitted claims within its response budget; the singular endpoint
+//     retains stale-dispatch recovery, as for chat-input reads (MUL-4351).
 //   - The row is GONE (ErrNoRows). Cancel: the task can never run, and
 //     preserving it would spin in the reclaim loop forever. Legacy FKs
 //     currently keep every one of these states from arising —
@@ -2155,10 +2514,9 @@ func (h *Handler) rejectClaimSourceLoad(ctx context.Context, task *db.AgentTaskQ
 	}
 }
 
-// rejectClaimSkillLoad settles a claim whose agent skills could not be read.
-// It mirrors rejectClaimSourceLoad's transient branch — preserve the
-// just-dispatched task so the stale-dispatched reclaim redelivers it — because
-// this is the same kind of failure: a transient read on the claim-build path.
+// rejectClaimSkillLoad preserves a claim whose agent skills could not be read.
+// Like other transient source failures, the batch endpoint requeues it within
+// its response budget; the singular endpoint retains stale-dispatch recovery.
 //
 // Dispatching with whatever loaded is not the safer half-measure it looks
 // like. LoadAgentSkills reads the whole skill set in two queries, so a failure
@@ -2236,6 +2594,9 @@ func remoteMCPDaemonTokenForClaim(resp AgentTaskResponse, runtime db.AgentRuntim
 		WorkspaceID: runtime.WorkspaceID,
 		DaemonID:    runtime.DaemonID.String,
 		ExpiresAt:   pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: true},
+		// Owner binding (MUL-8154). FinalizeTaskClaim re-binds it to the
+		// locked runtime owner inside the claim transaction.
+		OwnerID: runtime.OwnerID,
 	}}, nil
 }
 
@@ -3158,9 +3519,9 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			inputLoadErr = err
 		}
 		// A read failure must NOT masquerade as "zero input". Preserve the
-		// just-dispatched task (the stale-dispatched reclaim redelivers it)
-		// and reject the claim with 5xx, rather than cancelling a valid direct
-		// task on a transient DB error (MUL-4351 review).
+		// just-dispatched task for batch recovery (or singular stale reclaim)
+		// and reject its payload, rather than cancelling a valid direct task
+		// on a transient DB error (MUL-4351 review).
 		if inputLoadErr != nil {
 			slog.Error("chat claim: load chat input messages failed; preserving task for redelivery",
 				"task_id", uuidToString(task.ID),
@@ -4983,8 +5344,20 @@ func (h *Handler) GetTaskStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Runtime-level authorization (MUL-8154) from the same row: a bound task
+	// is visible only to its runtime's daemon (owner / matching daemon token).
+	// An unbound task — its runtime was deleted and the task kept as history —
+	// exposes only its status, so workspace access stays sufficient there:
+	// the daemon still needs a terminal answer to stop polling.
 	if !h.requireDaemonWorkspaceAccess(w, r, uuidToString(task.WorkspaceID)) {
 		return
+	}
+	if task.RuntimeID.Valid {
+		if uuidToString(task.RuntimeWorkspaceID) != uuidToString(task.WorkspaceID) ||
+			!daemonRuntimeBindingAllowed(r, task.RuntimeDaemonID, task.RuntimeOwnerID) {
+			writeError(w, http.StatusNotFound, "task not found")
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": task.Status})
@@ -5122,7 +5495,7 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 	// endpoint fires every 500ms for every running task, and that second
 	// lookup was a whole extra query per batch on the hottest write path in
 	// the system (MUL-6523).
-	task, wsID, ok := h.requireDaemonTaskAccessWithWorkspace(w, r, taskID)
+	task, scope, ok := h.requireDaemonTaskAccessWithScope(w, r, taskID)
 	if !ok {
 		return
 	}
@@ -5132,7 +5505,7 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 	// quick-create tasks is a product decision, not part of this optimization.
 	workspaceID := ""
 	if task.IssueID.Valid || task.ChatSessionID.Valid {
-		workspaceID = wsID
+		workspaceID = scope.WorkspaceID
 	}
 
 	// Column-wise parameters for the single batch insert below. Building them
@@ -5235,13 +5608,24 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		// per-message loop did. A bare INSERT ... RETURNING has no row-order
 		// guarantee, and subscribers render these events as they arrive, so the
 		// ordering lives in the query rather than in the clients.
+		chatSessionID := ""
+		if task.ChatSessionID.Valid {
+			chatSessionID = uuidToString(task.ChatSessionID)
+		}
 		for _, m := range created {
 			// The ordered CTE makes sqlc name the row type after the query
 			// rather than reusing the table model; the columns are the table's,
 			// in order, so the conversion is checked by the compiler and breaks
 			// loudly if the query ever stops returning the whole row.
-			h.publishTask(protocol.EventTaskMessage, workspaceID, "system", "", taskID,
-				taskMessageToPayload(db.TaskMessage(m), taskID, uuidToString(task.IssueID)))
+			h.Bus.Publish(events.Event{
+				Type:               protocol.EventTaskMessage,
+				WorkspaceID:        workspaceID,
+				ActorType:          "system",
+				TaskID:             taskID,
+				ChatSessionID:      chatSessionID,
+				ChatSessionOwnerID: scope.ChatSessionOwnerID,
+				Payload:            taskMessageToPayload(db.TaskMessage(m), taskID, uuidToString(task.IssueID)),
+			})
 		}
 	}
 
@@ -5814,7 +6198,7 @@ func (h *Handler) ListTaskMessagesByUser(w http.ResponseWriter, r *http.Request)
 	// 5xx here too: this endpoint does not drive the daemon's interrupt, but
 	// telling a reader "this task does not exist" because the DB blinked is
 	// the same lie, and it trains clients to give up on a retryable error.
-	wsID, err := h.TaskService.ResolveTaskWorkspaceIDChecked(r.Context(), task)
+	scope, err := h.TaskService.ResolveTaskScopeChecked(r.Context(), task)
 	if err != nil {
 		slog.Warn("resolve task workspace failed", "task_id", taskID, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to load task")
@@ -5822,7 +6206,14 @@ func (h *Handler) ListTaskMessagesByUser(w http.ResponseWriter, r *http.Request)
 	}
 	// Mismatch stays a 404 rather than a 403: a task in another workspace must
 	// be indistinguishable from one that does not exist.
+	wsID := scope.WorkspaceID
 	if wsID == "" || wsID != middleware.WorkspaceIDFromContext(r.Context()) {
+		writeError(w, http.StatusNotFound, "task not found")
+		return
+	}
+	// A chat task's transcript belongs to the chat session's creator alone;
+	// to anyone else it does not exist either.
+	if task.ChatSessionID.Valid && (scope.ChatSessionOwnerID == "" || scope.ChatSessionOwnerID != requestUserID(r)) {
 		writeError(w, http.StatusNotFound, "task not found")
 		return
 	}

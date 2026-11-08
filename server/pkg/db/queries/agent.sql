@@ -675,6 +675,35 @@ WHERE issue_id = $1 AND agent_id = $2
   AND comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(sqlc.narg('thread_comment_id')::uuid)
 RETURNING *;
 
+-- name: ReassignPendingAgentTasksToRuntime :one
+-- Moves an agent's not-yet-dispatched tasks to the runtime it was just rebound
+-- to. Claims fence on agent.runtime_id = task.runtime_id (MUL-6697), so a
+-- queued or deferred row left on the old runtime is claimable by neither
+-- daemon. Deferred rows move too: promotion is per runtime and would otherwise
+-- strand them later. Dispatched, running and waiting rows are already held by
+-- the old runtime's daemon and stay. Callers hold the agent row FOR UPDATE.
+--
+-- Same fence-verdict shape as ReassignTasksToRuntime: FenceOk = false must
+-- abort the rebind rather than commit a binding with stranded rows.
+WITH fence AS MATERIALIZED (
+    SELECT CASE WHEN EXISTS (
+        SELECT 1 FROM agent AS owner WHERE owner.id = @agent_id AND owner.workspace_id = @workspace_id
+    ) THEN lock_task_owner_rows(@agent_id, NULL, @new_runtime_id)
+      ELSE false END AS ok
+),
+reassigned AS (
+    UPDATE agent_task_queue
+    SET runtime_id = @new_runtime_id
+    WHERE agent_id = @agent_id
+      AND status IN ('queued', 'deferred')
+      AND runtime_id IS DISTINCT FROM @new_runtime_id
+      AND (SELECT ok FROM fence)
+    RETURNING id
+)
+SELECT
+    (SELECT ok FROM fence) AS fence_ok,
+    (SELECT count(*) FROM reassigned) AS reassigned_tasks;
+
 -- name: CancelAgentTasksByAgent :many
 -- Bulk-cancel every active (queued/dispatched/running) task for an agent.
 -- Returns the affected rows so callers can broadcast task:cancelled events.
@@ -720,9 +749,16 @@ WHERE id = $1;
 -- Hot-path status polling needs only the task status and the owning agent's
 -- workspace for authorization. Keep this independent of optional source links
 -- (issue, chat session, autopilot run) so it needs no source-entity lookup.
-SELECT atq.status, a.workspace_id
+-- The bound runtime's workspace / daemon / owner ride along (LEFT JOIN: a
+-- terminal task outlives a deleted runtime) so the daemon route can enforce
+-- runtime ownership without a second round trip (MUL-8154).
+SELECT atq.status, a.workspace_id, atq.runtime_id,
+       rt.workspace_id AS runtime_workspace_id,
+       rt.daemon_id AS runtime_daemon_id,
+       rt.owner_id AS runtime_owner_id
 FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
+LEFT JOIN agent_runtime rt ON rt.id = atq.runtime_id
 WHERE atq.id = $1;
 
 -- name: GetAgentTaskForDelegatedFailureUpdate :one
@@ -1206,7 +1242,7 @@ WHERE session_id NOT IN (SELECT session_id FROM retired_sessions)
     status IN ('completed', 'cancelled')
     OR (
       status = 'failed'
-      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized')
+      AND COALESCE(failure_reason, '') NOT IN ('iteration_limit', 'agent_fallback_message', 'api_invalid_request', 'codex_semantic_inactivity', 'agent_error.context_overflow', 'codex_resume_oversized', 'opencode_clock_skew')
       AND NOT (COALESCE(error, '') ILIKE '%400%' AND COALESCE(error, '') ILIKE '%invalid_request_error%')
       AND NOT (COALESCE(error, '') ILIKE '%image dimensions exceed max allowed size%' AND COALESCE(error, '') ILIKE '%image.source.base64.data%')
       -- A provider credential-resolution failure ("Could not resolve
