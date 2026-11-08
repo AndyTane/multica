@@ -55,7 +55,9 @@ func TestDshBackendExecuteStreamsProtocol(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell fixture")
 	}
-	bin := writeDshFixture(t, `
+	// The Multica-only fields travel only to the web bridge with the switch on.
+	t.Setenv(dshWebEnabledEnv, "1")
+	bin := writeDshFixtureNamed(t, "multica-dsh-web", `
 if [ "$1" != "--profile" ] || [ "$2" != "multica" ] || [ "$3" != "--stdio" ]; then exit 9; fi
 printf '%s\n' '{"v":1,"type":"ready","runtime":"dsh","plugin_version":"test","capabilities":{}}'
 IFS= read -r command
@@ -167,9 +169,68 @@ printf '%s\n' '{"v":1,"type":"models","models":[{"id":"deepseek-official/deepsee
 
 func writeDshFixture(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "dsh")
+	return writeDshFixtureNamed(t, "dsh", body)
+}
+
+func writeDshFixtureNamed(t *testing.T, name, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nset -eu\n"+body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return path
+}
+
+// TestBuildDshExecuteCommandWebOnlyFields pins the switch contract for the three
+// user-visible cases: with the switch off the frame is upstream-shaped; with it
+// on the Multica-only fields appear only when the target is the web bridge.
+func TestBuildDshExecuteCommandWebOnlyFields(t *testing.T) {
+	cases := []struct {
+		name       string
+		envValue   string
+		executable string
+		wantExtras bool
+	}{
+		{name: "switch off, web bridge", envValue: "", executable: "/opt/multica-dsh-web", wantExtras: false},
+		{name: "switch off, official dsh", envValue: "", executable: "/usr/local/bin/dsh", wantExtras: false},
+		{name: "switch on, web bridge", envValue: "1", executable: "/opt/multica-dsh-web", wantExtras: true},
+		{name: "switch on, web bridge exe", envValue: "1", executable: "C:\\tools\\multica-dsh-web.exe", wantExtras: true},
+		{name: "switch on, official dsh", envValue: "1", executable: "/usr/local/bin/dsh", wantExtras: false},
+		{name: "value other than 1 is off", envValue: "true", executable: "/opt/multica-dsh-web", wantExtras: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(dshWebEnabledEnv, tc.envValue)
+			command := buildDshExecuteCommand("task-1", "say done", tc.executable, ExecOptions{
+				Cwd: "/work", SystemPrompt: "Runtime brief", ThreadName: "TEST-1",
+			}, nil, nil)
+			data, err := json.Marshal(command)
+			if err != nil {
+				t.Fatal(err)
+			}
+			frame := string(data)
+			hasSystemPrompt := strings.Contains(frame, "\"system_prompt\"")
+			hasThreadName := strings.Contains(frame, "\"thread_name\"")
+			if hasSystemPrompt != tc.wantExtras || hasThreadName != tc.wantExtras {
+				t.Fatalf("frame = %s, want extras=%v", frame, tc.wantExtras)
+			}
+		})
+	}
+}
+
+func TestIsDshWebBridge(t *testing.T) {
+	cases := map[string]bool{
+		"multica-dsh-web":                true,
+		"C:\\tools\\multica-dsh-web.exe": true,
+		"/opt/Multica-DSH-Web":           true,
+		"dsh":                            false,
+		"/usr/local/bin/dsh":             false,
+		"Dsh.Cmd":                        false,
+		"":                               false,
+	}
+	for path, want := range cases {
+		if got := IsDshWebBridge(path); got != want {
+			t.Errorf("IsDshWebBridge(%q) = %v, want %v", path, got, want)
+		}
+	}
 }
