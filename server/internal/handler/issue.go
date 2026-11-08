@@ -3445,6 +3445,23 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	// Determine creator identity: agent (via X-Agent-ID header) or member.
 	creatorType, actualCreatorID := h.resolveActor(r, creatorID, workspaceID)
+	var creatorTaskID pgtype.UUID
+	if creatorType == "agent" {
+		// Actor headers are server-stamped, but provenance also has to bind
+		// the creating agent and its task to this issue's workspace. Keep
+		// this guard on both the ordinary and quick-create paths.
+		taskID, parseErr := util.ParseUUID(r.Header.Get("X-Task-ID"))
+		if parseErr != nil {
+			writeError(w, http.StatusForbidden, "issue creation requires the current agent task in this workspace")
+			return
+		}
+		task, taskErr := h.Queries.GetAgentTaskInWorkspace(r.Context(), db.GetAgentTaskInWorkspaceParams{ID: taskID, WorkspaceID: wsUUID})
+		if taskErr != nil || uuidToString(task.AgentID) != actualCreatorID {
+			writeError(w, http.StatusForbidden, "issue creation requires the current agent task in this workspace")
+			return
+		}
+		creatorTaskID = taskID
+	}
 
 	// Optional origin stamping (quick-create / autopilot). Only the
 	// allowed origin types are accepted; anything else is rejected so a
@@ -3500,14 +3517,8 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		// resolveActor runs, and the request resolves to creatorType=="member".
 		// We still re-check the task belongs to the acting agent before trusting
 		// it.
-		if taskIDHeader := r.Header.Get("X-Task-ID"); taskIDHeader != "" {
-			if taskUUID, perr := util.ParseUUID(taskIDHeader); perr == nil {
-				if task, terr := h.Queries.GetAgentTask(r.Context(), taskUUID); terr == nil && uuidToString(task.AgentID) == actualCreatorID {
-					originType = pgtype.Text{String: "agent_create", Valid: true}
-					originID = taskUUID
-				}
-			}
-		}
+		originType = pgtype.Text{String: "agent_create", Valid: true}
+		originID = creatorTaskID
 	}
 
 	// Prefix is workspace-level; pre-compute once so both the broadcast

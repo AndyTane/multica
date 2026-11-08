@@ -18,8 +18,8 @@ func r4Request(method, path, workspaceID string, body any) *http.Request {
 }
 
 // TestIssueDispatcherProjection pins B9: the member creator and a trusted
-// quick-create requester resolve; agent_create and forged quick-create contexts
-// do not, and a departed dispatcher stays readable with active=false.
+// quick-create requester resolve; an unlabelled agent_create origin and forged
+// quick-create contexts do not. A departed dispatcher stays readable with active=false.
 func TestIssueDispatcherProjection(t *testing.T) {
 	// member-created issue
 	memberIssue := dbfx.Issue(t, "Dispatcher member issue", testutil.Cols{})
@@ -32,7 +32,7 @@ func TestIssueDispatcherProjection(t *testing.T) {
 		t.Fatalf("member creator dispatcher = %v/%v", got.DispatcherUserID, got.DispatcherActive)
 	}
 
-	// agent_create issue (even with a human originator on its origin task)
+	// An unlabelled legacy run cannot prove a member asked, even with an originator.
 	creator := createHandlerTestAgent(t, "Dispatcher agent-create owner", nil)
 	originTask := dbfx.Task(t, creator, testutil.Cols{
 		"issue_id":            nil,

@@ -1238,7 +1238,7 @@ SELECT i.id,
        d.dispatcher_user_id,
        COALESCE(d.dispatcher_active, FALSE)::boolean AS dispatcher_active
 FROM issue i
-LEFT JOIN issue_dispatcher d ON d.id = i.id
+LEFT JOIN issue_dispatcher d ON d.id = i.id AND d.workspace_id = i.workspace_id
 WHERE i.workspace_id = $1
   AND i.id = ANY($2::uuid[])
 `

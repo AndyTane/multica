@@ -213,7 +213,7 @@ func TestStatusRuleIsFactJudgmentAtBothMoments(t *testing.T) {
 		"--kind reply",
 		"--kind act",
 		"--by specialist --kind approve --action",
-		"agent-created execution card with no dispatcher",
+		"execution card without trusted member lineage",
 		// Assigned deliverables must not be misread as status-neutral
 		// research: stage barriers and parent notifications key off the
 		// delivery write.

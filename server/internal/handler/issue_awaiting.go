@@ -11,7 +11,7 @@ import (
 )
 
 // CLAWSTA-151 B9/B10 resolve "who is this card waiting on" entirely in SQL over
-// the issue_dispatcher view (migrations/586) and the reserved review metadata,
+// the issue_dispatcher view (migrations/586 and 589) and the reserved review metadata,
 // so the list filter, the projection and the page's awaiting_problem reasons
 // cannot drift apart.
 
@@ -76,7 +76,7 @@ func awaitingMinePredicate(alias, meRef string) string {
 // the dispatcher's own unmarked/undeliverable cards, plus — for an owner/admin
 // viewer — every anomaly whose mark cannot reach a live member (dispatcher or
 // receiver gone, no trusted dispatcher left). A valid specialist mark and a
-// plain agent_create execution card (no dispatcher, no user mark) are never
+// execution card without trusted member lineage (no dispatcher, no user mark) are never
 // counted. The two clauses cannot double count: it is one predicate.
 func awaitingUnmarkedPredicate(alias, meRef string) string {
 	dispatcher := issueDispatcherUserExpr(alias)

@@ -273,8 +273,11 @@ func validateReviewCombination(ctx context.Context, q *db.Queries, issue db.Issu
 		if err != nil {
 			return err
 		}
-		if !dispatcher.Valid || !active {
-			return &reviewValidationError{"review_by user requires an active dispatcher"}
+		if !dispatcher.Valid {
+			return &reviewValidationError{"review_by user has no trusted member source: restore verified parent or creation-run lineage before publishing a user review"}
+		}
+		if !active {
+			return &reviewValidationError{"review_by user dispatcher has left the workspace: restore their membership before publishing a user review"}
 		}
 		memberAssignee, err := validateReviewAssignee(ctx, q, issue)
 		if err != nil {

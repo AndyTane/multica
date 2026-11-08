@@ -120,7 +120,7 @@ func TestReviewKindPublishMatrix(t *testing.T) {
 		publish(t, id, map[string]any{"status": "in_review", "review_metadata": map[string]any{"review_by": "user"}}, 400)
 	})
 
-	t.Run("no dispatcher rejects user review", func(t *testing.T) {
+	t.Run("unlabelled origin rejects user review", func(t *testing.T) {
 		creator := dbfx.Agent(t, "Agent-create owner", "")
 		originTask := dbfx.Task(t, creator, testutil.Cols{"issue_id": nil, "runtime_id": testRuntimeID, "originator_user_id": testUserID, "accountable_user_id": testUserID})
 		id, _ := reviewFixture(t, "No dispatcher", testutil.Cols{
