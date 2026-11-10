@@ -55,6 +55,30 @@ Preserve the Docker containers and volumes until the native deployment has been 
 
 ## Operations and recovery
 
+### GitHub credentials for agent tasks
+
+For this Windows account's GitHub access, use `scripts/git-cred-ghtoken.sh` and its companion PowerShell script as the Git credential helper. It reads the current Windows **User** environment variable `GH_TOKEN` on every HTTPS request to `github.com`. Updating or removing that user variable takes effect on the next Git operation; no daemon restart is required. It does not cache credentials, fall back to a stale process token, or return a GitHub token for other hosts.
+
+A running daemon inherits an environment snapshot, and managed Codex shells also exclude inherited `TOKEN` variables. Restarting a daemon therefore does not guarantee shell inheritance. This helper makes Git authentication independent of shell inheritance; it does not inject `GH_TOKEN` into arbitrary shell commands or change the Codex environment policy.
+
+An operator who wants Git processes under this Windows account to use the token can install the helper outside release checkouts:
+
+```powershell
+$helperRoot = 'D:\MulticaData\runtime'
+New-Item -ItemType Directory -Force -Path $helperRoot | Out-Null
+Copy-Item scripts/git-cred-ghtoken.sh, scripts/git-cred-ghtoken.ps1 -Destination $helperRoot
+```
+
+In the Windows account's `.gitconfig`, configure the GitHub-specific helper (the empty first entry resets earlier helpers for this host):
+
+```ini
+[credential "https://github.com"]
+    helper =
+    helper = !/d/MulticaData/runtime/git-cred-ghtoken.sh
+```
+
+Git for Windows supplies `cygpath`; Windows PowerShell reads the user variable without writing it to a file. Keep the helper path stable across application upgrades. Do not print `git credential fill` output: it contains the token. Validate with a normal Git operation from a process where `GH_TOKEN` is absent. Run the synthetic regression checks with `powershell -NoProfile -File scripts/git-cred-ghtoken.test.ps1`.
+
 ### External reporting policy
 
 This local fork disables PostHog product/error reporting, signup-attribution cookies, and daily self-host usage snapshots in code. `server/internal/privacy/reporting.go` and `packages/core/analytics/privacy.ts` are build policies, not environment switches: setting a PostHog key or clearing `DO_NOT_TRACK` cannot enable these reporting paths. The public config keeps its existing JSON fields empty, and web/desktop do not mount the source-attribution questionnaire.
