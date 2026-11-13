@@ -111,6 +111,41 @@ const openCard = (id: string) => fireEvent.click(screen.getByText(`card ${id}`))
 describe("IssuePeekHost", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it.each([
+    ["i-1", ["i-2", "i-3"], "Next issue", "i-2", "Previous issue"],
+    ["i-3", ["i-1", "i-2"], "Previous issue", "i-2", "Next issue"],
+  ] as const)("keeps the removed endpoint %s open and navigates inward", (id, remaining, direction, target, disabled) => {
+    const { setColumns } = renderHost();
+    openCard(id);
+    act(() => setColumns([remaining]));
+    expect(screen.getByTestId("detail")).toHaveTextContent(id);
+    expect(panel()).toHaveTextContent("0 / 2");
+    expect(screen.getByRole("button", { name: disabled })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: direction }));
+    expect(screen.getByTestId("detail")).toHaveTextContent(target);
+  });
+
+  it("keeps the replied card open after it leaves awaiting and navigates the remaining cards", () => {
+    const { setColumns } = renderHost();
+    openCard("i-2");
+    act(() => setColumns([["i-1", "i-3"], ["i-4"]]));
+    expect(screen.getByTestId("detail")).toHaveTextContent("i-2");
+    expect(panel()).toHaveTextContent("0 / 2");
+    fireEvent.click(screen.getByRole("button", { name: "Next issue" }));
+    expect(screen.getByTestId("detail")).toHaveTextContent("i-3");
+    expect(panel()).toHaveTextContent("2 / 2");
+  });
+
+  it("keeps the last replied card open with an empty list and disabled navigation", () => {
+    const { setColumns } = renderHost([["i-1"]]);
+    openCard("i-1");
+    act(() => setColumns([[]]));
+    expect(screen.getByTestId("detail")).toHaveTextContent("i-1");
+    expect(panel()).toHaveTextContent("0 / 0");
+    expect(screen.getByRole("button", { name: "Next issue" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Previous issue" })).toBeDisabled();
+  });
+
   it("opens the peeked issue as a peek-variant detail and marks its card", () => {
     renderHost();
     expect(panel()).toBeNull();

@@ -35,6 +35,20 @@ beforeEach(() => { vi.resetAllMocks(); vi.mocked(api.previewCommentTriggers).moc
 afterEach(cleanup);
 
 describe("review actions", () => {
+  it.each(["in_progress", "done"])("skips the fallback status write when the comment receipt reports %s", async (status) => {
+    vi.mocked(api.createComment).mockResolvedValue({ id: "c1", issue_revision: 9, issue_status: status } as never);
+    const qc = show();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Continue with this" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.queryByRole("textbox")).toBeNull());
+    expect(api.createComment).toHaveBeenCalledTimes(1);
+    expect(api.updateIssue).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalled();
+  });
+
   it("opens peek from the action sentence, approves with revision, and atomically undoes", async () => {
     vi.mocked(api.updateIssue).mockResolvedValue({ ...issue, status: "done", revision: 8, metadata: {} });
     show();

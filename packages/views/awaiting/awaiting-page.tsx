@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@multica/core/api";
@@ -13,6 +13,7 @@ import {
   awaitingProblemMessageKey,
   awaitingUnmarkedOptions,
   groupAwaiting,
+  issueKeys,
   ReviewFeedbackDeliveryError,
   reviewSince,
   reviewSnapshot,
@@ -57,11 +58,12 @@ type ReturnKind = "reject" | "reply" | "act";
 function ReturnControl({ issue, kind, owner }: { issue: Issue; kind: ReturnKind; owner: string | null }) {
   const { t } = useT("issues");
   const wsId = useWorkspaceId();
+  const qc = useQueryClient();
   const update = useReviewUpdate(wsId);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState<{ id: string; revision?: number } | null>(null);
+  const [sent, setSent] = useState<{ id: string; revision?: number; status?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const action = typeof issue.metadata.review_action === "string" ? issue.metadata.review_action.trim() : "";
@@ -91,11 +93,15 @@ function ReturnControl({ issue, kind, owner }: { issue: Issue; kind: ReturnKind;
     try {
       if (!feedback) {
         const comment = await sendReviewFeedback(issue, content());
-        feedback = { id: comment.id, revision: comment.issue_revision };
+        feedback = { id: comment.id, revision: comment.issue_revision, status: comment.issue_status };
         setSent(feedback);
+        void qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
+        void qc.invalidateQueries({ queryKey: issueKeys.timeline(issue.id) });
       }
-      if (!feedback.revision) throw new Error("Missing comment issue revision");
-      await update.mutateAsync({ id: issue.id, status: "in_progress", expected_revision: feedback.revision });
+      if (!feedback.status || feedback.status === "in_review" || feedback.status === "blocked") {
+        if (!feedback.revision) throw new Error("Missing comment issue revision");
+        await update.mutateAsync({ id: issue.id, status: "in_progress", expected_revision: feedback.revision });
+      }
       setOpen(false);
     } catch (err) {
       if (err instanceof ReviewFeedbackDeliveryError) {

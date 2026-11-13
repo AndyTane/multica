@@ -1462,6 +1462,10 @@ describe("useCreateComment — sibling caches under a shared key prefix", () => 
   });
 
   it("appends the created comment even when non-row table caches are loaded", async () => {
+    const awaitingKey = [...issueKeys.all(WS_ID), "awaiting", "mine"];
+    const countKey = [...issueKeys.all(WS_ID), "awaiting", "count"];
+    qc.setQueryData(awaitingKey, { issues: [], total: 1 });
+    qc.setQueryData(countKey, 1);
     qc.setQueryData<TimelineEntry[]>(issueKeys.timeline(ISSUE_ID), []);
     // Grouped rows are an infinite cache and facets a plain object — both live
     // under the `table-query` prefix next to the row pages, and neither has a
@@ -1488,5 +1492,7 @@ describe("useCreateComment — sibling caches under a shared key prefix", () => 
     expect(
       qc.getQueryData<TimelineEntry[]>(issueKeys.timeline(ISSUE_ID))?.map((e) => e.id),
     ).toEqual(["comment-1"]);
+    expect(qc.getQueryState(awaitingKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(countKey)?.isInvalidated).toBe(true);
   });
 });

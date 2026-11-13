@@ -37,6 +37,7 @@ type CommentResponse struct {
 	UpdatedAt      string  `json:"updated_at"`
 	Revision       int64   `json:"revision"`
 	IssueRevision  int64   `json:"issue_revision,omitempty"`
+	IssueStatus    string  `json:"issue_status,omitempty"`
 	ResolvedAt     *string `json:"resolved_at"`
 	ResolvedByType *string `json:"resolved_by_type"`
 	ResolvedByID   *string `json:"resolved_by_id"`
@@ -2023,7 +2024,10 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	}
 	var created db.CreateCommentRow
 	var err error
-	if len(attachmentIDs) > 0 {
+	var returnedIssue *db.Issue
+	var previousStatus string
+	{
+		// The comment, review handback and any attachments share one outcome.
 		// A comment and the attachments it was posted with are one visible
 		// change, and one database outcome. Committing the comment first leaves
 		// a window in which it can gain a reply and be deleted into a
@@ -2051,7 +2055,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		defer tx.Rollback(r.Context())
 		qtx := h.Queries.WithTx(tx)
 		created, err = qtx.CreateComment(r.Context(), createParams)
-		if err == nil {
+		if err == nil && len(attachmentIDs) > 0 {
 			var missing pgtype.UUID
 			missing, err = lockCommentAttachments(r.Context(), qtx, issue.WorkspaceID, issue.ID, attachmentIDs)
 			if err == nil && missing.Valid {
@@ -2059,20 +2063,43 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if err == nil {
+		if err == nil && len(attachmentIDs) > 0 {
 			err = qtx.LinkAttachmentsToComment(r.Context(), db.LinkAttachmentsToCommentParams{
 				CommentID: created.ID,
 				IssueID:   issue.ID,
 				Column3:   attachmentIDs,
 			})
 		}
+		if err == nil && authorType == "member" {
+			// CreateComment already holds the issue lock. Evaluate the same SQL
+			// predicate as the awaiting list against the current row, never the
+			// snapshot loaded before waiting for that lock.
+			var current db.Issue
+			current, err = qtx.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID})
+			if err == nil {
+				previousStatus = current.Status
+				var revision int64
+				// This fork stores review_since in metadata and has no review
+				// cleanup trigger; clear the same round in this atomic write.
+				updateErr := tx.QueryRow(r.Context(), `UPDATE issue AS i SET
+					status = 'in_progress', revision = revision + 1, updated_at = now(),
+					metadata = i.metadata - $4::text[] - 'review_since',
+					position = (SELECT COALESCE(MIN(target.position), 0) - 1 FROM issue target
+						WHERE target.workspace_id = i.workspace_id AND target.status = 'in_progress')
+					WHERE i.id = $1 AND i.workspace_id = $2 AND `+awaitingMinePredicate("i", "$3::uuid")+`
+					RETURNING revision`, issue.ID, issue.WorkspaceID, parseUUID(authorID), reviewKeys).Scan(&revision)
+				if updateErr == nil {
+					current, err = qtx.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID})
+					returnedIssue = &current
+					created.IssueRevision = revision
+				} else if !errors.Is(updateErr, pgx.ErrNoRows) {
+					err = updateErr
+				}
+			}
+		}
 		if err == nil {
 			err = tx.Commit(r.Context())
 		}
-	} else {
-		created, err = wakeupWrite(h, r, func(q *db.Queries) (db.CreateCommentRow, error) {
-			return q.CreateComment(r.Context(), createParams)
-		})
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		// The issue was deleted, possibly while this waited for its row lock.
@@ -2085,11 +2112,26 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	comment := created.Comment()
+	if returnedIssue != nil {
+		issue = *returnedIssue
+		updated := issueToResponse(issue, h.getIssuePrefix(r.Context(), issue.WorkspaceID))
+		h.fillStatusCategory(r.Context(), issue.WorkspaceID, &updated)
+		h.fillOneIssueDispatcher(r.Context(), issue.WorkspaceID, &updated)
+		// Reuse activity/realtime listeners, but do not call dispatchIssueRun:
+		// the comment's existing route below owns the single agent dispatch.
+		h.publish(protocol.EventIssueUpdated, uuidToString(issue.WorkspaceID), authorType, authorID, map[string]any{
+			"issue": updated, "status_changed": true, "prev_status": previousStatus,
+			"creator_type": issue.CreatorType, "creator_id": uuidToString(issue.CreatorID),
+		})
+	}
 
 	// Fetch linked attachments so the response includes them.
 	groupedAtt := h.groupAttachments(r, []pgtype.UUID{comment.ID})
 	resp := commentToResponse(comment, nil, groupedAtt[uuidToString(comment.ID)])
 	resp.IssueRevision = created.IssueRevision
+	if returnedIssue != nil {
+		resp.IssueStatus = returnedIssue.Status
+	}
 	slog.Info("comment created", append(logger.RequestAttrs(r), "comment_id", uuidToString(comment.ID), "issue_id", issueID)...)
 	h.publish(protocol.EventCommentCreated, uuidToString(issue.WorkspaceID), authorType, authorID, map[string]any{
 		"comment":             resp,

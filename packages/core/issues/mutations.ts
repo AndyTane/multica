@@ -846,6 +846,7 @@ export function useCreateComment(issueId: string) {
       syncParentAssignee?: boolean;
     }) => api.createComment(issueId, content, type, parentId, attachmentIds, suppressAgentIds, steerTaskIds, syncParentAssignee),
     onSuccess: (comment) => {
+      qc.invalidateQueries({ queryKey: [...issueKeys.all(wsId), "awaiting"] });
       if (comment.issue_revision) {
         onIssueAuxiliaryRevision(qc, wsId, issueId, comment.issue_revision);
       } else {
