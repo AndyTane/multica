@@ -52,7 +52,7 @@ export interface IssuePeekActions {
 }
 
 export interface IssuePeekPosition {
-  /** 1-based position inside the peeked issue's column. */
+  /** 1-based position; 0 while reading a card that left the published list. */
   index: number;
   total: number;
   prevId: string | null;
@@ -95,6 +95,26 @@ export function locateInColumns(
     };
   }
   return null;
+}
+
+/** Keep reading a removed card; navigate from its former gap in the live list. */
+export function locateRemovedInColumns(
+  columns: IssuePeekColumns | null,
+  previous: IssuePeekColumns | null,
+  issueId: string | null,
+): IssuePeekPosition | null {
+  if (!columns || !previous || !issueId) return null;
+  const c = previous.findIndex((column) => column.includes(issueId));
+  if (c < 0) return null;
+  const old = previous[c]!;
+  const live = columns[c] ?? [];
+  const before = new Set(old.slice(0, old.indexOf(issueId)));
+  const gap = live.filter((id) => before.has(id)).length;
+  return {
+    index: 0, total: live.length,
+    prevId: live[gap - 1] ?? null, nextId: live[gap] ?? null,
+    leftId: null, rightId: null,
+  };
 }
 
 /**

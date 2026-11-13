@@ -1105,6 +1105,8 @@ export const CommentParentSyncSchema = z.object({
 
 export const CommentSchema = z.object({
   id: z.string(),
+  issue_revision: z.number().int().positive().optional().catch(undefined),
+  issue_status: z.string().optional().catch(undefined),
   issue_id: z.string(),
   author_type: z.string(),
   author_id: z.string(),

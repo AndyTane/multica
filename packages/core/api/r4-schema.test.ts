@@ -79,6 +79,16 @@ const baseComment = {
   updated_at: "2026-11-07T00:00:00Z",
 };
 
+describe("comment handback receipt", () => {
+  it("accepts old servers and drops malformed additive values", () => {
+    expect(CommentSchema.parse(baseComment).issue_status).toBeUndefined();
+    expect(CommentSchema.parse({ ...baseComment, issue_status: 42, issue_revision: "bad" })).toMatchObject({ issue_status: undefined, issue_revision: undefined });
+  });
+  it("keeps the final issue status and revision", () => {
+    expect(CommentSchema.parse({ ...baseComment, issue_status: "in_progress", issue_revision: 9 })).toMatchObject({ issue_status: "in_progress", issue_revision: 9 });
+  });
+});
+
 describe("R4 parent-sync comment fields (B11)", () => {
   it("parses an ordinary comment with no parent_sync", () => {
     expect(CommentSchema.parse(baseComment).parent_sync).toBeUndefined();

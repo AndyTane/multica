@@ -31,6 +31,7 @@ import {
   IssuePeekPositionContext,
   PEEK_TARGET_ATTR,
   locateInColumns,
+  locateRemovedInColumns,
   useIssuePeekActions,
   useIssuePeekPosition,
   type IssuePeekActions,
@@ -78,7 +79,13 @@ export function IssuePeekHost({ children }: { children: ReactNode }) {
     [],
   );
   const openId = peekId;
-  const position = useMemo(() => locateInColumns(columns, openId), [columns, openId]);
+  const lastVisible = useRef<{ id: string; columns: IssuePeekColumns } | null>(null);
+  const position = useMemo(() => {
+    const visible = locateInColumns(columns, openId);
+    if (visible && openId && columns) lastVisible.current = { id: openId, columns };
+    return visible ?? locateRemovedInColumns(columns,
+      lastVisible.current?.id === openId ? lastVisible.current.columns : null, openId);
+  }, [columns, openId]);
 
   // Tracked from pointer events rather than queried with `:hover`, so the
   // card under a stationary pointer is known without a layout read.

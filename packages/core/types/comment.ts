@@ -58,6 +58,8 @@ export interface Comment {
   revision?: number;
   /** Parent issue revision after this semantic comment mutation. */
   issue_revision?: number;
+  /** Present when this comment atomically returned a review to the assignee. */
+  issue_status?: string;
   resolved_at: string | null;
   resolved_by_type: CommentAuthorType | null;
   resolved_by_id: string | null;
